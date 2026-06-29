@@ -1,0 +1,90 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Harness configuration",
+  "description": "Configuration for the autonomy loop and verification gate. Tune per project; /harness-init seeds the stack-specific fields.",
+  "type": "object",
+  "properties": {
+    "autonomy": {
+      "type": "object",
+      "description": "How much rope the loop gets. Configurable from supervised to full-auto.",
+      "properties": {
+        "mode": {
+          "enum": ["supervised", "auto"],
+          "description": "supervised = pause at checkpoints for human y/n; auto = run unattended (Ralph-style) within the caps below."
+        },
+        "maxIterations": {
+          "type": "integer", "minimum": 1,
+          "description": "Hard cap on loop iterations. The loop always stops here even if work remains."
+        },
+        "tokenBudget": {
+          "type": ["integer", "null"],
+          "description": "Approx output-token cap for the whole run; null = no cap. The loop stops when exceeded."
+        },
+        "skipPermissions": {
+          "type": "boolean",
+          "description": "Only honored when mode=auto. Passes --dangerously-skip-permissions to headless claude for true unattended runs. DANGEROUS — relies entirely on the gate + rollback + PreToolUse hook for safety. Default false."
+        },
+        "checkpoints": {
+          "type": "object",
+          "description": "Where supervised mode pauses for human approval (ignored in auto mode).",
+          "properties": {
+            "planApproval": { "type": "boolean", "description": "Pause after planning, before any code." },
+            "beforeRiskyOps": { "type": "boolean", "description": "Pause before pushes / migrations / deploys." },
+            "everyNIterations": { "type": "integer", "minimum": 0, "description": "Pause every N iterations for a sanity check. 0 = never." }
+          }
+        }
+      }
+    },
+    "loop": {
+      "type": "object",
+      "properties": {
+        "promptFile": { "type": "string", "description": "Phased prompt piped into each iteration." },
+        "planFile": { "type": "string", "description": "Mutable prioritized task stack." },
+        "progressFile": { "type": "string", "description": "Append-only session log." },
+        "oneItemPerIteration": { "type": "boolean", "description": "Enforce single-task iterations. Keep true." },
+        "autoRollbackOnRed": { "type": "boolean", "description": "git reset/stash-pop a failed iteration so the tree is never left broken." },
+        "commitOnGreen": { "type": "boolean" },
+        "tagOnGreen": { "type": "boolean", "description": "git tag each green iteration (loop-N) for easy revert." },
+        "stopWhenPlanEmpty": { "type": "boolean", "description": "Exit when fix_plan.md has no unchecked items (vs. re-plan)." }
+      }
+    },
+    "gate": {
+      "type": "object",
+      "description": "The verification gate. Each value is a shell command, or null to skip that step. /harness-init fills these from the chosen stack profile (harness/profiles/*.json). The harness defines WHEN these run; the stack profile defines WHAT they are. This is the seam that makes the harness tech-agnostic.",
+      "properties": {
+        "format":    { "type": ["string", "null"] },
+        "lint":      { "type": ["string", "null"] },
+        "typecheck": { "type": ["string", "null"] },
+        "test":      { "type": ["string", "null"] },
+        "build":     { "type": ["string", "null"] },
+        "e2e":       { "type": ["string", "null"], "description": "End-to-end / user-level check. Unit-green is not done." }
+      }
+    },
+    "verification": {
+      "type": "object",
+      "properties": {
+        "freshContextReview": { "type": "boolean", "description": "Require an independent review in a fresh context before merge. Doer != judge." },
+        "requireE2EEvidence": { "type": "boolean", "description": "Require captured end-to-end evidence (screenshot/run/log), not just passing unit tests." },
+        "evaluator": {
+          "type": "object",
+          "description": "Optional skeptical LLM evaluator (planner/generator/evaluator pattern). Worth the cost when the task exceeds what the model does reliably solo.",
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "rubric": { "type": "string", "description": "Path to the scoring rubric." },
+            "failBelow": { "type": "number", "description": "Sprint fails if any criterion scores below this hard threshold." }
+          }
+        }
+      }
+    },
+    "stack": {
+      "type": "object",
+      "description": "Detected/declared stack. Set by /harness-init via the stack-detect skill.",
+      "properties": {
+        "profile": { "type": ["string", "null"], "description": "Name of the profile in harness/profiles/, e.g. 'node'." },
+        "languages": { "type": "array", "items": { "type": "string" } },
+        "packageManager": { "type": ["string", "null"] },
+        "runtime": { "type": ["string", "null"] }
+      }
+    }
+  }
+}

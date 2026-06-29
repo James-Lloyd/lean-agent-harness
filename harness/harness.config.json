@@ -1,0 +1,53 @@
+{
+  "$schema": "./harness.schema.json",
+  "_comment": "The one file you tune per project. /harness-init writes the stack-specific bits (gate commands, stack profile). See harness.schema.json for the full field reference.",
+
+  "autonomy": {
+    "mode": "supervised",
+    "maxIterations": 20,
+    "tokenBudget": null,
+    "skipPermissions": false,
+    "checkpoints": {
+      "planApproval": true,
+      "beforeRiskyOps": true,
+      "everyNIterations": 5
+    }
+  },
+
+  "loop": {
+    "promptFile": "PROMPT.md",
+    "planFile": "state/fix_plan.md",
+    "progressFile": "state/PROGRESS.md",
+    "oneItemPerIteration": true,
+    "autoRollbackOnRed": true,
+    "commitOnGreen": true,
+    "tagOnGreen": true,
+    "stopWhenPlanEmpty": true
+  },
+
+  "gate": {
+    "format": null,
+    "lint": null,
+    "typecheck": null,
+    "test": null,
+    "build": null,
+    "e2e": null
+  },
+
+  "verification": {
+    "freshContextReview": true,
+    "requireE2EEvidence": true,
+    "evaluator": {
+      "enabled": false,
+      "rubric": "docs/principles/evaluator-rubric.md",
+      "failBelow": 7
+    }
+  },
+
+  "stack": {
+    "profile": null,
+    "languages": [],
+    "packageManager": null,
+    "runtime": null
+  }
+}

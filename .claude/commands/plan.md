@@ -1,0 +1,35 @@
+---
+description: Decompose intent into specs + a prioritized, one-task-at-a-time plan and JSON manifest.
+argument-hint: "<what you want built or fixed>"
+allowed-tools: Read, Write, Edit, Glob, Grep, Agent, AskUserQuestion
+---
+
+# /plan — turn intent into an executable plan
+
+Goal: $ARGUMENTS
+
+You are the **planner**. Expand the human's intent into a plan the loop can execute one item at a
+time. Be ambitious about scope but precise about decomposition. Do **not** write feature code here.
+
+## Do this
+1. **Study first.** Read `CLAUDE.md`, relevant `specs/`, `docs/architecture/`, and existing code.
+   Search before assuming something doesn't exist.
+2. **Clarify the why, not just the what.** If the outcome or acceptance criteria are ambiguous, ask
+   (AskUserQuestion). Capture *why* this matters — the next amnesiac loop needs it.
+3. **Update the source of truth.** If this introduces or changes requirements, write/extend a spec in
+   `specs/` (e.g. `specs/NNN-<slug>.md`) with concrete, testable acceptance criteria — prefer
+   executable ones ("startup < 800ms", "endpoint returns 200 with schema X", "reproduce bug, verify fix").
+4. **Decompose into small, independently-shippable items.** Each item = one loop iteration's worth of
+   work, fully implementable (no "and also…"). Order by priority and dependency.
+5. **Write the plan to `state/fix_plan.md`** as a checkbox list, highest priority first. Each item:
+   `- [ ] <imperative task>  — done when: <verifiable condition>`
+6. **Mirror into `state/tasks.json`** (the machine-readable manifest) using the schema already there:
+   one object per item with `description`, `steps`, `acceptance`, `passes: false`. Enumerate granularly
+   so the loop can't declare premature victory. You may later edit only the `passes` field, never the
+   description.
+7. **Sprint contract (optional but recommended for non-trivial work).** Use the `sprint-contract`
+   skill to agree the "definition of done" up front before any code is written.
+
+## Output
+A short summary: the spec(s) touched, the number of plan items, the first 3 the loop will tackle, and
+any open questions you escalated. Then stop — execution is `/loop`'s job.

@@ -1,0 +1,31 @@
+{
+  "name": "node",
+  "description": "Reference profile: TypeScript/Node project. Adjust commands to match the repo's scripts.",
+
+  "detect": {
+    "files": ["package.json", "pnpm-lock.yaml", "package-lock.json", "yarn.lock", "tsconfig.json"],
+    "globs": ["**/*.ts", "**/*.tsx", "**/*.js"]
+  },
+
+  "languages": ["typescript", "javascript"],
+  "packageManager": "pnpm",
+  "runtime": "node",
+
+  "gate": {
+    "format": "pnpm exec prettier --write .",
+    "lint": "pnpm exec eslint . --max-warnings=0",
+    "typecheck": "pnpm exec tsc --noEmit",
+    "build": "pnpm run build",
+    "test": "pnpm test -- --run",
+    "e2e": "pnpm run test:e2e"
+  },
+
+  "commands": {
+    "install": "pnpm install",
+    "run": "pnpm run dev"
+  },
+
+  "lsp": {
+    "servers": ["tsserver", "eslint"]
+  }
+}
