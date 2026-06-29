@@ -1,7 +1,8 @@
-# Harness
+# lean-agent-harness
 
 A portable, tech-stack-agnostic engineering harness for AI coding agents (Claude Code first,
-but the state lives in plain files so it survives a model/tool swap).
+but the state lives in plain files so it survives a model/tool swap). Clone it into any project,
+run `/harness-init`, and the AI works against checks — not blind trust.
 
 > **Agent = Model + Harness.** The model is fixed for a given session; the harness is everything
 > else — the constraints, guides, feedback loops, tooling, and state that channel a powerful but
@@ -92,7 +93,7 @@ iteration/token caps, checkpoints, and the verification gate.
 |------|------------|
 | `CLAUDE.md` | The root **context map** (~100 lines, a navigation map — not a 1000-page manual). `/harness-init` fills it. |
 | `AGENTS.md` | Portability shim → points other agents (Codex, opencode) at `CLAUDE.md`. No proprietary lock-in. |
-| `.claude/commands/` | Slash commands: `harness-init`, `onboard`, `plan`, `work`, `loop`, `verify`, `review`, `handoff`, `ratchet`, `gc`. |
+| `.claude/commands/` | Slash commands: `harness-init`, `harness-prune`, `onboard`, `plan`, `work`, `loop`, `verify`, `review`, `handoff`, `ratchet`, `gc`. |
 | `.claude/agents/` | Subagent roles: `planner`, `generator`, `evaluator`, `reviewer`, `doc-gardener`. The doer is never the judge. |
 | `.claude/skills/` | Progressive-disclosure skills: `stack-detect`, `sprint-contract`, `evaluator-rubric`, `e2e-evidence`. |
 | `.claude/settings.json` | Hooks (format/lint/typecheck on edit; block destructive bash) + permissions + env. |
@@ -174,7 +175,19 @@ iteration that fails the validate gate. Full contract: [`docs/principles/workflo
 
 ---
 
+## Slim it down after setup
+
+The harness ships with teaching comments, examples, and reference profiles so it's self-explanatory.
+Once `/harness-init` has made it yours, run **`/harness-prune`** to strip the now-dead scaffolding —
+instructional comments in the always-loaded files (`CLAUDE.md`, `AGENT_NOTES.md`, `PROMPT.md`), the
+`examples/` folder, and unused stack profiles. Less noise competing for the model's attention every
+session, and it's a single revertible commit. ("Map, not manual" applies to the harness itself.)
+
 ## Status
 
 This is **v0.1** — by design. A harness is a living system shaped by *your* failure history, not a
 config you set once. Start here, then ratchet. See [`docs/principles/harness-philosophy.md`](docs/principles/harness-philosophy.md).
+
+## License
+
+[MIT](LICENSE) © 2026 James Lloyd.

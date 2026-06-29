@@ -105,4 +105,7 @@ Summarize, concisely: project identity, chosen stack + profile, the exact gate, 
 where state lives, and the 3–4 commands the human will use day to day (`/plan`, `/loop`, `/review`,
 `/ratchet`). Tell them the harness is v0.1 by design and grows via `/ratchet`.
 
-Then delete nothing — but note that `/harness-init` shouldn't be run again unless re-initializing.
+Then delete nothing here — but tell the human that once they're happy the setup is right, **`/harness-prune`**
+will strip the now-unnecessary teaching scaffolding (instructional comments, `examples/`, unused
+profiles) so less noise competes for the model's attention each session. Note that `/harness-init`
+shouldn't be run again unless re-initializing.

@@ -114,6 +114,11 @@ frontend and backend, it'll spot that and set up both.
 
 **3. You're ready.** There's nothing else to wire up.
 
+> **Tidy up (optional).** The harness comes with lots of explanatory notes so it's easy to understand.
+> Once you're happy with the setup, run **`/harness-prune`** and it'll clean those out — leaving a
+> leaner project where the AI isn't distracted by setup instructions it no longer needs. It shows you
+> what it'll remove first, and it's fully undoable.
+
 ---
 
 ## Using it day to day
