@@ -1,9 +1,16 @@
 #!/usr/bin/env bash
 # checkpoint.sh — git as the loop's undo button (bash mirror of checkpoint.ps1).
+# Rollback is `git reset --hard` + `git clean -fd`, which discards UNCOMMITTED tree changes. Do not edit
+# the tree while the loop runs; prefer a dedicated branch/worktree. The ref is persisted to
+# harness/.checkpoint for crash visibility.
 _CHECKPOINT_REF=""
+_CHECKPOINT_FILE="$SCRIPT_DIR/.checkpoint"
 
 assert_clean_git_tree() {
   [ -d "$REPO_ROOT/.git" ] || { echo "Not a git repo. The loop needs git for checkpoint/rollback. Run: git init"; exit 1; }
+  if ! git rev-parse --verify HEAD >/dev/null 2>&1; then
+    echo "Repo has no commits yet. Make an initial commit before starting the loop (rollback needs a HEAD)."; exit 1
+  fi
   if [ -n "$(git status --porcelain)" ]; then
     echo "Working tree is dirty. Commit or stash before starting the loop."; exit 1
   fi
@@ -11,17 +18,20 @@ assert_clean_git_tree() {
 
 new_checkpoint() {  # $1 label
   _CHECKPOINT_REF="$(git rev-parse HEAD)"
+  printf '%s' "$_CHECKPOINT_REF" > "$_CHECKPOINT_FILE" 2>/dev/null || true
   echo "  ⎘ checkpoint @ ${_CHECKPOINT_REF:0:8} ($1)"
 }
 
 restore_checkpoint() {
-  [ -z "$_CHECKPOINT_REF" ] && return 0
-  git reset --hard "$_CHECKPOINT_REF" >/dev/null
+  local ref="$_CHECKPOINT_REF"
+  [ -z "$ref" ] && [ -f "$_CHECKPOINT_FILE" ] && ref="$(cat "$_CHECKPOINT_FILE")"
+  [ -z "$ref" ] && return 0
+  git reset --hard "$ref" >/dev/null
   git clean -fd >/dev/null
-  echo "  ↩ restored to ${_CHECKPOINT_REF:0:8}"
+  echo "  ↩ restored to ${ref:0:8}"
 }
 
-clear_checkpoint() { _CHECKPOINT_REF=""; }
+clear_checkpoint() { _CHECKPOINT_REF=""; rm -f "$_CHECKPOINT_FILE" 2>/dev/null || true; }
 
 commit_iteration() {  # $1 index
   git add -A
@@ -33,4 +43,7 @@ Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>"
   echo "  ✔ committed iteration $1"
 }
 
-tag_iteration() { git tag -f "loop-$1" >/dev/null; echo "  🏷 tagged loop-$1"; }
+tag_iteration() {  # $1 index  $2 runId(optional)
+  local tag; if [ -n "${2:-}" ]; then tag="loop-$2-$1"; else tag="loop-$1"; fi
+  git tag -f "$tag" >/dev/null; echo "  🏷 tagged $tag"
+}

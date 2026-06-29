@@ -15,6 +15,8 @@ then make minimal fixes — each independently verifiable through the gate.
 ## Scan for (pick what's relevant to the focus)
 - **Stale docs** — `CLAUDE.md` over ~100 lines, `docs/` entries contradicting the code, broken
   cross-links, rules in CLAUDE.md no longer earning their place (delete them — the ratchet cuts both ways).
+- **`AGENT_NOTES.md` bloat** — append-only and always-loaded; compact it (dedupe learnings, drop notes
+  about code/commands that no longer exist) so it doesn't silently grow the per-session context.
 - **Dead code** — unreferenced files/exports/functions.
 - **Duplication** — hand-written helpers that duplicate an existing shared utility (a golden-principle
   violation — prefer the shared one).

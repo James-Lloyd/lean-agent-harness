@@ -2,8 +2,9 @@
 
 The harness drives every task through an explicit lifecycle. This is the Planner / Generator /
 Evaluator pattern (separate the doer from the judge) made concrete as phases with a gate between each.
-`/work` orchestrates it; the discrete commands (`/plan`, `/loop`, `/verify`, `/review`) are the
-individual phases you can also run by hand.
+`/work` orchestrates the phases with a checkpoint between each; `/plan`, `/verify`, and `/review` are
+individual phases you can also run by hand. `/loop` is different — it runs one **full** iteration
+(study→implement→verify→record) in a single supervised pass, the same unit the unattended loop repeats.
 
 Each task in `state/tasks.json` carries a **`status`** that advances along the lifecycle, so work is
 resumable and glanceable:
@@ -25,7 +26,7 @@ non-trivial work, a **sprint contract** (agreed definition of done) *before any 
   `workflow.requireSprintContractBefore` applies, a sprint contract exists and is agreed.
 - **Status:** `todo → planned`.
 
-## Phase 2 — EXECUTE  (`/loop` / the `generator` subagent)
+## Phase 2 — EXECUTE  (the `generator` subagent; or the implement step of `/loop`)
 Implement **one** task, **fully** — no placeholders. Search before assuming. Edits trigger the fast
 component gate automatically (format/lint/typecheck via the PostToolUse hook).
 - **Exit gate:** the change is complete and the fast gate is clean.

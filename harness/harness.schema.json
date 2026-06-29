@@ -28,7 +28,8 @@
           "description": "supervised = pause at checkpoints for human y/n; auto = run unattended (Ralph-style) within the caps below."
         },
         "maxIterations": { "type": "integer", "minimum": 1, "description": "Hard cap on loop iterations." },
-        "tokenBudget": { "type": ["integer", "null"], "description": "Approx output-token cap for the whole run; null = no cap." },
+        "maxTurnsPerIteration": { "type": "integer", "minimum": 1, "description": "Passed to `claude -p --max-turns` to hard-bound a single iteration's tool-call turns (so one iteration can't run away). Default 40." },
+        "tokenBudget": { "type": ["integer", "null"], "description": "Best-effort, per-run token cap (ESTIMATE — claude -p text mode rarely reports counts, so a per-iteration estimate is used). Reset at each run start. The HARD runaway bounds are maxIterations + maxTurnsPerIteration; treat this as advisory. null = no cap." },
         "skipPermissions": { "type": "boolean", "description": "Only honored when mode=auto. Passes --dangerously-skip-permissions for true unattended runs. DANGEROUS — safety rests on the gate + rollback + PreToolUse hook. Default false." },
         "checkpoints": {
           "type": "object",

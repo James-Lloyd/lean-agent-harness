@@ -52,9 +52,13 @@ iterations. Everything you need is on disk. Work the phases in order. Do exactly
 14. Append any new run/build gotcha or learning to `AGENT_NOTES.md`.
 15. Tick the completed item in `state/fix_plan.md`. Add a one-line entry to `state/PROGRESS.md`.
 
-## Phase 5 — Commit
-16. Commit with a descriptive, conventional message. If the full gate is green, the loop runner will
-    tag the commit. Leave the working tree clean and the build green.
+## Phase 5 — Hand off (do NOT commit — the loop runner does)
+16. Leave your changes **staged or unstaged but complete** — do not run `git commit` yourself. The loop
+    runner runs the gate and, only if it's green, makes the commit (and tag) for this iteration. If you
+    commit here too you'll create a redundant/empty commit and muddle the gate↔commit ordering.
+    Just leave the working tree in a complete, gate-passing state.
+    (Note: the in-session `/loop` and `/work` commands DO commit — there's no separate runner there.
+    This no-commit rule is specific to PROMPT.md, which is driven by the headless loop.)
 
 ## Stop / escalate conditions
 - If `state/fix_plan.md` has no unchecked items → say so and stop (the loop will exit or re-plan).

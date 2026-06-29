@@ -13,7 +13,7 @@
   "runtime": "<node | python | go | ...>",
 
   "gate": {
-    "_comment": "Each is a shell command run from the repo root, or null to skip. Order of execution is fixed by the harness: format -> lint -> typecheck -> build -> test -> e2e.",
+    "_comment": "Each is a shell command run from THIS COMPONENT's directory (the repo root for the cross-cutting root gate), or null to skip. Order of execution is fixed by the harness: format -> lint -> typecheck -> build -> test -> e2e.",
     "format": "<format command, e.g. prettier --write .>",
     "lint": "<lint command>",
     "typecheck": "<typecheck command, or null if untyped>",

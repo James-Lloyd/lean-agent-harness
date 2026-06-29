@@ -2,9 +2,15 @@
   "$schema": "../../harness/harness.schema.json",
   "_comment": "WORKED EXAMPLE — a headless project: frontend/ (Next.js + TypeScript, pnpm) + backend/ (FastAPI + Python, uv), with a cross-cutting Playwright e2e that drives the running app end to end. This is what /harness-init would produce for such a project. Copy the shape; adjust commands to your repo's real scripts.",
 
+  "project": {
+    "type": "greenfield",
+    "baseline": { "established": false, "ref": null }
+  },
+
   "autonomy": {
     "mode": "supervised",
     "maxIterations": 20,
+    "maxTurnsPerIteration": 40,
     "tokenBudget": null,
     "skipPermissions": false,
     "checkpoints": { "planApproval": true, "beforeRiskyOps": true, "everyNIterations": 5 }

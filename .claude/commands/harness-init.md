@@ -71,9 +71,9 @@ With answers in hand:
 - **Nested `CLAUDE.md`** — for each non-trivial component, copy `harness/templates/component-CLAUDE.md`
   into that component's directory (e.g. `frontend/CLAUDE.md`) and fill it. Skip for a single-root project.
 - **`AGENT_NOTES.md`** — fill the run/build/test commands and any known environment quirks.
-- **`.claude/settings.json`** — if OS is **not** Windows, rewrite the three hook commands from
-  `pwsh -NoProfile -ExecutionPolicy Bypass -File ".../<hook>.ps1"` to
-  `bash "${CLAUDE_PROJECT_DIR}/.claude/hooks/<hook>.sh"`. On Windows, leave as-is. Tighten the
+- **`.claude/settings.json`** — the shipped hook commands use `powershell …<hook>.ps1` (Windows). If OS
+  is **not** Windows, rewrite the three hook commands to `bash "${CLAUDE_PROJECT_DIR}/.claude/hooks/<hook>.sh"`
+  (or `pwsh …` if you standardize on PowerShell 7). On Windows, leave as-is. Tighten the
   `permissions.ask`/`deny` lists for any project-specific guardrails from Step 2.7.
 
 ## Step 4 — Scaffold the working state

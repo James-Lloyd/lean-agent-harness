@@ -6,11 +6,14 @@
 
 .DESCRIPTION
   Stateless loop, stateful files. Each iteration pipes PROMPT.md into a fresh `claude` headless
-  session, then runs the verification gate. Green => commit (+tag). Red => roll back so the tree is
-  never left broken. Bounded by maxIterations and tokenBudget. In supervised mode it pauses at
-  checkpoints; in auto mode it runs unattended.
+  session, then runs the verification gate. Green => commit (+tag). Red (or a gate error, or config
+  tampering) => roll back so the tree is never left broken. Bounded by maxIterations, a per-iteration
+  --max-turns, and a best-effort tokenBudget. Supervised pauses at checkpoints; auto runs unattended.
 
   Config: harness/harness.config.json  (see harness.schema.json for fields)
+
+  Runs commands through cmd on Windows and bash elsewhere, so this works under pwsh on Unix too.
+  Do NOT edit the working tree while the loop runs — rollback uses `git reset --hard`/`git clean -fd`.
 
 .EXAMPLE
   powershell harness/loop.ps1                            # Windows PowerShell 5.1
@@ -37,18 +40,27 @@ $cfg = Get-Content $ConfigPath -Raw | ConvertFrom-Json
 
 # CLI overrides win over config file
 if ($Mode)          { $cfg.autonomy.mode = $Mode }
-if ($MaxIterations) { $cfg.autonomy.maxIterations = $MaxIterations }
+if ($PSBoundParameters.ContainsKey('MaxIterations')) { $cfg.autonomy.maxIterations = $MaxIterations }
 
-. (Join-Path $PSScriptRoot 'lib/gate.ps1')
+. (Join-Path $PSScriptRoot 'lib/gate.ps1')        # also provides Get-Prop (StrictMode-safe accessor)
 . (Join-Path $PSScriptRoot 'lib/checkpoint.ps1')
 . (Join-Path $PSScriptRoot 'lib/budget.ps1')
 
-$runDir = Join-Path $PSScriptRoot ('.runs/' + (Get-LoopRunId))
+$runId  = Get-LoopRunId
+$runDir = Join-Path $PSScriptRoot ('.runs/' + $runId)
 New-Item -ItemType Directory -Force -Path $runDir | Out-Null
+$ledgerPath = Join-Path $runDir 'ledger.jsonl'
+Reset-Budget   # tokenBudget is a per-run cap, not a lifetime counter
+
+# Tamper-pin: the agent must not rewrite its own gate/policy. We hash the config at start and abort an
+# iteration whose run changed it (settings.json also denies writes to it; this is the belt to that braces).
+function Get-ConfigHash { (Get-FileHash $ConfigPath -Algorithm SHA256).Hash }
+$configHash0 = Get-ConfigHash
+
+function Write-Ledger($obj) { ($obj | ConvertTo-Json -Compress) | Add-Content -Path $ledgerPath -Encoding utf8 }
 
 function Confirm-Checkpoint([string]$label) {
-  # In auto mode, never block. In supervised mode, ask.
-  if ($cfg.autonomy.mode -eq 'auto') { return $true }
+  if ($cfg.autonomy.mode -eq 'auto') { return $true }   # auto never blocks
   Write-Host "`n⏸  Checkpoint: $label" -ForegroundColor Yellow
   $ans = Read-Host "   Continue? [y/N]"
   return ($ans -match '^(y|yes)$')
@@ -57,19 +69,30 @@ function Confirm-Checkpoint([string]$label) {
 function Get-OpenItemCount {
   $plan = Join-Path $RepoRoot $cfg.loop.planFile
   if (-not (Test-Path $plan)) { return 0 }
-  # Count unchecked markdown checkboxes: "- [ ]"
   return @(Select-String -Path $plan -Pattern '^\s*[-*]\s+\[ \]' -ErrorAction SilentlyContinue).Count
 }
 
+# Does any gate (component or root) define an e2e step? Used to warn honestly about unit-green commits.
+function Test-AnyE2E {
+  $comps = @(Get-Prop $cfg 'components')
+  foreach ($c in $comps) { if (Get-Prop (Get-Prop $c 'gate') 'e2e') { return $true } }
+  if (Get-Prop (Get-Prop $cfg 'gate') 'e2e') { return $true }
+  return $false
+}
+
 # --- preflight -----------------------------------------------------------------
-Assert-CleanGitTree   # from checkpoint.ps1 — refuse to start on a dirty tree
-# Project type (StrictMode-safe access; default greenfield for older configs).
+Assert-CleanGitTree   # refuse to start on a dirty tree / no-HEAD repo
 $projType = 'greenfield'
 if (($cfg.PSObject.Properties.Name -contains 'project') -and $cfg.project) { $projType = $cfg.project.type }
-Write-Host "🔧 Harness loop | type=$projType | mode=$($cfg.autonomy.mode) | maxIter=$($cfg.autonomy.maxIterations) | budget=$($cfg.autonomy.tokenBudget)" -ForegroundColor Cyan
+$maxTurns = Get-Prop $cfg.autonomy 'maxTurnsPerIteration'; if (-not $maxTurns) { $maxTurns = 40 }
+Write-Host "🔧 Harness loop | type=$projType | mode=$($cfg.autonomy.mode) | maxIter=$($cfg.autonomy.maxIterations) | maxTurns=$maxTurns | budget=$($cfg.autonomy.tokenBudget)" -ForegroundColor Cyan
+
+if ($cfg.autonomy.mode -eq 'auto' -and (Get-Prop $cfg.verification 'requireE2EEvidence') -and -not (Test-AnyE2E)) {
+  Write-Host "⚠️  auto mode + requireE2EEvidence, but no e2e gate step is configured. The loop will commit on" -ForegroundColor Yellow
+  Write-Host "    unit-green only. Add an e2e command to a component/root gate, or run /review periodically." -ForegroundColor Yellow
+}
 
 if ($projType -eq 'brownfield') {
-  # Brownfield needs a known-good baseline so rollback can tell your breakage from pre-existing failures.
   $baselineOk = $false
   if ($cfg.project -and ($cfg.project.PSObject.Properties.Name -contains 'baseline') -and $cfg.project.baseline) {
     $baselineOk = [bool]$cfg.project.baseline.established
@@ -85,9 +108,9 @@ if ($projType -eq 'brownfield') {
   }
 }
 
-if ($cfg.autonomy.mode -eq 'auto' -and $cfg.autonomy.skipPermissions) {
+if ($cfg.autonomy.mode -eq 'auto' -and (Get-Prop $cfg.autonomy 'skipPermissions')) {
   Write-Host "⚠️  AUTO + skipPermissions: the model runs UNATTENDED with permission prompts disabled." -ForegroundColor Red
-  Write-Host "    Safety rests entirely on the gate, auto-rollback, and the PreToolUse block-hook." -ForegroundColor Red
+  Write-Host "    The deny-list (incl. secrets) is VOID in this mode — run inside a sandbox/container." -ForegroundColor Red
   if (-not (Confirm-Checkpoint "Proceed with unattended skip-permissions run?")) { return }
 }
 
@@ -100,7 +123,7 @@ while ($i -lt $cfg.autonomy.maxIterations) {
     break
   }
   if ($null -ne $cfg.autonomy.tokenBudget -and (Test-BudgetExceeded $cfg.autonomy.tokenBudget)) {
-    Write-Host "💸 Token budget exhausted — stopping." -ForegroundColor Yellow
+    Write-Host "💸 Token budget (estimate) exhausted — stopping." -ForegroundColor Yellow
     break
   }
   $nEvery = $cfg.autonomy.checkpoints.everyNIterations
@@ -112,35 +135,52 @@ while ($i -lt $cfg.autonomy.maxIterations) {
   $iterLog = Join-Path $runDir ("iter-$i.log")
 
   if ($DryRun) {
-    Write-Host "[dry-run] would invoke: claude -p (PROMPT.md) ; then run the gate." -ForegroundColor DarkGray
+    Write-Host "[dry-run] would invoke: claude -p (PROMPT.md) --max-turns $maxTurns ; then run the gate." -ForegroundColor DarkGray
     break
   }
 
-  New-Checkpoint -Label "pre-iter-$i"   # stash a restore point
+  New-Checkpoint -Label "pre-iter-$i"
 
   # --- invoke the model headlessly on a fresh context ---
-  $claudeArgs = @('-p', $prompt)
-  if ($cfg.autonomy.mode -eq 'auto' -and $cfg.autonomy.skipPermissions) {
+  $claudeArgs = @('-p', $prompt, '--max-turns', "$maxTurns")
+  if ($cfg.autonomy.mode -eq 'auto' -and (Get-Prop $cfg.autonomy 'skipPermissions')) {
     $claudeArgs += '--dangerously-skip-permissions'
   }
   try {
     & claude @claudeArgs *>&1 | Tee-Object -FilePath $iterLog
   } catch {
     Write-Host "❌ claude invocation failed: $_" -ForegroundColor Red
+    Write-Ledger @{ iter = $i; result = 'invoke-error'; error = "$_" }
     Restore-Checkpoint; continue
   }
-  Update-BudgetFromLog -LogPath $iterLog   # best-effort token accounting
+  Update-BudgetFromLog -LogPath $iterLog
 
-  # --- the gate (all components in their own dirs, then the cross-cutting root gate) ---
+  # --- tamper check: the agent must not have rewritten its own gate/policy ---
+  if ((Get-ConfigHash) -ne $configHash0) {
+    Write-Host "🛑 harness.config.json changed during the iteration (gate/policy tampering?). Rolling back and stopping." -ForegroundColor Red
+    Write-Ledger @{ iter = $i; result = 'config-tampered' }
+    Restore-Checkpoint; break
+  }
+
+  # --- the gate (each component in its dir, then the cross-cutting root gate) ---
   Write-Host "🔬 Running verification gate..." -ForegroundColor Cyan
-  $gateResult = Invoke-ProjectGate -Config $cfg -RepoRoot $RepoRoot
+  try {
+    $gateResult = Invoke-ProjectGate -Config $cfg -RepoRoot $RepoRoot
+  } catch {
+    Write-Host "❌ Gate errored: $_  — rolling back (never leave a broken tree)." -ForegroundColor Red
+    Write-Ledger @{ iter = $i; result = 'gate-error'; error = "$_" }
+    Restore-Checkpoint; continue
+  }
+
   if ($gateResult.Passed) {
     Write-Host "🟢 Gate green." -ForegroundColor Green
     if ($cfg.loop.commitOnGreen) { Commit-Iteration -Index $i }
-    if ($cfg.loop.tagOnGreen)    { Tag-Iteration -Index $i }
+    if ($cfg.loop.tagOnGreen)    { Tag-Iteration -Index $i -RunId $runId }
     Clear-Checkpoint
+    Write-Ledger @{ iter = $i; result = 'green'; committed = [bool]$cfg.loop.commitOnGreen }
   } else {
-    Write-Host "🔴 Gate red: [$($gateResult.Component)] $($gateResult.FailedStep). " -ForegroundColor Red
+    Write-Host "🔴 Gate red: [$($gateResult.Component)] $($gateResult.FailedStep)." -ForegroundColor Red
+    Write-Ledger @{ iter = $i; result = 'red'; component = "$($gateResult.Component)"; failedStep = "$($gateResult.FailedStep)" }
     if ($cfg.loop.autoRollbackOnRed) {
       Write-Host "↩  Rolling back to keep the tree green." -ForegroundColor Yellow
       Restore-Checkpoint
@@ -151,5 +191,5 @@ while ($i -lt $cfg.autonomy.maxIterations) {
   }
 }
 
-Write-Host "`n🏁 Loop finished after $i iteration(s). Logs: $runDir" -ForegroundColor Cyan
+Write-Host "`n🏁 Loop finished after $i iteration(s). Logs + ledger: $runDir" -ForegroundColor Cyan
 Write-Host "   Next: run /review for a fresh-context QA pass before you trust this." -ForegroundColor DarkGray

@@ -1,6 +1,7 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-settings.json",
   "_comment": "Harness defaults. Hooks default to Windows PowerShell (powershell.exe, .ps1) for this machine; /harness-init swaps the commands to the .sh mirror on Linux/macOS (and to 'pwsh' if you standardize on PowerShell 7). Personal overrides belong in settings.local.json (gitignored).",
+  "_security_note": "We intentionally do NOT deny Edit/Write of harness.config.json, .claude/**, or specs/** here, because /harness-init, /harness-prune, and /plan legitimately write those (deny rules can't be lifted per-command). The autonomous loop instead protects its own gate config via a config-hash pin — it rolls back and stops if the config changes mid-iteration. Spec/test integrity in supervised use rests on the fresh-context /review and the guardrails in CLAUDE.md/PROMPT.md. For unattended/auto runs, additionally run inside a sandbox/container.",
 
   "permissions": {
     "allow": [
@@ -17,7 +18,11 @@
       "Read(./.env)",
       "Read(./.env.*)",
       "Read(./secrets/**)",
-      "Read(./**/credentials.json)"
+      "Read(./**/credentials.json)",
+      "Read(./**/id_rsa)",
+      "Read(./**/id_ed25519)",
+      "Read(./**/*.pem)",
+      "Read(./**/*.key)"
     ],
     "ask": [
       "Bash(git push:*)",

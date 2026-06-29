@@ -1,11 +1,12 @@
 #!/usr/bin/env bash
 # The configurable autonomy loop (Ralph-style, with guardrails) — POSIX/bash mirror of loop.ps1.
 # Stateless loop, stateful files: each iteration pipes PROMPT.md into a fresh headless `claude`,
-# then runs the verification gate. Green => commit (+tag). Red => roll back. Bounded by
-# maxIterations and tokenBudget. Supervised pauses at checkpoints; auto runs unattended.
+# then runs the verification gate. Green => commit (+tag). Red (or gate error / config tampering) =>
+# roll back. Bounded by maxIterations, a per-iteration --max-turns, and a best-effort tokenBudget.
+# Supervised pauses at checkpoints; auto runs unattended.
 #
 # Usage: bash harness/loop.sh [--mode supervised|auto] [--max N] [--dry-run]
-# Requires: bash, git, jq, and the `claude` CLI.
+# Requires: bash, git, jq, and the `claude` CLI.  Do NOT edit the tree while it runs (rollback is hard).
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -26,7 +27,8 @@ MODE="$(cfg '.autonomy.mode')"
 MAX_ITER="$(cfg '.autonomy.maxIterations')"
 TOKEN_BUDGET="$(cfg '.autonomy.tokenBudget')"
 SKIP_PERMS="$(cfg '.autonomy.skipPermissions')"
-EVERY_N="$(cfg '.autonomy.checkpoints.everyNIterations')"
+EVERY_N="$(cfg '.autonomy.checkpoints.everyNIterations')"; [ "$EVERY_N" = "null" ] && EVERY_N=0
+MAX_TURNS="$(cfg '.autonomy.maxTurnsPerIteration')"; { [ "$MAX_TURNS" = "null" ] || [ -z "$MAX_TURNS" ]; } && MAX_TURNS=40
 DRY_RUN=0
 
 while [ $# -gt 0 ]; do
@@ -46,17 +48,35 @@ confirm_checkpoint() {  # $1 = label ; returns 0 to continue
 }
 
 open_item_count() {
-  local plan; plan="$(cfg '.loop.planFile')"
+  local plan n; plan="$(cfg '.loop.planFile')"
   [ -f "$plan" ] || { echo 0; return; }
-  grep -cE '^[[:space:]]*[-*][[:space:]]+\[ \]' "$plan" || echo 0
+  # grep -c already prints 0 on no-match; `|| true` keeps set -e happy without a 2nd "0" line.
+  n="$(grep -cE '^[[:space:]]*[-*][[:space:]]+\[ \]' "$plan" || true)"
+  echo "${n:-0}"
 }
 
-RUN_DIR="$SCRIPT_DIR/.runs/$(loop_run_id)"
+any_e2e() {  # 0 if any component or root gate defines an e2e step
+  [ "$(jq -r '[(.components[]?.gate.e2e), .gate.e2e] | map(select(. != null and . != "")) | length' "$CONFIG")" != "0" ]
+}
+
+RUN_ID="$(loop_run_id)"
+RUN_DIR="$SCRIPT_DIR/.runs/$RUN_ID"
 mkdir -p "$RUN_DIR"
+LEDGER="$RUN_DIR/ledger.jsonl"
+reset_budget   # per-run cap, not a lifetime counter
+ledger() { printf '%s\n' "$1" >> "$LEDGER"; }
+config_hash() { git hash-object "$CONFIG"; }
+CONFIG_HASH0="$(config_hash)"
 
 assert_clean_git_tree
 PROJ_TYPE="$(cfg '.project.type')"; [ "$PROJ_TYPE" = "null" ] && PROJ_TYPE="greenfield"
-echo "🔧 Harness loop | type=$PROJ_TYPE | mode=$MODE | maxIter=$MAX_ITER | budget=$TOKEN_BUDGET"
+echo "🔧 Harness loop | type=$PROJ_TYPE | mode=$MODE | maxIter=$MAX_ITER | maxTurns=$MAX_TURNS | budget=$TOKEN_BUDGET"
+
+if [ "$MODE" = "auto" ] && [ "$(cfg '.verification.requireE2EEvidence')" = "true" ] && ! any_e2e; then
+  echo "⚠️  auto mode + requireE2EEvidence, but no e2e gate step is configured. The loop will commit on"
+  echo "    unit-green only. Add an e2e command to a component/root gate, or run /review periodically."
+fi
+
 if [ "$PROJ_TYPE" = "brownfield" ]; then
   if [ "$(cfg '.project.baseline.established')" != "true" ]; then
     echo "⚠️  Brownfield project with NO established green baseline. Run /onboard first."
@@ -70,7 +90,7 @@ if [ "$PROJ_TYPE" = "brownfield" ]; then
 fi
 if [ "$MODE" = "auto" ] && [ "$SKIP_PERMS" = "true" ]; then
   echo "⚠️  AUTO + skipPermissions: model runs UNATTENDED with permission prompts disabled."
-  echo "    Safety rests on the gate, auto-rollback, and the PreToolUse block-hook."
+  echo "    The deny-list (incl. secrets) is VOID in this mode — run inside a sandbox/container."
   confirm_checkpoint "Proceed with unattended skip-permissions run?" || exit 0
 fi
 
@@ -82,7 +102,7 @@ while [ "$i" -lt "$MAX_ITER" ]; do
     echo "✅ fix_plan.md has no open items — stopping."; break
   fi
   if [ "$TOKEN_BUDGET" != "null" ] && budget_exceeded "$TOKEN_BUDGET"; then
-    echo "💸 Token budget exhausted — stopping."; break
+    echo "💸 Token budget (estimate) exhausted — stopping."; break
   fi
   if [ "$EVERY_N" -gt 0 ] && [ $((i % EVERY_N)) -eq 0 ]; then
     confirm_checkpoint "Reached iteration $i" || break
@@ -91,25 +111,32 @@ while [ "$i" -lt "$MAX_ITER" ]; do
   echo "──────── iteration $i / $MAX_ITER ────────"
   ITER_LOG="$RUN_DIR/iter-$i.log"
   if [ "$DRY_RUN" -eq 1 ]; then
-    echo "[dry-run] would invoke: claude -p (PROMPT.md) ; then run the gate."; break
+    echo "[dry-run] would invoke: claude -p (PROMPT.md) --max-turns $MAX_TURNS ; then run the gate."; break
   fi
 
   new_checkpoint "pre-iter-$i"
-  CLAUDE_ARGS=(-p "$PROMPT")
+  CLAUDE_ARGS=(-p "$PROMPT" --max-turns "$MAX_TURNS")
   if [ "$MODE" = "auto" ] && [ "$SKIP_PERMS" = "true" ]; then CLAUDE_ARGS+=(--dangerously-skip-permissions); fi
   if ! claude "${CLAUDE_ARGS[@]}" 2>&1 | tee "$ITER_LOG"; then
-    echo "❌ claude invocation failed"; restore_checkpoint; continue
+    echo "❌ claude invocation failed"; ledger "{\"iter\":$i,\"result\":\"invoke-error\"}"; restore_checkpoint; continue
   fi
   update_budget_from_log "$ITER_LOG"
+
+  if [ "$(config_hash)" != "$CONFIG_HASH0" ]; then
+    echo "🛑 harness.config.json changed during the iteration (gate/policy tampering?). Rolling back and stopping."
+    ledger "{\"iter\":$i,\"result\":\"config-tampered\"}"; restore_checkpoint; break
+  fi
 
   echo "🔬 Running verification gate..."
   if run_gate "$CONFIG"; then
     echo "🟢 Gate green."
     [ "$(cfg '.loop.commitOnGreen')" = "true" ] && commit_iteration "$i"
-    [ "$(cfg '.loop.tagOnGreen')" = "true" ]    && tag_iteration "$i"
+    [ "$(cfg '.loop.tagOnGreen')" = "true" ]    && tag_iteration "$i" "$RUN_ID"
     clear_checkpoint
+    ledger "{\"iter\":$i,\"result\":\"green\"}"
   else
     echo "🔴 Gate red: $GATE_FAILED_STEP"
+    ledger "{\"iter\":$i,\"result\":\"red\",\"failedStep\":\"$GATE_FAILED_STEP\"}"
     if [ "$(cfg '.loop.autoRollbackOnRed')" = "true" ]; then
       echo "↩  Rolling back to keep the tree green."; restore_checkpoint
     else
@@ -118,5 +145,5 @@ while [ "$i" -lt "$MAX_ITER" ]; do
   fi
 done
 
-echo "🏁 Loop finished after $i iteration(s). Logs: $RUN_DIR"
+echo "🏁 Loop finished after $i iteration(s). Logs + ledger: $RUN_DIR"
 echo "   Next: run /review for a fresh-context QA pass before you trust this."

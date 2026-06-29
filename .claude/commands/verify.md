@@ -12,7 +12,8 @@ Unit-green is not done. This command runs the full deterministic gate **and** pr
 evidence — the kind of proof a skeptical human would accept.
 
 ## Procedure
-1. **Run the full gate** from `harness/harness.config.json` → `gate`, in order:
+1. **Run the full gate** for each affected **component** (its commands, in its own directory) **and**
+   the cross-cutting root `gate` from `harness/harness.config.json`, in order:
    `format → lint → typecheck → build → test → e2e`. Report each. Stop and surface details on the
    first failure (with the fix), but try to report all failing steps if cheap to do so.
 2. **Capture end-to-end evidence** appropriate to the stack (use the `e2e-evidence` skill):

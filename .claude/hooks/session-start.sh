@@ -10,7 +10,7 @@ branch="$(git -C "$root" rev-parse --abbrev-ref HEAD 2>/dev/null || true)"
 
 plan="$root/state/fix_plan.md"
 if [ -f "$plan" ]; then
-  open=$(grep -cE '^[[:space:]]*[-*][[:space:]]+\[ \]' "$plan" || echo 0)
+  open=$(grep -cE '^[[:space:]]*[-*][[:space:]]+\[ \]' "$plan" || true); open="${open:-0}"
   lines+=("open tasks: $open")
   if [ "$open" -gt 0 ]; then
     next="$(grep -E '^[[:space:]]*[-*][[:space:]]+\[ \]' "$plan" | head -1 | sed -E 's/^[[:space:]]*[-*][[:space:]]+\[ \][[:space:]]*//')"

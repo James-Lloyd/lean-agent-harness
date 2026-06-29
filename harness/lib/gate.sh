@@ -41,8 +41,8 @@ run_gate() {  # $1 = config path ; $REPO_ROOT must be set ; sets GATE_FAILED_STE
     _gate_set "$config" ".components[$i].gate" "$REPO_ROOT/$path" "$name" || return 1
     i=$((i+1))
   done
-  # cross-cutting root gate, if any non-null step
-  if [ "$(jq -r '[.gate | to_entries[] | select(.key != "_comment") | .value] | map(select(. != null)) | length' "$config")" != "0" ]; then
+  # cross-cutting root gate, if any non-null step ((.gate // {}) guards a null/absent gate)
+  if [ "$(jq -r '[(.gate // {}) | to_entries[] | select(.key != "_comment") | .value] | map(select(. != null and . != "")) | length' "$config")" != "0" ]; then
     echo "  [root] cross-cutting gate"
     _gate_set "$config" ".gate" "$REPO_ROOT" "root(cross-cutting)" || return 1
   fi

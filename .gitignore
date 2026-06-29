@@ -1,7 +1,8 @@
 # --- Harness runtime artifacts -------------------------------------------------
 # State files are committed (they ARE the memory), but transient run output is not.
-harness/.runs/            # per-loop logs, transcripts, scratch
+harness/.runs/            # per-loop logs, transcripts, ledger, scratch
 harness/.budget.json      # live token/cost accounting for the current run
+harness/.checkpoint       # current loop checkpoint ref (crash-recovery breadcrumb)
 *.harness.log
 state/handoff.md          # regenerated each context reset; not worth versioning
 .claude/settings.local.json   # personal overrides (permissions, env) — never commit
@@ -12,8 +13,17 @@ state/handoff.md          # regenerated each context reset; not worth versioning
 !.env.example
 *.pem
 *.key
+*.p12
+*.pfx
+*.cer
 secrets/
 **/credentials.json
+**/id_rsa
+**/id_ed25519
+.npmrc
+.pgpass
+.aws/credentials
+**/*.keystore
 
 # --- OS / editor ---------------------------------------------------------------
 .DS_Store

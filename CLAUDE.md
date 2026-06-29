@@ -47,7 +47,8 @@ through all phases; `/plan`, `/loop`, `/verify`, `/review` are the phases run in
    **Search the codebase before assuming something isn't implemented.** Think hard.
 2. **One task per iteration.** Pick the highest-priority unfinished item from `state/fix_plan.md`.
 3. **Implement fully.** No placeholders, no stubs, no "simple version for now."
-4. **Verify — this is the gate.** Run format → lint → typecheck → tests for the changed unit.
+4. **Verify — this is the gate.** Run the changed component's gate (format → lint → typecheck → build →
+   test) and the cross-cutting root gate.
    Unit-green is not done: capture **end-to-end evidence** that it works as a user would see it.
 5. **Checkpoint.** Commit with a descriptive message when green. Roll back a red tree, don't patch over it.
 6. **Record.** Tick the item in `state/fix_plan.md`; note *why* in code/docs for the next (amnesiac) loop.

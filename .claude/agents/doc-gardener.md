@@ -10,6 +10,10 @@ than none because they actively mislead. You keep the map accurate without bloat
 Look for:
 - **`CLAUDE.md` over ~100 lines** or containing rules that no longer earn their attention — trim them.
   Every line should be a live constraint or a real pointer.
+- **`AGENT_NOTES.md` bloat** — it's append-only and loaded often, so it grows unbounded. Compact it:
+  dedupe repeated learnings, drop notes about code/commands that no longer exist, keep it terse. (This
+  is the one place you may rewrite history — but only to compress true, current facts, never to erase
+  a still-relevant gotcha.)
 - **Docs that contradict the code** — `docs/architecture/`, `docs/design-docs/` describing something
   that's since changed. Flag and correct, or move outdated decisions to a "superseded" note.
 - **Broken cross-links / orphaned docs** — fix links; surface docs nothing points to.

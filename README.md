@@ -64,7 +64,7 @@ rm -rf .git && git init                    # make it yours
 # 3. Work
 /plan   "build the thing"   # decompose intent into specs + a task manifest
 /work   # or a task id      # drive ONE task plan→execute→validate→review→record, with checkpoints
-/loop                       # just the execute phase, one supervised iteration
+/loop                       # one full supervised iteration (study→implement→verify→record)
 /review                     # fresh-context QA — independent review of the diff
 /handoff                    # before a context reset — compact handoff for the next agent
 /ratchet "what went wrong"  # record a failure as a new rule (the ratchet)
@@ -95,18 +95,20 @@ iteration/token caps, checkpoints, and the verification gate.
 | `AGENTS.md` | Portability shim → points other agents (Codex, opencode) at `CLAUDE.md`. No proprietary lock-in. |
 | `.claude/commands/` | Slash commands: `harness-init`, `harness-prune`, `onboard`, `plan`, `work`, `loop`, `verify`, `review`, `handoff`, `ratchet`, `gc`. |
 | `.claude/agents/` | Subagent roles: `planner`, `generator`, `evaluator`, `reviewer`, `doc-gardener`. The doer is never the judge. |
-| `.claude/skills/` | Progressive-disclosure skills: `stack-detect`, `sprint-contract`, `evaluator-rubric`, `e2e-evidence`. |
-| `.claude/settings.json` | Hooks (format/lint/typecheck on edit; block destructive bash) + permissions + env. |
+| `.claude/skills/` | Progressive-disclosure skills: `stack-detect`, `sprint-contract`, `e2e-evidence`, `brownfield-safety`. |
+| `.claude/settings.json` | Hooks (format/lint/typecheck on edit, routed per component; block destructive bash; SessionStart orientation) + permissions + env. |
 | `.claude/hooks/` | Cross-platform hook scripts (`.ps1` primary, `.sh` mirror). |
 | `harness/harness.config.json` | Autonomy + workflow + per-component gate config — the one file you tune per project. |
 | `harness/templates/` | Templates `/harness-init` copies (e.g. a nested per-component `CLAUDE.md`). |
+| `harness/tests/` | Self-tests for the harness's own logic (gate, denylist, budget) — run them locally or in CI. |
+| `ci/` | Ready-to-activate CI workflow (copy into `.github/workflows/` to run self-tests on push/PR). |
 | `harness/loop.ps1` / `loop.sh` | The configurable autonomy loop (supervised → full-auto) with guardrails. |
 | `harness/lib/` | Shared loop primitives: checkpoint, rollback, budget, gate. |
 | `harness/profiles/` | **Stack profiles** — pluggable bundles that tell the harness *what* `format`/`lint`/`test`/`build` mean for a given stack. This is what makes the core generic. |
 | `docs/` | `architecture/`, `design-docs/`, `execution-plans/`, `technical-debt/`, `principles/`. The agent's long-term knowledge, version-controlled. |
 | `specs/` | **Immutable** source of truth for requirements. The agent reads, never rewrites. |
 | `state/` | Mutable runtime state: `tasks.json`, `fix_plan.md`, `PROGRESS.md`, `handoff.md`. |
-| `PROMPT.md` | The phased prompt piped into each loop iteration (study → plan → implement → verify → record). |
+| `PROMPT.md` | The phased prompt piped into each loop iteration (study → select → implement → verify → record → hand off). |
 | `AGENT_NOTES.md` | The amnesiac's notebook — run/build commands and hard-won learnings, appended by the loop. |
 
 ---
@@ -152,12 +154,14 @@ Every task advances through an explicit lifecycle, separating the doer from the 
 
 ```
 todo → planned → in_progress → validated → reviewed → done
-       /plan       /work·/loop   /verify      /review     commit
+       /plan       /work          /verify      /review     commit
 ```
 
-`/work` orchestrates all five phases for one task with checkpoints between them; in **auto** mode the
-shell loop runs the same phases (via `PROMPT.md`) unattended, one task per iteration, rolling back any
-iteration that fails the validate gate. Full contract: [`docs/principles/workflow.md`](docs/principles/workflow.md).
+`/work` orchestrates all five phases for one task with checkpoints between them. `/loop` runs one
+**full** iteration (study→implement→verify→record) — it's the per-iteration unit, not a single phase. In
+**auto** mode the shell loop runs that same iteration (via `PROMPT.md`) unattended, one task at a time,
+rolling back any iteration that fails the validate gate. Full contract:
+[`docs/principles/workflow.md`](docs/principles/workflow.md).
 
 ## Core principles (the non-negotiables this harness encodes)
 
@@ -170,8 +174,13 @@ iteration that fails the validate gate. Full contract: [`docs/principles/workflo
 6. **Doer ≠ judge.** Self-grading skews positive. Review in a **fresh context**.
 7. **Unit-green ≠ done.** Demand end-to-end evidence (a screenshot, a recorded run, a real invocation).
 8. **Silent success, verbose failure.** The gate says nothing on pass; on fail it injects the fix.
-9. **Configurable autonomy, always guarded.** Iteration caps, token budget, auto-rollback, checkpoints.
+9. **Configurable autonomy, deterministically guarded.** Iteration + per-iteration-turn caps, a
+   best-effort token estimate, git auto-rollback, a config-tamper pin, and a destructive-command hook.
+   Note the honesty: in **auto** mode the guard is the *deterministic* gate + rollback; the inferential
+   judges (fresh-context review, evaluator) run in the supervised paths — see [`ROADMAP.md`](ROADMAP.md).
 10. **Portable by construction.** Plain files + git, no proprietary memory; swap the model freely.
+11. **It tests itself.** The harness's own logic has self-tests ([`harness/tests/`](harness/tests/)) run
+    in CI — they've already caught real bugs.
 
 ---
 
@@ -186,7 +195,9 @@ session, and it's a single revertible commit. ("Map, not manual" applies to the 
 ## Status
 
 This is **v0.1** — by design. A harness is a living system shaped by *your* failure history, not a
-config you set once. Start here, then ratchet. See [`docs/principles/harness-philosophy.md`](docs/principles/harness-philosophy.md).
+config you set once. Start here, then ratchet. See [`docs/principles/harness-philosophy.md`](docs/principles/harness-philosophy.md)
+for the why and [`ROADMAP.md`](ROADMAP.md) for what's deliberately not built yet (an adversarial
+four-lens review shaped that list).
 
 ## License
 

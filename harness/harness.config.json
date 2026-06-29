@@ -11,6 +11,7 @@
   "autonomy": {
     "mode": "supervised",
     "maxIterations": 20,
+    "maxTurnsPerIteration": 40,
     "tokenBudget": null,
     "skipPermissions": false,
     "checkpoints": {
