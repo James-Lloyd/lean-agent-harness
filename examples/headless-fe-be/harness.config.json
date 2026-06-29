@@ -1,0 +1,83 @@
+{
+  "$schema": "../../harness/harness.schema.json",
+  "_comment": "WORKED EXAMPLE — a headless project: frontend/ (Next.js + TypeScript, pnpm) + backend/ (FastAPI + Python, uv), with a cross-cutting Playwright e2e that drives the running app end to end. This is what /harness-init would produce for such a project. Copy the shape; adjust commands to your repo's real scripts.",
+
+  "autonomy": {
+    "mode": "supervised",
+    "maxIterations": 20,
+    "tokenBudget": null,
+    "skipPermissions": false,
+    "checkpoints": { "planApproval": true, "beforeRiskyOps": true, "everyNIterations": 5 }
+  },
+
+  "loop": {
+    "promptFile": "PROMPT.md",
+    "planFile": "state/fix_plan.md",
+    "progressFile": "state/PROGRESS.md",
+    "oneItemPerIteration": true,
+    "autoRollbackOnRed": true,
+    "commitOnGreen": true,
+    "tagOnGreen": true,
+    "stopWhenPlanEmpty": true
+  },
+
+  "workflow": {
+    "phases": ["plan", "execute", "validate", "review", "record"],
+    "checkpointBetweenPhases": true,
+    "requireSprintContractBefore": "execute",
+    "requireReviewBefore": "done"
+  },
+
+  "components": [
+    {
+      "name": "frontend",
+      "path": "frontend",
+      "profile": "node",
+      "languages": ["typescript"],
+      "packageManager": "pnpm",
+      "runtime": "node",
+      "commands": { "install": "pnpm install", "run": "pnpm run dev" },
+      "gate": {
+        "format": "pnpm exec prettier --write .",
+        "lint": "pnpm exec eslint . --max-warnings=0",
+        "typecheck": "pnpm exec tsc --noEmit",
+        "build": "pnpm run build",
+        "test": "pnpm test -- --run",
+        "e2e": null
+      }
+    },
+    {
+      "name": "backend",
+      "path": "backend",
+      "profile": "python",
+      "languages": ["python"],
+      "packageManager": "uv",
+      "runtime": "python",
+      "commands": { "install": "uv sync", "run": "uv run uvicorn app.main:app --reload" },
+      "gate": {
+        "format": "uv run ruff format .",
+        "lint": "uv run ruff check . --fix",
+        "typecheck": "uv run pyright",
+        "build": null,
+        "test": "uv run pytest -q",
+        "e2e": null
+      }
+    }
+  ],
+
+  "gate": {
+    "_comment": "Cross-cutting integration gate, run from the repo root after BOTH components pass. Here: a Playwright suite that boots the real frontend+backend and clicks through them like a user. This is the 'unit-green is not done' insurance for the whole system.",
+    "format": null,
+    "lint": null,
+    "typecheck": null,
+    "build": null,
+    "test": null,
+    "e2e": "pnpm exec playwright test"
+  },
+
+  "verification": {
+    "freshContextReview": true,
+    "requireE2EEvidence": true,
+    "evaluator": { "enabled": false, "rubric": "docs/principles/evaluator-rubric.md", "failBelow": 7 }
+  }
+}

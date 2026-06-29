@@ -13,6 +13,9 @@ This harness is a synthesis of current best practice from Anthropic, OpenAI, Mar
 workflow. See [`docs/principles/sources.md`](docs/principles/sources.md) for the bibliography and
 which idea came from where.
 
+> **New to this? Read [`GUIDE.md`](GUIDE.md) first** — a plain-English, no-jargon walkthrough of what
+> a harness is and how to set this one up in ~5 minutes. The rest of this README is the reference.
+
 ---
 
 ## The model in one diagram
