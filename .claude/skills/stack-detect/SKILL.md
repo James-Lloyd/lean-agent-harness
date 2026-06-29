@@ -51,6 +51,10 @@ Lockfiles tell you the package manager; `package.json` `scripts` (or the Makefil
 tell you the *actual* invocations — prefer those over guessing the canonical command. A step with no
 real command is `null` (e.g. an untyped language has no `typecheck`).
 
+For a **brownfield** project, the gate already exists — **discover it, don't invent it**. The CI config
+(`.github/workflows/*`, `.gitlab-ci.yml`, etc.) is the real source of truth for "what must pass";
+mirror those commands. Then confirm the existing tests are green (the baseline) before any work.
+
 ## 3. Pick or create a profile
 - If `harness/profiles/<stack>.json` matches, use it (adjust commands to the repo's reality).
 - Otherwise copy `harness/profiles/_template.json` to `harness/profiles/<stack>.json`, fill it, and

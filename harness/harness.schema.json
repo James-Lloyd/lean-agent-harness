@@ -4,6 +4,21 @@
   "description": "Configuration for the autonomy loop, the plan->execute->validate->review workflow, and the per-component verification gate. Tune per project; /harness-init seeds the stack-specific fields.",
   "type": "object",
   "properties": {
+    "project": {
+      "type": "object",
+      "description": "Whether this is a new or existing codebase. Greenfield and brownfield need different handling: greenfield establishes the stack/specs and tolerates higher autonomy; brownfield must first be understood and respected (mapped via /onboard), needs a green baseline before changes, and defaults to supervised with isolated, small-scope work.",
+      "properties": {
+        "type": { "enum": ["greenfield", "brownfield"], "description": "greenfield = built from scratch; brownfield = pre-existing code the harness must not break." },
+        "baseline": {
+          "type": "object",
+          "description": "The known-good starting point for a brownfield project. Established by /harness-init or /onboard: run the discovered gate and confirm it passes (or record which parts were already red). Without this, auto-rollback can't distinguish 'my change broke it' from 'it was broken before I started'.",
+          "properties": {
+            "established": { "type": "boolean" },
+            "ref": { "type": ["string", "null"], "description": "git commit the baseline gate was green at." }
+          }
+        }
+      }
+    },
     "autonomy": {
       "type": "object",
       "description": "How much rope the loop gets. Configurable from supervised to full-auto.",

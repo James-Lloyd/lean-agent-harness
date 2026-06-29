@@ -60,3 +60,19 @@ State is plain files + git. No proprietary auto-memory, no lock-in. You can swap
 (`AGENTS.md` points other agents at the same context) and the harness still works. That portability is
 also insurance: re-examine the harness on every new model and strip pieces that are no longer
 load-bearing — the best harness is the smallest one that still gets the quality you need.
+
+## 11. Greenfield and brownfield are different jobs
+The harness adapts to whether you're building from scratch or changing an existing system
+(`config.project.type`).
+
+- **Greenfield** — you *establish* the world: choose a harnessable stack (strong typing, clear
+  boundaries), write specs first, and you can run higher autonomy. The empty scaffold is your baseline.
+- **Brownfield** — you *inherit* a working system with users and assumptions, and your prime directive
+  is **no regressions**. So: `/onboard` first to map the architecture, discover the gate from existing
+  CI/scripts (don't invent one), and **establish a green baseline** — without a known-good starting
+  point, auto-rollback can't tell your breakage from pre-existing failures. Then change small, on a
+  branch, writing a **characterization test before touching untested behaviour** (lock current
+  behaviour, then move). Respect existing conventions instead of imposing new ones. Default to
+  supervised: the unattended auto-loop is a greenfield technique — on existing code it invites wide,
+  subtle regressions, so it warns and requires explicit opt-in. The `brownfield-safety` skill carries
+  the full discipline.

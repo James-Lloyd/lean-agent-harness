@@ -92,7 +92,7 @@ iteration/token caps, checkpoints, and the verification gate.
 |------|------------|
 | `CLAUDE.md` | The root **context map** (~100 lines, a navigation map — not a 1000-page manual). `/harness-init` fills it. |
 | `AGENTS.md` | Portability shim → points other agents (Codex, opencode) at `CLAUDE.md`. No proprietary lock-in. |
-| `.claude/commands/` | Slash commands: `harness-init`, `plan`, `work`, `loop`, `verify`, `review`, `handoff`, `ratchet`, `gc`. |
+| `.claude/commands/` | Slash commands: `harness-init`, `onboard`, `plan`, `work`, `loop`, `verify`, `review`, `handoff`, `ratchet`, `gc`. |
 | `.claude/agents/` | Subagent roles: `planner`, `generator`, `evaluator`, `reviewer`, `doc-gardener`. The doer is never the judge. |
 | `.claude/skills/` | Progressive-disclosure skills: `stack-detect`, `sprint-contract`, `evaluator-rubric`, `e2e-evidence`. |
 | `.claude/settings.json` | Hooks (format/lint/typecheck on edit; block destructive bash) + permissions + env. |
@@ -130,6 +130,19 @@ runs that gate **in that component's directory**. The PostToolUse hook routes a 
 component that owns it (a `.py` edit under `backend/` is checked with backend's tools). A cross-cutting
 **root gate** holds the integration/e2e that exercises the components together. `/harness-init` detects
 the shape and wires all of this — you don't manage two harnesses.
+
+## Greenfield and brownfield
+
+The harness handles both new and existing codebases — they're different jobs (`config.project.type`):
+
+- **Greenfield** — `/harness-init` establishes the stack, writes specs first, `git init`s, and higher
+  autonomy is fine. The empty scaffold is the baseline.
+- **Brownfield** — `/harness-init` detects existing code and runs **`/onboard`**: it maps the
+  architecture, **discovers the gate from your existing CI/scripts** (rather than inventing one),
+  **establishes a green baseline** (so rollback can tell your breakage from pre-existing failures), and
+  captures the conventions already in force. Work then defaults to **supervised**, small, on a branch,
+  with a **characterization test before changing untested behaviour**. Full-auto on existing code warns
+  and needs explicit opt-in (the auto-loop is a greenfield technique). See the `brownfield-safety` skill.
 
 ## The workflow (plan → execute → validate → review → record)
 

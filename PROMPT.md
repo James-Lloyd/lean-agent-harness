@@ -11,6 +11,10 @@ You are operating one iteration of an autonomous engineering loop. You have **no
 iterations. Everything you need is on disk. Work the phases in order. Do exactly **one** task.
 
 ## Phase 0 — Study (read before you touch anything)
+0. Check the project type in `harness/harness.config.json` → `project.type`. If **brownfield**: you are
+   editing an existing, working system — read the `brownfield-safety` skill. Respect existing
+   conventions, keep the change small and on a branch, ensure the baseline is green first, and write a
+   characterization test before modifying any untested behaviour. Never weaken existing tests to pass.
 1. Read `CLAUDE.md` (the map) to orient.
 2. Read the relevant file(s) in `specs/`. **Specs are the immutable source of truth.** Do not edit them.
 3. Read `AGENT_NOTES.md` for run/build commands and learnings from past loops.

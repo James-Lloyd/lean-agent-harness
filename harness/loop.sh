@@ -55,7 +55,19 @@ RUN_DIR="$SCRIPT_DIR/.runs/$(loop_run_id)"
 mkdir -p "$RUN_DIR"
 
 assert_clean_git_tree
-echo "🔧 Harness loop | mode=$MODE | maxIter=$MAX_ITER | budget=$TOKEN_BUDGET"
+PROJ_TYPE="$(cfg '.project.type')"; [ "$PROJ_TYPE" = "null" ] && PROJ_TYPE="greenfield"
+echo "🔧 Harness loop | type=$PROJ_TYPE | mode=$MODE | maxIter=$MAX_ITER | budget=$TOKEN_BUDGET"
+if [ "$PROJ_TYPE" = "brownfield" ]; then
+  if [ "$(cfg '.project.baseline.established')" != "true" ]; then
+    echo "⚠️  Brownfield project with NO established green baseline. Run /onboard first."
+    confirm_checkpoint "Continue without an established baseline?" || exit 0
+  fi
+  if [ "$MODE" = "auto" ]; then
+    echo "⚠️  AUTO mode on a BROWNFIELD codebase. The auto-loop is designed for greenfield; on existing"
+    echo "    code it risks wide, subtle regressions. Supervised + small isolated tasks is recommended."
+    confirm_checkpoint "Run full-auto on an existing codebase anyway?" || exit 0
+  fi
+fi
 if [ "$MODE" = "auto" ] && [ "$SKIP_PERMS" = "true" ]; then
   echo "⚠️  AUTO + skipPermissions: model runs UNATTENDED with permission prompts disabled."
   echo "    Safety rests on the gate, auto-rollback, and the PreToolUse block-hook."

@@ -14,6 +14,7 @@
 
 ## What this is
 - **Domain / market:** {{DOMAIN}}
+- **Type:** {{PROJECT_TYPE}}  <!-- greenfield (build from scratch) | brownfield (existing code — respect it; see brownfield-safety skill) -->
 - **Shape:** {{PROJECT_SHAPE}}  <!-- e.g. "single Node app" or "headless: frontend/ (Next.js) + backend/ (FastAPI)" -->
 
 ## Components (the buildable units)

@@ -76,6 +76,22 @@ See [`examples/headless-fe-be/`](examples/headless-fe-be/) for a complete worked
 
 ---
 
+## Brand-new project, or an existing one?
+
+Both work, and the harness treats them differently because they *are* different:
+
+- **Brand-new ("greenfield")** — there's no code yet. Setup writes down what you're going to build, picks
+  the tools, and you're off. It can safely run more on its own.
+- **Existing codebase ("brownfield")** — there's already working code with real users. Here the golden
+  rule is **don't break what works**. So before changing anything, the harness runs **`/onboard`**: it
+  reads your codebase, learns how it's built and tested, runs your existing tests to make sure they're
+  all passing *first* (so it can tell later if *it* broke something versus something that was already
+  broken), and learns your existing style so it fits in rather than imposing its own. It then works
+  cautiously — small changes, on a side branch, double-checking it didn't break anything — and it won't
+  go full-autonomous without you explicitly saying so.
+
+You don't have to pick — `/harness-init` figures out which kind you have and does the right thing.
+
 ## Setting it up (about 5 minutes)
 
 You need [Claude Code](https://claude.com/claude-code) installed, and `git`.

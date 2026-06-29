@@ -2,6 +2,12 @@
   "$schema": "./harness.schema.json",
   "_comment": "The one file you tune per project. /harness-init writes the stack-specific bits. A project is one-or-more COMPONENTS (each a buildable sub-repo with its own stack + gate) plus a cross-cutting root gate for integration/e2e. A single-root project is just one component with path '.'. See harness.schema.json for the full field reference.",
 
+  "project": {
+    "_comment": "greenfield = building from scratch (establish stack/specs, higher autonomy OK). brownfield = an existing codebase (understand & respect it first, supervised by default, baseline must be green before changes). /harness-init detects and sets this.",
+    "type": "greenfield",
+    "baseline": { "established": false, "ref": null }
+  },
+
   "autonomy": {
     "mode": "supervised",
     "maxIterations": 20,

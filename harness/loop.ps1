@@ -63,7 +63,28 @@ function Get-OpenItemCount {
 
 # --- preflight -----------------------------------------------------------------
 Assert-CleanGitTree   # from checkpoint.ps1 — refuse to start on a dirty tree
-Write-Host "🔧 Harness loop | mode=$($cfg.autonomy.mode) | maxIter=$($cfg.autonomy.maxIterations) | budget=$($cfg.autonomy.tokenBudget)" -ForegroundColor Cyan
+# Project type (StrictMode-safe access; default greenfield for older configs).
+$projType = 'greenfield'
+if (($cfg.PSObject.Properties.Name -contains 'project') -and $cfg.project) { $projType = $cfg.project.type }
+Write-Host "🔧 Harness loop | type=$projType | mode=$($cfg.autonomy.mode) | maxIter=$($cfg.autonomy.maxIterations) | budget=$($cfg.autonomy.tokenBudget)" -ForegroundColor Cyan
+
+if ($projType -eq 'brownfield') {
+  # Brownfield needs a known-good baseline so rollback can tell your breakage from pre-existing failures.
+  $baselineOk = $false
+  if ($cfg.project -and ($cfg.project.PSObject.Properties.Name -contains 'baseline') -and $cfg.project.baseline) {
+    $baselineOk = [bool]$cfg.project.baseline.established
+  }
+  if (-not $baselineOk) {
+    Write-Host "⚠️  Brownfield project with NO established green baseline. Run /onboard first." -ForegroundColor Yellow
+    if (-not (Confirm-Checkpoint "Continue without an established baseline?")) { return }
+  }
+  if ($cfg.autonomy.mode -eq 'auto') {
+    Write-Host "⚠️  AUTO mode on a BROWNFIELD codebase. The auto-loop is designed for greenfield; on existing" -ForegroundColor Red
+    Write-Host "    code it risks wide, subtle regressions. Supervised + small isolated tasks is recommended." -ForegroundColor Red
+    if (-not (Confirm-Checkpoint "Run full-auto on an existing codebase anyway?")) { return }
+  }
+}
+
 if ($cfg.autonomy.mode -eq 'auto' -and $cfg.autonomy.skipPermissions) {
   Write-Host "⚠️  AUTO + skipPermissions: the model runs UNATTENDED with permission prompts disabled." -ForegroundColor Red
   Write-Host "    Safety rests entirely on the gate, auto-rollback, and the PreToolUse block-hook." -ForegroundColor Red
