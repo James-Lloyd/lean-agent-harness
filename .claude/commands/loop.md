@@ -10,7 +10,7 @@ Optional focus: $ARGUMENTS
 
 This is the **in-session, supervised** form of the loop. It does exactly one iteration of `PROMPT.md`
 with checkpoints, so you (the human) stay in the driver's seat. For unattended/full-auto runs, use the
-shell loop instead: `pwsh harness/loop.ps1` / `bash harness/loop.sh`.
+shell loop instead: `powershell harness/loop.ps1` (or `pwsh` on PS7) / `bash harness/loop.sh`.
 
 ## Procedure (follow PROMPT.md's phases, with these checkpoints)
 1. **Study** — read `CLAUDE.md`, the relevant `specs/`, `AGENT_NOTES.md`, and `state/fix_plan.md`.

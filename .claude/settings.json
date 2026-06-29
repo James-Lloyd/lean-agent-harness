@@ -1,6 +1,6 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-settings.json",
-  "_comment": "Harness defaults. Hooks default to PowerShell (.ps1) for this Windows machine; /harness-init swaps the commands to the .sh mirror on Linux/macOS. Personal overrides belong in settings.local.json (gitignored).",
+  "_comment": "Harness defaults. Hooks default to Windows PowerShell (powershell.exe, .ps1) for this machine; /harness-init swaps the commands to the .sh mirror on Linux/macOS (and to 'pwsh' if you standardize on PowerShell 7). Personal overrides belong in settings.local.json (gitignored).",
 
   "permissions": {
     "allow": [
@@ -37,7 +37,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "pwsh -NoProfile -ExecutionPolicy Bypass -File \"${CLAUDE_PROJECT_DIR}/.claude/hooks/block-destructive.ps1\""
+            "command": "powershell -NoProfile -ExecutionPolicy Bypass -File \"${CLAUDE_PROJECT_DIR}/.claude/hooks/block-destructive.ps1\""
           }
         ]
       }
@@ -48,7 +48,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "pwsh -NoProfile -ExecutionPolicy Bypass -File \"${CLAUDE_PROJECT_DIR}/.claude/hooks/format-and-check.ps1\""
+            "command": "powershell -NoProfile -ExecutionPolicy Bypass -File \"${CLAUDE_PROJECT_DIR}/.claude/hooks/format-and-check.ps1\""
           }
         ]
       }
@@ -59,7 +59,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "pwsh -NoProfile -ExecutionPolicy Bypass -File \"${CLAUDE_PROJECT_DIR}/.claude/hooks/session-start.ps1\""
+            "command": "powershell -NoProfile -ExecutionPolicy Bypass -File \"${CLAUDE_PROJECT_DIR}/.claude/hooks/session-start.ps1\""
           }
         ]
       }

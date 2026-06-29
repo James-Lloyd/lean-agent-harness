@@ -13,9 +13,10 @@
   Config: harness/harness.config.json  (see harness.schema.json for fields)
 
 .EXAMPLE
-  pwsh harness/loop.ps1
-  pwsh harness/loop.ps1 -Mode auto -MaxIterations 50
-  pwsh harness/loop.ps1 -DryRun        # show what it would do; never invokes the model
+  powershell harness/loop.ps1                            # Windows PowerShell 5.1
+  powershell harness/loop.ps1 -Mode auto -MaxIterations 50
+  powershell harness/loop.ps1 -DryRun   # show what it would do; never invokes the model
+  # On PowerShell 7 or Unix, use `pwsh harness/loop.ps1` instead.
 #>
 [CmdletBinding()]
 param(

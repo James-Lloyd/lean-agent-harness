@@ -1,0 +1,20 @@
+# Normalize line endings so the harness is portable across Windows/Unix.
+# Default: let git decide text vs binary, store as LF in the repo.
+* text=auto eol=lf
+
+# Shell scripts MUST be LF — CRLF breaks the shebang and bash on Linux/macOS/CI.
+*.sh   text eol=lf
+
+# PowerShell scripts: CRLF is conventional on Windows and harmless (they carry a UTF-8 BOM so
+# Windows PowerShell 5.1 reads their non-ASCII output correctly).
+*.ps1  text eol=crlf
+
+# Keep JSON/Markdown as LF for clean cross-platform diffs.
+*.json text eol=lf
+*.md   text eol=lf
+
+# Binary assets (evidence screenshots etc.) — never normalize.
+*.png  binary
+*.jpg  binary
+*.gif  binary
+*.pdf  binary

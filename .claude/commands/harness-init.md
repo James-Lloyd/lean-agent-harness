@@ -61,7 +61,8 @@ With answers in hand:
 - Ensure `.gitignore` lists this stack's build/dep artifacts (uncomment/add the relevant lines).
 
 ## Step 5 — Verify the harness itself
-- Dry-run the loop without invoking the model: `pwsh harness/loop.ps1 -DryRun` (or `bash harness/loop.sh --dry-run`).
+- Dry-run the loop without invoking the model: `powershell harness/loop.ps1 -DryRun` on Windows
+  (`pwsh` on PowerShell 7), or `bash harness/loop.sh --dry-run` on Unix.
 - Run the gate commands once manually to confirm they exist and exit 0 on a clean tree. If any is
   wrong, fix the config. **Do not finish with a gate that doesn't actually run.**
 - Confirm `git` is initialized (the loop needs it for checkpoints). If not, offer to `git init` and

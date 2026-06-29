@@ -68,8 +68,8 @@ rm -rf .git && git init                    # make it yours
 For unattended runs:
 
 ```powershell
-pwsh harness/loop.ps1            # Windows (primary on this machine)
-bash harness/loop.sh            # Linux / macOS / CI
+powershell harness/loop.ps1      # Windows (primary on this machine; use `pwsh` if on PowerShell 7)
+bash       harness/loop.sh       # Linux / macOS / CI
 ```
 
 The loop reads [`harness/harness.config.json`](harness/harness.config.json) for autonomy mode,
