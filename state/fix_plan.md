@@ -9,10 +9,12 @@ Format: `- [ ] <imperative task>  — done when: <verifiable condition>`
 > when there are no unchecked items left (config `loop.stopWhenPlanEmpty`).
 
 ## Tasks
-<!-- example:
-- [ ] Scaffold the project skeleton  — done when: app builds and the gate runs green on an empty app
-- [ ] Add health-check endpoint  — done when: GET /health returns 200 + {status:"ok"}, with a test + e2e curl evidence
+<!--
+  Examples (note: deliberately NOT written as "- [ ]" so the loop's open-task counter doesn't
+  treat these sample lines as real work). Copy the shape, uncomment as real "- [ ]" items above:
+    Scaffold the project skeleton  — done when: app builds and the gate runs green on an empty app
+    Add health-check endpoint      — done when: GET /health returns 200 + {status:"ok"}, with a unit test + e2e curl evidence
 -->
 
 ## Done
-<!-- move completed items here (or just tick them) so the live stack stays readable -->
+<!-- move completed items here (or just tick them to "- [x]") so the live stack stays readable -->
