@@ -1,11 +1,17 @@
 # --- Harness runtime artifacts -------------------------------------------------
 # State files are committed (they ARE the memory), but transient run output is not.
-harness/.runs/            # per-loop logs, transcripts, ledger, scratch
-harness/.budget.json      # live token/cost accounting for the current run
-harness/.checkpoint       # current loop checkpoint ref (crash-recovery breadcrumb)
+# NOTE: git does NOT support inline (trailing) comments — keep comments on their own lines.
+# per-loop logs, transcripts, ledger, scratch:
+harness/.runs/
+# live token/cost accounting for the current run:
+harness/.budget.json
+# current loop checkpoint ref (crash-recovery breadcrumb):
+harness/.checkpoint
 *.harness.log
-state/handoff.md          # regenerated each context reset; not worth versioning
-.claude/settings.local.json   # personal overrides (permissions, env) — never commit
+# regenerated each context reset; not worth versioning:
+state/handoff.md
+# personal overrides (permissions, env) — never commit:
+.claude/settings.local.json
 
 # --- Secrets -------------------------------------------------------------------
 .env
