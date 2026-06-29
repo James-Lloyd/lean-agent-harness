@@ -22,6 +22,8 @@ iterations. Everything you need is on disk. Work the phases in order. Do exactly
    > One item per loop. I need to repeat myself here — **one item per loop.** It is the only way to
    > keep the work coherent and the context clean. If the item is too big, split it in the plan and
    > take only the first slice.
+   Note which **component** it belongs to (see `harness/harness.config.json` → `components`): a
+   frontend/ + backend/ project has separate stacks and gates. Work within that component's directory.
 7. **Search the codebase before assuming the item isn't already done.** Fan out read-only subagents
    to search; do not conclude "not implemented" without looking. Think hard.
 
@@ -32,8 +34,9 @@ iterations. Everything you need is on disk. Work the phases in order. Do exactly
    to avoid backpressure — never run two builds/tests concurrently.
 
 ## Phase 3 — Verify (the gate — this is non-negotiable)
-10. Run the verification gate for the unit you changed (see `harness/harness.config.json` → `gate`):
-    format → lint → typecheck → tests. All must pass.
+10. Run the verification gate for the **component** you changed (its entry in
+    `harness/harness.config.json` → `components`), then the cross-cutting root `gate`:
+    format → lint → typecheck → build → tests. All must pass.
 11. **Unit-green is not done.** Produce end-to-end evidence the change works as a user experiences it
     (a real invocation, a screenshot, a recorded run, a log excerpt). See the `e2e-evidence` skill.
 12. If the gate is red: fix the code. **Never** weaken or delete a test to go green. If you cannot fix

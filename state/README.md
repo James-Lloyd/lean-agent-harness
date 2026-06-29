@@ -15,3 +15,8 @@ each reset and gitignored.
 Rule: the plan (`fix_plan.md`) and manifest (`tasks.json`) must agree. `tasks.json` is JSON on purpose
 — the model is less likely to inappropriately rewrite a JSON manifest than a Markdown file, which makes
 it a sturdier guardrail against premature "done."
+
+Each task in `tasks.json` carries a **`status`** that advances through the workflow lifecycle
+(`todo → planned → in_progress → validated → reviewed → done`) and a **`component`** naming which
+buildable unit it belongs to. `/work` advances the status; a failed phase sends it back, never forward.
+See [`../docs/principles/workflow.md`](../docs/principles/workflow.md).

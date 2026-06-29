@@ -1,13 +1,16 @@
 {
-  "_comment": "Machine-readable task manifest, mirroring state/fix_plan.md. JSON on purpose: the model is less likely to inappropriately rewrite a JSON manifest than Markdown, which makes 'passes' a sturdier done-guardrail. /plan populates this; the loop may edit ONLY the 'passes' field, never 'description'/'acceptance'. Enumerate granularly so the loop can't declare premature victory.",
-  "version": 1,
+  "_comment": "Machine-readable task manifest, mirroring state/fix_plan.md. JSON on purpose: the model is less likely to inappropriately rewrite a JSON manifest than Markdown, which makes 'status'/'passes' a sturdier done-guardrail. /plan populates this; /work advances 'status' through the workflow. The loop/work may edit ONLY 'status', 'passes', and 'evidence' — never 'description'/'acceptance'. Enumerate granularly so victory can't be declared prematurely.",
+  "version": 2,
+  "statusLifecycle": ["todo", "planned", "in_progress", "validated", "reviewed", "done"],
   "tasks": [
     {
       "id": "EXAMPLE-001",
       "category": "functional",
+      "component": "root",
       "description": "Example task — replace via /plan. Describes ONE shippable unit of work.",
       "steps": ["step 1", "step 2"],
       "acceptance": "The single, verifiable condition that makes this true. Prefer executable.",
+      "status": "todo",
       "evidence": "",
       "passes": false
     }

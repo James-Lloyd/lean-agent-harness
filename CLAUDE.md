@@ -14,9 +14,18 @@
 
 ## What this is
 - **Domain / market:** {{DOMAIN}}
-- **Stack:** {{STACK_SUMMARY}}  (full profile: `harness/profiles/{{STACK_PROFILE}}.json`)
-- **Run it:** `{{RUN_COMMAND}}`  ·  **Build:** `{{BUILD_COMMAND}}`  ·  **Test:** `{{TEST_COMMAND}}`
-- **Entry points:** {{ENTRY_POINTS}}
+- **Shape:** {{PROJECT_SHAPE}}  <!-- e.g. "single Node app" or "headless: frontend/ (Next.js) + backend/ (FastAPI)" -->
+
+## Components (the buildable units)
+Each component has its own stack, gate, and (for non-trivial ones) its own nested `CLAUDE.md`. The
+harness runs each component's gate in its own directory; see `harness/harness.config.json` → `components`.
+
+| Component | Path | Stack | Run | Test |
+|-----------|------|-------|-----|------|
+| {{COMPONENT_NAME}} | `{{COMPONENT_PATH}}` | {{COMPONENT_STACK}} | `{{COMPONENT_RUN}}` | `{{COMPONENT_TEST}}` |
+<!-- one row per component; a single-root project has exactly one row with path `.` -->
+
+Cross-cutting (e.g. an e2e that exercises the components together): {{ROOT_E2E}}
 
 ## Where things live (the map)
 - `specs/` — **immutable** requirements. Source of truth. Read first; never rewrite.
@@ -29,8 +38,11 @@
   `PROGRESS.md` (session log), `handoff.md` (context-reset handoff).
 - `AGENT_NOTES.md` — run/build gotchas and learnings. **Append here when you learn something.**
 
-## How to work here (the loop contract)
-1. **Study first.** Read the relevant `specs/`, then the code, then `state/fix_plan.md`.
+## How to work here (the workflow: plan → execute → validate → review → record)
+Full contract: [`docs/principles/workflow.md`](docs/principles/workflow.md). `/work` drives one task
+through all phases; `/plan`, `/loop`, `/verify`, `/review` are the phases run individually. In short:
+1. **Study first.** Read the relevant `specs/`, then the code, then `state/fix_plan.md`. Note which
+   **component** the task touches and work in that directory.
    **Search the codebase before assuming something isn't implemented.** Think hard.
 2. **One task per iteration.** Pick the highest-priority unfinished item from `state/fix_plan.md`.
 3. **Implement fully.** No placeholders, no stubs, no "simple version for now."
@@ -40,6 +52,8 @@
 6. **Record.** Tick the item in `state/fix_plan.md`; note *why* in code/docs for the next (amnesiac) loop.
 
 ## Verification gate (must pass before "done")
+The gate is **per component** (its commands run in that component's directory), then a cross-cutting
+root gate. Exact commands live in `harness/harness.config.json`. For `{{COMPONENT_NAME}}`:
 ```
 {{FORMAT_COMMAND}}
 {{LINT_COMMAND}}
@@ -47,8 +61,8 @@
 {{TEST_COMMAND}}
 {{E2E_COMMAND}}
 ```
-Hooks run the fast subset automatically on edit (see `.claude/settings.json`). Failures come back
-with the fix in the message — read them.
+The PostToolUse hook runs the fast subset (format/lint/typecheck) automatically on edit, **routed to
+the component that owns the changed file**. Failures come back with the fix in the message — read them.
 
 ## Guardrails (hard constraints)
 - **Do not** weaken or delete tests to make a build pass. Fix the code or escalate.

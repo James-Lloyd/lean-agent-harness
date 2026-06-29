@@ -16,22 +16,30 @@ concrete and the loop can run. Be thorough but fast — ask in batches, infer wh
 > rest later from real failures.
 
 ## Step 1 — Detect before you ask
-Run the `stack-detect` skill (or do it inline): inspect the repo for lockfiles, manifests, configs,
-and source globs. Form a hypothesis about language(s), package manager, runtime, test runner, and
-build tool. Also detect the OS (`$IsWindows` / `uname`) so you can wire the right hooks.
+Run the `stack-detect` skill (or do it inline). Crucially, **first determine the project shape**:
+- Look for manifests/lockfiles in **immediate subdirectories**, not just the root. Many projects are
+  headless — a root folder holding `frontend/` + `backend/` (or more), each its own sub-repo with its
+  own root files, stack, and build/test commands.
+- **One root manifest** → a single component (`path: "."`). **Subdir manifests / workspaces** → one
+  component per sub-repo. Decide the component list now; it shapes everything downstream.
 
-If the repo is empty (greenfield), say so — you'll set the stack from the interview instead.
+Then, per component, hypothesize language / package manager / runtime / test runner / build tool. Also
+detect the OS (`$IsWindows` / `uname`) so you can wire the right hooks.
+
+If the repo is empty (greenfield), say so — you'll set the shape and stack(s) from the interview.
 
 ## Step 2 — Interview (use AskUserQuestion, batched)
 Ask only what you couldn't confidently detect. Cover:
 1. **Project identity** — name, one-line description, domain/market, who the users are.
 2. **What it is** — app type (web app / API / CLI / library / data pipeline / mobile / firmware / …),
    and the single most important outcome it must deliver.
-3. **Stack confirmation** — confirm/correct your detected languages, package manager, runtime,
-   test runner, build, and (if web) how to run it locally. If greenfield, choose them now, biasing
+3. **Shape & components** — confirm whether it's single-root or multi-component (e.g. `frontend/` +
+   `backend/`). For **each** component confirm/correct: directory path, languages, package manager,
+   runtime, test runner, build, and how to run it locally. If greenfield, choose them now, biasing
    toward harnessable defaults (strong typing, clear module boundaries, an opinionated framework).
-4. **The gate** — the exact commands for `format`, `lint`, `typecheck`, `build`, `test`, `e2e`
-   (any may be "none"). This is the most important thing you collect — the gate is the harness.
+4. **The gate(s)** — the exact `format`/`lint`/`typecheck`/`build`/`test` commands **for each
+   component** (any may be "none"), plus any **cross-cutting e2e** that exercises the components
+   together (→ the root `gate`). This is the most important thing you collect — the gate is the harness.
 5. **End-to-end verification** — how does a human confirm a change actually works? (browser, a CLI
    invocation, an API call, a device, a screenshot.) This becomes the e2e step + `e2e-evidence` skill.
 6. **Autonomy preference** — supervised (default) or auto; iteration cap; token/cost budget; whether
@@ -41,12 +49,16 @@ Ask only what you couldn't confidently detect. Cover:
 
 ## Step 3 — Write the configuration
 With answers in hand:
-- **`harness/harness.config.json`** — set `autonomy.*`, `gate.*` (the real commands), `stack.*`,
-  `verification.*`. If a profile in `harness/profiles/` matches, reference it by name; if not, copy
-  `_template.json` to `harness/profiles/<stack>.json`, fill it, and reference that.
-- **`CLAUDE.md`** — replace every `{{PLACEHOLDER}}`: name, description, domain, stack summary, run/
-  build/test commands, entry points, and the gate block. Leave the ratchet section empty (it grows
-  from failures). Keep the whole file ≤ ~100 lines — trim, don't pad.
+- **`harness/harness.config.json`** — set `autonomy.*`, `workflow.*`, `verification.*`, and build the
+  **`components[]`** array (one entry per component: `name`, `path`, `profile`, `languages`,
+  `packageManager`, `commands`, and its `gate` with real commands). Put any cross-cutting e2e in the
+  top-level `gate`. For each component's stack, reference a matching `harness/profiles/<stack>.json` or
+  copy `_template.json` and fill a new one.
+- **`CLAUDE.md`** — replace every `{{PLACEHOLDER}}`: name, description, domain, project shape, the
+  **Components table** (one row per component), the gate block, and entry points. Leave the ratchet
+  section empty (it grows from failures). Keep the file ≤ ~100 lines — trim, don't pad.
+- **Nested `CLAUDE.md`** — for each non-trivial component, copy `harness/templates/component-CLAUDE.md`
+  into that component's directory (e.g. `frontend/CLAUDE.md`) and fill it. Skip for a single-root project.
 - **`AGENT_NOTES.md`** — fill the run/build/test commands and any known environment quirks.
 - **`.claude/settings.json`** — if OS is **not** Windows, rewrite the three hook commands from
   `pwsh -NoProfile -ExecutionPolicy Bypass -File ".../<hook>.ps1"` to
@@ -63,8 +75,9 @@ With answers in hand:
 ## Step 5 — Verify the harness itself
 - Dry-run the loop without invoking the model: `powershell harness/loop.ps1 -DryRun` on Windows
   (`pwsh` on PowerShell 7), or `bash harness/loop.sh --dry-run` on Unix.
-- Run the gate commands once manually to confirm they exist and exit 0 on a clean tree. If any is
-  wrong, fix the config. **Do not finish with a gate that doesn't actually run.**
+- Run **each component's** gate commands once, from that component's directory, to confirm they exist
+  and exit 0 on a clean tree (plus any cross-cutting root gate). If any is wrong, fix the config.
+  **Do not finish with a gate that doesn't actually run.**
 - Confirm `git` is initialized (the loop needs it for checkpoints). If not, offer to `git init` and
   make the first commit.
 

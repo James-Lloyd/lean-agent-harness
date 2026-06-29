@@ -110,16 +110,16 @@ while ($i -lt $cfg.autonomy.maxIterations) {
   }
   Update-BudgetFromLog -LogPath $iterLog   # best-effort token accounting
 
-  # --- the gate ---
+  # --- the gate (all components in their own dirs, then the cross-cutting root gate) ---
   Write-Host "🔬 Running verification gate..." -ForegroundColor Cyan
-  $gateResult = Invoke-Gate -Gate $cfg.gate
+  $gateResult = Invoke-ProjectGate -Config $cfg -RepoRoot $RepoRoot
   if ($gateResult.Passed) {
     Write-Host "🟢 Gate green." -ForegroundColor Green
     if ($cfg.loop.commitOnGreen) { Commit-Iteration -Index $i }
     if ($cfg.loop.tagOnGreen)    { Tag-Iteration -Index $i }
     Clear-Checkpoint
   } else {
-    Write-Host "🔴 Gate red: $($gateResult.FailedStep). " -ForegroundColor Red
+    Write-Host "🔴 Gate red: [$($gateResult.Component)] $($gateResult.FailedStep). " -ForegroundColor Red
     if ($cfg.loop.autoRollbackOnRed) {
       Write-Host "↩  Rolling back to keep the tree green." -ForegroundColor Yellow
       Restore-Checkpoint

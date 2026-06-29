@@ -5,9 +5,26 @@ description: Detect a project's tech stack and derive the verification gate. Use
 
 # stack-detect
 
-Determine what stack a repo uses and translate that into the harness's verification gate. The harness
-core is stack-agnostic; this skill is the bridge that fills `harness/harness.config.json` → `gate` and
-the run/build/test commands in `CLAUDE.md` / `AGENT_NOTES.md`.
+Determine what stack(s) a repo uses and translate that into the harness's per-component verification
+gates. The harness core is stack-agnostic; this skill is the bridge that fills
+`harness/harness.config.json` → `components[]` (+ the cross-cutting `gate`) and the run/build/test
+commands in `CLAUDE.md` / `AGENT_NOTES.md`.
+
+## 0. First: is this one component or several?
+Many projects are **headless** — one root folder containing multiple sub-repos, each with its own root
+files (e.g. `frontend/` with `package.json` + `backend/` with `pyproject.toml`). Detect this **before**
+detecting stacks:
+- Look for manifests/lockfiles in **immediate subdirectories**, not just the root (`*/package.json`,
+  `*/pyproject.toml`, `*/go.mod`, `*/Cargo.toml`, `*/pom.xml`, etc.).
+- Also recognize in-tool monorepos (workspaces in a root `package.json`, `pnpm-workspace.yaml`,
+  `turbo.json`, Nx, Cargo workspaces, Go modules).
+- **One manifest at root** → a single component with `path: "."`.
+  **Manifests in subdirs** → one component per sub-repo (e.g. `frontend`, `backend`), each with its own
+  path, stack, and gate. Confirm the split and the directory names with the human.
+- Cross-cutting integration/e2e that spans components (a Playwright suite hitting the running FE+BE,
+  a docker-compose smoke test) belongs in the **top-level `gate`**, not in any single component.
+
+Run the per-stack detection below **once per component**, in that component's directory.
 
 ## 1. Gather signals (don't ask what you can detect)
 Glob/read for manifests and lockfiles, then confirm with the human only the ambiguous parts.
@@ -40,6 +57,10 @@ real command is `null` (e.g. an untyped language has no `typecheck`).
   reference it from config. Record the LSP server(s) so the agent prefers real diagnostics over guesses.
 
 ## 4. Write through
-Merge the profile's `gate` into `harness/harness.config.json`, set `stack.*`, and fill the run/build/
-test commands in `CLAUDE.md` and `AGENT_NOTES.md`. Then **prove each gate command runs** (exit 0 on a
-clean tree) before declaring detection complete — a gate that doesn't execute is worse than none.
+For each component, add an entry to `harness/harness.config.json` → `components[]` with its `path`,
+`profile`, `languages`, `packageManager`, `commands`, and merged `gate`. Put any cross-cutting e2e in
+the top-level `gate`. Fill the Components table in `CLAUDE.md` and the run/build/test commands in
+`AGENT_NOTES.md`. For each non-trivial component, drop a nested `CLAUDE.md` in its directory (copy
+`harness/templates/component-CLAUDE.md`). Then **prove each gate command runs** (exit 0 from that
+component's directory on a clean tree) before declaring detection complete — a gate that doesn't
+execute is worse than none.

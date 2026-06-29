@@ -58,12 +58,18 @@ rm -rf .git && git init                    # make it yours
 /harness-init
 
 # 3. Work
-/plan          "build the thing"           # decompose intent into specs + a task manifest
-/loop          # supervised by default     # run the build loop with checkpoints
-/review        # fresh-context QA          # independent review of the diff
-/handoff       # before a context reset    # write a compact handoff for the next agent
-/ratchet       "what went wrong"           # record a failure as a new rule (the ratchet)
+/plan   "build the thing"   # decompose intent into specs + a task manifest
+/work   # or a task id      # drive ONE task plan→execute→validate→review→record, with checkpoints
+/loop                       # just the execute phase, one supervised iteration
+/review                     # fresh-context QA — independent review of the diff
+/handoff                    # before a context reset — compact handoff for the next agent
+/ratchet "what went wrong"  # record a failure as a new rule (the ratchet)
 ```
+
+`/work` is the orchestrator — it runs the full **plan → execute → validate → review → record**
+workflow for one task, pausing at each phase in supervised mode. See
+[`docs/principles/workflow.md`](docs/principles/workflow.md). The other commands are those phases run
+individually.
 
 For unattended runs:
 
@@ -83,12 +89,13 @@ iteration/token caps, checkpoints, and the verification gate.
 |------|------------|
 | `CLAUDE.md` | The root **context map** (~100 lines, a navigation map — not a 1000-page manual). `/harness-init` fills it. |
 | `AGENTS.md` | Portability shim → points other agents (Codex, opencode) at `CLAUDE.md`. No proprietary lock-in. |
-| `.claude/commands/` | Slash commands: `harness-init`, `plan`, `loop`, `review`, `handoff`, `ratchet`, `verify`, `gc`. |
+| `.claude/commands/` | Slash commands: `harness-init`, `plan`, `work`, `loop`, `verify`, `review`, `handoff`, `ratchet`, `gc`. |
 | `.claude/agents/` | Subagent roles: `planner`, `generator`, `evaluator`, `reviewer`, `doc-gardener`. The doer is never the judge. |
 | `.claude/skills/` | Progressive-disclosure skills: `stack-detect`, `sprint-contract`, `evaluator-rubric`, `e2e-evidence`. |
 | `.claude/settings.json` | Hooks (format/lint/typecheck on edit; block destructive bash) + permissions + env. |
 | `.claude/hooks/` | Cross-platform hook scripts (`.ps1` primary, `.sh` mirror). |
-| `harness/harness.config.json` | Autonomy + gate config — the one file you tune per project. |
+| `harness/harness.config.json` | Autonomy + workflow + per-component gate config — the one file you tune per project. |
+| `harness/templates/` | Templates `/harness-init` copies (e.g. a nested per-component `CLAUDE.md`). |
 | `harness/loop.ps1` / `loop.sh` | The configurable autonomy loop (supervised → full-auto) with guardrails. |
 | `harness/lib/` | Shared loop primitives: checkpoint, rollback, budget, gate. |
 | `harness/profiles/` | **Stack profiles** — pluggable bundles that tell the harness *what* `format`/`lint`/`test`/`build` mean for a given stack. This is what makes the core generic. |
@@ -99,6 +106,41 @@ iteration/token caps, checkpoints, and the verification gate.
 | `AGENT_NOTES.md` | The amnesiac's notebook — run/build commands and hard-won learnings, appended by the loop. |
 
 ---
+
+## Project shapes (single-root and multi-component)
+
+A project is one or more **components**. A single app is one component (`path: "."`). A **headless**
+project is several — e.g. `frontend/` (Next.js) + `backend/` (FastAPI), each with its own root files,
+stack, and build/test commands:
+
+```
+my-project/
+├── CLAUDE.md            # root map → points at each component
+├── harness/             # one harness governs the whole project
+├── specs/  state/  docs/
+├── frontend/  ├─ package.json   └─ CLAUDE.md   # component: Node, its own gate
+└── backend/   ├─ pyproject.toml └─ CLAUDE.md   # component: Python, its own gate
+```
+
+Each component declares its own gate in `harness/harness.config.json` → `components[]`, and the harness
+runs that gate **in that component's directory**. The PostToolUse hook routes a changed file to the
+component that owns it (a `.py` edit under `backend/` is checked with backend's tools). A cross-cutting
+**root gate** holds the integration/e2e that exercises the components together. `/harness-init` detects
+the shape and wires all of this — you don't manage two harnesses.
+
+## The workflow (plan → execute → validate → review → record)
+
+Every task advances through an explicit lifecycle, separating the doer from the judge at each step
+(the Planner/Generator/Evaluator pattern). Each task's `status` in `state/tasks.json` tracks where it is:
+
+```
+todo → planned → in_progress → validated → reviewed → done
+       /plan       /work·/loop   /verify      /review     commit
+```
+
+`/work` orchestrates all five phases for one task with checkpoints between them; in **auto** mode the
+shell loop runs the same phases (via `PROMPT.md`) unattended, one task per iteration, rolling back any
+iteration that fails the validate gate. Full contract: [`docs/principles/workflow.md`](docs/principles/workflow.md).
 
 ## Core principles (the non-negotiables this harness encodes)
 

@@ -1,7 +1,7 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "title": "Harness configuration",
-  "description": "Configuration for the autonomy loop and verification gate. Tune per project; /harness-init seeds the stack-specific fields.",
+  "description": "Configuration for the autonomy loop, the plan->execute->validate->review workflow, and the per-component verification gate. Tune per project; /harness-init seeds the stack-specific fields.",
   "type": "object",
   "properties": {
     "autonomy": {
@@ -12,25 +12,16 @@
           "enum": ["supervised", "auto"],
           "description": "supervised = pause at checkpoints for human y/n; auto = run unattended (Ralph-style) within the caps below."
         },
-        "maxIterations": {
-          "type": "integer", "minimum": 1,
-          "description": "Hard cap on loop iterations. The loop always stops here even if work remains."
-        },
-        "tokenBudget": {
-          "type": ["integer", "null"],
-          "description": "Approx output-token cap for the whole run; null = no cap. The loop stops when exceeded."
-        },
-        "skipPermissions": {
-          "type": "boolean",
-          "description": "Only honored when mode=auto. Passes --dangerously-skip-permissions to headless claude for true unattended runs. DANGEROUS — relies entirely on the gate + rollback + PreToolUse hook for safety. Default false."
-        },
+        "maxIterations": { "type": "integer", "minimum": 1, "description": "Hard cap on loop iterations." },
+        "tokenBudget": { "type": ["integer", "null"], "description": "Approx output-token cap for the whole run; null = no cap." },
+        "skipPermissions": { "type": "boolean", "description": "Only honored when mode=auto. Passes --dangerously-skip-permissions for true unattended runs. DANGEROUS — safety rests on the gate + rollback + PreToolUse hook. Default false." },
         "checkpoints": {
           "type": "object",
           "description": "Where supervised mode pauses for human approval (ignored in auto mode).",
           "properties": {
             "planApproval": { "type": "boolean", "description": "Pause after planning, before any code." },
             "beforeRiskyOps": { "type": "boolean", "description": "Pause before pushes / migrations / deploys." },
-            "everyNIterations": { "type": "integer", "minimum": 0, "description": "Pause every N iterations for a sanity check. 0 = never." }
+            "everyNIterations": { "type": "integer", "minimum": 0, "description": "Pause every N iterations. 0 = never." }
           }
         }
       }
@@ -38,52 +29,81 @@
     "loop": {
       "type": "object",
       "properties": {
-        "promptFile": { "type": "string", "description": "Phased prompt piped into each iteration." },
-        "planFile": { "type": "string", "description": "Mutable prioritized task stack." },
-        "progressFile": { "type": "string", "description": "Append-only session log." },
+        "promptFile": { "type": "string" },
+        "planFile": { "type": "string" },
+        "progressFile": { "type": "string" },
         "oneItemPerIteration": { "type": "boolean", "description": "Enforce single-task iterations. Keep true." },
-        "autoRollbackOnRed": { "type": "boolean", "description": "git reset/stash-pop a failed iteration so the tree is never left broken." },
+        "autoRollbackOnRed": { "type": "boolean", "description": "git reset a failed iteration so the tree is never left broken." },
         "commitOnGreen": { "type": "boolean" },
-        "tagOnGreen": { "type": "boolean", "description": "git tag each green iteration (loop-N) for easy revert." },
-        "stopWhenPlanEmpty": { "type": "boolean", "description": "Exit when fix_plan.md has no unchecked items (vs. re-plan)." }
+        "tagOnGreen": { "type": "boolean", "description": "git tag each green iteration (loop-N)." },
+        "stopWhenPlanEmpty": { "type": "boolean" }
+      }
+    },
+    "workflow": {
+      "type": "object",
+      "description": "The plan->execute->validate->review->record lifecycle that /work drives a task through. Each task in state/tasks.json carries a `status` that advances along these phases.",
+      "properties": {
+        "phases": { "type": "array", "items": { "type": "string" }, "description": "Ordered phase names. The task `status` lifecycle is todo -> planned -> in_progress -> validated -> reviewed -> done." },
+        "checkpointBetweenPhases": { "type": "boolean", "description": "In supervised mode, pause for human review between phases." },
+        "requireSprintContractBefore": { "type": ["string", "null"], "description": "Phase that may not start until a sprint contract (agreed definition of done) exists. Default 'execute'." },
+        "requireReviewBefore": { "type": ["string", "null"], "description": "Status a task may not reach until a fresh-context review has passed. Default 'done'." }
+      }
+    },
+    "components": {
+      "type": "array",
+      "description": "The buildable units of the project. ONE entry for a single-root project (path '.'); MANY for a multi-repo layout (e.g. frontend/ + backend/), each with its own stack and gate. The harness runs each component's gate in that component's own directory. This is what makes the harness work for headless FE+BE projects.",
+      "items": {
+        "type": "object",
+        "required": ["name", "path", "gate"],
+        "properties": {
+          "name": { "type": "string", "description": "Short label, e.g. 'frontend', 'backend', 'root'." },
+          "path": { "type": "string", "description": "Directory of this component relative to the repo root ('.' for a single-root project). Gate commands run with this as the working directory, and the edit-hook routes a changed file to the component whose path is its deepest prefix." },
+          "profile": { "type": ["string", "null"], "description": "Name of the stack profile in harness/profiles/ used to derive this component's gate." },
+          "languages": { "type": "array", "items": { "type": "string" } },
+          "packageManager": { "type": ["string", "null"] },
+          "runtime": { "type": ["string", "null"] },
+          "commands": {
+            "type": "object",
+            "properties": {
+              "install": { "type": ["string", "null"] },
+              "run": { "type": ["string", "null"], "description": "How to run this component locally (dev server, entrypoint)." }
+            }
+          },
+          "gate": { "$ref": "#/definitions/gate" }
+        }
       }
     },
     "gate": {
-      "type": "object",
-      "description": "The verification gate. Each value is a shell command, or null to skip that step. /harness-init fills these from the chosen stack profile (harness/profiles/*.json). The harness defines WHEN these run; the stack profile defines WHAT they are. This is the seam that makes the harness tech-agnostic.",
-      "properties": {
-        "format":    { "type": ["string", "null"] },
-        "lint":      { "type": ["string", "null"] },
-        "typecheck": { "type": ["string", "null"] },
-        "test":      { "type": ["string", "null"] },
-        "build":     { "type": ["string", "null"] },
-        "e2e":       { "type": ["string", "null"], "description": "End-to-end / user-level check. Unit-green is not done." }
-      }
+      "description": "Cross-cutting / integration gate, run from the repo ROOT after every component gate passes. Multi-component: usually only `e2e` (exercising the components together); single-component: leave entirely null.",
+      "allOf": [{ "$ref": "#/definitions/gate" }]
     },
     "verification": {
       "type": "object",
       "properties": {
         "freshContextReview": { "type": "boolean", "description": "Require an independent review in a fresh context before merge. Doer != judge." },
-        "requireE2EEvidence": { "type": "boolean", "description": "Require captured end-to-end evidence (screenshot/run/log), not just passing unit tests." },
+        "requireE2EEvidence": { "type": "boolean", "description": "Require captured end-to-end evidence, not just passing unit tests." },
         "evaluator": {
           "type": "object",
-          "description": "Optional skeptical LLM evaluator (planner/generator/evaluator pattern). Worth the cost when the task exceeds what the model does reliably solo.",
           "properties": {
             "enabled": { "type": "boolean" },
-            "rubric": { "type": "string", "description": "Path to the scoring rubric." },
+            "rubric": { "type": "string" },
             "failBelow": { "type": "number", "description": "Sprint fails if any criterion scores below this hard threshold." }
           }
         }
       }
-    },
-    "stack": {
+    }
+  },
+  "definitions": {
+    "gate": {
       "type": "object",
-      "description": "Detected/declared stack. Set by /harness-init via the stack-detect skill.",
+      "description": "A verification gate. Each value is a shell command (run in the relevant working directory) or null to skip that step. Execution order is fixed: format -> lint -> typecheck -> build -> test -> e2e. The harness defines WHEN; the stack profile defines WHAT. This is the seam that makes the harness tech-agnostic.",
       "properties": {
-        "profile": { "type": ["string", "null"], "description": "Name of the profile in harness/profiles/, e.g. 'node'." },
-        "languages": { "type": "array", "items": { "type": "string" } },
-        "packageManager": { "type": ["string", "null"] },
-        "runtime": { "type": ["string", "null"] }
+        "format":    { "type": ["string", "null"] },
+        "lint":      { "type": ["string", "null"] },
+        "typecheck": { "type": ["string", "null"] },
+        "build":     { "type": ["string", "null"] },
+        "test":      { "type": ["string", "null"] },
+        "e2e":       { "type": ["string", "null"], "description": "End-to-end / user-level check. Unit-green is not done." }
       }
     }
   }

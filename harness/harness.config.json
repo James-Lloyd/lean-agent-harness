@@ -1,6 +1,6 @@
-{
+﻿{
   "$schema": "./harness.schema.json",
-  "_comment": "The one file you tune per project. /harness-init writes the stack-specific bits (gate commands, stack profile). See harness.schema.json for the full field reference.",
+  "_comment": "The one file you tune per project. /harness-init writes the stack-specific bits. A project is one-or-more COMPONENTS (each a buildable sub-repo with its own stack + gate) plus a cross-cutting root gate for integration/e2e. A single-root project is just one component with path '.'. See harness.schema.json for the full field reference.",
 
   "autonomy": {
     "mode": "supervised",
@@ -25,12 +25,40 @@
     "stopWhenPlanEmpty": true
   },
 
+  "workflow": {
+    "phases": ["plan", "execute", "validate", "review", "record"],
+    "checkpointBetweenPhases": true,
+    "requireSprintContractBefore": "execute",
+    "requireReviewBefore": "done"
+  },
+
+  "components": [
+    {
+      "name": "root",
+      "path": ".",
+      "profile": null,
+      "languages": [],
+      "packageManager": null,
+      "runtime": null,
+      "commands": { "install": null, "run": null },
+      "gate": {
+        "format": null,
+        "lint": null,
+        "typecheck": null,
+        "build": null,
+        "test": null,
+        "e2e": null
+      }
+    }
+  ],
+
   "gate": {
+    "_comment": "Cross-cutting / integration gate, run from the repo ROOT after every component gate passes. For a multi-component project this usually holds only the e2e that exercises the components together; leave the rest null. For a single-component project, leave this entirely null (the component gate covers it).",
     "format": null,
     "lint": null,
     "typecheck": null,
-    "test": null,
     "build": null,
+    "test": null,
     "e2e": null
   },
 
@@ -42,12 +70,5 @@
       "rubric": "docs/principles/evaluator-rubric.md",
       "failBelow": 7
     }
-  },
-
-  "stack": {
-    "profile": null,
-    "languages": [],
-    "packageManager": null,
-    "runtime": null
   }
 }
