@@ -8,7 +8,7 @@ config="$root/harness/harness.config.json"
 [ -f "$config" ] || exit 0
 command -v jq >/dev/null || exit 0
 
-changed="$(printf '%s' "$payload" | jq -r '.tool_input.file_path // empty' 2>/dev/null)"
+changed="$(printf '%s' "$payload" | jq -r '.tool_input.file_path // .tool_input.notebook_path // empty' 2>/dev/null)"
 # repo-relative, forward-slash
 rel=""
 if [ -n "$changed" ]; then
@@ -23,6 +23,8 @@ n="$(jq -r '.components | length' "$config" 2>/dev/null || echo 0)"
 { [ "$n" = "0" ] || [ "$n" = "null" ]; } && exit 0
 
 # choose target component index by deepest path prefix; -1 => check all
+# nocasematch so routing matches the .ps1 (case-insensitive) on case-insensitive filesystems.
+shopt -s nocasematch
 target=-1; bestlen=-1
 i=0
 while [ "$i" -lt "$n" ]; do

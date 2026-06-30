@@ -90,18 +90,38 @@ function hookExit($cmd) {
 }
 # Build risky strings from fragments so the outer test harness/sandbox doesn't itself trip on them.
 $rmfr   = 'rm' + ' -fr ' + 'build'           # flag-order variant the old regex missed
+$rmpost = 'rm ' + 'build_dir ' + '-rf'        # flags AFTER the operand (was a bypass)
 $pushf  = 'git push ' + '-f origin main'      # short force flag
 $finddel= 'find . ' + '-delete'
 $resetX = 'git reset ' + '--hard abc1234'     # arbitrary sha (old regex only caught HEAD~)
 $grepsec= 'grep x ' + '.env'                  # secret read via grep (old regex only cat/type/gc)
+$psrm   = 'Remove-Item ' + '-Recurse ' + '-Force .'   # PowerShell-tool destructive form
+$lease  = 'git push ' + '--force-with-lease ' + 'origin main'   # the RECOMMENDED safe alternative
 ok "blocks rm -fr (flag order)"        ((hookExit $rmfr) -eq 2)
+ok "blocks rm <dir> -rf (flags after operand)" ((hookExit $rmpost) -eq 2)
 ok "blocks git push -f (short flag)"   ((hookExit $pushf) -eq 2)
 ok "blocks find -delete"               ((hookExit $finddel) -eq 2)
 ok "blocks git reset --hard <sha>"     ((hookExit $resetX) -eq 2)
 ok "blocks secret read via grep"       ((hookExit $grepsec) -eq 2)
+ok "blocks Remove-Item -Recurse -Force" ((hookExit $psrm) -eq 2)
 ok "allows git status"                 ((hookExit 'git status') -eq 0)
 ok "allows npm test"                   ((hookExit 'npm test') -eq 0)
 ok "allows normal git push"            ((hookExit 'git push origin feature') -eq 0)
+ok "ALLOWS git push --force-with-lease (the recommended form)" ((hookExit $lease) -eq 0)
+
+Write-Host "block-destructive: spec-lock blocks shell writes to specs/ only when locked"
+function hookExitLocked($cmd, $locked) {
+  $ErrorActionPreference = 'SilentlyContinue'
+  $old = $env:HARNESS_LOCK_SPECS
+  if ($locked) { $env:HARNESS_LOCK_SPECS = '1' } else { Remove-Item Env:HARNESS_LOCK_SPECS -ErrorAction SilentlyContinue }
+  $payload = @{ tool_name='Bash'; tool_input=@{ command=$cmd } } | ConvertTo-Json -Compress
+  try { $payload | & powershell -NoProfile -ExecutionPolicy Bypass -File $hook 1>$null 2>$null }
+  finally { if ($null -ne $old) { $env:HARNESS_LOCK_SPECS = $old } else { Remove-Item Env:HARNESS_LOCK_SPECS -ErrorAction SilentlyContinue } }
+  return $LASTEXITCODE
+}
+$specWrite = 'echo hacked ' + '> ' + 'specs/000-overview.md'
+ok "blocks shell write to specs/ when locked"   ((hookExitLocked $specWrite $true) -eq 2)
+ok "allows shell write to specs/ when unlocked"  ((hookExitLocked $specWrite $false) -eq 0)
 
 Write-Host "protect-specs hook: locks specs/ only when HARNESS_LOCK_SPECS is set"
 $specHook = Join-Path $hookDir 'protect-specs.ps1'
@@ -119,6 +139,17 @@ function specExit($path, $locked) {
 ok "blocks specs/ write when locked"   ((specExit 'specs/000-overview.md' $true) -eq 2)
 ok "allows non-spec write when locked" ((specExit 'src/app.ts' $true) -eq 0)
 ok "allows specs/ write when unlocked" ((specExit 'specs/000-overview.md' $false) -eq 0)
+# NotebookEdit carries notebook_path, not file_path — specs/*.ipynb must still be blocked when locked.
+function specExitNb($path, $locked) {
+  $ErrorActionPreference = 'SilentlyContinue'
+  $old = $env:HARNESS_LOCK_SPECS
+  if ($locked) { $env:HARNESS_LOCK_SPECS = '1' } else { Remove-Item Env:HARNESS_LOCK_SPECS -ErrorAction SilentlyContinue }
+  $payload = @{ tool_name='NotebookEdit'; tool_input=@{ notebook_path=$path } } | ConvertTo-Json -Compress
+  try { $payload | & powershell -NoProfile -ExecutionPolicy Bypass -File $specHook 1>$null 2>$null }
+  finally { if ($null -ne $old) { $env:HARNESS_LOCK_SPECS = $old } else { Remove-Item Env:HARNESS_LOCK_SPECS -ErrorAction SilentlyContinue } }
+  return $LASTEXITCODE
+}
+ok "blocks specs/*.ipynb via notebook_path when locked" ((specExitNb 'specs/nb.ipynb' $true) -eq 2)
 
 Write-Host ""
 Write-Host ("RESULT: {0} passed, {1} failed" -f $script:pass, $script:fail) -ForegroundColor Cyan

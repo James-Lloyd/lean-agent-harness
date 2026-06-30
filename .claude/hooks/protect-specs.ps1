@@ -10,7 +10,12 @@ $ErrorActionPreference = 'Stop'
 if ([string]::IsNullOrWhiteSpace($env:HARNESS_LOCK_SPECS)) { exit 0 }   # not in a locked loop run
 
 $changed = $null
-try { $p = [Console]::In.ReadToEnd() | ConvertFrom-Json; $changed = [string]$p.tool_input.file_path } catch {}
+# NotebookEdit carries `notebook_path`, not `file_path` — fall back so specs/*.ipynb is covered too.
+try {
+  $p = [Console]::In.ReadToEnd() | ConvertFrom-Json
+  $changed = [string]$p.tool_input.file_path
+  if ([string]::IsNullOrWhiteSpace($changed)) { $changed = [string]$p.tool_input.notebook_path }
+} catch {}
 if ([string]::IsNullOrWhiteSpace($changed)) { exit 0 }
 
 $root = $env:CLAUDE_PROJECT_DIR; if (-not $root) { $root = (Get-Location).Path }

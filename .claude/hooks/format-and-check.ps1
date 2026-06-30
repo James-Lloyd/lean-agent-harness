@@ -15,6 +15,7 @@ $changed = $null
 try {
   $payload = [Console]::In.ReadToEnd() | ConvertFrom-Json
   $changed = [string]$payload.tool_input.file_path
+  if ([string]::IsNullOrWhiteSpace($changed)) { $changed = [string]$payload.tool_input.notebook_path }
 } catch {}
 
 $configPath = Join-Path $root 'harness/harness.config.json'

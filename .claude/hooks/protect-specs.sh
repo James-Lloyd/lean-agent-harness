@@ -8,10 +8,13 @@
 [ -z "${HARNESS_LOCK_SPECS:-}" ] && exit 0
 payload="$(cat)"
 command -v jq >/dev/null 2>&1 || exit 0
-changed="$(printf '%s' "$payload" | jq -r '.tool_input.file_path // empty' 2>/dev/null)"
+# NotebookEdit carries `notebook_path`, not `file_path` — fall back so specs/*.ipynb is covered too.
+changed="$(printf '%s' "$payload" | jq -r '.tool_input.file_path // .tool_input.notebook_path // empty' 2>/dev/null)"
 [ -z "$changed" ] && exit 0
 
 root="${CLAUDE_PROJECT_DIR:-$(pwd)}"; root="${root%/}"
+# Normalize the path (resolve ../ etc.) for parity with the .ps1, which GetFullPath-normalizes.
+if command -v realpath >/dev/null 2>&1; then changed="$(realpath -m "$changed" 2>/dev/null || echo "$changed")"; fi
 case "$changed" in
   "$root"/*) rel="${changed#"$root"/}";;
   *) rel="$changed";;

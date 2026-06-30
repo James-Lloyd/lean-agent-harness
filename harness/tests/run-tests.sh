@@ -26,8 +26,10 @@ hookrc() {  # $1 = command (no quotes/backslashes in our test inputs) ; echoes h
     | bash "$HOOKS/block-destructive.sh" >/dev/null 2>&1; echo $?
 }
 rmfr='rm -fr build'; pushf='git push -f origin main'; finddel='find . -delete'
-resetx='git reset --hard abc1234'; grepsec='grep x .env'
+resetx='git reset --hard abc1234'; grepsec='grep x .env'; rmpost='rm build_dir -rf'
+lease='git push --force-with-lease origin main'
 ok "$([ "$(hookrc "$rmfr")"   = "2" ] && echo 1 || echo 0)" "blocks rm -fr (flag order)"
+ok "$([ "$(hookrc "$rmpost")" = "2" ] && echo 1 || echo 0)" "blocks rm <dir> -rf (flags after operand)"
 ok "$([ "$(hookrc "$pushf")"  = "2" ] && echo 1 || echo 0)" "blocks git push -f (short flag)"
 ok "$([ "$(hookrc "$finddel")" = "2" ] && echo 1 || echo 0)" "blocks find -delete"
 ok "$([ "$(hookrc "$resetx")" = "2" ] && echo 1 || echo 0)" "blocks git reset --hard <sha>"
@@ -35,6 +37,16 @@ ok "$([ "$(hookrc "$grepsec")" = "2" ] && echo 1 || echo 0)" "blocks secret read
 ok "$([ "$(hookrc 'git status')"      = "0" ] && echo 1 || echo 0)" "allows git status"
 ok "$([ "$(hookrc 'npm test')"        = "0" ] && echo 1 || echo 0)" "allows npm test"
 ok "$([ "$(hookrc 'git push origin feature')" = "0" ] && echo 1 || echo 0)" "allows normal git push"
+ok "$([ "$(hookrc "$lease")" = "0" ] && echo 1 || echo 0)" "ALLOWS git push --force-with-lease (recommended)"
+
+echo "block-destructive: spec-lock blocks shell writes to specs/ only when locked"
+hookrc_locked() {  # $1 = command ; $2 = HARNESS_LOCK_SPECS value
+  printf '{"tool_name":"Bash","tool_input":{"command":"%s"}}' "$1" \
+    | HARNESS_LOCK_SPECS="$2" bash "$HOOKS/block-destructive.sh" >/dev/null 2>&1; echo $?
+}
+specwrite='echo hacked > specs/000-overview.md'
+ok "$([ "$(hookrc_locked "$specwrite" '1')" = "2" ] && echo 1 || echo 0)" "blocks shell write to specs/ when locked"
+ok "$([ "$(hookrc_locked "$specwrite" '')"  = "0" ] && echo 1 || echo 0)" "allows shell write to specs/ when unlocked"
 
 echo "protect-specs hook: locks specs/ only when HARNESS_LOCK_SPECS is set"
 specrc() {  # $1 = file_path ; $2 = HARNESS_LOCK_SPECS value ("" = unset) ; echoes hook exit code
@@ -45,6 +57,11 @@ if command -v jq >/dev/null 2>&1; then
   ok "$([ "$(specrc 'specs/000-overview.md' '1')" = "2" ] && echo 1 || echo 0)" "blocks specs/ write when locked"
   ok "$([ "$(specrc 'src/app.ts' '1')"            = "0" ] && echo 1 || echo 0)" "allows non-spec write when locked"
   ok "$([ "$(specrc 'specs/000-overview.md' '')"  = "0" ] && echo 1 || echo 0)" "allows specs/ write when unlocked"
+  specrc_nb() {  # $1 = notebook_path ; $2 = HARNESS_LOCK_SPECS value
+    printf '{"tool_name":"NotebookEdit","tool_input":{"notebook_path":"%s"}}' "$1" \
+      | HARNESS_LOCK_SPECS="$2" bash "$HOOKS/protect-specs.sh" >/dev/null 2>&1; echo $?
+  }
+  ok "$([ "$(specrc_nb 'specs/nb.ipynb' '1')" = "2" ] && echo 1 || echo 0)" "blocks specs/*.ipynb via notebook_path when locked"
 else
   echo "  (skipping protect-specs tests — jq not installed)"
 fi
