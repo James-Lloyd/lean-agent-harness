@@ -26,11 +26,16 @@ function Invoke-GateStep([string]$name, [string]$cmd, [string]$workDir) {
   if ([string]::IsNullOrWhiteSpace([string]$cmd)) { return $true }   # null/absent = skip
   Write-Host "  - $name : $cmd" -ForegroundColor DarkGray
   Push-Location $workDir
+  # CRITICAL: drop $ErrorActionPreference to 'Continue' around the native call. The caller runs under
+  # 'Stop', where a native command that writes to STDERR — even on exit 0 (pytest/eslint/pnpm progress
+  # and deprecation lines are routine) — gets wrapped in a NativeCommandError and raised as terminating
+  # BEFORE $LASTEXITCODE is read. That would misclassify a green step as a gate error and roll it back.
+  $prevEAP = $ErrorActionPreference; $ErrorActionPreference = 'Continue'
   try {
     if ($env:OS -eq 'Windows_NT') { $out = & cmd /c $cmd 2>&1 }       # Windows shell
     else                          { $out = & bash -lc $cmd 2>&1 }     # pwsh on Unix/macOS/CI
     $code = $LASTEXITCODE
-  } finally { Pop-Location }
+  } finally { $ErrorActionPreference = $prevEAP; Pop-Location }
   if ($code -ne 0) {
     Write-Host "    x $name failed (exit $code) in $workDir :" -ForegroundColor Red
     $out | Select-Object -Last 40 | ForEach-Object { Write-Host "      $_" -ForegroundColor Red }

@@ -67,7 +67,8 @@ function Confirm-Checkpoint([string]$label) {
 }
 
 function Get-OpenItemCount {
-  $plan = Join-Path $RepoRoot $cfg.loop.planFile
+  $planFile = Get-Prop (Get-Prop $cfg 'loop') 'planFile'; if (-not $planFile) { $planFile = 'state/fix_plan.md' }
+  $plan = Join-Path $RepoRoot $planFile
   if (-not (Test-Path $plan)) { return 0 }
   return @(Select-String -Path $plan -Pattern '^\s*[-*]\s+\[ \]' -ErrorAction SilentlyContinue).Count
 }
@@ -103,8 +104,11 @@ VERDICT: REJECT   (anything is wrong — default to REJECT when unsure)
   $reviewLog = Join-Path $RunDir ("review-after-$Iter.log")
   $reviewArgs = @('-p', $reviewPrompt, '--max-turns', '20', '--disallowedTools', 'Edit Write MultiEdit NotebookEdit')
   $out = ''; $invokeOk = $true
-  try { $out = (& claude @reviewArgs *>&1 | Tee-Object -FilePath $reviewLog | Out-String) }
+  # 'Continue' so claude's stderr (routine) doesn't raise a terminating error under the script's 'Stop'.
+  $prevEAP = $ErrorActionPreference; $ErrorActionPreference = 'Continue'
+  try { $out = (& claude @reviewArgs *>&1 | Tee-Object -FilePath $reviewLog | Out-String); if ($LASTEXITCODE -ne 0) { $invokeOk = $false } }
   catch { $invokeOk = $false; $out = "$_" }
+  finally { $ErrorActionPreference = $prevEAP }
   # A judge must not mutate the artifact: restore the tree to exactly the reviewed HEAD, no matter what.
   & git reset --hard $head *> $null
   & git clean -fd *> $null
@@ -174,21 +178,32 @@ if ($cfg.autonomy.mode -eq 'auto' -and (Get-Prop $cfg.autonomy 'skipPermissions'
 # claude child) blocks edits under specs/ while this is set. The loop must never rewrite the contract.
 $env:HARNESS_LOCK_SPECS = '1'
 
-$prompt = Get-Content (Join-Path $RepoRoot $cfg.loop.promptFile) -Raw
+# Resolve optional loop/autonomy keys via Get-Prop so a trimmed config (e.g. after /harness-prune) can't
+# crash the loop under StrictMode — it degrades to the same defaults loop.sh uses.
+$loopCfg          = Get-Prop $cfg 'loop'
+$promptFile       = Get-Prop $loopCfg 'promptFile'; if (-not $promptFile) { $promptFile = 'PROMPT.md' }
+$stopWhenEmpty    = [bool](Get-Prop $loopCfg 'stopWhenPlanEmpty')
+$commitOnGreen    = [bool](Get-Prop $loopCfg 'commitOnGreen')
+$tagOnGreen       = [bool](Get-Prop $loopCfg 'tagOnGreen')
+$autoRollback     = [bool](Get-Prop $loopCfg 'autoRollbackOnRed')
+$tokenBudget      = Get-Prop $cfg.autonomy 'tokenBudget'
+$everyNIterations = Get-Prop (Get-Prop $cfg.autonomy 'checkpoints') 'everyNIterations'; if (-not $everyNIterations) { $everyNIterations = 0 }
+
+$prompt = Get-Content (Join-Path $RepoRoot $promptFile) -Raw
 $i = 0
 $greenCount = 0
 $reviewBaseRef = "$(& git rev-parse HEAD)".Trim()   # periodic-review watermark: commits after this are unreviewed
 while ($i -lt $cfg.autonomy.maxIterations) {
   $i++
-  if ($cfg.loop.stopWhenPlanEmpty -and (Get-OpenItemCount) -eq 0) {
+  if ($stopWhenEmpty -and (Get-OpenItemCount) -eq 0) {
     Write-Host "✅ fix_plan.md has no open items. Nothing to do — stopping." -ForegroundColor Green
     break
   }
-  if ($null -ne $cfg.autonomy.tokenBudget -and (Test-BudgetExceeded $cfg.autonomy.tokenBudget)) {
+  if ($null -ne $tokenBudget -and (Test-BudgetExceeded $tokenBudget)) {
     Write-Host "💸 Token budget (estimate) exhausted — stopping." -ForegroundColor Yellow
     break
   }
-  $nEvery = $cfg.autonomy.checkpoints.everyNIterations
+  $nEvery = $everyNIterations
   if ($nEvery -gt 0 -and ($i % $nEvery) -eq 0) {
     if (-not (Confirm-Checkpoint "Reached iteration $i")) { break }
   }
@@ -209,11 +224,20 @@ while ($i -lt $cfg.autonomy.maxIterations) {
     $claudeArgs += '--dangerously-skip-permissions'
   }
   if (Get-Prop $cfg.autonomy 'meterTokens') { $claudeArgs += @('--output-format', 'json') }   # exact usage
+  # 'Continue' so claude's stderr doesn't raise a terminating error under 'Stop'; then check the exit
+  # code explicitly (a native non-zero exit is NOT an exception — mirrors loop.sh's `if ! claude ...`).
+  $prevEAP = $ErrorActionPreference; $ErrorActionPreference = 'Continue'; $claudeExit = 0
   try {
     & claude @claudeArgs *>&1 | Tee-Object -FilePath $iterLog
+    $claudeExit = $LASTEXITCODE
   } catch {
     Write-Host "❌ claude invocation failed: $_" -ForegroundColor Red
     Write-Ledger @{ iter = $i; result = 'invoke-error'; error = "$_" }
+    $ErrorActionPreference = $prevEAP; Restore-Checkpoint; continue
+  } finally { $ErrorActionPreference = $prevEAP }
+  if ($claudeExit -ne 0) {
+    Write-Host "❌ claude exited $claudeExit — treating the iteration as failed." -ForegroundColor Red
+    Write-Ledger @{ iter = $i; result = 'invoke-error'; exit = $claudeExit }
     Restore-Checkpoint; continue
   }
   Update-BudgetFromLog -LogPath $iterLog
@@ -237,13 +261,13 @@ while ($i -lt $cfg.autonomy.maxIterations) {
 
   if ($gateResult.Passed) {
     Write-Host "🟢 Gate green." -ForegroundColor Green
-    if ($cfg.loop.commitOnGreen) { Commit-Iteration -Index $i }
-    if ($cfg.loop.tagOnGreen)    { Tag-Iteration -Index $i -RunId $runId }
+    if ($commitOnGreen) { Commit-Iteration -Index $i }
+    if ($tagOnGreen)    { Tag-Iteration -Index $i -RunId $runId }
     Clear-Checkpoint
-    Write-Ledger @{ iter = $i; result = 'green'; committed = [bool]$cfg.loop.commitOnGreen }
+    Write-Ledger @{ iter = $i; result = 'green'; committed = $commitOnGreen }
     $greenCount++
     # Inferential judge, wired in: every N green iterations a fresh-context reviewer audits the batch.
-    if ($reviewEveryN -gt 0 -and $cfg.loop.commitOnGreen -and ($greenCount % $reviewEveryN) -eq 0) {
+    if ($reviewEveryN -gt 0 -and $commitOnGreen -and ($greenCount % $reviewEveryN) -eq 0) {
       if (Invoke-PeriodicReview -Base $reviewBaseRef -RunDir $runDir -Iter $i) {
         $reviewBaseRef = "$(& git rev-parse HEAD)".Trim()   # advance the watermark past the reviewed batch
       } else {
@@ -254,7 +278,7 @@ while ($i -lt $cfg.autonomy.maxIterations) {
   } else {
     Write-Host "🔴 Gate red: [$($gateResult.Component)] $($gateResult.FailedStep)." -ForegroundColor Red
     Write-Ledger @{ iter = $i; result = 'red'; component = "$($gateResult.Component)"; failedStep = "$($gateResult.FailedStep)" }
-    if ($cfg.loop.autoRollbackOnRed) {
+    if ($autoRollback) {
       Write-Host "↩  Rolling back to keep the tree green." -ForegroundColor Yellow
       Restore-Checkpoint
     } else {

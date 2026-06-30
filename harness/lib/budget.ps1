@@ -20,7 +20,10 @@ function Get-LoopRunId {
 }
 
 function Get-Budget {
-  if (Test-Path $script:BudgetFile) { return Get-Content $script:BudgetFile -Raw | ConvertFrom-Json }
+  # Degrade on a missing/corrupt ledger rather than aborting the whole loop under StrictMode/Stop.
+  if (Test-Path $script:BudgetFile) {
+    try { return Get-Content $script:BudgetFile -Raw | ConvertFrom-Json } catch { }
+  }
   return [pscustomobject]@{ tokensSpent = 0 }
 }
 
@@ -34,10 +37,15 @@ function Update-BudgetFromLog([string]$LogPath) {
   $spent = 0
   if (Test-Path $LogPath) {
     $text = Get-Content $LogPath -Raw -ErrorAction SilentlyContinue
-    # Prefer real usage if the output happens to carry it (json: "output_tokens": N), summed.
-    $um = [regex]::Matches($text, '"(?:input_tokens|output_tokens)"\s*:\s*(\d+)')
-    if ($um.Count -gt 0) {
-      $spent = ($um | ForEach-Object { [int]$_.Groups[1].Value } | Measure-Object -Sum).Sum
+    # Prefer real usage if the output carries it (json: "output_tokens": N). Take the MAX of each field,
+    # not the sum: --output-format json can repeat the same counts in a per-model `modelUsage` breakdown
+    # alongside the aggregate `usage`, so summing every match double-counts. Max ≈ the aggregate total.
+    $inM  = [regex]::Matches($text, '"input_tokens"\s*:\s*(\d+)')
+    $outM = [regex]::Matches($text, '"output_tokens"\s*:\s*(\d+)')
+    if ($inM.Count -gt 0 -or $outM.Count -gt 0) {
+      $maxIn  = if ($inM.Count)  { ($inM  | ForEach-Object { [int]$_.Groups[1].Value } | Measure-Object -Maximum).Maximum } else { 0 }
+      $maxOut = if ($outM.Count) { ($outM | ForEach-Object { [int]$_.Groups[1].Value } | Measure-Object -Maximum).Maximum } else { 0 }
+      $spent = $maxIn + $maxOut
     } else {
       # Else any "<n> tokens" figure (take the max seen).
       $tm = [regex]::Matches($text, '(\d[\d,]*)\s*tokens')

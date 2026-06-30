@@ -36,6 +36,17 @@ ok "all-green gate passes" ($rp.Passed)
 $rf = Invoke-Gate -Gate (gate 'exit 0' 'exit 5' $null $null $null $null) -WorkingDir $here -Label 'c'
 ok "failing gate reports FailedStep=lint" ((-not $rf.Passed) -and $rf.FailedStep -eq 'lint')
 
+Write-Host "gate: a step that writes to STDERR but exits 0 still passes (regression: EAP=Stop)"
+# Real gate tools (pytest/eslint/pnpm) routinely print to stderr on a GREEN run. Under the loop's
+# $ErrorActionPreference='Stop' this used to raise a terminating NativeCommandError before the exit code
+# was read, misclassifying green as gate-error and rolling it back. This suite runs under Stop (line 11),
+# so it reproduces that condition. 'echo oops 1>&2' writes to stderr and exits 0 in both cmd and bash.
+$threw2 = $false
+try { $rs = Invoke-Gate -Gate (gate 'echo oops 1>&2' $null $null $null 'exit 0' $null) -WorkingDir $here -Label 'c' }
+catch { $threw2 = $true }
+ok "stderr-on-exit-0 step does not throw" (-not $threw2)
+ok "stderr-on-exit-0 gate passes"        ($threw2 -eq $false -and $rs.Passed -eq $true)
+
 Write-Host "gate: multi-component project gate + failure attribution"
 $cfgPass = [pscustomobject]@{
   components = @(
@@ -59,6 +70,14 @@ Write-Host "budget: per-run reset"
 Reset-Budget
 ok "budget resets to 0" ((Get-Budget).tokensSpent -eq 0)
 ok "no cap => not exceeded" (-not (Test-BudgetExceeded 0))
+
+Write-Host "budget: meters MAX of each token field, not the sum (modelUsage repeats counts)"
+$blog = Join-Path $here 'budget-test.log'
+Set-Content -Path $blog -Value '{"usage":{"input_tokens":100,"output_tokens":50},"modelUsage":{"x":{"input_tokens":100,"output_tokens":50}}}' -Encoding utf8
+Reset-Budget; Update-BudgetFromLog -LogPath $blog | Out-Null
+ok "budget meters 150 (max 100 + max 50, not summed to 300)" ((Get-Budget).tokensSpent -eq 150)
+Remove-Item $blog -ErrorAction SilentlyContinue
+Reset-Budget
 
 Write-Host "block-destructive hook: blocks dangerous, allows safe"
 $hook = Join-Path $hookDir 'block-destructive.ps1'

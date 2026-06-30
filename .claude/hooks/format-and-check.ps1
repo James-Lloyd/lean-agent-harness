@@ -61,10 +61,14 @@ foreach ($c in $targets) {
     $cmd = $fast[$name]
     if ([string]::IsNullOrWhiteSpace([string]$cmd)) { continue }
     Push-Location $dir
+    # 'Continue' around the native call: under the script's 'Stop', a tool writing to stderr on exit 0
+    # would raise a terminating NativeCommandError (and dump a raw PS stack trace); the catch degrades a
+    # spawn failure (missing interpreter) to a skip instead of crashing the hook.
+    $prevEAP = $ErrorActionPreference; $ErrorActionPreference = 'Continue'; $out = ''; $code = 0
     try {
       if ($env:OS -eq 'Windows_NT') { $out = & cmd /c $cmd 2>&1 } else { $out = & bash -lc $cmd 2>&1 }
       $code = $LASTEXITCODE
-    } finally { Pop-Location }
+    } catch { $code = 0; $out = '' } finally { $ErrorActionPreference = $prevEAP; Pop-Location }
     if ($code -ne 0) {
       $failed = $true
       [void]$report.AppendLine("[$($c.name)] x $name failed (exit ${code}): $cmd")

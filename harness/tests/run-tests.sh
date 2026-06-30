@@ -66,8 +66,17 @@ JSON
   "gate":{} }
 JSON
   if run_gate "$failcfg"; then ok 0 "failure attributed to backend:lint"; else ok "$([ "$GATE_FAILED_STEP" = "backend:lint" ] && echo 1 || echo 0)" "failure attributed to backend:lint (got '$GATE_FAILED_STEP')"; fi
+  # A step that writes to stderr but exits 0 must still pass (mirrors the EAP=Stop regression on the PS side).
+  stderrcfg="$(mktemp)"; cat > "$stderrcfg" <<'JSON'
+{ "components":[ {"name":"root","path":".","gate":{"format":"echo oops 1>&2","test":"true"}} ], "gate":{} }
+JSON
+  if run_gate "$stderrcfg"; then ok 1 "stderr-on-exit-0 gate passes"; else ok 0 "stderr-on-exit-0 gate passes (got '$GATE_FAILED_STEP')"; fi
   reset_budget; ok "$([ "$(_budget_spent)" = "0" ] && echo 1 || echo 0)" "budget resets to 0"
-  rm -f "$passcfg" "$failcfg"
+  # budget parser takes the MAX of each token field, not the sum (modelUsage repeats counts).
+  blog="$(mktemp)"; printf '%s\n' '{"usage":{"input_tokens":100,"output_tokens":50},"modelUsage":{"x":{"input_tokens":100,"output_tokens":50}}}' > "$blog"
+  reset_budget; update_budget_from_log "$blog" >/dev/null
+  ok "$([ "$(_budget_spent)" = "150" ] && echo 1 || echo 0)" "budget meters max-not-sum (expect 150, got '$(_budget_spent)')"
+  rm -f "$passcfg" "$failcfg" "$stderrcfg" "$blog"
 else
   echo "  (skipping jq-dependent gate/budget tests — jq not installed)"
 fi

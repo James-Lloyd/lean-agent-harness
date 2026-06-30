@@ -20,9 +20,13 @@ reset_budget() { echo '{"tokensSpent": 0}' > "$_BUDGET_FILE"; }
 update_budget_from_log() {  # $1 logfile
   local spent="" total
   if [ -f "$1" ]; then
-    # Prefer real usage if present (json input/output_tokens, summed); else any "<n> tokens".
-    # Sum with awk (no `bc` dependency — `bc` isn't in the loop preflight and is absent on minimal images).
-    spent="$(grep -oE '"(input_tokens|output_tokens)"[[:space:]]*:[[:space:]]*[0-9]+' "$1" | grep -oE '[0-9]+' | awk '{s+=$1} END{print s+0}')"
+    # Prefer real usage if present (json input/output_tokens); else any "<n> tokens".
+    # Take the MAX of each field (not the sum): --output-format json can repeat the same counts in a
+    # per-model `modelUsage` breakdown alongside the aggregate `usage`, so summing double-counts.
+    local max_in max_out
+    max_in="$(grep -oE '"input_tokens"[[:space:]]*:[[:space:]]*[0-9]+'  "$1" | grep -oE '[0-9]+' | sort -n | tail -1)"
+    max_out="$(grep -oE '"output_tokens"[[:space:]]*:[[:space:]]*[0-9]+' "$1" | grep -oE '[0-9]+' | sort -n | tail -1)"
+    spent="$(( ${max_in:-0} + ${max_out:-0} ))"
     if [ -z "$spent" ] || [ "$spent" -le 0 ] 2>/dev/null; then
       spent="$(grep -oE '[0-9][0-9,]*[[:space:]]*tokens' "$1" | grep -oE '[0-9,]+' | tr -d ',' | sort -n | tail -1 || true)"
     fi
