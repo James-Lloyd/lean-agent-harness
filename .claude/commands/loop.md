@@ -26,7 +26,9 @@ shell loop instead: `powershell harness/loop.ps1` (or `pwsh` on PS7) / `bash har
      blocker in `state/fix_plan.md`.
    - **Checkpoint (if `autonomy.checkpoints.beforeRiskyOps`):** pause before any push/migration/deploy.
 6. **Record** — capture *why* in code/docs; append learnings to `AGENT_NOTES.md`; tick the item in
-   `state/fix_plan.md` and set its `passes: true` in `state/tasks.json`; add a line to `state/PROGRESS.md`.
+   `state/fix_plan.md`; in `state/tasks.json` advance the task's `status` (to `done`, or `reviewed` if a
+   separate review is still pending) **and** set `passes: true` and the `evidence` path — don't leave
+   `status` at `todo` while flipping `passes` (the workflow keys off `status`); add a line to `state/PROGRESS.md`.
 7. **Commit** — descriptive conventional message. Leave the tree green.
 
 ## After the iteration

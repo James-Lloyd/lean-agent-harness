@@ -72,23 +72,28 @@ function Get-OpenItemCount {
   return @(Select-String -Path $plan -Pattern '^\s*[-*]\s+\[ \]' -ErrorAction SilentlyContinue).Count
 }
 
-# Periodic inferential judge: every N green iterations, spawn a fresh-context reviewer over the last N
-# commits (the ROADMAP "reviewEveryNIterations" item — doer != judge, wired into the unattended loop).
-# Returns $true to continue, $false if the reviewer REJECTED the batch (loop should stop for a human).
+# Periodic inferential judge: spawn a fresh-context reviewer over every commit since $Base (the last
+# review watermark, or the run's starting HEAD). "doer != judge", wired into the unattended loop.
+# Hardened: (1) the reviewer runs READ-ONLY (--disallowedTools + a hard reset afterward) so a judge can
+# never mutate the artifact it's judging and slip past the gate; (2) it FAILS CLOSED — only an explicit
+# VERDICT: SHIP continues the loop; REJECT, a truncated run, a crash, or an empty result all stop for a
+# human. NOTE (honest limitation): this review is DIFF-ONLY — it can read code + git but is not granted
+# the tools to run the app, so it can't gather fresh e2e evidence itself (see ROADMAP).
+# Returns $true to continue; $false to stop the loop for human attention.
 function Invoke-PeriodicReview {
-  param([int]$N, [string]$RunDir, [int]$Iter)
-  Write-Host "🧑‍⚖️  Periodic fresh-context review of the last $N green iteration(s)..." -ForegroundColor Cyan
-  $base = (& git rev-parse "HEAD~$N" 2>$null)
-  if ($LASTEXITCODE -ne 0 -or -not $base) { $base = (& git rev-list --max-parents=0 HEAD | Select-Object -First 1) }
-  $base = "$base".Trim()
+  param([string]$Base, [string]$RunDir, [int]$Iter)
+  $head = "$(& git rev-parse HEAD)".Trim()
+  if ($Base -eq $head) { Write-Host "  (periodic review: no new commits since last review)" -ForegroundColor DarkGray; return $true }
+  Write-Host "🧑‍⚖️  Periodic fresh-context review of commits $(_Short $Base)..$(_Short $head)..." -ForegroundColor Cyan
   $reviewPrompt = @"
 You are a FRESH-CONTEXT REVIEWER (the harness 'reviewer' role — see .claude/agents/reviewer.md). You
-have NO memory of how this code was written; judge only the artifact. Do NOT edit any files.
+have NO memory of how this code was written; judge only the artifact. You are READ-ONLY — do not edit,
+write, or commit anything.
 
-1. Inspect the batch:  git log --oneline $base..HEAD   and   git diff $base..HEAD
+1. Inspect the batch:  git log --oneline $Base..HEAD   and   git diff $Base..HEAD
 2. Judge it against specs/ (acceptance criteria) and docs/principles/ (golden principles): correctness
-   vs spec, REAL end-to-end evidence (not just unit tests), guardrails (no weakened/deleted tests, no
-   edited specs, no destructive ops/secrets), architectural drift, needless complexity.
+   vs spec, evidence quality, guardrails (no weakened/deleted tests, no edited specs, no destructive
+   ops/secrets), architectural drift, needless complexity.
 3. List findings as  file:line — problem — concrete fix.
 
 Finish with EXACTLY ONE final line and nothing after it:
@@ -96,20 +101,30 @@ VERDICT: SHIP     (the batch is sound)
 VERDICT: REJECT   (anything is wrong — default to REJECT when unsure)
 "@
   $reviewLog = Join-Path $RunDir ("review-after-$Iter.log")
-  $out = ''
-  try { $out = (& claude -p $reviewPrompt --max-turns 20 *>&1 | Tee-Object -FilePath $reviewLog | Out-String) }
-  catch { Write-Host "  ! review invocation failed: $_ — continuing without a verdict." -ForegroundColor Yellow; return $true }
-  if ($out -match 'VERDICT:\s*REJECT') {
-    Write-Host "  🔴 Periodic review REJECTED the batch. Stopping for human attention." -ForegroundColor Red
-    $stamp = "$(& git rev-parse --short HEAD)".Trim()
-    $note  = "`n## Needs human decision — periodic review REJECT @ $stamp`n" +
-             "The fresh-context reviewer rejected the last $N green iteration(s) (iter $Iter). " +
-             "Findings: $reviewLog. Inspect before continuing the loop.`n"
-    Add-Content -Path (Join-Path $RepoRoot 'state/handoff.md') -Value $note -Encoding utf8
+  $reviewArgs = @('-p', $reviewPrompt, '--max-turns', '20', '--disallowedTools', 'Edit Write MultiEdit NotebookEdit')
+  $out = ''; $invokeOk = $true
+  try { $out = (& claude @reviewArgs *>&1 | Tee-Object -FilePath $reviewLog | Out-String) }
+  catch { $invokeOk = $false; $out = "$_" }
+  # A judge must not mutate the artifact: restore the tree to exactly the reviewed HEAD, no matter what.
+  & git reset --hard $head *> $null
+  & git clean -fd *> $null
+  if (-not $invokeOk) {
+    Write-Host "  ! review invocation failed — failing closed (stopping for human)." -ForegroundColor Red
+    Write-Reject-Handoff -Reason 'review could not run' -Base $Base -Head $head -Iter $Iter -Log $reviewLog
     return $false
   }
-  Write-Host "  🟢 Periodic review: SHIP." -ForegroundColor Green
-  return $true
+  if ($out -match 'VERDICT:\s*SHIP') { Write-Host "  🟢 Periodic review: SHIP." -ForegroundColor Green; return $true }
+  $reason = if ($out -match 'VERDICT:\s*REJECT') { 'REJECT' } else { 'no clear SHIP verdict (fail-closed)' }
+  Write-Host "  🔴 Periodic review: $reason. Stopping for human attention." -ForegroundColor Red
+  Write-Reject-Handoff -Reason $reason -Base $Base -Head $head -Iter $Iter -Log $reviewLog
+  return $false
+}
+
+function Write-Reject-Handoff {
+  param([string]$Reason, [string]$Base, [string]$Head, [int]$Iter, [string]$Log)
+  $note = "`n## Needs human decision — periodic review: $Reason ($(_Short $Base)..$(_Short $Head), iter $Iter)`n" +
+          "The fresh-context reviewer did not return SHIP. Findings: $Log. Inspect before continuing the loop.`n"
+  Add-Content -Path (Join-Path $RepoRoot 'state/handoff.md') -Value $note -Encoding utf8
 }
 
 # Does any gate (component or root) define an e2e step? Used to warn honestly about unit-green commits.
@@ -162,6 +177,7 @@ $env:HARNESS_LOCK_SPECS = '1'
 $prompt = Get-Content (Join-Path $RepoRoot $cfg.loop.promptFile) -Raw
 $i = 0
 $greenCount = 0
+$reviewBaseRef = "$(& git rev-parse HEAD)".Trim()   # periodic-review watermark: commits after this are unreviewed
 while ($i -lt $cfg.autonomy.maxIterations) {
   $i++
   if ($cfg.loop.stopWhenPlanEmpty -and (Get-OpenItemCount) -eq 0) {
@@ -228,8 +244,10 @@ while ($i -lt $cfg.autonomy.maxIterations) {
     $greenCount++
     # Inferential judge, wired in: every N green iterations a fresh-context reviewer audits the batch.
     if ($reviewEveryN -gt 0 -and $cfg.loop.commitOnGreen -and ($greenCount % $reviewEveryN) -eq 0) {
-      if (-not (Invoke-PeriodicReview -N $reviewEveryN -RunDir $runDir -Iter $i)) {
-        Write-Ledger @{ iter = $i; result = 'review-reject' }
+      if (Invoke-PeriodicReview -Base $reviewBaseRef -RunDir $runDir -Iter $i) {
+        $reviewBaseRef = "$(& git rev-parse HEAD)".Trim()   # advance the watermark past the reviewed batch
+      } else {
+        Write-Ledger @{ iter = $i; result = 'review-stop' }
         break
       }
     }
@@ -246,5 +264,6 @@ while ($i -lt $cfg.autonomy.maxIterations) {
   }
 }
 
+Remove-Item Env:HARNESS_LOCK_SPECS -ErrorAction SilentlyContinue   # don't leak the spec-lock if dot-sourced
 Write-Host "`n🏁 Loop finished after $i iteration(s). Logs + ledger: $runDir" -ForegroundColor Cyan
 Write-Host "   Next: run /review for a fresh-context QA pass before you trust this." -ForegroundColor DarkGray

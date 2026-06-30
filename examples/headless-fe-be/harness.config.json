@@ -62,7 +62,7 @@
       "commands": { "install": "uv sync", "run": "uv run uvicorn app.main:app --reload" },
       "gate": {
         "format": "uv run ruff format .",
-        "lint": "uv run ruff check . --fix",
+        "lint": "uv run ruff check .",
         "typecheck": "uv run pyright",
         "build": null,
         "test": "uv run pytest -q",

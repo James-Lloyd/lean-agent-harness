@@ -5,13 +5,13 @@ The FastAPI + Python service for Acme Dashboard. Part of the project mapped in
 
 ## Stack & commands
 - **Stack:** FastAPI + Python, uv  (profile: `harness/profiles/python.json`)
-- **Run:** `uv run uvicorn app.main:app --reload`  ·  **Test:** `uv run pytest`
+- **Run:** `uv run uvicorn app.main:app --reload`  ·  **Test:** `uv run pytest -q`
 - All commands run **from this directory** (`backend/`).
 
 ## Gate (run in this directory)
 ```
 uv run ruff format .
-uv run ruff check . --fix
+uv run ruff check .
 uv run pyright
 uv run pytest -q
 ```

@@ -1,6 +1,6 @@
 {
   "name": "python",
-  "description": "Reference profile: Python project (uv + ruff + pyright + pytest). Adjust to the repo.",
+  "description": "Reference profile: Python project (uv + ruff + pyright + pytest). Adjust to the repo. lint is check-only (no --fix): a mutating gate step would rewrite files and exit 0 on auto-fixable violations, so the gate goes green when CI would be red. Formatting belongs in the format step.",
 
   "detect": {
     "files": ["pyproject.toml", "uv.lock", "poetry.lock", "requirements.txt", "setup.py"],
@@ -13,7 +13,7 @@
 
   "gate": {
     "format": "uv run ruff format .",
-    "lint": "uv run ruff check . --fix",
+    "lint": "uv run ruff check .",
     "typecheck": "uv run pyright",
     "build": null,
     "test": "uv run pytest -q",

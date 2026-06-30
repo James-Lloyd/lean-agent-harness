@@ -16,6 +16,8 @@ behaves oddly.
 
 1. **Config parses & matches the schema.** `harness/harness.config.json` is valid JSON and conforms to
    `harness/harness.schema.json` (required fields present; enums valid; types right). Flag unknown keys.
+   Use a **BOM-tolerant** parser (`jq`/PowerShell `ConvertFrom-Json` are fine; `node`'s `JSON.parse`
+   chokes on the UTF-8 BOM the config may carry — don't report a false "invalid JSON").
 
 2. **No un-filled placeholders.** Grep the always-loaded files (`CLAUDE.md`, any nested component
    `CLAUDE.md`, `AGENT_NOTES.md`, `PROMPT.md`, `harness.config.json`) for `{{...}}` — any remaining means

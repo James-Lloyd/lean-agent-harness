@@ -21,7 +21,8 @@ update_budget_from_log() {  # $1 logfile
   local spent="" total
   if [ -f "$1" ]; then
     # Prefer real usage if present (json input/output_tokens, summed); else any "<n> tokens".
-    spent="$(grep -oE '"(input_tokens|output_tokens)"[[:space:]]*:[[:space:]]*[0-9]+' "$1" | grep -oE '[0-9]+' | paste -sd+ - | bc 2>/dev/null || true)"
+    # Sum with awk (no `bc` dependency — `bc` isn't in the loop preflight and is absent on minimal images).
+    spent="$(grep -oE '"(input_tokens|output_tokens)"[[:space:]]*:[[:space:]]*[0-9]+' "$1" | grep -oE '[0-9]+' | awk '{s+=$1} END{print s+0}')"
     if [ -z "$spent" ] || [ "$spent" -le 0 ] 2>/dev/null; then
       spent="$(grep -oE '[0-9][0-9,]*[[:space:]]*tokens' "$1" | grep -oE '[0-9,]+' | tr -d ',' | sort -n | tail -1 || true)"
     fi

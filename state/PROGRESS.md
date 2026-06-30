@@ -5,4 +5,6 @@ reads (with `git log`) to see what just happened. Don't editorialize — facts a
 
 Format: `- YYYY-MM-DD <what happened> (<commit/evidence ref>)`
 
-- {{DATE}} harness initialized
+<!-- /harness-init writes the first real entry here (date + "harness initialized" + commit), e.g.
+     "- 2026-06-30 harness initialized (a1b2c3d)". Until then this log is empty by design. -->
+

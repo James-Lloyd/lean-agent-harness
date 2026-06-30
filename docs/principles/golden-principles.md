@@ -31,4 +31,13 @@ seeds it from the interview; it grows via `/ratchet`. Keep each principle short 
 - A coherent whole over a collection of parts. No template defaults left as-is where the product is
   user-facing. Originality and craft over the first generic thing that compiles.
 
+## Automation & loops (when writing harness/loop code)
+- A judge must not be able to mutate what it judges. Any loop-spawned `claude -p` that should only
+  review/verify runs **read-only** (`--disallowedTools "Edit Write MultiEdit NotebookEdit"`, or the
+  restricted `reviewer` subagent) and is wrapped in a checkpoint + hard-restore.
+- Loop verdict/gate parsers **fail closed**: require an explicit positive token (e.g. `VERDICT: SHIP`)
+  to proceed; treat absence, ambiguity, truncation, or a crash as stop-for-human.
+- When a script step depends on a CLI tool (`jq`, `bc`, `awk`, …), add it to the loop preflight
+  dependency check or remove the dependency — don't let a missing tool silently degrade a guarantee.
+
 <!-- Add project-specific principles below as they're established. Delete any that stop earning their place. -->

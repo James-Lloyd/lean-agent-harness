@@ -18,8 +18,12 @@
 {{COMPONENT_FORMAT}}
 {{COMPONENT_LINT}}
 {{COMPONENT_TYPECHECK}}
+{{COMPONENT_BUILD}}
 {{COMPONENT_TEST}}
 ```
+<!-- Keep this block in sync with this component's gate in harness/harness.config.json. Drop any step
+     that is null there (e.g. remove the build line if the component has no build). -->
+
 
 ## Layout & entry points
 - {{COMPONENT_ENTRY_POINTS}}

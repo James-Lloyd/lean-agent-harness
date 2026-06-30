@@ -12,6 +12,11 @@ the code doesn't back. (Ratchet them in as real use demands.)
   "doer ≠ judge" into the unattended path, not just supervised `/work`·`/review`.
 - **Still deterministic-by-default:** with `reviewEveryNIterations = 0` the loop runs only the gate then
   commits (as before). The loop still can't *manufacture* judgment between review points.
+- **The periodic reviewer is read-only and DIFF-ONLY.** It runs with `--disallowedTools` (and the loop
+  hard-resets the tree afterward) so a judge can't mutate what it judges, and it **fails closed** (only
+  an explicit `VERDICT: SHIP` continues; reject/truncation/crash stop for a human). But it is not granted
+  the tools to run the app, so it reviews the diff + specs, not fresh e2e evidence — pair it with a real
+  `e2e` gate step. Granting it a sandboxed run-the-app capability is future work.
 - **Planned next:** also run the skeptical **evaluator** (rubric thresholds) at the review point, and
   auto-revert the rejected batch rather than only stopping. For now a *reject* halts for human triage.
 

@@ -60,41 +60,50 @@ any_e2e() {  # 0 if any component or root gate defines an e2e step
   [ "$(jq -r '[(.components[]?.gate.e2e), .gate.e2e] | map(select(. != null and . != "")) | length' "$CONFIG")" != "0" ]
 }
 
-# Periodic inferential judge: every N green iterations spawn a fresh-context reviewer over the last N
-# commits (ROADMAP "reviewEveryNIterations" — doer != judge wired into the unattended loop). Returns 0
-# to continue, 1 if the reviewer REJECTED the batch (loop should stop for a human).
-periodic_review() {  # $1 N  $2 run_dir  $3 iter
-  local n="$1" run_dir="$2" iter="$3" base out reviewlog stamp prompt
-  echo "🧑‍⚖️  Periodic fresh-context review of the last $n green iteration(s)..."
-  base="$(git rev-parse "HEAD~$n" 2>/dev/null || true)"
-  [ -z "$base" ] && base="$(git rev-list --max-parents=0 HEAD | head -1)"
+# Periodic inferential judge: spawn a fresh-context reviewer over every commit since $1 (the last review
+# watermark / run start). "doer != judge", wired into the unattended loop. Hardened: (1) reviewer runs
+# READ-ONLY (--disallowedTools + a hard reset afterward) so a judge can't mutate what it judges; (2) it
+# FAILS CLOSED — only an explicit VERDICT: SHIP continues; REJECT, truncation, crash, or empty all stop.
+# Honest limitation: DIFF-ONLY — not granted tools to run the app, so it can't gather fresh e2e evidence.
+# Returns 0 to continue; 1 to stop the loop for a human.
+periodic_review() {  # $1 base  $2 run_dir  $3 iter
+  local base="$1" run_dir="$2" iter="$3" head out reviewlog stamp prompt reason rc
+  head="$(git rev-parse HEAD)"
+  if [ "$base" = "$head" ]; then echo "  (periodic review: no new commits since last review)"; return 0; fi
+  echo "🧑‍⚖️  Periodic fresh-context review of commits ${base:0:8}..${head:0:8}..."
   reviewlog="$run_dir/review-after-$iter.log"
   read -r -d '' prompt <<EOF || true
 You are a FRESH-CONTEXT REVIEWER (the harness 'reviewer' role — see .claude/agents/reviewer.md). You
-have NO memory of how this code was written; judge only the artifact. Do NOT edit any files.
+have NO memory of how this code was written; judge only the artifact. You are READ-ONLY — do not edit,
+write, or commit anything.
 
 1. Inspect the batch:  git log --oneline $base..HEAD   and   git diff $base..HEAD
 2. Judge it against specs/ (acceptance criteria) and docs/principles/ (golden principles): correctness
-   vs spec, REAL end-to-end evidence (not just unit tests), guardrails (no weakened/deleted tests, no
-   edited specs, no destructive ops/secrets), architectural drift, needless complexity.
+   vs spec, evidence quality, guardrails (no weakened/deleted tests, no edited specs, no destructive
+   ops/secrets), architectural drift, needless complexity.
 3. List findings as  file:line — problem — concrete fix.
 
 Finish with EXACTLY ONE final line and nothing after it:
 VERDICT: SHIP     (the batch is sound)
 VERDICT: REJECT   (anything is wrong — default to REJECT when unsure)
 EOF
-  if ! out="$(claude -p "$prompt" --max-turns 20 2>&1 | tee "$reviewlog")"; then
-    echo "  ! review invocation failed — continuing without a verdict."; return 0
+  # Capture exit in a condition so `set -e` doesn't abort on a non-zero review run.
+  if out="$(claude -p "$prompt" --max-turns 20 --disallowedTools "Edit Write MultiEdit NotebookEdit" 2>&1 | tee "$reviewlog")"; then rc=0; else rc=$?; fi
+  # A judge must not mutate the artifact: restore the tree to exactly the reviewed HEAD, no matter what.
+  git reset --hard "$head" >/dev/null 2>&1 || true; git clean -fd >/dev/null 2>&1 || true
+  if [ "$rc" -ne 0 ]; then
+    echo "  ! review invocation failed — failing closed (stopping for human)."
+    _reject_handoff "review could not run" "$base" "$head" "$iter" "$reviewlog"; return 1
   fi
-  if printf '%s' "$out" | grep -qE 'VERDICT:[[:space:]]*REJECT'; then
-    echo "  🔴 Periodic review REJECTED the batch. Stopping for human attention."
-    stamp="$(git rev-parse --short HEAD)"
-    printf '\n## Needs human decision — periodic review REJECT @ %s\nThe fresh-context reviewer rejected the last %s green iteration(s) (iter %s). Findings: %s. Inspect before continuing.\n' \
-      "$stamp" "$n" "$iter" "$reviewlog" >> "$REPO_ROOT/state/handoff.md"
-    return 1
-  fi
-  echo "  🟢 Periodic review: SHIP."
-  return 0
+  if printf '%s' "$out" | grep -qE 'VERDICT:[[:space:]]*SHIP'; then echo "  🟢 Periodic review: SHIP."; return 0; fi
+  if printf '%s' "$out" | grep -qE 'VERDICT:[[:space:]]*REJECT'; then reason="REJECT"; else reason="no clear SHIP verdict (fail-closed)"; fi
+  echo "  🔴 Periodic review: $reason. Stopping for human attention."
+  _reject_handoff "$reason" "$base" "$head" "$iter" "$reviewlog"; return 1
+}
+
+_reject_handoff() {  # $1 reason  $2 base  $3 head  $4 iter  $5 log
+  printf '\n## Needs human decision — periodic review: %s (%s..%s, iter %s)\nThe fresh-context reviewer did not return SHIP. Findings: %s. Inspect before continuing the loop.\n' \
+    "$1" "${2:0:8}" "${3:0:8}" "$4" "$5" >> "$REPO_ROOT/state/handoff.md"
 }
 
 RUN_ID="$(loop_run_id)"
@@ -139,6 +148,7 @@ export HARNESS_LOCK_SPECS=1
 PROMPT="$(cat "$(cfg '.loop.promptFile')")"
 i=0
 GREEN_COUNT=0
+REVIEW_BASE="$(git rev-parse HEAD)"   # periodic-review watermark: commits after this are unreviewed
 while [ "$i" -lt "$MAX_ITER" ]; do
   i=$((i+1))
   if [ "$(cfg '.loop.stopWhenPlanEmpty')" = "true" ] && [ "$(open_item_count)" -eq 0 ]; then
@@ -181,8 +191,10 @@ while [ "$i" -lt "$MAX_ITER" ]; do
     GREEN_COUNT=$((GREEN_COUNT+1))
     # Inferential judge, wired in: every N green iterations a fresh-context reviewer audits the batch.
     if [ "$REVIEW_EVERY_N" -gt 0 ] && [ "$(cfg '.loop.commitOnGreen')" = "true" ] && [ $((GREEN_COUNT % REVIEW_EVERY_N)) -eq 0 ]; then
-      if ! periodic_review "$REVIEW_EVERY_N" "$RUN_DIR" "$i"; then
-        ledger "{\"iter\":$i,\"result\":\"review-reject\"}"; break
+      if periodic_review "$REVIEW_BASE" "$RUN_DIR" "$i"; then
+        REVIEW_BASE="$(git rev-parse HEAD)"   # advance the watermark past the reviewed batch
+      else
+        ledger "{\"iter\":$i,\"result\":\"review-stop\"}"; break
       fi
     fi
   else

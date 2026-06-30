@@ -17,10 +17,14 @@ case "$changed" in
   *) rel="$changed";;
 esac
 
+# Case-insensitive match (mirror the .ps1, which is case-insensitive) so Specs/ is caught on
+# case-insensitive filesystems. NOTE: this does not normalize `..` segments — Edit/Write pass clean
+# absolute paths, but an exotic `foo/../specs/x` would slip past the bash hook (the .ps1 normalizes).
+shopt -s nocasematch
 case "$rel" in
   specs/*|specs)
     echo "BLOCKED by harness guardrail: specs/ is immutable while the loop runs (HARNESS_LOCK_SPECS is set)." >&2
-    echo "Specs are the contract — not a place to record what you built. If a spec is wrong, stop and write the question to state/handoff.md under 'Needs human decision'." >&2
+    echo "Specs are the contract - not a place to record what you built. If a spec is wrong, stop and write the question to state/handoff.md under 'Needs human decision'." >&2
     exit 2;;
 esac
 exit 0

@@ -84,7 +84,9 @@ With answers in hand:
   `docs/principles/golden-principles.md`. Write "as-built" specs **only** for the area about to change,
   not the whole legacy system. Log any pre-existing broken gate steps to `docs/technical-debt/`.
 - Seed `state/fix_plan.md` with a first few prioritized items (or leave the template if they'll use
-  `/plan`). Seed `state/tasks.json` from the template. Leave `state/PROGRESS.md` ready to append.
+  `/plan`). Seed `state/tasks.json` from the template. Write the **first real `state/PROGRESS.md` line**
+  (today's date + "harness initialized" + the init commit), replacing the placeholder comment — don't
+  leave a `{{DATE}}` literal in a live log.
 - Ensure `.gitignore` lists this stack's build/dep artifacts (uncomment/add the relevant lines).
 
 ## Step 5 — Verify the harness itself

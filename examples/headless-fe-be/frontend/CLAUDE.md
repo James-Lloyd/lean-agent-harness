@@ -5,7 +5,7 @@ The Next.js + TypeScript web client for Acme Dashboard. Part of the project mapp
 
 ## Stack & commands
 - **Stack:** Next.js (App Router) + TypeScript, pnpm  (profile: `harness/profiles/node.json`)
-- **Run:** `pnpm run dev`  ·  **Build:** `pnpm run build`  ·  **Test:** `pnpm test`
+- **Run:** `pnpm run dev`  ·  **Build:** `pnpm run build`  ·  **Test:** `pnpm test -- --run`
 - All commands run **from this directory** (`frontend/`).
 
 ## Gate (run in this directory)
@@ -13,6 +13,7 @@ The Next.js + TypeScript web client for Acme Dashboard. Part of the project mapp
 pnpm exec prettier --write .
 pnpm exec eslint . --max-warnings=0
 pnpm exec tsc --noEmit
+pnpm run build
 pnpm test -- --run
 ```
 
