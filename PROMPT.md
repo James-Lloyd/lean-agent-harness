@@ -50,7 +50,11 @@ iterations. Everything you need is on disk. Work the phases in order. Do exactly
 13. Capture the **why**: in code comments and/or `docs/`, explain why this implementation and its tests
     matter. The next loop has none of your reasoning — write it down.
 14. Append any new run/build gotcha or learning to `AGENT_NOTES.md`.
-15. Tick the completed item in `state/fix_plan.md`. Add a one-line entry to `state/PROGRESS.md`.
+15. Tick the completed item in `state/fix_plan.md`, and mirror it into `state/tasks.json`: set the
+    matching task's `status` to **`validated`**, `passes: true`, and the `evidence` path (edit ONLY
+    those three fields — never `description`/`acceptance`). Leave it at `validated`, not `reviewed`/`done`:
+    the loop's own gate is deterministic-only; advancing past `validated` needs a fresh-context review
+    (the periodic reviewer, or a later `/review`). Add a one-line entry to `state/PROGRESS.md`.
 
 ## Phase 5 — Hand off (do NOT commit — the loop runner does)
 16. Leave your changes **staged or unstaged but complete** — do not run `git commit` yourself. The loop

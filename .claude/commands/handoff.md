@@ -11,7 +11,9 @@ want a clean restart. Compaction summarizes in place; a **handoff** lets you cle
 and rebuild from a small, high-signal file. State is file-based, so the next agent loses nothing.
 
 Write `state/handoff.md`, overwriting the previous one, with exactly these sections (keep it tight —
-this is a briefing, not a transcript):
+this is a briefing, not a transcript). **Before overwriting, read the existing file:** the loop and the
+`generator` append escalations under "Needs human decision" when they hit an ambiguous call — fold any
+such open items into your new file's "Needs human decision" section; never silently drop them.
 
 ```markdown
 # Handoff — <short title>

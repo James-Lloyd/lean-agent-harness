@@ -29,8 +29,11 @@ time. Be ambitious about scope but precise about decomposition. Do **not** write
    `status: "todo"`, `evidence: ""`, `passes: false`. Enumerate granularly so the loop can't declare
    premature victory. Downstream (`/work`, the loop) edits only `status`, `evidence`, and `passes` —
    never `description`/`acceptance`. You set `status: "todo"` here and don't touch it again.
-7. **Sprint contract (optional but recommended for non-trivial work).** Use the `sprint-contract`
-   skill to agree the "definition of done" up front before any code is written.
+7. **Sprint contract (required for non-trivial work — it's a config gate).** The config gates EXECUTE on
+   an agreed definition of done (`workflow.requireSprintContractBefore`, default `execute`). For
+   non-trivial items, use the `sprint-contract` skill to agree it up front, or flag in the plan that each
+   such item needs one before code — so the `/plan → /loop` path (no `/work` orchestrator) doesn't skip
+   the gate. Trivial items may note "no contract needed".
 
 ## Output
 A short summary: the spec(s) touched, the number of plan items, the first 3 the loop will tackle, and

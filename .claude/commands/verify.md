@@ -16,11 +16,9 @@ evidence — the kind of proof a skeptical human would accept.
    the cross-cutting root `gate` from `harness/harness.config.json`, in order:
    `format → lint → typecheck → build → test → e2e`. Report each. Stop and surface details on the
    first failure (with the fix), but try to report all failing steps if cheap to do so.
-2. **Capture end-to-end evidence** appropriate to the stack (use the `e2e-evidence` skill):
-   - **Web/UI:** drive it with the Chrome MCP / Playwright; screenshot the working feature.
-   - **API/service:** make the real request; capture status + response; check logs/metrics.
-   - **CLI/library:** run the actual command/call with realistic input; capture stdout/exit code.
-   - **Data/job:** run on a real (or realistic) sample; show the output rows/artifacts.
+2. **Capture end-to-end evidence** appropriate to the stack — invoke the **`e2e-evidence` skill**, which
+   is the single source for what counts as evidence per surface (Web/UI, API, CLI, library, data/job,
+   and the "no automatable surface" fallback). Don't re-derive the list here; follow the skill.
 3. **Compare against acceptance criteria** in the relevant `specs/`. Tick only what the evidence
    actually demonstrates — not what "should" work.
 

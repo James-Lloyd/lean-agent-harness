@@ -24,7 +24,10 @@ Turn intent into a spec and a granular task. Define **executable acceptance crit
 non-trivial work, a **sprint contract** (agreed definition of done) *before any code*.
 - **Exit gate:** the task has a spec with falsifiable acceptance criteria; if
   `workflow.requireSprintContractBefore` applies, a sprint contract exists and is agreed.
-- **Status:** `todo → planned`.
+- **Status:** `todo → planned`. Note the split: bulk `/plan` *seeds* the whole manifest at `todo`
+  (it doesn't pre-commit to an order of execution); the `todo → planned` transition is made **per task
+  by `/work`'s PLAN phase** as it picks each one up. On the standalone `/plan → /loop` path there is no
+  orchestrator, so tasks stay at `todo` until `/loop` advances the one it works to `validated`.
 
 ## Phase 2 — EXECUTE  (the `generator` subagent; or the implement step of `/loop`)
 Implement **one** task, **fully** — no placeholders. Search before assuming. Edits trigger the fast
@@ -43,6 +46,13 @@ Run the **full** gate for the affected component(s) + the cross-cutting root gat
 An independent agent judges the diff against the spec — reasoning from the change, not from the
 conversation that produced it. Optionally the skeptical `evaluator` scores it against the rubric's hard
 thresholds.
+
+> **`reviewer` vs `evaluator` — when to use which.** The `reviewer` runs **always**: it's cheap,
+> diff-scoped, and returns ship / fix-then-ship / reject against specs + guardrails + principles. The
+> `evaluator` is **opt-in** (`verification.evaluator.enabled`) and only earns its cost on
+> quality-sensitive sprints: it scores each acceptance criterion against `evaluator-rubric.md` with a
+> hard numeric `failBelow` threshold (any miss fails the sprint). Reviewer = "is this correct and safe?";
+> evaluator = "does this clear the quality bar we agreed, criterion by criterion?"
 - **Exit gate (if `workflow.requireReviewBefore` = done):** verdict is *ship*; guardrails intact (no
   weakened tests, no edited specs, no destructive ops). *Reject* / *fix-then-ship* sends it back.
 - **Status:** `validated → reviewed`.

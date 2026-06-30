@@ -16,6 +16,12 @@ Read [`docs/principles/workflow.md`](../../docs/principles/workflow.md) for the 
 > in 2–3 lines, and get a 👍 before the next. In **auto** mode, flow through, stopping only if a phase's
 > exit gate fails or an ambiguous product decision appears (then escalate to `state/handoff.md`).
 
+## Phase 0 — PROJECT TYPE (do this first)
+- Check `harness/harness.config.json` → `project.type`. If **brownfield**: load the `brownfield-safety`
+  skill, confirm the baseline is green (`project.baseline.established`; if not, run `/onboard` first),
+  isolate the work on a branch, and plan a **characterization test before changing any untested
+  behaviour**. Keep the scope small. (Greenfield skips straight to Phase 1.)
+
 ## Phase 1 — PLAN
 - Resolve the target task (from $ARGUMENTS or top of `fix_plan.md`). If it lacks a spec with
   **executable acceptance criteria**, create/extend one in `specs/` (delegate to the `planner`

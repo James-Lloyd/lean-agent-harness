@@ -13,6 +13,10 @@ with checkpoints, so you (the human) stay in the driver's seat. For unattended/f
 shell loop instead: `powershell harness/loop.ps1` (or `pwsh` on PS7) / `bash harness/loop.sh`.
 
 ## Procedure (follow PROMPT.md's phases, with these checkpoints)
+0. **Project type** — check `harness/harness.config.json` → `project.type`. If **brownfield**: load the
+   `brownfield-safety` skill, confirm the baseline is green (`project.baseline.established`) before you
+   touch anything, work on a branch, and write a characterization test before changing any untested
+   behaviour. Never weaken an existing test to pass.
 1. **Study** — read `CLAUDE.md`, the relevant `specs/`, `AGENT_NOTES.md`, and `state/fix_plan.md`.
 2. **Select ONE item** — the highest-priority unchecked item (or the one in $ARGUMENTS). If you
    intend a different one than the top of the stack, say which and why.
@@ -26,9 +30,11 @@ shell loop instead: `powershell harness/loop.ps1` (or `pwsh` on PS7) / `bash har
      blocker in `state/fix_plan.md`.
    - **Checkpoint (if `autonomy.checkpoints.beforeRiskyOps`):** pause before any push/migration/deploy.
 6. **Record** — capture *why* in code/docs; append learnings to `AGENT_NOTES.md`; tick the item in
-   `state/fix_plan.md`; in `state/tasks.json` advance the task's `status` (to `done`, or `reviewed` if a
-   separate review is still pending) **and** set `passes: true` and the `evidence` path — don't leave
-   `status` at `todo` while flipping `passes` (the workflow keys off `status`); add a line to `state/PROGRESS.md`.
+   `state/fix_plan.md`; in `state/tasks.json` advance the task's `status` to **`validated`** (NOT
+   `reviewed`/`done` — `/loop` stops at verify; only a fresh-context `/review` may advance it past
+   `validated`, per `workflow.requireReviewBefore`) **and** set `passes: true` and the `evidence` path —
+   don't leave `status` at `todo` while flipping `passes` (the workflow keys off `status`); add a line to
+   `state/PROGRESS.md`.
 7. **Commit** — descriptive conventional message. Leave the tree green.
 
 ## After the iteration

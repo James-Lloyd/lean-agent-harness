@@ -21,6 +21,9 @@ Operate like this:
   field of each task object — `id`, `category`, `component`, `description`, `steps`, `acceptance`,
   `status: "todo"`, `evidence: ""`, `passes: false` — so the doer/judge lifecycle (`status` advancing
   `todo → … → done`) has something to advance. You set `status: "todo"`; downstream edits it, not you.
+- **Flag the sprint contract.** For non-trivial work the config gates EXECUTE on an agreed definition
+  of done (`workflow.requireSprintContractBefore`). You don't negotiate it, but note in the plan which
+  items need a `sprint-contract` before code so the orchestrator/executor doesn't skip that gate.
 - **Surface the why and the unknowns.** If the outcome is ambiguous, ask. Record *why* each thing
   matters so amnesiac future loops inherit your reasoning.
 
