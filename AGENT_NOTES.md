@@ -11,7 +11,7 @@ hard-won operational facts (exact commands, environment quirks, "X looks broken 
 - Run: `{{RUN_COMMAND}}`
 - Build: `{{BUILD_COMMAND}}`
 - Test: `{{TEST_COMMAND}}`
-- Lint / typecheck: `{{LINT_COMMAND}}` / `{{TYPECHECK_COMMAND}}`
+- Format / lint / typecheck: `{{FORMAT_COMMAND}}` / `{{LINT_COMMAND}}` / `{{TYPECHECK_COMMAND}}`
 
 ## Environment quirks
 <!-- e.g. "Dev server takes ~40s to boot; wait for 'listening on' before smoke-testing." -->

@@ -8,8 +8,10 @@ iteration, before commit); the profile defines **what** `format` / `lint` / `typ
 ## How it's used
 1. `/harness-init` runs the `stack-detect` skill, which inspects the repo (lockfiles, manifests,
    config) and either matches an existing profile here or **generates a new one** by interview.
-2. The chosen profile's `gate` block is merged into `harness/harness.config.json` → `gate`, and its
-   commands are written into `CLAUDE.md` and `AGENT_NOTES.md`.
+2. The chosen profile's `gate` block is merged into the relevant **`components[].gate`** in
+   `harness/harness.config.json` (each component references its profile by name); any cross-cutting e2e
+   that exercises components together goes in the top-level `gate` (the root cross-cutting gate). The
+   commands are also written into `CLAUDE.md` and `AGENT_NOTES.md`.
 3. The loop and the Claude Code hooks then run those commands. Nothing in the core references a
    specific language.
 

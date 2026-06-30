@@ -36,7 +36,7 @@ Cross-cutting (e.g. an e2e that exercises the components together): {{ROOT_E2E}}
 - `docs/technical-debt/` — known issues. Check before "discovering" one.
 - `docs/principles/` — engineering norms / golden principles for this repo.
 - `state/` — live work state: `tasks.json` (manifest), `fix_plan.md` (priority stack),
-  `PROGRESS.md` (session log), `handoff.md` (context-reset handoff).
+  `PROGRESS.md` (session log), `handoff.md` (context-reset handoff), `evidence/` (e2e proof per task).
 - `AGENT_NOTES.md` — run/build gotchas and learnings. **Append here when you learn something.**
 
 ## How to work here (the workflow: plan → execute → validate → review → record)
@@ -60,6 +60,7 @@ root gate. Exact commands live in `harness/harness.config.json`. For `{{COMPONEN
 {{FORMAT_COMMAND}}
 {{LINT_COMMAND}}
 {{TYPECHECK_COMMAND}}
+{{BUILD_COMMAND}}
 {{TEST_COMMAND}}
 {{E2E_COMMAND}}
 ```
