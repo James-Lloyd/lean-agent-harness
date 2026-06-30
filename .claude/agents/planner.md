@@ -17,7 +17,10 @@ Operate like this:
 - **Make acceptance criteria executable.** Prefer "endpoint returns 200 with schema X", "p95 < 200ms",
   "reproduce the bug then prove the fix" over prose. The evaluator and the gate will hold work to these.
 - **Write requirements to `specs/`** (immutable source of truth) and the plan to `state/fix_plan.md`
-  (checkbox stack, highest priority first) and `state/tasks.json` (machine-readable, `passes:false`).
+  (checkbox stack, highest priority first) and `state/tasks.json` (the v2 manifest). Populate **every**
+  field of each task object — `id`, `category`, `component`, `description`, `steps`, `acceptance`,
+  `status: "todo"`, `evidence: ""`, `passes: false` — so the doer/judge lifecycle (`status` advancing
+  `todo → … → done`) has something to advance. You set `status: "todo"`; downstream edits it, not you.
 - **Surface the why and the unknowns.** If the outcome is ambiguous, ask. Record *why* each thing
   matters so amnesiac future loops inherit your reasoning.
 

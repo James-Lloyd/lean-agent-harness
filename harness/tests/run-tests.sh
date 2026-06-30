@@ -36,6 +36,19 @@ ok "$([ "$(hookrc 'git status')"      = "0" ] && echo 1 || echo 0)" "allows git 
 ok "$([ "$(hookrc 'npm test')"        = "0" ] && echo 1 || echo 0)" "allows npm test"
 ok "$([ "$(hookrc 'git push origin feature')" = "0" ] && echo 1 || echo 0)" "allows normal git push"
 
+echo "protect-specs hook: locks specs/ only when HARNESS_LOCK_SPECS is set"
+specrc() {  # $1 = file_path ; $2 = HARNESS_LOCK_SPECS value ("" = unset) ; echoes hook exit code
+  printf '{"tool_name":"Write","tool_input":{"file_path":"%s"}}' "$1" \
+    | HARNESS_LOCK_SPECS="$2" bash "$HOOKS/protect-specs.sh" >/dev/null 2>&1; echo $?
+}
+if command -v jq >/dev/null 2>&1; then
+  ok "$([ "$(specrc 'specs/000-overview.md' '1')" = "2" ] && echo 1 || echo 0)" "blocks specs/ write when locked"
+  ok "$([ "$(specrc 'src/app.ts' '1')"            = "0" ] && echo 1 || echo 0)" "allows non-spec write when locked"
+  ok "$([ "$(specrc 'specs/000-overview.md' '')"  = "0" ] && echo 1 || echo 0)" "allows specs/ write when unlocked"
+else
+  echo "  (skipping protect-specs tests — jq not installed)"
+fi
+
 if command -v jq >/dev/null 2>&1; then
   echo "gate (jq present): multi-component pass + failure attribution"
   SCRIPT_DIR="$(cd "$HERE/.." && pwd)"; REPO_ROOT="$SCRIPT_DIR/.."

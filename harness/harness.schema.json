@@ -29,7 +29,8 @@
         },
         "maxIterations": { "type": "integer", "minimum": 1, "description": "Hard cap on loop iterations." },
         "maxTurnsPerIteration": { "type": "integer", "minimum": 1, "description": "Passed to `claude -p --max-turns` to hard-bound a single iteration's tool-call turns (so one iteration can't run away). Default 40." },
-        "tokenBudget": { "type": ["integer", "null"], "description": "Best-effort, per-run token cap (ESTIMATE — claude -p text mode rarely reports counts, so a per-iteration estimate is used). Reset at each run start. The HARD runaway bounds are maxIterations + maxTurnsPerIteration; treat this as advisory. null = no cap." },
+        "tokenBudget": { "type": ["integer", "null"], "description": "Per-run token cap. By default an ESTIMATE (claude -p text mode rarely reports counts, so a per-iteration estimate is used); set meterTokens=true to make it EXACT. Reset at each run start. The HARD runaway bounds are maxIterations + maxTurnsPerIteration. null = no cap." },
+        "meterTokens": { "type": "boolean", "description": "When true, invoke the model with `--output-format json` so each iteration reports real `usage` (input+output tokens), making tokenBudget an exact cap instead of an estimate. Trade-off: the per-iteration log is JSON rather than streamed text. Default false." },
         "skipPermissions": { "type": "boolean", "description": "Only honored when mode=auto. Passes --dangerously-skip-permissions for true unattended runs. DANGEROUS — safety rests on the gate + rollback + PreToolUse hook. Default false." },
         "checkpoints": {
           "type": "object",
@@ -98,6 +99,7 @@
       "properties": {
         "freshContextReview": { "type": "boolean", "description": "Require an independent review in a fresh context before merge. Doer != judge." },
         "requireE2EEvidence": { "type": "boolean", "description": "Require captured end-to-end evidence, not just passing unit tests." },
+        "reviewEveryNIterations": { "type": "integer", "minimum": 0, "description": "Wire the inferential judge into the unattended loop: every N GREEN (committed) iterations, spawn a fresh-context reviewer headless over the last N commits. On a REJECT verdict the loop records the finding to state/handoff.md and stops for a human. 0 = off (the loop runs the deterministic gate only — see ROADMAP). Requires loop.commitOnGreen." },
         "evaluator": {
           "type": "object",
           "properties": {

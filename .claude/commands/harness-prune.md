@@ -48,8 +48,10 @@ Warn that these make a future `/harness-init` or "add a component" harder, and r
 
 ## Never remove
 The operative core: `harness/loop.*`, `harness/lib/*`, `.claude/hooks/*`, `.claude/settings.json`, the
-other commands/agents/skills, `specs/`, `state/` (your live work), `docs/principles/harness-philosophy.md`
-and `workflow.md`, and anything referenced by `config`.
+other commands/agents/skills, `specs/`, `state/` (your live work), `docs/principles/harness-philosophy.md`,
+`workflow.md`, and `golden-principles.md` (the taste invariants reviewer/evaluator/skills enforce — no
+config field points to it, so it isn't covered by the "referenced by `config`" rule below), and anything
+referenced by `config`.
 
 ## Finish
 1. Re-run a loop dry-run + the gate to confirm nothing operational broke

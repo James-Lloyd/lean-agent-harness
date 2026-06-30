@@ -14,7 +14,8 @@ what exists instead of reinventing or breaking it. Run this during `/harness-ini
 codebase, or standalone after a big change. Read the `brownfield-safety` skill first.
 
 ## 1. Map the structure (fan out — reads only)
-Spawn parallel read-only `Explore`/`Agent` searches; do not write code. Determine:
+Fan out parallel read-only searches via the `Agent` tool (e.g. the `Explore` agent type); do not write
+code. Determine:
 - **Components** — the buildable units and their directories (mirror into `config.components`). Detect
   multi-repo/monorepo layouts (frontend/ + backend/, workspaces).
 - **Architecture** — entry points, the main modules and how they depend on each other, the data flow,

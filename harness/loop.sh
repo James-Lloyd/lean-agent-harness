@@ -29,6 +29,7 @@ TOKEN_BUDGET="$(cfg '.autonomy.tokenBudget')"
 SKIP_PERMS="$(cfg '.autonomy.skipPermissions')"
 EVERY_N="$(cfg '.autonomy.checkpoints.everyNIterations')"; [ "$EVERY_N" = "null" ] && EVERY_N=0
 MAX_TURNS="$(cfg '.autonomy.maxTurnsPerIteration')"; { [ "$MAX_TURNS" = "null" ] || [ -z "$MAX_TURNS" ]; } && MAX_TURNS=40
+REVIEW_EVERY_N="$(cfg '.verification.reviewEveryNIterations')"; { [ "$REVIEW_EVERY_N" = "null" ] || [ -z "$REVIEW_EVERY_N" ]; } && REVIEW_EVERY_N=0
 DRY_RUN=0
 
 while [ $# -gt 0 ]; do
@@ -57,6 +58,43 @@ open_item_count() {
 
 any_e2e() {  # 0 if any component or root gate defines an e2e step
   [ "$(jq -r '[(.components[]?.gate.e2e), .gate.e2e] | map(select(. != null and . != "")) | length' "$CONFIG")" != "0" ]
+}
+
+# Periodic inferential judge: every N green iterations spawn a fresh-context reviewer over the last N
+# commits (ROADMAP "reviewEveryNIterations" — doer != judge wired into the unattended loop). Returns 0
+# to continue, 1 if the reviewer REJECTED the batch (loop should stop for a human).
+periodic_review() {  # $1 N  $2 run_dir  $3 iter
+  local n="$1" run_dir="$2" iter="$3" base out reviewlog stamp prompt
+  echo "🧑‍⚖️  Periodic fresh-context review of the last $n green iteration(s)..."
+  base="$(git rev-parse "HEAD~$n" 2>/dev/null || true)"
+  [ -z "$base" ] && base="$(git rev-list --max-parents=0 HEAD | head -1)"
+  reviewlog="$run_dir/review-after-$iter.log"
+  read -r -d '' prompt <<EOF || true
+You are a FRESH-CONTEXT REVIEWER (the harness 'reviewer' role — see .claude/agents/reviewer.md). You
+have NO memory of how this code was written; judge only the artifact. Do NOT edit any files.
+
+1. Inspect the batch:  git log --oneline $base..HEAD   and   git diff $base..HEAD
+2. Judge it against specs/ (acceptance criteria) and docs/principles/ (golden principles): correctness
+   vs spec, REAL end-to-end evidence (not just unit tests), guardrails (no weakened/deleted tests, no
+   edited specs, no destructive ops/secrets), architectural drift, needless complexity.
+3. List findings as  file:line — problem — concrete fix.
+
+Finish with EXACTLY ONE final line and nothing after it:
+VERDICT: SHIP     (the batch is sound)
+VERDICT: REJECT   (anything is wrong — default to REJECT when unsure)
+EOF
+  if ! out="$(claude -p "$prompt" --max-turns 20 2>&1 | tee "$reviewlog")"; then
+    echo "  ! review invocation failed — continuing without a verdict."; return 0
+  fi
+  if printf '%s' "$out" | grep -qE 'VERDICT:[[:space:]]*REJECT'; then
+    echo "  🔴 Periodic review REJECTED the batch. Stopping for human attention."
+    stamp="$(git rev-parse --short HEAD)"
+    printf '\n## Needs human decision — periodic review REJECT @ %s\nThe fresh-context reviewer rejected the last %s green iteration(s) (iter %s). Findings: %s. Inspect before continuing.\n' \
+      "$stamp" "$n" "$iter" "$reviewlog" >> "$REPO_ROOT/state/handoff.md"
+    return 1
+  fi
+  echo "  🟢 Periodic review: SHIP."
+  return 0
 }
 
 RUN_ID="$(loop_run_id)"
@@ -94,8 +132,13 @@ if [ "$MODE" = "auto" ] && [ "$SKIP_PERMS" = "true" ]; then
   confirm_checkpoint "Proceed with unattended skip-permissions run?" || exit 0
 fi
 
+# Lock specs/ for the run: the protect-specs PreToolUse hook (inherited by the headless claude child)
+# blocks edits under specs/ while this is exported. The loop must never rewrite the contract.
+export HARNESS_LOCK_SPECS=1
+
 PROMPT="$(cat "$(cfg '.loop.promptFile')")"
 i=0
+GREEN_COUNT=0
 while [ "$i" -lt "$MAX_ITER" ]; do
   i=$((i+1))
   if [ "$(cfg '.loop.stopWhenPlanEmpty')" = "true" ] && [ "$(open_item_count)" -eq 0 ]; then
@@ -117,6 +160,7 @@ while [ "$i" -lt "$MAX_ITER" ]; do
   new_checkpoint "pre-iter-$i"
   CLAUDE_ARGS=(-p "$PROMPT" --max-turns "$MAX_TURNS")
   if [ "$MODE" = "auto" ] && [ "$SKIP_PERMS" = "true" ]; then CLAUDE_ARGS+=(--dangerously-skip-permissions); fi
+  if [ "$(cfg '.autonomy.meterTokens')" = "true" ]; then CLAUDE_ARGS+=(--output-format json); fi   # exact usage
   if ! claude "${CLAUDE_ARGS[@]}" 2>&1 | tee "$ITER_LOG"; then
     echo "❌ claude invocation failed"; ledger "{\"iter\":$i,\"result\":\"invoke-error\"}"; restore_checkpoint; continue
   fi
@@ -134,6 +178,13 @@ while [ "$i" -lt "$MAX_ITER" ]; do
     [ "$(cfg '.loop.tagOnGreen')" = "true" ]    && tag_iteration "$i" "$RUN_ID"
     clear_checkpoint
     ledger "{\"iter\":$i,\"result\":\"green\"}"
+    GREEN_COUNT=$((GREEN_COUNT+1))
+    # Inferential judge, wired in: every N green iterations a fresh-context reviewer audits the batch.
+    if [ "$REVIEW_EVERY_N" -gt 0 ] && [ "$(cfg '.loop.commitOnGreen')" = "true" ] && [ $((GREEN_COUNT % REVIEW_EVERY_N)) -eq 0 ]; then
+      if ! periodic_review "$REVIEW_EVERY_N" "$RUN_DIR" "$i"; then
+        ledger "{\"iter\":$i,\"result\":\"review-reject\"}"; break
+      fi
+    fi
   else
     echo "🔴 Gate red: $GATE_FAILED_STEP"
     ledger "{\"iter\":$i,\"result\":\"red\",\"failedStep\":\"$GATE_FAILED_STEP\"}"

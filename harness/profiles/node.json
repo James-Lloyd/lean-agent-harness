@@ -1,6 +1,6 @@
 {
   "name": "node",
-  "description": "Reference profile: TypeScript/Node project. Adjust commands to match the repo's scripts.",
+  "description": "Reference profile: TypeScript/Node project. Adjust commands to match the repo's scripts. build/e2e are null by default (don't assume a `build`/`test:e2e` script exists — wire them only if the repo has them, so every gate command exits 0).",
 
   "detect": {
     "files": ["package.json", "pnpm-lock.yaml", "package-lock.json", "yarn.lock", "tsconfig.json"],
@@ -15,9 +15,9 @@
     "format": "pnpm exec prettier --write .",
     "lint": "pnpm exec eslint . --max-warnings=0",
     "typecheck": "pnpm exec tsc --noEmit",
-    "build": "pnpm run build",
+    "build": null,
     "test": "pnpm test -- --run",
-    "e2e": "pnpm run test:e2e"
+    "e2e": null
   },
 
   "commands": {

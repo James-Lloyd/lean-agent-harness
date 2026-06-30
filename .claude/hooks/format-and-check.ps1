@@ -61,7 +61,10 @@ foreach ($c in $targets) {
     $cmd = $fast[$name]
     if ([string]::IsNullOrWhiteSpace([string]$cmd)) { continue }
     Push-Location $dir
-    try { $out = & cmd /c $cmd 2>&1; $code = $LASTEXITCODE } finally { Pop-Location }
+    try {
+      if ($env:OS -eq 'Windows_NT') { $out = & cmd /c $cmd 2>&1 } else { $out = & bash -lc $cmd 2>&1 }
+      $code = $LASTEXITCODE
+    } finally { Pop-Location }
     if ($code -ne 0) {
       $failed = $true
       [void]$report.AppendLine("[$($c.name)] x $name failed (exit ${code}): $cmd")

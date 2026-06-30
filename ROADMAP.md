@@ -6,19 +6,22 @@ gap between "strong" and "best-in-class." Each says what's true today so nothing
 the code doesn't back. (Ratchet them in as real use demands.)
 
 ## Inferential safeguards in the *auto* loop
-- **Today:** the unattended `loop.ps1`/`loop.sh` runs only the deterministic gate, then commits. The
-  fresh-context **review** and the skeptical **evaluator** ("doer ≠ judge") run only in the supervised
-  `/work`·`/review` paths. The loop warns when `requireE2EEvidence` is set but no e2e step exists, but
-  it can't *manufacture* judgment.
-- **Planned:** an opt-in `verification.reviewEveryNIterations` that spawns the `reviewer` (and optionally
-  the `evaluator`) headless every N green iterations, failing the batch back to work on a *reject*.
-- **Until then:** for long auto runs, run `/review` periodically by hand; configure a real `e2e` step.
+- **Now wired (opt-in):** `verification.reviewEveryNIterations` (default 0 = off). When > 0, the loop
+  spawns a fresh-context **reviewer** headless over the last N commits every N green iterations; a
+  *REJECT* verdict records the finding to `state/handoff.md` and stops the loop for a human. This puts
+  "doer ≠ judge" into the unattended path, not just supervised `/work`·`/review`.
+- **Still deterministic-by-default:** with `reviewEveryNIterations = 0` the loop runs only the gate then
+  commits (as before). The loop still can't *manufacture* judgment between review points.
+- **Planned next:** also run the skeptical **evaluator** (rubric thresholds) at the review point, and
+  auto-revert the rejected batch rather than only stopping. For now a *reject* halts for human triage.
 
 ## Real token metering
-- **Today:** `tokenBudget` is a per-run **estimate** (claude `-p` text mode rarely emits counts; we fall
-  back to ~15k/iteration). The hard runaway bounds are `maxIterations` + `maxTurnsPerIteration`.
-- **Planned:** invoke with `--output-format json` and parse `usage` for exact per-iteration tokens/cost,
-  making `tokenBudget` a true cap.
+- **Now wired (opt-in):** `autonomy.meterTokens` (default false). When true the loop invokes the model
+  with `--output-format json` and the budget parser reads real `usage` (input+output tokens), making
+  `tokenBudget` an **exact** cap. Trade-off: the per-iteration log is JSON, not streamed text.
+- **Default (meterTokens=false):** `tokenBudget` is a per-run **estimate** (~15k/iteration fallback);
+  the hard runaway bounds remain `maxIterations` + `maxTurnsPerIteration`.
+- **Planned:** roll cost (`total_cost_usd`) into the ledger and a per-run summary.
 
 ## LSP / diagnostics as a live sensor
 - **Today:** profiles record `lsp.servers` as *informational*; the real mechanism is the `typecheck`
@@ -42,8 +45,12 @@ the code doesn't back. (Ratchet them in as real use demands.)
 - **Today:** the destructive-command hook is defense-in-depth and now covers far more (and fails closed
   on a denylist hit), but it is a denylist, not a sandbox; `--dangerously-skip-permissions` voids the
   permission deny-list entirely.
+- **Known gap:** the `block-destructive` hook is wired to the **`Bash`** matcher only. If a runtime also
+  exposes another shell tool (e.g. a PowerShell tool on Windows), destructive commands issued through
+  *that* tool bypass the denylist. Stock Claude Code uses `Bash`, so this only bites on runtimes that add
+  a second shell tool — but it's a reason not to rely on the hook alone.
 - **Planned:** a documented container/VM profile (no host FS, no outbound network, ephemeral, secrets via
-  env) as the supported way to run `auto` + `skipPermissions`.
+  env) as the supported way to run `auto` + `skipPermissions`; and per-shell-tool matchers for the hook.
 
 ## "Re-examine the harness on every new model"
 - **Today:** stated as a principle, no artifact.

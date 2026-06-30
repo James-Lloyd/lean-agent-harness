@@ -13,6 +13,7 @@
     "maxIterations": 20,
     "maxTurnsPerIteration": 40,
     "tokenBudget": null,
+    "meterTokens": false,
     "skipPermissions": false,
     "checkpoints": {
       "planApproval": true,
@@ -72,6 +73,7 @@
   "verification": {
     "freshContextReview": true,
     "requireE2EEvidence": true,
+    "reviewEveryNIterations": 0,
     "evaluator": {
       "enabled": false,
       "rubric": "docs/principles/evaluator-rubric.md",

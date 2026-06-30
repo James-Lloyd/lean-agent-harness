@@ -72,6 +72,46 @@ function Get-OpenItemCount {
   return @(Select-String -Path $plan -Pattern '^\s*[-*]\s+\[ \]' -ErrorAction SilentlyContinue).Count
 }
 
+# Periodic inferential judge: every N green iterations, spawn a fresh-context reviewer over the last N
+# commits (the ROADMAP "reviewEveryNIterations" item — doer != judge, wired into the unattended loop).
+# Returns $true to continue, $false if the reviewer REJECTED the batch (loop should stop for a human).
+function Invoke-PeriodicReview {
+  param([int]$N, [string]$RunDir, [int]$Iter)
+  Write-Host "🧑‍⚖️  Periodic fresh-context review of the last $N green iteration(s)..." -ForegroundColor Cyan
+  $base = (& git rev-parse "HEAD~$N" 2>$null)
+  if ($LASTEXITCODE -ne 0 -or -not $base) { $base = (& git rev-list --max-parents=0 HEAD | Select-Object -First 1) }
+  $base = "$base".Trim()
+  $reviewPrompt = @"
+You are a FRESH-CONTEXT REVIEWER (the harness 'reviewer' role — see .claude/agents/reviewer.md). You
+have NO memory of how this code was written; judge only the artifact. Do NOT edit any files.
+
+1. Inspect the batch:  git log --oneline $base..HEAD   and   git diff $base..HEAD
+2. Judge it against specs/ (acceptance criteria) and docs/principles/ (golden principles): correctness
+   vs spec, REAL end-to-end evidence (not just unit tests), guardrails (no weakened/deleted tests, no
+   edited specs, no destructive ops/secrets), architectural drift, needless complexity.
+3. List findings as  file:line — problem — concrete fix.
+
+Finish with EXACTLY ONE final line and nothing after it:
+VERDICT: SHIP     (the batch is sound)
+VERDICT: REJECT   (anything is wrong — default to REJECT when unsure)
+"@
+  $reviewLog = Join-Path $RunDir ("review-after-$Iter.log")
+  $out = ''
+  try { $out = (& claude -p $reviewPrompt --max-turns 20 *>&1 | Tee-Object -FilePath $reviewLog | Out-String) }
+  catch { Write-Host "  ! review invocation failed: $_ — continuing without a verdict." -ForegroundColor Yellow; return $true }
+  if ($out -match 'VERDICT:\s*REJECT') {
+    Write-Host "  🔴 Periodic review REJECTED the batch. Stopping for human attention." -ForegroundColor Red
+    $stamp = "$(& git rev-parse --short HEAD)".Trim()
+    $note  = "`n## Needs human decision — periodic review REJECT @ $stamp`n" +
+             "The fresh-context reviewer rejected the last $N green iteration(s) (iter $Iter). " +
+             "Findings: $reviewLog. Inspect before continuing the loop.`n"
+    Add-Content -Path (Join-Path $RepoRoot 'state/handoff.md') -Value $note -Encoding utf8
+    return $false
+  }
+  Write-Host "  🟢 Periodic review: SHIP." -ForegroundColor Green
+  return $true
+}
+
 # Does any gate (component or root) define an e2e step? Used to warn honestly about unit-green commits.
 function Test-AnyE2E {
   $comps = @(Get-Prop $cfg 'components')
@@ -85,6 +125,7 @@ Assert-CleanGitTree   # refuse to start on a dirty tree / no-HEAD repo
 $projType = 'greenfield'
 if (($cfg.PSObject.Properties.Name -contains 'project') -and $cfg.project) { $projType = $cfg.project.type }
 $maxTurns = Get-Prop $cfg.autonomy 'maxTurnsPerIteration'; if (-not $maxTurns) { $maxTurns = 40 }
+$reviewEveryN = Get-Prop (Get-Prop $cfg 'verification') 'reviewEveryNIterations'; if (-not $reviewEveryN) { $reviewEveryN = 0 }
 Write-Host "🔧 Harness loop | type=$projType | mode=$($cfg.autonomy.mode) | maxIter=$($cfg.autonomy.maxIterations) | maxTurns=$maxTurns | budget=$($cfg.autonomy.tokenBudget)" -ForegroundColor Cyan
 
 if ($cfg.autonomy.mode -eq 'auto' -and (Get-Prop $cfg.verification 'requireE2EEvidence') -and -not (Test-AnyE2E)) {
@@ -114,8 +155,13 @@ if ($cfg.autonomy.mode -eq 'auto' -and (Get-Prop $cfg.autonomy 'skipPermissions'
   if (-not (Confirm-Checkpoint "Proceed with unattended skip-permissions run?")) { return }
 }
 
+# Lock specs/ for the duration of the run: the protect-specs PreToolUse hook (inherited by the headless
+# claude child) blocks edits under specs/ while this is set. The loop must never rewrite the contract.
+$env:HARNESS_LOCK_SPECS = '1'
+
 $prompt = Get-Content (Join-Path $RepoRoot $cfg.loop.promptFile) -Raw
 $i = 0
+$greenCount = 0
 while ($i -lt $cfg.autonomy.maxIterations) {
   $i++
   if ($cfg.loop.stopWhenPlanEmpty -and (Get-OpenItemCount) -eq 0) {
@@ -146,6 +192,7 @@ while ($i -lt $cfg.autonomy.maxIterations) {
   if ($cfg.autonomy.mode -eq 'auto' -and (Get-Prop $cfg.autonomy 'skipPermissions')) {
     $claudeArgs += '--dangerously-skip-permissions'
   }
+  if (Get-Prop $cfg.autonomy 'meterTokens') { $claudeArgs += @('--output-format', 'json') }   # exact usage
   try {
     & claude @claudeArgs *>&1 | Tee-Object -FilePath $iterLog
   } catch {
@@ -178,6 +225,14 @@ while ($i -lt $cfg.autonomy.maxIterations) {
     if ($cfg.loop.tagOnGreen)    { Tag-Iteration -Index $i -RunId $runId }
     Clear-Checkpoint
     Write-Ledger @{ iter = $i; result = 'green'; committed = [bool]$cfg.loop.commitOnGreen }
+    $greenCount++
+    # Inferential judge, wired in: every N green iterations a fresh-context reviewer audits the batch.
+    if ($reviewEveryN -gt 0 -and $cfg.loop.commitOnGreen -and ($greenCount % $reviewEveryN) -eq 0) {
+      if (-not (Invoke-PeriodicReview -N $reviewEveryN -RunDir $runDir -Iter $i)) {
+        Write-Ledger @{ iter = $i; result = 'review-reject' }
+        break
+      }
+    }
   } else {
     Write-Host "🔴 Gate red: [$($gateResult.Component)] $($gateResult.FailedStep)." -ForegroundColor Red
     Write-Ledger @{ iter = $i; result = 'red'; component = "$($gateResult.Component)"; failedStep = "$($gateResult.FailedStep)" }

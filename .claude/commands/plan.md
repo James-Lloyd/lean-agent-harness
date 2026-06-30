@@ -1,7 +1,7 @@
 ---
 description: Decompose intent into specs + a prioritized, one-task-at-a-time plan and JSON manifest.
 argument-hint: "<what you want built or fixed>"
-allowed-tools: Read, Write, Edit, Glob, Grep, Agent, AskUserQuestion
+allowed-tools: Read, Write, Edit, Glob, Grep, Agent, AskUserQuestion, Skill, WebSearch
 ---
 
 # /plan — turn intent into an executable plan
@@ -23,10 +23,12 @@ time. Be ambitious about scope but precise about decomposition. Do **not** write
    work, fully implementable (no "and also…"). Order by priority and dependency.
 5. **Write the plan to `state/fix_plan.md`** as a checkbox list, highest priority first. Each item:
    `- [ ] <imperative task>  — done when: <verifiable condition>`
-6. **Mirror into `state/tasks.json`** (the machine-readable manifest) using the schema already there:
-   one object per item with `description`, `steps`, `acceptance`, `passes: false`. Enumerate granularly
-   so the loop can't declare premature victory. You may later edit only the `passes` field, never the
-   description.
+6. **Mirror into `state/tasks.json`** (the machine-readable manifest) using the v2 schema already there.
+   Each item is one object with **every** field populated: `id` (stable, e.g. `AUTH-001`), `category`,
+   `component` (which `config.components` entry it touches), `description`, `steps`, `acceptance`,
+   `status: "todo"`, `evidence: ""`, `passes: false`. Enumerate granularly so the loop can't declare
+   premature victory. Downstream (`/work`, the loop) edits only `status`, `evidence`, and `passes` —
+   never `description`/`acceptance`. You set `status: "todo"` here and don't touch it again.
 7. **Sprint contract (optional but recommended for non-trivial work).** Use the `sprint-contract`
    skill to agree the "definition of done" up front before any code is written.
 

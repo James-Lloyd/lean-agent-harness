@@ -13,7 +13,7 @@ see `harness/harness.config.json` → `components`.
 
 | Component | Path | Stack | Run | Test |
 |-----------|------|-------|-----|------|
-| frontend | `frontend/` | Next.js + TS (pnpm) | `pnpm run dev` | `pnpm test` |
+| frontend | `frontend/` | Next.js + TS (pnpm) | `pnpm run dev` | `pnpm test -- --run` |
 | backend  | `backend/`  | FastAPI + Python (uv) | `uv run uvicorn app.main:app --reload` | `uv run pytest` |
 
 Cross-cutting: a Playwright e2e (`pnpm exec playwright test`) boots both and clicks through as a user.

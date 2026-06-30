@@ -93,7 +93,7 @@ iteration/token caps, checkpoints, and the verification gate.
 |------|------------|
 | `CLAUDE.md` | The root **context map** (~100 lines, a navigation map — not a 1000-page manual). `/harness-init` fills it. |
 | `AGENTS.md` | Portability shim → points other agents (Codex, opencode) at `CLAUDE.md`. No proprietary lock-in. |
-| `.claude/commands/` | Slash commands: `harness-init`, `harness-prune`, `onboard`, `plan`, `work`, `loop`, `verify`, `review`, `handoff`, `ratchet`, `gc`. |
+| `.claude/commands/` | Slash commands: `harness-init`, `harness-doctor`, `harness-prune`, `onboard`, `plan`, `work`, `loop`, `verify`, `review`, `handoff`, `ratchet`, `gc`. |
 | `.claude/agents/` | Subagent roles: `planner`, `generator`, `evaluator`, `reviewer`, `doc-gardener`. The doer is never the judge. |
 | `.claude/skills/` | Progressive-disclosure skills: `stack-detect`, `sprint-contract`, `e2e-evidence`, `brownfield-safety`. |
 | `.claude/settings.json` | Hooks (format/lint/typecheck on edit, routed per component; block destructive bash; SessionStart orientation) + permissions + env. |
@@ -107,7 +107,7 @@ iteration/token caps, checkpoints, and the verification gate.
 | `harness/profiles/` | **Stack profiles** — pluggable bundles that tell the harness *what* `format`/`lint`/`test`/`build` mean for a given stack. This is what makes the core generic. |
 | `docs/` | `architecture/`, `design-docs/`, `execution-plans/`, `technical-debt/`, `principles/`. The agent's long-term knowledge, version-controlled. |
 | `specs/` | **Immutable** source of truth for requirements. The agent reads, never rewrites. |
-| `state/` | Mutable runtime state: `tasks.json`, `fix_plan.md`, `PROGRESS.md`, `handoff.md`. |
+| `state/` | Mutable runtime state: `tasks.json`, `fix_plan.md`, `PROGRESS.md` (committed — they *are* the memory); `handoff.md` is gitignored: a transient, per-working-copy note regenerated at each context reset. |
 | `PROMPT.md` | The phased prompt piped into each loop iteration (study → select → implement → verify → record → hand off). |
 | `AGENT_NOTES.md` | The amnesiac's notebook — run/build commands and hard-won learnings, appended by the loop. |
 

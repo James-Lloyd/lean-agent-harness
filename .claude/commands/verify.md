@@ -27,4 +27,4 @@ evidence — the kind of proof a skeptical human would accept.
 ## Output
 A short evidence report: gate results (pass/fail per step), the captured evidence (path to
 screenshot/log/output), and a clear verdict on whether each acceptance criterion is *demonstrably*
-met. Save artifacts under `state/evidence/` so the review and the human can see them.
+met. Save artifacts under `state/evidence/<task-id>/` so the review and the human can see them.

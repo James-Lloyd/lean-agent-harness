@@ -15,7 +15,11 @@ Discipline:
 - **Full implementation, no placeholders or stubs.** "Simple version for now" is not acceptable.
 - **Serialize builds/tests** to a single runner; parallelize only reads/searches/analysis.
 - **Verify before done** — run format → lint → typecheck → tests for what you changed, then capture
-  real end-to-end evidence (the `e2e-evidence` skill). Unit-green is not done.
+  real end-to-end evidence (the `e2e-evidence` skill). Unit-green is not done. You have `Bash`, so
+  capture evidence through it: real CLI/API invocations, or a headless UI run via the framework's CLI
+  (e.g. `npx playwright test`/`--reporter`). If the only honest proof needs an interactive browser
+  (Chrome MCP), you don't have that tool — hand back to the orchestrator (`/work`/`/verify`) to capture
+  it rather than claiming UI evidence you can't produce.
 - **Never weaken or delete a test** to go green. Fix the code, or revert and record the blocker.
 - **Leave breadcrumbs.** Comment the *why*; append learnings to `AGENT_NOTES.md`; tick the item; add a
   `state/PROGRESS.md` line; commit with a descriptive message; leave the tree green.

@@ -84,6 +84,23 @@ ok "allows git status"                 ((hookExit 'git status') -eq 0)
 ok "allows npm test"                   ((hookExit 'npm test') -eq 0)
 ok "allows normal git push"            ((hookExit 'git push origin feature') -eq 0)
 
+Write-Host "protect-specs hook: locks specs/ only when HARNESS_LOCK_SPECS is set"
+$specHook = Join-Path $hookDir 'protect-specs.ps1'
+function specExit($path, $locked) {
+  $ErrorActionPreference = 'SilentlyContinue'
+  $old = $env:HARNESS_LOCK_SPECS
+  if ($locked) { $env:HARNESS_LOCK_SPECS = '1' } else { Remove-Item Env:HARNESS_LOCK_SPECS -ErrorAction SilentlyContinue }
+  $payload = @{ tool_name='Write'; tool_input=@{ file_path=$path } } | ConvertTo-Json -Compress
+  try { $payload | & powershell -NoProfile -ExecutionPolicy Bypass -File $specHook 1>$null 2>$null }
+  finally {
+    if ($null -ne $old) { $env:HARNESS_LOCK_SPECS = $old } else { Remove-Item Env:HARNESS_LOCK_SPECS -ErrorAction SilentlyContinue }
+  }
+  return $LASTEXITCODE
+}
+ok "blocks specs/ write when locked"   ((specExit 'specs/000-overview.md' $true) -eq 2)
+ok "allows non-spec write when locked" ((specExit 'src/app.ts' $true) -eq 0)
+ok "allows specs/ write when unlocked" ((specExit 'specs/000-overview.md' $false) -eq 0)
+
 Write-Host ""
 Write-Host ("RESULT: {0} passed, {1} failed" -f $script:pass, $script:fail) -ForegroundColor Cyan
 if ($script:fail -gt 0) { exit 1 } else { exit 0 }
