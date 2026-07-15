@@ -36,6 +36,9 @@ Coherent whole, not a collection of parts; no generic "AI slop"/template default
 copy, and primary actions are considered. **Below threshold if** it reads as un-finished or generic.
 
 ## Output format the evaluator must produce
+This format is **load-bearing** when `verification.evaluator.enabled` gates the unattended loop: the loop
+parses the final `VERDICT: PASS|FAIL` line **and** the per-criterion `N/10` scores — any score below
+`failBelow` stops the loop like a REJECT, even if the summary line said PASS. Keep the scores as `N/10`.
 ```
 VERDICT: PASS | FAIL
 1. Correctness   8/10 — <why>

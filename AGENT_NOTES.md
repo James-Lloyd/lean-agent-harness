@@ -176,3 +176,31 @@ hard-won operational facts (exact commands, environment quirks, "X looks broken 
   commits only touched `.github/`+`ci/`+`state/` (files the generator never edited), so `git merge
   --squash` (merge-base = ef9bda0) applied exactly the generator's diff with no reversion. The orchestrator
   must run this check when a worktree base ≠ main, not trust "looks post-flip".
+- [2026-07-15] **Evaluator wired into the loop's periodic review point** (`Get-EvaluatorVerdict`/`evaluator_verdict`
+  in `plugin/engine/lib/gate.*`; `Invoke-PeriodicEvaluation`/`periodic_evaluation` + green-branch restructure
+  in `loop.*`). When `verification.evaluator.enabled`, AFTER the fresh-context reviewer returns SHIP the loop
+  scores the SAME `base..HEAD` batch against the rubric via a READ-ONLY `evaluate`-phase judge; the review
+  watermark advances only when BOTH pass, else it writes a reject-handoff + ledgers `review-stop` + breaks
+  (fails closed exactly like a REJECT). It AUGMENTS the review point — no new cadence — so it inherits
+  `reviewEveryNIterations>0` + `commitOnGreen` (honest WARN when enabled but no review point). Two things
+  worth keeping: (a) the verdict parser is fail-closed **twice over** — last-`^VERDICT:`-line rule (mirrors
+  the reviewer) AND a belt-and-braces scan of the whole text for `N/10`; ANY numerator `< failBelow` returns
+  FAIL even if the summary line said PASS, so "any below-threshold criterion stops the loop" is enforced in
+  CODE, not trusted from the model's self-summary. Strict `<` (score == failBelow is NOT below). Over-matching
+  a stray `N/10` in prose only ever yields a FALSE FAIL — the safe direction (stops for a human). (b) In the
+  bash parser the score scan MUST loop in the function's own shell (a `for n in $scores` over command-subst),
+  NOT `... | while read`, because a `return` inside a pipe subshell would never fail the function closed.
+- [2026-07-15] **Multi-judge review point: advance the EXTERNAL watermark only after ALL judges pass** (evaluator
+  fix-then-ship). The loop's internal `$reviewBaseRef`/`REVIEW_BASE` was already gated on both reviewer+evaluator,
+  but the git tag `harness-reviewed` was force-advanced INSIDE `Invoke-PeriodicReview`/`periodic_review` on the
+  reviewer's SHIP — before the evaluator ran. So a reviewer-SHIP-then-evaluator-FAIL batch got tagged "reviewed"
+  while the loop stopped, and a later `/review` (which uses that tag as its fallback base) would skip the rejected
+  work. Fix: moved the tag OUT of the reviewer fn into the caller's `if ($ok)` / `review_ok=0` block, so it tags
+  only after BOTH judges pass (the disabled path still tags on reviewer SHIP because `$ok`=review result). General
+  rule: when a gate has N sequential judges, any externally-visible "passed" marker advances only after the LAST one.
+- [2026-07-15] **`failBelow` is schema-INTEGER, not `number`** (evaluator fix-then-ship). Rubric scores are `N/10`
+  integers; the bash twin compares with `[ "$n" -lt "$fail_below" ]` (integer-only) and the PS twin coerces
+  `[int]$FailBelow`. A schema-legal float like `7.5` DIVERGED: bash `-lt` errors inside `if` → falls through →
+  fail-OPEN PASS; PS rounds → FAIL. Fixed by constraining the schema to `"type":"integer","minimum":0,"maximum":10`
+  (the contract layer) rather than adding float math to both shells. Lesson: when two twins compare a config value,
+  pin the value's TYPE in the schema so the shells can't disagree — don't rely on each shell coercing identically.

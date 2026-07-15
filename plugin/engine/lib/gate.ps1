@@ -35,6 +35,32 @@ function Get-ReviewVerdict([string]$Text) {
   return 'NONE'
 }
 
+# Parse the periodic-evaluator's verdict from its output: PASS | FAIL | NONE. Mirrors Get-ReviewVerdict's
+# fail-closed last-VERDICT-line rule, then ADDS a belt-and-braces threshold scan so a below-threshold
+# per-criterion score stops the loop even if the model's own summary line lied PASS. Fail-closed:
+#  - No text / no line matching ^\s*VERDICT: => NONE.
+#  - Take the LAST VERDICT: line: PASS => tentative PASS, FAIL => FAIL, anything else => NONE.
+#  - Then scan the WHOLE text for `(\d+)\s*/\s*10`; if ANY captured number < $FailBelow, return FAIL even
+#    when the summary said PASS. This is what makes "any below-threshold criterion stops the loop" true in
+#    CODE, not merely trusted from the model's self-summary. Strict `<`: a score == $FailBelow is NOT below.
+#    (Over-matching a stray "N/10" in prose can only ever yield a FALSE FAIL — which stops for a human, the
+#    safe fail-closed direction.) Return PASS only when verdict==PASS AND no sub-threshold score. Lives here
+#    so the self-tests can exercise it; mirror of evaluator_verdict in gate.sh.
+function Get-EvaluatorVerdict([string]$Text, [int]$FailBelow) {
+  if (-not $Text) { return 'NONE' }
+  $line = @($Text -split "`r?`n" | Where-Object { $_ -match '^\s*VERDICT:' }) | Select-Object -Last 1
+  if (-not $line) { return 'NONE' }
+  $verdict = if     ($line -match '^\s*VERDICT:\s*PASS(\s|$)') { 'PASS' }
+             elseif ($line -match '^\s*VERDICT:\s*FAIL(\s|$)') { 'FAIL' }
+             else                                              { 'NONE' }
+  if ($verdict -eq 'NONE') { return 'NONE' }
+  # Belt-and-braces: any per-criterion score below the hard threshold overrides a PASS summary => FAIL.
+  foreach ($m in [regex]::Matches($Text, '(\d+)\s*/\s*10')) {
+    if ([int]$m.Groups[1].Value -lt $FailBelow) { return 'FAIL' }
+  }
+  return $verdict
+}
+
 # Per-phase model routing: resolve config.models.<phase> to its PRIMARY model string (trimmed), or ''
 # when null/absent (= inherit the CLI's ambient default — the pre-routing behavior, and what a config
 # trimmed by /harness-prune degrades to). Tolerant of BOTH shapes: the new nested {model, fallback}

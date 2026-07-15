@@ -157,7 +157,9 @@ VERDICT: REJECT   (anything is wrong — default to REJECT when unsure)
   Write-Ledger @{ iter = $Iter; result = 'review'; path = $reviewPath; verdict = "$verdict" }
   if ($verdict -eq 'SHIP') {
     Write-Host "  🟢 Periodic review: SHIP." -ForegroundColor Green
-    & git tag -f harness-reviewed $head *> $null   # watermark for a later /review: everything up to here is reviewed
+    # NB: the harness-reviewed watermark tag is advanced by the CALLER, only after BOTH the reviewer AND
+    # (when enabled) the evaluator pass — otherwise a reviewer-SHIP-then-evaluator-FAIL batch would be
+    # tagged "reviewed" while the loop stops like a REJECT, hiding rejected work from a later /review.
     return $true
   }
   $reason = if ($verdict -eq 'REJECT') { 'REJECT' } else { 'no clear SHIP verdict (fail-closed)' }
@@ -171,6 +173,71 @@ function Write-Reject-Handoff {
   $note = "`n## Needs human decision — periodic review: $Reason ($(_Short $Base)..$(_Short $Head), iter $Iter)`n" +
           "The fresh-context reviewer did not return SHIP. Findings: $Log. Inspect before continuing the loop.`n"
   Add-Content -Path (Join-Path $RepoRoot 'state/handoff.md') -Value $note -Encoding utf8
+}
+
+# Periodic EVALUATION at the review point: when verification.evaluator.enabled, AFTER the fresh-context
+# reviewer returns SHIP the loop also scores the SAME $Base..HEAD batch against the rubric. Shape parallels
+# Invoke-PeriodicReview: READ-ONLY (--disallowedTools + a hard reset afterward) so the judge can't mutate
+# what it judges, and FAILS CLOSED — only a clean PASS (verdict PASS AND every criterion >= failBelow via
+# Get-EvaluatorVerdict) continues; a FAIL, no clear verdict, a truncated/crashed run, or ANY sub-threshold
+# score stops the loop exactly like a REJECT (reject-handoff + ledger). Returns $true to continue; $false
+# to stop the loop for human attention.
+function Invoke-PeriodicEvaluation {
+  param([string]$Base, [string]$RunDir, [int]$Iter, [string]$Route, [string]$Fallback, $CodexCfg,
+        [string]$Rubric, [int]$FailBelow)
+  $head = "$(& git rev-parse HEAD)".Trim()
+  if ($Base -eq $head) { Write-Host "  (periodic evaluation: no new commits since last review)" -ForegroundColor DarkGray; return $true }
+  Write-Host "🧮  Periodic evaluator scoring commits $(_Short $Base)..$(_Short $head) against $Rubric..." -ForegroundColor Cyan
+  $evalPrompt = @"
+You are a SKEPTICAL EVALUATOR (the harness 'evaluator' role — see .claude/agents/evaluator.md). You have
+NO memory of how this code was written; judge only the artifact. You are READ-ONLY — do not edit, write,
+or commit anything.
+
+1. Read the scoring rubric at:  $Rubric
+2. Inspect the batch:  git log --oneline $Base..HEAD   and   git diff $Base..HEAD
+3. Check the work against specs/ (acceptance criteria) and the captured end-to-end evidence under
+   state/evidence/. Exercise that evidence READ-ONLY where you can (read logs/outputs; run only
+   non-mutating commands). A guardrail breach (weakened/deleted tests, edited specs, destructive ops,
+   secrets) caps the sprint regardless of other scores.
+4. Score EVERY applicable criterion 0-10 with a one-line justification, applying the hard threshold
+   failBelow=$FailBelow: ANY criterion below $FailBelow => the sprint FAILS.
+
+Output EXACTLY the rubric's format — the per-criterion N/10 scores — and finish with EXACTLY ONE final
+line and nothing after it:
+VERDICT: PASS     (every applicable criterion scored >= $FailBelow, no guardrail breach)
+VERDICT: FAIL     (any criterion below $FailBelow, any guardrail breach, or unsure)
+"@
+  $evalLog = Join-Path $RunDir ("evaluate-after-$Iter.log")
+  # Route the judge through the cross-vendor dispatcher (Invoke-Phase, READ-ONLY) exactly like the reviewer:
+  # -Primary the resolved evaluate model, -Fallback its claude fallback; disallowed write tools as SEPARATE
+  # args; Bash stays enabled (the judge needs git log/diff + read-only evidence commands); the hard reset
+  # below undoes any mutation. Prompt via STDIN (PS 5.1 mangles embedded quotes).
+  $phase = Invoke-Phase -Mode 'read-only' -Prompt $evalPrompt -RepoRoot $RepoRoot -LogPath $evalLog `
+                        -Primary $Route -Fallback $Fallback -CodexCfg $CodexCfg -MaxTurns 20 `
+                        -ClaudeExtraArgs @('--disallowedTools', 'Edit', 'Write', 'MultiEdit', 'NotebookEdit')
+  $evalPath = if ($phase.Path) { $phase.Path } else { 'claude' }
+  $invokeOk = [bool]$phase.Ok; $out = "$($phase.Output)"
+  # A judge must not mutate the artifact: restore the tree to exactly the evaluated HEAD, no matter what.
+  & git reset --hard $head *> $null
+  & git clean -fd *> $null
+  if (-not $invokeOk) {
+    Write-Host "  ! evaluator invocation failed ($evalPath) — failing closed (stopping for human)." -ForegroundColor Red
+    Write-Ledger @{ iter = $Iter; result = 'evaluate'; path = $evalPath; verdict = 'ERROR' }
+    Write-Reject-Handoff -Reason "evaluator could not run ($evalPath)" -Base $Base -Head $head -Iter $Iter -Log $evalLog
+    return $false
+  }
+  # Fail-closed parse + belt-and-braces threshold scan (Get-EvaluatorVerdict in lib/gate.ps1): any
+  # sub-threshold N/10 overrides a PASS summary.
+  $verdict = Get-EvaluatorVerdict $out $FailBelow
+  Write-Ledger @{ iter = $Iter; result = 'evaluate'; path = $evalPath; verdict = "$verdict" }
+  if ($verdict -eq 'PASS') {
+    Write-Host "  🟢 Periodic evaluation: PASS." -ForegroundColor Green
+    return $true
+  }
+  $reason = if ($verdict -eq 'FAIL') { 'evaluator FAIL (below-threshold criterion)' } else { 'no clear PASS verdict (fail-closed)' }
+  Write-Host "  🔴 Periodic evaluation: $reason. Stopping for human attention." -ForegroundColor Red
+  Write-Reject-Handoff -Reason $reason -Base $Base -Head $head -Iter $Iter -Log $evalLog
+  return $false
 }
 
 # Does any gate (component or root) define an e2e step? Used to warn honestly about unit-green commits.
@@ -193,6 +260,15 @@ $implementModel      = Resolve-PhaseModel $cfg 'implement'
 $implementFallback   = Resolve-PhaseFallback $cfg 'implement'     # cross-vendor fallback (e.g. 'codex'); '' = none
 $reviewRoute         = Resolve-PhaseModel $cfg 'review'            # 'codex' | claude alias/ID | ''
 $reviewFallback      = Resolve-PhaseFallback $cfg 'review'         # S1b: symmetric with the reviewFallback pseudo-phase
+# Evaluator-at-review-point: when enabled it augments the SAME periodic review point (below), scoring the
+# batch against the rubric. Route/fallback resolve through the 'evaluate' phase; rubric/threshold read
+# StrictMode-safe via Get-Prop so a trimmed config degrades to defaults instead of throwing.
+$evalCfg             = Get-Prop (Get-Prop $cfg 'verification') 'evaluator'
+$evalEnabled         = [bool](Get-Prop $evalCfg 'enabled')
+$evalRoute           = Resolve-PhaseModel $cfg 'evaluate'          # 'fable' | codex | claude alias/ID | ''
+$evalFallback        = Resolve-PhaseFallback $cfg 'evaluate'
+$evalRubric          = Get-Prop $evalCfg 'rubric'; if (-not $evalRubric) { $evalRubric = 'docs/principles/evaluator-rubric.md' }
+$evalFailBelow       = Get-Prop $evalCfg 'failBelow'; if ($null -eq $evalFailBelow) { $evalFailBelow = 7 }
 $codexCfg            = Get-Prop (Get-Prop $cfg 'models') 'codex'
 $modelLabel = if ($implementModel) { $implementModel } else { 'inherit' }
 Write-Host "🔧 Harness loop | type=$projType | mode=$($cfg.autonomy.mode) | maxIter=$($cfg.autonomy.maxIterations) | maxTurns=$maxTurns | model=$modelLabel | budget=$($cfg.autonomy.tokenBudget)" -ForegroundColor Cyan
@@ -200,6 +276,16 @@ Write-Host "🔧 Harness loop | type=$projType | mode=$($cfg.autonomy.mode) | ma
 if ($cfg.autonomy.mode -eq 'auto' -and (Get-Prop (Get-Prop $cfg 'verification') 'requireE2EEvidence') -and -not (Test-AnyE2E)) {
   Write-Host "⚠️  auto mode + requireE2EEvidence, but no e2e gate step is configured. The loop will commit on" -ForegroundColor Yellow
   Write-Host "    unit-green only. Add an e2e command to a component/root gate, or run /review periodically." -ForegroundColor Yellow
+}
+
+# Honest guard (mirrors the e2e/skipPermissions warnings): the evaluator augments the periodic review
+# point, which is gated on BOTH reviewEveryNIterations>0 AND loop.commitOnGreen — with either off it can
+# never fire. Read commitOnGreen inline via Get-Prop ($commitOnGreen is resolved later, below).
+$commitOnGreenPre = [bool](Get-Prop (Get-Prop $cfg 'loop') 'commitOnGreen')
+if ($evalEnabled -and (($reviewEveryN -le 0) -or (-not $commitOnGreenPre))) {
+  $why = if ($reviewEveryN -le 0) { 'reviewEveryNIterations <= 0' } else { 'loop.commitOnGreen is false' }
+  Write-Host "⚠️  verification.evaluator.enabled is true but $why — the evaluator augments the periodic" -ForegroundColor Yellow
+  Write-Host "    review point (needs reviewEveryNIterations>0 AND commitOnGreen), so it will never run." -ForegroundColor Yellow
 }
 
 if ($projType -eq 'brownfield') {
@@ -339,8 +425,16 @@ while ($i -lt $cfg.autonomy.maxIterations) {
     $greenCount++
     # Inferential judge, wired in: every N green iterations a fresh-context reviewer audits the batch.
     if ($reviewEveryN -gt 0 -and $commitOnGreen -and ($greenCount % $reviewEveryN) -eq 0) {
-      if (Invoke-PeriodicReview -Base $reviewBaseRef -RunDir $runDir -Iter $i -Fallback $reviewFallback -Route $reviewRoute -CodexCfg $codexCfg) {
+      $ok = Invoke-PeriodicReview -Base $reviewBaseRef -RunDir $runDir -Iter $i -Fallback $reviewFallback -Route $reviewRoute -CodexCfg $codexCfg
+      # The evaluator augments the SAME review point: when enabled, only after the reviewer SHIPs do we
+      # also score the batch against the rubric. Advance the watermark only when BOTH pass; any
+      # below-threshold criterion stops the loop like a REJECT (Invoke-PeriodicEvaluation writes the handoff).
+      if ($ok -and $evalEnabled) {
+        $ok = Invoke-PeriodicEvaluation -Base $reviewBaseRef -RunDir $runDir -Iter $i -Route $evalRoute -Fallback $evalFallback -CodexCfg $codexCfg -Rubric $evalRubric -FailBelow $evalFailBelow
+      }
+      if ($ok) {
         $reviewBaseRef = "$(& git rev-parse HEAD)".Trim()   # advance the watermark past the reviewed batch
+        & git tag -f harness-reviewed $reviewBaseRef *> $null   # both judges passed: mark reviewed for a later /review
       } else {
         Write-Ledger @{ iter = $i; result = 'review-stop' }
         break

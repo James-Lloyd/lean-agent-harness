@@ -53,6 +53,13 @@ IMPLEMENT_MODEL="$(phase_model "$CONFIG" implement)"
 IMPLEMENT_FALLBACK="$(phase_fallback "$CONFIG" implement)"        # cross-vendor fallback (e.g. "codex"); "" = none
 REVIEW_ROUTE="$(phase_model "$CONFIG" review)"                    # "codex" | claude alias/ID | ""
 REVIEW_FALLBACK="$(phase_fallback "$CONFIG" review)"             # S1b: symmetric with the reviewFallback pseudo-phase
+# Evaluator-at-review-point: when enabled it augments the SAME periodic review point, scoring the batch
+# against the rubric. `cfg '... // default'` degrades a trimmed config to defaults instead of erroring.
+EVAL_ENABLED="$(cfg '.verification.evaluator.enabled // false')"
+EVAL_ROUTE="$(phase_model "$CONFIG" evaluate)"                    # "fable" | codex | claude alias/ID | ""
+EVAL_FALLBACK="$(phase_fallback "$CONFIG" evaluate)"
+EVAL_RUBRIC="$(cfg '.verification.evaluator.rubric // "docs/principles/evaluator-rubric.md"')"
+EVAL_FAILBELOW="$(cfg '.verification.evaluator.failBelow // 7')"
 CODEX_AUTH="$(cfg '.models.codex.auth // "chatgpt"')"
 CODEX_MODEL="$(cfg '.models.codex.model // empty')"
 CODEX_EFFORT="$(cfg '.models.codex.reasoningEffort // empty')"
@@ -152,7 +159,9 @@ EOF
   case "$v" in
     SHIP)
       echo "  🟢 Periodic review: SHIP."
-      git tag -f harness-reviewed "$head" >/dev/null 2>&1 || true   # watermark for a later /review
+      # NB: the harness-reviewed watermark tag is advanced by the CALLER, only after BOTH the reviewer AND
+      # (when enabled) the evaluator pass — else a reviewer-SHIP-then-evaluator-FAIL batch would be tagged
+      # "reviewed" while the loop stops like a REJECT, hiding rejected work from a later /review.
       return 0;;
     REJECT) reason="REJECT";;
     *) reason="no clear SHIP verdict (fail-closed)";;
@@ -164,6 +173,66 @@ EOF
 _reject_handoff() {  # $1 reason  $2 base  $3 head  $4 iter  $5 log
   printf '\n## Needs human decision — periodic review: %s (%s..%s, iter %s)\nThe fresh-context reviewer did not return SHIP. Findings: %s. Inspect before continuing the loop.\n' \
     "$1" "${2:0:8}" "${3:0:8}" "$4" "$5" >> "$REPO_ROOT/state/handoff.md"
+}
+
+# Periodic EVALUATION at the review point (bash mirror of Invoke-PeriodicEvaluation). When
+# verification.evaluator.enabled, AFTER the fresh-context reviewer returns SHIP the loop also scores the
+# same base..HEAD batch against the rubric. READ-ONLY (--disallowedTools + a hard reset afterward) so the
+# judge can't mutate what it judges, and FAILS CLOSED — only a clean PASS (verdict PASS AND every criterion
+# >= failBelow via evaluator_verdict) continues; a FAIL, no clear verdict, a crash, or ANY sub-threshold
+# N/10 stops the loop like a REJECT. Returns 0 to continue; 1 to stop the loop for a human.
+periodic_evaluation() {  # $1 base  $2 run_dir  $3 iter
+  local base="$1" run_dir="$2" iter="$3" head out evallog prompt reason rc v
+  head="$(git rev-parse HEAD)"
+  if [ "$base" = "$head" ]; then echo "  (periodic evaluation: no new commits since last review)"; return 0; fi
+  echo "🧮  Periodic evaluator scoring commits ${base:0:8}..${head:0:8} against $EVAL_RUBRIC..."
+  evallog="$run_dir/evaluate-after-$iter.log"
+  read -r -d '' prompt <<EOF || true
+You are a SKEPTICAL EVALUATOR (the harness 'evaluator' role — see .claude/agents/evaluator.md). You have
+NO memory of how this code was written; judge only the artifact. You are READ-ONLY — do not edit, write,
+or commit anything.
+
+1. Read the scoring rubric at:  $EVAL_RUBRIC
+2. Inspect the batch:  git log --oneline $base..HEAD   and   git diff $base..HEAD
+3. Check the work against specs/ (acceptance criteria) and the captured end-to-end evidence under
+   state/evidence/. Exercise that evidence READ-ONLY where you can (read logs/outputs; run only
+   non-mutating commands). A guardrail breach (weakened/deleted tests, edited specs, destructive ops,
+   secrets) caps the sprint regardless of other scores.
+4. Score EVERY applicable criterion 0-10 with a one-line justification, applying the hard threshold
+   failBelow=$EVAL_FAILBELOW: ANY criterion below $EVAL_FAILBELOW => the sprint FAILS.
+
+Output EXACTLY the rubric's format — the per-criterion N/10 scores — and finish with EXACTLY ONE final
+line and nothing after it:
+VERDICT: PASS     (every applicable criterion scored >= $EVAL_FAILBELOW, no guardrail breach)
+VERDICT: FAIL     (any criterion below $EVAL_FAILBELOW, any guardrail breach, or unsure)
+EOF
+  # Route through the cross-vendor dispatcher (invoke_phase, READ-ONLY) exactly like the reviewer; primary =
+  # the resolved evaluate model, fallback = its claude fallback. Disallowed write tools as SEPARATE args;
+  # Bash stays enabled (the judge needs git log/diff + read-only evidence commands). invoke_phase must run
+  # in THIS shell so INVOKE_PHASE_* globals propagate; capture stdout via a redirect (no subshell).
+  INVOKE_PHASE_CLAUDE_ARGS=(--disallowedTools Edit Write MultiEdit NotebookEdit)
+  local eval_out; eval_out="$(mktemp)"
+  if invoke_phase read-only "$prompt" "$REPO_ROOT" "$evallog" "$EVAL_ROUTE" "$EVAL_FALLBACK" "" 20 "$CODEX_AUTH" "$CODEX_MODEL" "$CODEX_EFFORT" "$CODEX_TIMEOUT" > "$eval_out"; then rc=0; else rc=$?; fi
+  out="$(cat "$eval_out")"; rm -f "$eval_out"
+  local eval_path="${INVOKE_PHASE_PATH:-claude}"
+  # A judge must not mutate the artifact: restore the tree to exactly the evaluated HEAD, no matter what.
+  git reset --hard "$head" >/dev/null 2>&1 || true; git clean -fd >/dev/null 2>&1 || true
+  if [ "$rc" -ne 0 ]; then
+    echo "  ! evaluator invocation failed ($eval_path) — failing closed (stopping for human)."
+    ledger "{\"iter\":$iter,\"result\":\"evaluate\",\"path\":\"$eval_path\",\"verdict\":\"ERROR\"}"
+    _reject_handoff "evaluator could not run ($eval_path)" "$base" "$head" "$iter" "$evallog"; return 1
+  fi
+  # Fail-closed parse + belt-and-braces threshold scan (evaluator_verdict in lib/gate.sh): any
+  # sub-threshold N/10 overrides a PASS summary.
+  v="$(printf '%s\n' "$out" | evaluator_verdict "$EVAL_FAILBELOW")"
+  ledger "{\"iter\":$iter,\"result\":\"evaluate\",\"path\":\"$eval_path\",\"verdict\":\"$v\"}"
+  case "$v" in
+    PASS) echo "  🟢 Periodic evaluation: PASS."; return 0;;
+    FAIL) reason="evaluator FAIL (below-threshold criterion)";;
+    *)    reason="no clear PASS verdict (fail-closed)";;
+  esac
+  echo "  🔴 Periodic evaluation: $reason. Stopping for human attention."
+  _reject_handoff "$reason" "$base" "$head" "$iter" "$evallog"; return 1
 }
 
 RUN_ID="$(loop_run_id "$HARNESS_DIR/.runs")"   # atomically claims <project>/harness/.runs/<runId>/ (mkdir-as-mutex)
@@ -185,6 +254,14 @@ echo "🔧 Harness loop | type=$PROJ_TYPE | mode=$MODE | maxIter=$MAX_ITER | max
 if [ "$MODE" = "auto" ] && [ "$(cfg '.verification.requireE2EEvidence')" = "true" ] && ! any_e2e; then
   echo "⚠️  auto mode + requireE2EEvidence, but no e2e gate step is configured. The loop will commit on"
   echo "    unit-green only. Add an e2e command to a component/root gate, or run /review periodically."
+fi
+
+# Honest guard (mirrors the e2e warning): the evaluator augments the periodic review point, which is gated
+# on BOTH reviewEveryNIterations>0 AND loop.commitOnGreen — with either off it can never fire.
+if [ "$EVAL_ENABLED" = "true" ] && { [ "$REVIEW_EVERY_N" -le 0 ] || [ "$(cfg '.loop.commitOnGreen')" != "true" ]; }; then
+  if [ "$REVIEW_EVERY_N" -le 0 ]; then _eval_why="reviewEveryNIterations <= 0"; else _eval_why="loop.commitOnGreen is false"; fi
+  echo "⚠️  verification.evaluator.enabled is true but $_eval_why — the evaluator augments the periodic"
+  echo "    review point (needs reviewEveryNIterations>0 AND commitOnGreen), so it will never run."
 fi
 
 if [ "$PROJ_TYPE" = "brownfield" ]; then
@@ -289,8 +366,16 @@ while [ "$i" -lt "$MAX_ITER" ]; do
     GREEN_COUNT=$((GREEN_COUNT+1))
     # Inferential judge, wired in: every N green iterations a fresh-context reviewer audits the batch.
     if [ "$REVIEW_EVERY_N" -gt 0 ] && [ "$(cfg '.loop.commitOnGreen')" = "true" ] && [ $((GREEN_COUNT % REVIEW_EVERY_N)) -eq 0 ]; then
-      if periodic_review "$REVIEW_BASE" "$RUN_DIR" "$i"; then
+      if periodic_review "$REVIEW_BASE" "$RUN_DIR" "$i"; then review_ok=0; else review_ok=1; fi
+      # The evaluator augments the SAME review point: when enabled, only after the reviewer SHIPs do we
+      # also score the batch against the rubric. Advance the watermark only when BOTH pass; any
+      # below-threshold criterion stops the loop like a REJECT (periodic_evaluation writes the handoff).
+      if [ "$review_ok" -eq 0 ] && [ "$EVAL_ENABLED" = "true" ]; then
+        if periodic_evaluation "$REVIEW_BASE" "$RUN_DIR" "$i"; then review_ok=0; else review_ok=1; fi
+      fi
+      if [ "$review_ok" -eq 0 ]; then
         REVIEW_BASE="$(git rev-parse HEAD)"   # advance the watermark past the reviewed batch
+        git tag -f harness-reviewed "$REVIEW_BASE" >/dev/null 2>&1 || true   # both judges passed: mark reviewed for a later /review
       else
         ledger "{\"iter\":$i,\"result\":\"review-stop\"}"; break
       fi

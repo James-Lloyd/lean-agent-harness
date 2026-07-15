@@ -17,6 +17,32 @@ review_verdict() {
   else echo NONE; fi
 }
 
+# Parse the periodic-evaluator's verdict from stdin: echoes PASS | FAIL | NONE. Arg $1 = the failBelow
+# threshold. Mirrors review_verdict's fail-closed last-VERDICT-line rule, then ADDS a belt-and-braces scan
+# of the whole text for `N/10` scores: if ANY captured numerator < failBelow, echo FAIL even when the
+# summary line said PASS — so "any below-threshold criterion stops the loop" is enforced in CODE, not
+# trusted from the model's self-summary. Strict `<`: a score == failBelow is NOT below. (Over-matching a
+# stray "N/10" in prose can only ever yield a FALSE FAIL — which stops for a human, the safe fail-closed
+# direction.) Mirror of Get-EvaluatorVerdict in gate.ps1; lives here so the self-tests can exercise it.
+# failBelow is an INTEGER by schema (rubric scores are N/10 integers) — the `-lt` compare below and the
+# PS twin's [int] cast both assume that, so the twins agree; the schema constrains it to integer 0..10.
+evaluator_verdict() {  # $1 = failBelow ; reads the evaluator text on stdin
+  local fail_below="$1" text line verdict scores n
+  text="$(cat)"
+  line="$(printf '%s\n' "$text" | grep -E '^[[:space:]]*VERDICT:' | tail -1 || true)"
+  if printf '%s' "$line" | grep -qE '^[[:space:]]*VERDICT:[[:space:]]*PASS([[:space:]]|$)'; then verdict=PASS
+  elif printf '%s' "$line" | grep -qE '^[[:space:]]*VERDICT:[[:space:]]*FAIL([[:space:]]|$)'; then verdict=FAIL
+  else echo NONE; return; fi
+  # Belt-and-braces: any per-criterion score below the hard threshold overrides a PASS summary => FAIL.
+  # Extract each `N/10` numerator (loop in THIS shell via a for over cmd-subst, so `return` returns from
+  # the function — a `... | while` pipe would `return` only from its subshell and never fail closed).
+  scores="$(printf '%s\n' "$text" | grep -oE '[0-9]+[[:space:]]*/[[:space:]]*10' | grep -oE '^[0-9]+' || true)"
+  for n in $scores; do
+    if [ "$n" -lt "$fail_below" ]; then echo FAIL; return; fi
+  done
+  echo "$verdict"
+}
+
 # Per-phase model routing: echo config.models.<phase>'s PRIMARY model, or "" when null/absent (= inherit
 # the CLI's ambient default — the pre-routing behavior, and what a config trimmed by /harness-prune
 # degrades to). Tolerant of BOTH shapes: the new nested {model, fallback} object AND the legacy flat

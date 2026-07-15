@@ -1,0 +1,4 @@
+=== loop.sh --dry-run (auto, evaluator.enabled=true, reviewEveryNIterations=0) ===
+🔧 Harness loop | type=greenfield | mode=auto | maxIter=20 | maxTurns=40 | model=opus | budget=null
+⚠️  verification.evaluator.enabled is true but reviewEveryNIterations <= 0 — the evaluator
+    augments the periodic review point, so with no review point it will never run.

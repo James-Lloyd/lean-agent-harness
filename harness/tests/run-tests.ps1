@@ -92,6 +92,15 @@ ok "REJECT wins as the last VERDICT line" ((Get-ReviewVerdict "I cannot give VER
 ok "mid-sentence SHIP is not a verdict" ((Get-ReviewVerdict "maybe VERDICT: SHIP later, still checking") -eq 'NONE')
 ok "empty output fails closed"          ((Get-ReviewVerdict "") -eq 'NONE')
 
+Write-Host "evaluator verdict: fail-closed parse + sub-threshold N/10 override (Get-EvaluatorVerdict)"
+ok "PASS when verdict PASS and all scores >= threshold"    ((Get-EvaluatorVerdict "1. Correctness 8/10`nVERDICT: PASS" 7) -eq 'PASS')
+ok "sub-threshold score overrides a PASS summary => FAIL"  ((Get-EvaluatorVerdict "3. Robustness 5/10`nVERDICT: PASS" 7) -eq 'FAIL')
+ok "explicit VERDICT: FAIL => FAIL"                        ((Get-EvaluatorVerdict "1. Correctness 9/10`nVERDICT: FAIL" 7) -eq 'FAIL')
+ok "no VERDICT line => NONE (fail-closed)"                 ((Get-EvaluatorVerdict "1. Correctness 8/10 looks good" 7) -eq 'NONE')
+ok "empty text => NONE"                                    ((Get-EvaluatorVerdict "" 7) -eq 'NONE')
+ok "mid-sentence VERDICT: PASS is not a verdict => NONE"   ((Get-EvaluatorVerdict "I might say VERDICT: PASS later" 7) -eq 'NONE')
+ok "score AT threshold (7/10, strict <) not below => PASS" ((Get-EvaluatorVerdict "1. Correctness 7/10`nVERDICT: PASS" 7) -eq 'PASS')
+
 Write-Host "codex reviewer: availability probe drives the claude fallback"
 $a = Test-CodexAvailable -Auth 'chatgpt' -CodexCommand 'no-such-codex-xyz'
 ok "missing binary => unavailable with reason" ((-not $a.Available) -and $a.Reason -match 'not found')

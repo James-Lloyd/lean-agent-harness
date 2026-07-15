@@ -1,0 +1,24 @@
+# Fresh-context REVIEW (round 1) — codex read-only via Invoke-Phase
+# Ok=True Path=codex UsedFallback=False. (Full raw transcript trimmed to the verdict + findings.)
+
+VERDICT: REJECT — 3 findings:
+
+1. loop.ps1 / loop.sh: `harness-reviewed` is advanced as soon as the reviewer returns SHIP, before the
+   evaluator runs. If the evaluator then fails on a below-threshold score, the loop stops but the external
+   review watermark already says the rejected batch is reviewed. `/review` uses that tag as its fallback
+   base, so this is not fully "like a REJECT"; rejected work can be hidden from the next review.
+   FIX: move/tag only after both reviewer AND evaluator pass, or roll the tag back on evaluator failure.
+
+2. lib/gate.sh: bash compares N/10 scores with integer `-lt`, but harness.schema.json allows failBelow as
+   any JSON number. With failBelow: 7.5, bash treats the comparison as an integer-expression error and can
+   still return PASS, while PowerShell casts the threshold and fails. Twin divergence that breaks "any
+   below-threshold criterion stops the loop" for a schema-valid config.
+   FIX: constrain failBelow to integer, or use numeric comparison fail-closed in both twins.
+
+3. loop.sh / loop.ps1: preflight warns only when reviewEveryNIterations <= 0, but the review/evaluator
+   point is also gated by loop.commitOnGreen=true. With evaluator enabled, reviewEveryNIterations > 0, and
+   commitOnGreen=false, the evaluator never runs and there is no warning, despite the schema description
+   saying commit-on-green is required.
+   FIX: also warn when commitOnGreen is false.
+
+# All three fixed — see fix-then-ship.out.txt and review-2.log (SHIP).

@@ -1,0 +1,24 @@
+=== sub-threshold sheet (Robustness 5/10, summary lies PASS) ===
+VERDICT: PASS
+1. Correctness   8/10 — meets the acceptance criteria
+2. Evidence      9/10 — real end-to-end evidence captured
+3. Guardrails    PASS  — none breached
+4. Robustness    5/10 — only the happy path handled, no input validation
+5. Fit & drift   8/10 — reuses existing helpers
+6. Craft         n/a   — not user-visible
+FIX LIST (if FAIL): loop.sh:266 — validate the phase exit code — add a guard
+--- evaluator_verdict 7 =>
+FAIL
+
+=== clean sheet (all criteria >= 7) ===
+VERDICT: PASS
+1. Correctness   9/10 — all acceptance criteria met, edge cases handled
+2. Evidence      9/10 — real end-to-end evidence demonstrates the behavior
+3. Guardrails    PASS  — no tests weakened, no specs edited
+4. Robustness    8/10 — inputs validated, failure modes sane
+5. Fit & drift   8/10 — no drift, no duplicated helpers
+6. Craft         n/a   — not user-visible
+--- evaluator_verdict 7 =>
+PASS
+
+RESULT: sub-threshold => FAIL (loop STOPS like a REJECT), clean => PASS (loop CONTINUES). OK.

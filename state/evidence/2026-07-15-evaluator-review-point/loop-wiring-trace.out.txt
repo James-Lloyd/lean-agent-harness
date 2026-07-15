@@ -1,0 +1,25 @@
+### 0. Proof the call sits AT the review point (source lines from loop.sh):
+259:if [ "$EVAL_ENABLED" = "true" ] && [ "$REVIEW_EVERY_N" -le 0 ]; then
+307:REVIEW_BASE="$(git rev-parse HEAD)"   # periodic-review watermark: commits after this are unreviewed
+365:    if [ "$REVIEW_EVERY_N" -gt 0 ] && [ "$(cfg '.loop.commitOnGreen')" = "true" ] && [ $((GREEN_COUNT % REVIEW_EVERY_N)) -eq 0 ]; then
+366:      if periodic_review "$REVIEW_BASE" "$RUN_DIR" "$i"; then review_ok=0; else review_ok=1; fi
+369:      # below-threshold criterion stops the loop like a REJECT (periodic_evaluation writes the handoff).
+370:      if [ "$review_ok" -eq 0 ] && [ "$EVAL_ENABLED" = "true" ]; then
+371:        if periodic_evaluation "$REVIEW_BASE" "$RUN_DIR" "$i"; then review_ok=0; else review_ok=1; fi
+374:        REVIEW_BASE="$(git rev-parse HEAD)"   # advance the watermark past the reviewed batch
+376:        ledger "{\"iter\":$i,\"result\":\"review-stop\"}"; break
+
+### 1. evaluator ENABLED, sub-threshold sheet (Robustness 5/10) — expect STOP:
+  🧑‍⚖️  [stub] fresh-context review => SHIP
+  🧮  [stub-driven, REAL parser] evaluator_verdict => FAIL
+     ledger => {"iter":42,"result":"review-stop"}
+  ==> OUTCOME: review-stop, BREAK (loop STOPS for a human)
+
+### 2. evaluator ENABLED, clean sheet (all >= 7) — expect CONTINUE:
+  🧑‍⚖️  [stub] fresh-context review => SHIP
+  🧮  [stub-driven, REAL parser] evaluator_verdict => PASS
+  ==> OUTCOME: watermark ADVANCED to NEWHEAD (loop CONTINUES)
+
+### 3. evaluator DISABLED — evaluator never runs, review SHIP advances (unchanged behavior):
+  🧑‍⚖️  [stub] fresh-context review => SHIP
+  ==> OUTCOME: watermark ADVANCED to NEWHEAD (loop CONTINUES)

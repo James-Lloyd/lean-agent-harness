@@ -37,6 +37,22 @@ ok "$([ "$v" = "NONE" ] && echo 1 || echo 0)" "mid-sentence SHIP is not a verdic
 v="$(printf '' | review_verdict)"
 ok "$([ "$v" = "NONE" ] && echo 1 || echo 0)" "empty output fails closed (got '$v')"
 
+echo "evaluator verdict: fail-closed parse + sub-threshold N/10 override (evaluator_verdict)"
+v="$(printf '1. Correctness 8/10\nVERDICT: PASS\n' | evaluator_verdict 7)"
+ok "$([ "$v" = "PASS" ] && echo 1 || echo 0)" "PASS when verdict PASS and all scores >= threshold (got '$v')"
+v="$(printf '3. Robustness 5/10\nVERDICT: PASS\n' | evaluator_verdict 7)"
+ok "$([ "$v" = "FAIL" ] && echo 1 || echo 0)" "sub-threshold score overrides a PASS summary => FAIL (got '$v')"
+v="$(printf '1. Correctness 9/10\nVERDICT: FAIL\n' | evaluator_verdict 7)"
+ok "$([ "$v" = "FAIL" ] && echo 1 || echo 0)" "explicit VERDICT: FAIL => FAIL (got '$v')"
+v="$(printf '1. Correctness 8/10 looks good\n' | evaluator_verdict 7)"
+ok "$([ "$v" = "NONE" ] && echo 1 || echo 0)" "no VERDICT line => NONE (got '$v')"
+v="$(printf '' | evaluator_verdict 7)"
+ok "$([ "$v" = "NONE" ] && echo 1 || echo 0)" "empty text => NONE (got '$v')"
+v="$(printf 'I might say VERDICT: PASS later\n' | evaluator_verdict 7)"
+ok "$([ "$v" = "NONE" ] && echo 1 || echo 0)" "mid-sentence VERDICT: PASS is not a verdict => NONE (got '$v')"
+v="$(printf '1. Correctness 7/10\nVERDICT: PASS\n' | evaluator_verdict 7)"
+ok "$([ "$v" = "PASS" ] && echo 1 || echo 0)" "score AT threshold (7/10, strict <) not below => PASS (got '$v')"
+
 echo "codex reviewer: availability probe drives the claude fallback"
 # shellcheck source=../lib/invoke-codex.sh
 source "$LIB/invoke-codex.sh"   # codex_available needs no jq and no codex install

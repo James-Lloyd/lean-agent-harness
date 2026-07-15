@@ -1,0 +1,9 @@
+# Fresh-context RE-REVIEW (round 2, after the 3 fixes) — codex read-only via Invoke-Phase
+# Ok=True Path=codex UsedFallback=False. (Full raw transcript trimmed to the verdict.)
+#
+# Prompt asked the reviewer to verify each of the 3 round-1 fixes is correct and complete, twins stay
+# capability-equivalent, no new regressions, and the disabled path still advances the tag on reviewer SHIP.
+
+No findings.
+
+VERDICT: SHIP

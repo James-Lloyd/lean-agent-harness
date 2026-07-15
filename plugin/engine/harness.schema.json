@@ -136,9 +136,9 @@
         "evaluator": {
           "type": "object",
           "properties": {
-            "enabled": { "type": "boolean" },
+            "enabled": { "type": "boolean", "description": "Also gate the unattended loop's periodic review point (requires reviewEveryNIterations>0 and loop.commitOnGreen): after the fresh-context reviewer SHIPs, a read-only evaluate-phase judge scores the same batch against the rubric, and any below-threshold criterion (or no clear PASS) stops the loop like a REJECT — reject-handoff + ledger. Opt-in; default false." },
             "rubric": { "type": "string" },
-            "failBelow": { "type": "number", "description": "Sprint fails if any criterion scores below this hard threshold." }
+            "failBelow": { "type": "integer", "minimum": 0, "maximum": 10, "description": "Sprint fails if any criterion scores below this hard threshold. INTEGER: rubric scores are N/10 integers, and both loop twins compare as integers — a fractional threshold has no meaning and would diverge across shells." }
           }
         }
       }

@@ -1,0 +1,26 @@
+# Fix-then-ship verification — codex REJECT (3 findings) all fixed — 2026-07-15
+# Re-review after this: see review-2.log (VERDICT: SHIP).
+
+## Finding 1: harness-reviewed tag moved to CALLER, tags only after BOTH judges pass
+--- periodic_review SHIP branch no longer tags (loop.sh) ---
+  case "$v" in
+    SHIP)
+      echo "  🟢 Periodic review: SHIP."
+      # NB: the harness-reviewed watermark tag is advanced by the CALLER, only after BOTH the reviewer AND
+      # (when enabled) the evaluator pass — else a reviewer-SHIP-then-evaluator-FAIL batch would be tagged
+      # "reviewed" while the loop stops like a REJECT, hiding rejected work from a later /review.
+      return 0;;
+    REJECT) reason="REJECT";;
+    *) reason="no clear SHIP verdict (fail-closed)";;
+--- caller tags only on review_ok=both-passed (both twins) ---
+plugin/engine/loop.sh:378:        git tag -f harness-reviewed "$REVIEW_BASE" >/dev/null 2>&1 || true   # both judges passed: mark reviewed for a later /review
+plugin/engine/loop.ps1:437:        & git tag -f harness-reviewed $reviewBaseRef *> $null   # both judges passed: mark reviewed for a later /review
+
+## Finding 2: failBelow constrained to INTEGER 0..10 (schema) — removes bash/-lt vs PS/[int] divergence
+{"type":"integer","minimum":0,"maximum":10,"description":"Sprint fails if any criterion scores below this hard threshold. INTEGER: rubric scores are N/10 integers, and both loop twins compare as integers — a fractional threshold has no meaning and would diverge across shells."}
+
+## Finding 3: preflight warn now covers commitOnGreen=false (was reviewEveryN-only) — LIVE dry-run
+⚠️  verification.evaluator.enabled is true but loop.commitOnGreen is false — the evaluator augments the periodic
+    review point (needs reviewEveryNIterations>0 AND commitOnGreen), so it will never run.
+
+## Suites after fixes: PS 132/0, fleet 22/0, bash 123/0, fleet 22/0 (re-run green)
