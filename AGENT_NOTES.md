@@ -157,6 +157,26 @@ hard-won operational facts (exact commands, environment quirks, "X looks broken 
   (fully-mapped mechanical change; the independent codex REVIEW still preserved the build/judge split).
   Watch for this — when a delegated worktree's HEAD doesn't match `main`, don't fight the tooling; either
   confirm the base is intentional or build inline. **Ratchet candidate** (see /work output).
+- [2026-07-15] **`loop.ps1` did not PARSE under Windows PowerShell 5.1** — its documented primary runtime.
+  In the `$evalPrompt` here-string, `failBelow=$FailBelow:` was read by 5.1 as a scope-qualified variable
+  (`$name:` = the `$env:`/`$script:` syntax), so `[Parser]::ParseFile` raised "':' not followed by a valid
+  variable name" and the WHOLE script failed to parse — the loop couldn't run at all. Shipped in the
+  unpushed evaluator commit `8a3a032`. Fix: delimit — `${FailBelow}:` (renders identically, `failBelow=7:`).
+  Root gap: `run-tests.ps1` dot-sources `lib/*.ps1` + runs functions but NEVER parsed the top-level entry
+  scripts (loop/fleet/migrate/wrappers), so a here-string syntax error was invisible to a green suite.
+  Fixed the net too: an "engine hygiene" block parses every engine script — PS via `[Parser]::ParseFile`,
+  bash via `bash -n` — (+11 assertions each: PS 132→143, bash 123→134). Rule: in any PS double-quoted
+  string/here-string, a `$Var` immediately followed by `:` must be written `${Var}:`; and a self-test suite
+  must PARSE the entry scripts, not just source the libs. (Found by the Overnight Stage 1a dry-run e2e —
+  which is exactly why "unit-green is not done; drive it end-to-end" is in the gate.)
+- [2026-07-15] Overnight Stage 1a shipped `docs/overnight.md` — the local unattended-run operator recipe
+  (config preset + `schtasks`/cron scheduling + morning `ledger.jsonl`→`/review` routine). Mostly docs
+  (the loop already implements every knob) PLUS the prerequisite `loop.ps1` parse fix + both-runner
+  parse-checks noted directly above (NOT docs-only). Ledger `result` values (verified against loop.{ps1,sh},
+  for the
+  morning-routine table): `green`, `red`, `review`, `evaluate`, `review-stop`, `invoke-error`,
+  `config-tampered`, plus `gate-error` (PowerShell runner only — its gate can THROW; the bash gate returns
+  red instead). Stage 1b (one real overnight run, supervise-first) is the wall-clock human tail + live-fire.
 - [2026-07-15] **Sandbox detection for unattended `auto` runs** (`Test-Sandboxed`/`is_sandboxed` in
   `plugin/engine/lib/gate.*`, loop guard in `loop.*`). Two lessons worth keeping: (a) **container-marker
   env vars are PRESENCE markers, not truthy** — a runtime SETS `$container`/`$REMOTE_CONTAINERS`/etc. to

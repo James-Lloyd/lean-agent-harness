@@ -1,0 +1,4 @@
+# The full codex review transcripts are ~230-300 KB each (codex re-reads every source file); the verdicts
+# live in the committed review*-status.txt files and the findings are summarized in README.md. Keep the
+# repo lean — the transcripts were session-local proof, not durable artifacts.
+review*.log

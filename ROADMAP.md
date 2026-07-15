@@ -71,6 +71,17 @@ the code doesn't back. (Ratchet them in as real use demands.)
   network, ephemeral, secrets via env) as the supported way to run `auto` unattended. On Windows there is
   **no native sandbox** — document a WSL2/devcontainer path for unattended runs there.
 
+## Unattended overnight runs
+- **Now wired (2026-07-15, Stage 1a):** [`docs/overnight.md`](docs/overnight.md) is the local operator
+  recipe — a `mode: auto` config **preset** (metering + `tokenBudget`, `reviewEveryNIterations`, the
+  evaluator gate, `skipPermissions:false` + the allowlist requirement), a **Task Scheduler / cron**
+  scheduling recipe, and the **morning routine** (read `harness/.runs/<runId>/ledger.jsonl` → `/review`).
+  No new engine surface — it composes knobs the loop already ships.
+- **Stage 1b (supervise-first):** one real overnight session run against the preset, audited the next
+  morning — also the live-fire for the codex *write* path and a real evaluate-phase judge.
+- **Planned — Stage 2:** a GitHub Actions **nightly runner** in a container that pushes a branch + opens a
+  PR with the ledger, plus `label:agent` Issues syncing into `tasks.json` at run start (`state/fix_plan.md`).
+
 ## Distribution as a Claude Code plugin
 - **Now wired (2026-07-14):** the reusable engine ships as the `lean-agent-harness` **plugin** served
   from the in-repo marketplace (`.claude-plugin/marketplace.json`), with the per-repo scaffold

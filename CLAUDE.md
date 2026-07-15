@@ -113,6 +113,15 @@ the component that owns the changed file**. Failures come back with the fix in t
   its HEAD against the task's premises and escalate on mismatch — because a stale base silently builds on
   old content for any file that moved, and a blind squash would merge that regression (recurred S7 +
   sandboxing; both caught, once by the generator, once by the orchestrator's pre-merge diff).
+- [2026-07-15] A PowerShell double-quoted string / here-string with `$Var` immediately followed by `:`
+  (e.g. `failBelow=$FailBelow:`) is a PARSE error under Windows PowerShell 5.1 — `$name:` is the scope/drive
+  syntax (`$env:`/`$script:`), so the ENTIRE script fails to parse and cannot run at all; write `${Var}:`.
+  AND the self-test suite must PARSE-CHECK every top-level engine entry script (loop/fleet/migrate/wrappers)
+  — `[Parser]::ParseFile` (PS) / `bash -n` (bash) — because a suite that only dot-sources `lib/*` and runs
+  functions never parses the entry scripts, so a here-string syntax error ships green: `loop.ps1` (the
+  primary Windows entrypoint) shipped unrunnable-under-5.1 in the unpushed evaluator commit and a full green
+  suite (132/0) never noticed — caught only by an Overnight-Stage-1 dry-run e2e, then netted by the new
+  parse-check on both runners.
 
 ## Nested context
 Larger subsystems may have their own `CLAUDE.md` next to their code (mirrors the one-map-per-package

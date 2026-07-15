@@ -91,7 +91,9 @@ bash       harness/loop.sh       # Linux / macOS / CI
 ```
 
 The loop reads [`harness/harness.config.json`](harness/harness.config.json) for autonomy mode,
-iteration/token caps, checkpoints, and the verification gate.
+iteration/token caps, checkpoints, and the verification gate. To run it **unattended overnight** —
+the config preset, a Task Scheduler / cron recipe, and the morning audit routine — see
+[`docs/overnight.md`](docs/overnight.md) (and [`docs/sandboxing.md`](docs/sandboxing.md) first).
 
 ---
 

@@ -200,7 +200,7 @@ or commit anything.
    non-mutating commands). A guardrail breach (weakened/deleted tests, edited specs, destructive ops,
    secrets) caps the sprint regardless of other scores.
 4. Score EVERY applicable criterion 0-10 with a one-line justification, applying the hard threshold
-   failBelow=$FailBelow: ANY criterion below $FailBelow => the sprint FAILS.
+   failBelow=${FailBelow}: ANY criterion below $FailBelow => the sprint FAILS.
 
 Output EXACTLY the rubric's format — the per-criterion N/10 scores — and finish with EXACTLY ONE final
 line and nothing after it:

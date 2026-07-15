@@ -35,6 +35,20 @@ function ok($name, $cond) {
 }
 function gate($f,$l,$t,$b,$te,$e) { [pscustomobject]@{ format=$f; lint=$l; typecheck=$t; build=$b; test=$te; e2e=$e } }
 
+Write-Host "engine hygiene: every engine .ps1 PARSES under this PowerShell host"
+# Regression (2026-07-15): loop.ps1 shipped a here-string parse error ("failBelow=`$FailBelow:" was read
+# as a scope-qualified variable) that made the loop FAIL TO PARSE under Windows PowerShell 5.1 — its
+# documented primary runtime. It slipped through because this suite dot-sources lib/*.ps1 and runs
+# functions but NEVER parses the top-level entry scripts (loop/fleet/migrate). ParseFile surfaces a
+# syntax error without executing the script, so a broken entry script fails the gate here from now on.
+$engineScripts = @(Get-ChildItem -Path $engineDir -Recurse -Filter *.ps1 -ErrorAction SilentlyContinue)
+foreach ($es in $engineScripts) {
+  $perr = $null
+  [System.Management.Automation.Language.Parser]::ParseFile($es.FullName, [ref]$null, [ref]$perr) | Out-Null
+  $rel = $es.FullName.Replace($engineDir, '').TrimStart('\', '/')
+  ok "parses: $rel" (@($perr).Count -eq 0)
+}
+
 Write-Host "gate: StrictMode-safe missing-key tolerance"
 # A gate object missing keys must NOT throw (schema allows it; /harness-prune may trim) — missing => skip.
 $partial = [pscustomobject]@{ format = 'exit 0' }   # only one key present

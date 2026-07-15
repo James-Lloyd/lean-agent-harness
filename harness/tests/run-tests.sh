@@ -15,6 +15,15 @@ HOOKS="$(cd "$ENGINE/.." && pwd)/hooks"
 PASS=0; FAIL=0
 ok()  { if [ "$1" = "1" ]; then PASS=$((PASS+1)); echo "  ok  $2"; else FAIL=$((FAIL+1)); echo "  FAIL $2"; fi; }
 
+echo "engine hygiene: every engine .sh PARSES (bash -n) — mirror of the PS ParseFile check"
+# Regression (2026-07-15): the PS twin (loop.ps1) shipped a here-string parse error invisible to the
+# suite because it sources lib/*.sh + runs functions but never PARSES the top-level entry scripts. bash -n
+# checks syntax without executing, so a broken loop/fleet/migrate/wrapper script fails the gate here too.
+while IFS= read -r es; do
+  if bash -n "$es" 2>/dev/null; then p=1; else p=0; fi
+  ok "$p" "parses: ${es#"$ENGINE"/}"
+done < <(find "$ENGINE" -type f -name '*.sh' | sort)
+
 echo "plan counter: grep -c emits a single clean count (the bug fix)"
 tmp="$(mktemp)"
 printf '%s\n' '- [ ] one' '- [x] done' '<!-- - [ ] commented -->' '- [ ] two' > "$tmp"
