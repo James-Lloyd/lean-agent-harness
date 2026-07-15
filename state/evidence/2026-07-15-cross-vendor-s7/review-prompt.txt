@@ -1,0 +1,21 @@
+You are a fresh-context code reviewer. Judge the staged diff below ONLY from the change itself, the repo conventions, and correctness — not from any prior conversation.
+
+## Task under review: Cross-vendor S7 — retire the dead `review-codex` back-compat shim
+The codex CLI lib was renamed `lib/review-codex.*` -> `lib/invoke-codex.*` in an earlier slice (S2), which left behind:
+  - two thin shim files (`lib/review-codex.{sh,ps1}`) that just re-source `invoke-codex.*`, and
+  - two read-only wrapper functions inside `invoke-codex.*`: `codex_review` (bash) / `Invoke-CodexReview` (PowerShell).
+The live review path now runs through `lib/dispatch.*` (`invoke_phase`/`Invoke-Phase`) -> `invoke_codex`/`Invoke-Codex` directly, so the shim + wrappers are dead code. S7 removes them.
+
+Every engine file is duplicated (invariant "E1"): `harness/<f>` must be byte-identical to `plugin/engine/<f>`. Tests live only under `harness/tests/`.
+
+## What to verify (be adversarial; look for a real defect, not nitpicks)
+1. **No live caller left stranded.** After the redirect, do `loop.{sh,ps1}` and `fleet.{sh,ps1}` still bring the codex API (`codex_available`/`invoke_codex` in bash; `Test-CodexAvailable`/`Invoke-Codex` in PS) into scope for `dispatch.*`? The redirect changes `source .../review-codex.sh` to `source .../invoke-codex.sh` (the shim only re-sourced invoke-codex, so this must be equivalent). Confirm nothing still calls `codex_review`/`Invoke-CodexReview`.
+2. **Source ordering preserved.** `dispatch.*` depends on the codex lib being sourced first — confirm the redirect keeps invoke-codex sourced before dispatch in every file.
+3. **Twins stay identical.** Each engine edit is applied identically in both `harness/` and `plugin/engine/`.
+4. **Tests remain coherent.** The removed test assertions were exactly the shim-specific ones (`review-codex.*` still exposes the API / `Invoke-CodexReview` exists). The remaining codex tests source `invoke-codex.*` directly (bash `run-tests.sh:37`, PS `run-tests.ps1:17`), so they don't depend on the removed shim source line.
+5. Any bash-3.2 / PowerShell 5.1 hazard, or a broken header comment, introduced by the edits.
+
+Reply with a short review. End your reply with a single line exactly in the form:
+VERDICT: SHIP    (or)    VERDICT: FIX-THEN-SHIP: <one-line reason>    (or)    VERDICT: REJECT: <one-line reason>
+
+--- STAGED DIFF FOLLOWS ---

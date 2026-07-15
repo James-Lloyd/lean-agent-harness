@@ -1,0 +1,8 @@
+twin-sync: git diff --no-index (empty diff => identical logic)
+gate.ps1: IDENTICAL
+gate.sh: IDENTICAL
+harness.schema.json: IDENTICAL
+
+net-effect (migrated dogfood config resolves to the same values loop/fleet read pre-migration):
+  Resolve-PhaseModel implement=opus  review=codex  reviewFallback=fable
+  Resolve-PhaseFallback implement=codex  review=fable

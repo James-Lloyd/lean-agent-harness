@@ -1,0 +1,35 @@
+{
+  "name": "_template",
+  "description": "Canonical shape for a stack profile. Copy this, fill it, name it <stack>.json.",
+
+  "detect": {
+    "_comment": "Hints the stack-detect skill uses to recognize this stack. Presence of any file/glob here is a signal.",
+    "files": ["<lockfile or manifest, e.g. package.json>"],
+    "globs": ["<e.g. **/*.ts>"]
+  },
+
+  "languages": ["<language(s)>"],
+  "packageManager": "<npm | pnpm | uv | poetry | cargo | go | ...>",
+  "runtime": "<node | python | go | ...>",
+
+  "gate": {
+    "_comment": "Each is a shell command run from THIS COMPONENT's directory (the repo root for the cross-cutting root gate), or null to skip. Order of execution is fixed by the harness: format -> lint -> typecheck -> build -> test -> e2e.",
+    "format": "<format command, e.g. prettier --write .>",
+    "lint": "<lint command>",
+    "typecheck": "<typecheck command, or null if untyped>",
+    "build": "<build command, or null>",
+    "test": "<unit/integration test command>",
+    "e2e": "<end-to-end / user-level check, or null>"
+  },
+
+  "commands": {
+    "_comment": "Operational commands surfaced into CLAUDE.md / AGENT_NOTES.md.",
+    "install": "<install deps>",
+    "run": "<run the app / dev server>"
+  },
+
+  "lsp": {
+    "_comment": "Language servers the agent should rely on for diagnostics (via the IDE/MCP). Informational; helps the agent prefer LSP over guessing.",
+    "servers": ["<e.g. tsserver>"]
+  }
+}

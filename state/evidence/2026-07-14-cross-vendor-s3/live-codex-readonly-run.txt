@@ -1,0 +1,4 @@
+Invoking Invoke-Phase -Mode read-only -Primary codex (real codex, live)...
+Ok=True  Path=codex  UsedFallback=False  Reason=''  elapsed=8s
+--- Output (last message) ---
+LIVE-CODEX-OK

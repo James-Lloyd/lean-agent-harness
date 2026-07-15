@@ -1,0 +1,4 @@
+### run-tests.sh (bash + jq jq-1.7.1) ===
+  ok  hook dispatcher self-test passes (node)
+
+RESULT: 75 passed, 0 failed

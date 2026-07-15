@@ -1,0 +1,27 @@
+# S5 doc-symbol verification — every function/param the interactive /work docs tell the
+# orchestrator to invoke actually exists in the engine libs. Guards against documenting a
+# non-existent function or flag. Baseline commit 859ac05.
+# (The MISS lines in the first pass were a buggy grep — "invalid back reference" — not real
+#  misses; re-checked with fixed-string matching below, all OK.)
+
+## PowerShell libs (cited in the work.md PowerShell dispatch example)
+  OK   Resolve-PhaseModel        <- harness/lib/gate.ps1        (^function Resolve-PhaseModel)
+  OK   Resolve-PhaseFallback     <- harness/lib/gate.ps1        (^function Resolve-PhaseFallback)
+  OK   Invoke-Phase              <- harness/lib/dispatch.ps1    (^function Invoke-Phase)
+  OK   Invoke-Codex              <- harness/lib/invoke-codex.ps1 (^function Invoke-Codex)
+  Invoke-Phase params cited in the doc, confirmed present in dispatch.ps1:
+    OK   -Mode      (dispatch.ps1:67, [ValidateSet('read-only','workspace-write')])
+    OK   -Prompt    (dispatch.ps1:68)
+    OK   -RepoRoot  (dispatch.ps1:69)
+    OK   -LogPath   (dispatch.ps1:70)
+    OK   -Primary   (dispatch.ps1:71)
+    OK   -Fallback  (dispatch.ps1:72)
+    OK   -CodexCfg  (dispatch.ps1:73, untyped `$CodexCfg = $null`)
+  OK   mode values read-only|workspace-write (ValidateSet in dispatch.ps1)
+
+## bash libs (cited in the work.md bash example)
+  OK   phase_model    <- harness/lib/gate.sh
+  OK   phase_fallback <- harness/lib/gate.sh
+  OK   invoke_phase   <- harness/lib/dispatch.sh
+
+RESULT: every symbol cited by the S5 docs exists in the engine. 0 real MISS.

@@ -1,0 +1,28 @@
+﻿node.exe : OpenAI Codex v0.144.3
+At C:\Users\james\AppData\Roaming\npm\codex.ps1:22 char:14
++ ...    $input | & "node$exe"  "$basedir/node_modules/@openai/codex/bin/co ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (OpenAI Codex v0.144.3:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+--------
+workdir: C:\Users\james\Repos\harness
+model: gpt-5.5
+provider: openai
+approval: never
+sandbox: read-only
+reasoning effort: low
+reasoning summaries: none
+session id: 019f6297-8d6b-7510-aa67-6829fa9f8ec6
+--------
+user
+You are a cross-vendor smoke test invoked in a READ-ONLY sandbox. Do not edit, write, or run anything.
+Output EXACTLY this single line and nothing after it:
+LIVE-CODEX-OK
+
+codex
+LIVE-CODEX-OK
+tokens used
+7,439
+LIVE-CODEX-OK
+

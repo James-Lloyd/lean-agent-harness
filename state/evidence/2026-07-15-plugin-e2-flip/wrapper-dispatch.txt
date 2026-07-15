@@ -1,0 +1,9 @@
+# Wrapper -> engine dispatch proof (both paths resolve the engine and boot it)
+## (1) HYBRID: HARNESS_ENGINE -> in-repo plugin/engine
+Working tree is dirty. Commit or stash before starting the loop (it checkpoints via git).
+At C:\Users\james\Repos\harness\plugin\engine\lib\checkpoint.ps1:36 char:5
++     throw "Working tree is dirty. Commit or stash before starting the ...
+## (2) DISCOVERY: no override -> installed plugin under ~/.claude/plugins
+Working tree is dirty. Commit or stash before starting the loop (it checkpoints via git).
+At C:\Users\james\.claude\plugins\cache\lean-agent-harness\lean-agent-harness\0.2.0\engine\lib\checkpoint.ps1:36 char:5
++     throw "Working tree is dirty. Commit or stash before starting the ...

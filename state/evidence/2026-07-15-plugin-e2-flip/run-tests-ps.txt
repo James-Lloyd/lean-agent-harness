@@ -1,0 +1,170 @@
+gate: StrictMode-safe missing-key tolerance
+  - format : exit 0
+  ok  partial gate object does not throw
+  ok  partial gate object passes (missing steps skipped)
+gate: pass / fail attribution
+  - format : exit 0
+  - lint : exit 0
+  - test : exit 0
+  ok  all-green gate passes
+  - format : exit 0
+  - lint : exit 5
+    x lint failed (exit 5) in C:\Users\james\Repos\harness\harness\tests :
+  ok  failing gate reports FailedStep=lint
+gate: a step that writes to STDERR but exits 0 still passes (regression: EAP=Stop)
+  - format : echo oops 1>&2
+  - test : exit 0
+  ok  stderr-on-exit-0 step does not throw
+  ok  stderr-on-exit-0 gate passes
+gate: multi-component project gate + failure attribution
+  [frontend] gate (.)
+  - format : exit 0
+  - test : exit 0
+  [backend] gate (.)
+  - format : exit 0
+  - test : exit 0
+  [root] cross-cutting gate
+  - e2e : exit 0
+  ok  multi-component all-green passes
+  [frontend] gate (.)
+  - format : exit 0
+  [backend] gate (.)
+  - format : exit 0
+  - lint : exit 9
+    x lint failed (exit 9) in C:\Users\james\Repos\harness\harness\tests\. :
+  ok  multi-component failure attributed to backend:lint
+  x component 'ghost' path missing: C:\Users\james\Repos\harness\harness\tests\no-such-dir-xyz
+  ok  missing component dir fails the gate (fail-closed)
+review verdict: fail-closed last-VERDICT-line parsing
+  ok  SHIP on a clean final verdict
+  ok  REJECT wins as the last VERDICT line
+  ok  mid-sentence SHIP is not a verdict
+  ok  empty output fails closed
+codex reviewer: availability probe drives the claude fallback
+  ok  missing binary => unavailable with reason
+  ok  api-key mode without CODEX_API_KEY => unavailable
+  ok  api-key mode with CODEX_API_KEY => available
+codex arg-assembly: -Mode selects the sandbox flag (read-only vs workspace-write)
+  ok  read-only mode => --sandbox read-only
+  ok  workspace-write mode => --sandbox write
+  ok  both modes keep --ask-for-approval never
+  ok  global flags precede the exec subcommand
+  ok  model passed through as -m
+  ok  effort passed as model_reasoning_effort
+  ok  no model => no -m flag
+usage-limit predicate: vendor-neutral markers (drives S3 fallback)
+  ok  detects 'usage limit'
+  ok  detects 'rate limit'
+  ok  detects 'quota' (any case)
+  ok  detects 'overloaded'
+  ok  detects HTTP 429
+  ok  detects 'too many requests'
+  ok  clean output => false
+  ok  stray 429 tokens => false
+  ok  empty output => false
+model routing: Resolve-PhaseModel (config.models -> --model; '' = inherit)
+  ok  resolves implement model
+  ok  resolves reviewFallback model
+  ok  missing phase key => inherit ('')
+  ok  no models block => inherit ('')
+  ok  explicit null => inherit ('')
+model routing: nested {model,fallback} shape + Resolve-PhaseFallback
+  ok  nested primary => model
+  ok  nested review primary => codex
+  ok  nested fallback => fallback model
+  ok  reviewFallback pseudo-phase => review.fallback
+  ok  nested null fallback => inherit ('')
+  ok  nested absent phase => inherit ('') (model)
+  ok  nested absent phase => inherit ('') (fallback)
+  ok  flat-legacy primary still resolves
+  ok  flat-legacy reviewFallback (top-level)
+  ok  flat review fallback => top-level reviewFallback
+  ok  flat non-review phase has no fallback ('')
+model routing S1b: Resolve-PhaseFallback('review') is symmetric with reviewFallback pseudo-phase
+  ok  mixed review.fallback=null falls to legacy reviewFallback
+  ok  mixed: fallback accessor == reviewFallback pseudo-phase
+  ok  nested review.fallback=sonnet => fallback accessor
+  ok  nested review.fallback=sonnet => reviewFallback pseudo
+  ok  absent review + legacy => fallback accessor
+  ok  non-review nested null fallback still => ''
+dispatch: Invoke-Phase fallback trigger (stub claude; deterministic, no real model/codex)
+clean ok output
+  ok  1 primary success => Ok, Path=claude, no fallback
+Error: monthly usage limit reached
+clean ok output
+  ok  2 usage-limit => fallback fires, Ok, UsedFallback=true
+clean ok output
+  ok  3 codex unavailable => claude fallback, Ok, Path=claude
+build failed: TypeError in module
+  ok  4 generic failure => Ok=false, invoke-failed, no fallback
+  ok  4 fallback stub was NEVER invoked (marker absent)
+Error: monthly usage limit reached
+Error: monthly usage limit reached
+  ok  5 both usage-limited => Ok=false, exhausted, Path=null
+build complete; note: server was overloaded earlier
+  ok  6 success w/ 'overloaded' text => Ok, no fallback (ratchet)
+  ok  6 fallback NOT consulted on the success
+  ok  7 -Quiet primary success => Ok, Path=claude, no fallback
+  ok  7 -Quiet still writes the transcript log
+fleet: ownership overlap + batch selection (file-partitioned parallelism)
+  ok  same dir overlaps
+  ok  nested path overlaps
+  ok  glob suffix normalized
+  ok  case/slash-insensitive (Windows)
+  ok  disjoint dirs do not overlap
+  ok  empty entry overlaps everything (fail-closed)
+  ok  selects T1,T3,T6 (skips overlap/status/unowned)
+  ok  maxWorkers caps the batch
+budget: per-run reset
+  ok  budget resets to 0
+  ok  no cap => not exceeded
+budget: run id = max existing suffix + 1, not dir count; allocation claims the dir
+  ok  run-004 after run-002 was cleaned up
+  ok  allocation claims the dir (2nd call => run-005)
+budget: meters MAX of each token field, not the sum (modelUsage repeats counts)
+  ?? est. tokens this run: ~150
+  ok  budget meters 150 (max 100 + max 50, not summed to 300)
+  ?? est. tokens this run: ~3,150
+  ok  budget includes cache tokens (3150)
+block-destructive hook: blocks dangerous, allows safe
+  ok  blocks rm -fr (flag order)
+  ok  blocks rm <dir> -rf (flags after operand)
+  ok  blocks git push -f (short flag)
+  ok  blocks find -delete
+  ok  blocks git reset --hard <sha>
+  ok  blocks secret read via grep
+  ok  blocks Remove-Item -Recurse -Force
+  ok  allows git status
+  ok  allows npm test
+  ok  allows normal git push
+  ok  ALLOWS git push --force-with-lease (the recommended form)
+block-destructive: work-discard + remote-pipe coverage, false-positive exemptions
+  ok  blocks git checkout . (bare dot)
+  ok  blocks git restore .
+  ok  blocks git clean --force (long form)
+  ok  blocks rm with quoted flags
+  ok  blocks iwr | iex
+  ok  allows git checkout feature-branch
+  ok  allows cat .env.example (template)
+  ok  allows commit msg mentioning drop table
+  ok  allows src/api.key.ts (source, not a key file)
+  ok  blocks reading server.key
+block-destructive: spec-lock blocks shell writes to specs/ only when locked
+  ok  blocks shell write to specs/ when locked
+  ok  allows shell write to specs/ when unlocked
+  ok  blocks >specs/ redirect without a space when locked
+  ok  blocks touch specs/ when locked
+  ok  ALLOWS sed -n ranged READ of specs/ when locked
+  ok  ALLOWS cp specs/ -> elsewhere (read) when locked
+  ok  blocks cp -> specs/ (write) when locked
+protect-specs hook: locks specs/ only when HARNESS_LOCK_SPECS is set
+  ok  blocks specs/ write when locked
+  ok  allows non-spec write when locked
+  ok  allows specs/ write when unlocked
+  ok  blocks specs/*.ipynb via notebook_path when locked
+plugin: cross-platform hook dispatcher (node)
+  ok  hook dispatcher self-test passes (node)
+migrate: end-to-end classify + apply on a synthetic repo
+  ok  harness-migrate self-test passes
+
+RESULT: 112 passed, 0 failed

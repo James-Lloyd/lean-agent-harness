@@ -1,0 +1,9 @@
+?? Harness loop | type=greenfield | mode=supervised | maxIter=5 | maxTurns=40 | model=opus | budget=
+??  Headless runs auto-deny non-allowlisted commands. Ensure the gate commands (test/build/lint)
+    are in .claude/settings.json permissions.allow (/harness-init adds them).
+
+컴컴컴컴 iteration 1 / 5 컴컴컴컴
+[dry-run] would pipe PROMPT.md into: claude -p --max-turns 40 --model opus ; then run the gate.
+
+?? Loop finished after 1 iteration(s). Logs + ledger: C:\Users\james\AppData\Local\Temp\tmp.lQxXqYlH8f\repo\harness\.runs\run-001
+   Next: run /review for a fresh-context QA pass before you trust this.

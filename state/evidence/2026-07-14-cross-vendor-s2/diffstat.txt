@@ -1,0 +1,20 @@
+ AGENT_NOTES.md                                     |  11 ++
+ harness/lib/gate.ps1                               |  14 +++
+ harness/lib/gate.sh                                |   9 ++
+ harness/lib/invoke-codex.ps1                       | 121 +++++++++++++++++++++
+ harness/lib/invoke-codex.sh                        |  63 +++++++++++
+ harness/lib/review-codex.ps1                       |  98 +----------------
+ harness/lib/review-codex.sh                        |  54 +--------
+ harness/tests/run-tests.ps1                        |  30 ++++-
+ harness/tests/run-tests.sh                         |  29 ++++-
+ plugin/engine/lib/gate.ps1                         |  14 +++
+ plugin/engine/lib/gate.sh                          |   9 ++
+ plugin/engine/lib/invoke-codex.ps1                 | 121 +++++++++++++++++++++
+ plugin/engine/lib/invoke-codex.sh                  |  63 +++++++++++
+ plugin/engine/lib/review-codex.ps1                 |  98 +----------------
+ plugin/engine/lib/review-codex.sh                  |  54 +--------
+ state/PROGRESS.md                                  |   1 +
+ .../evidence/2026-07-14-cross-vendor-s2/RESULTS.md |  35 ++++++
+ .../2026-07-14-cross-vendor-s2/diffstat.txt        |  15 +++
+ state/fix_plan.md                                  |   5 +-
+ 19 files changed, 551 insertions(+), 293 deletions(-)

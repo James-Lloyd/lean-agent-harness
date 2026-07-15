@@ -1,0 +1,1161 @@
+﻿node.exe : OpenAI Codex v0.144.3
+At C:\Users\james\AppData\Roaming\npm\codex.ps1:22 char:14
++ ...    $input | & "node$exe"  "$basedir/node_modules/@openai/codex/bin/co ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (OpenAI Codex v0.144.3:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+--------
+workdir: C:\Users\james\Repos\harness
+model: gpt-5.5
+provider: openai
+approval: never
+sandbox: read-only
+reasoning effort: high
+reasoning summaries: none
+session id: 019f650a-b306-78d2-8b12-4314cc3a7fa7
+--------
+user
+You are a fresh-context code reviewer. Judge the staged diff below ONLY from the change itself, the repo conventions, and 
+correctness ???????? not from any prior conversation.
+
+## Task under review: Cross-vendor S7 ???????? retire the dead `review-codex` back-compat shim
+The codex CLI lib was renamed `lib/review-codex.*` -> `lib/invoke-codex.*` in an earlier slice (S2), which left behind:
+  - two thin shim files (`lib/review-codex.{sh,ps1}`) that just re-source `invoke-codex.*`, and
+  - two read-only wrapper functions inside `invoke-codex.*`: `codex_review` (bash) / `Invoke-CodexReview` (PowerShell).
+The live review path now runs through `lib/dispatch.*` (`invoke_phase`/`Invoke-Phase`) -> `invoke_codex`/`Invoke-Codex` 
+directly, so the shim + wrappers are dead code. S7 removes them.
+
+Every engine file is duplicated (invariant "E1"): `harness/<f>` must be byte-identical to `plugin/engine/<f>`. Tests live 
+only under `harness/tests/`.
+
+## What to verify (be adversarial; look for a real defect, not nitpicks)
+1. **No live caller left stranded.** After the redirect, do `loop.{sh,ps1}` and `fleet.{sh,ps1}` still bring the codex API 
+(`codex_available`/`invoke_codex` in bash; `Test-CodexAvailable`/`Invoke-Codex` in PS) into scope for `dispatch.*`? The 
+redirect changes `source .../review-codex.sh` to `source .../invoke-codex.sh` (the shim only re-sourced invoke-codex, so 
+this must be equivalent). Confirm nothing still calls `codex_review`/`Invoke-CodexReview`.
+2. **Source ordering preserved.** `dispatch.*` depends on the codex lib being sourced first ???????? confirm the redirect 
+keeps invoke-codex sourced before dispatch in every file.
+3. **Twins stay identical.** Each engine edit is applied identically in both `harness/` and `plugin/engine/`.
+4. **Tests remain coherent.** The removed test assertions were exactly the shim-specific ones (`review-codex.*` still 
+exposes the API / `Invoke-CodexReview` exists). The remaining codex tests source `invoke-codex.*` directly (bash 
+`run-tests.sh:37`, PS `run-tests.ps1:17`), so they don't depend on the removed shim source line.
+5. Any bash-3.2 / PowerShell 5.1 hazard, or a broken header comment, introduced by the edits.
+
+Reply with a short review. End your reply with a single line exactly in the form:
+VERDICT: SHIP    (or)    VERDICT: FIX-THEN-SHIP: <one-line reason>    (or)    VERDICT: REJECT: <one-line reason>
+
+--- STAGED DIFF FOLLOWS ---
+diff --git a/harness/fleet.ps1 b/harness/fleet.ps1
+index 7c2a62f..3bd64bd 100644
+--- a/harness/fleet.ps1
++++ b/harness/fleet.ps1
+@@ -53,7 +53,7 @@ $cfg = Get-Content $ConfigPath -Raw | ConvertFrom-Json
+ . (Join-Path $PSScriptRoot 'lib/checkpoint.ps1')   # Assert-CleanGitTree
+ . (Join-Path $PSScriptRoot 'lib/budget.ps1')       # Get-LoopRunId (atomic run-dir claim)
+ . (Join-Path $PSScriptRoot 'lib/fleet.ps1')
+-. (Join-Path $PSScriptRoot 'lib/review-codex.ps1')   # back-compat shim -> invoke-codex.ps1 (Test-CodexAvailable, 
+Invoke-Codex)
++. (Join-Path $PSScriptRoot 'lib/invoke-codex.ps1')   # codex invocation (Test-CodexAvailable, Invoke-Codex)
+ . (Join-Path $PSScriptRoot 'lib/dispatch.ps1')       # Invoke-Phase: primary->fallback dispatcher (workers re-source it 
+in-job)
+ 
+ $parallelCfg   = Get-Prop $cfg 'parallel'
+diff --git a/harness/fleet.sh b/harness/fleet.sh
+index 8767a44..6493441 100644
+--- a/harness/fleet.sh
++++ b/harness/fleet.sh
+@@ -43,7 +43,7 @@ source "$SCRIPT_DIR/lib/gate.sh"
+ source "$SCRIPT_DIR/lib/checkpoint.sh"
+ source "$SCRIPT_DIR/lib/budget.sh"
+ source "$SCRIPT_DIR/lib/fleet.sh"
+-source "$SCRIPT_DIR/lib/review-codex.sh"   # back-compat shim -> invoke-codex.sh (codex_available, invoke_codex)
++source "$SCRIPT_DIR/lib/invoke-codex.sh"   # codex invocation (codex_available, invoke_codex)
+ source "$SCRIPT_DIR/lib/dispatch.sh"       # invoke_phase: primary->fallback dispatcher
+ 
+ cfg() { jq -r "$1" "$CONFIG"; }
+diff --git a/harness/lib/invoke-codex.ps1 b/harness/lib/invoke-codex.ps1
+index bb1c948..935b438 100644
+--- a/harness/lib/invoke-codex.ps1
++++ b/harness/lib/invoke-codex.ps1
+@@ -3,8 +3,7 @@
+   "codex", the harness runs it through the OpenAI Codex CLI (a different training lineage ???????? the
+   Amp-Oracle pattern). Generalized in S2 from the review-only path: -Mode selects the sandbox, so the
+   same lib serves READ-ONLY judge phases (review/evaluate) and WORKSPACE-WRITE writer phases
+-  (implement/plan/docs). A read-only back-compat wrapper (Invoke-CodexReview) keeps existing callers
+-  unchanged until it is retired in S7.
++  (implement/plan/docs).
+ 
+   Safety properties (mirror invoke-codex.sh):
+    - SANDBOX per mode: 'read-only' for judge phases (`--sandbox read-only`; a judge must never mutate
+@@ -112,10 +111,3 @@ function Invoke-Codex {
+   if ($final) { return [pscustomobject]@{ Ok = $ok; Output = "$final" } }
+   return [pscustomobject]@{ Ok = $ok; Output = $out }
+ }
+-
+-# Back-compat: the review path calls this read-only wrapper. Retired in S7.
+-function Invoke-CodexReview {
+-  param([Parameter(Mandatory)][string]$Prompt, [Parameter(Mandatory)][string]$RepoRoot,
+-        [Parameter(Mandatory)][string]$LogPath, $CodexCfg, [string]$CodexCommand = 'codex')
+-  return (Invoke-Codex -Mode 'read-only' -Prompt $Prompt -RepoRoot $RepoRoot -LogPath $LogPath -CodexCfg $CodexCfg 
+-CodexCommand $CodexCommand)
+-}
+diff --git a/harness/lib/invoke-codex.sh b/harness/lib/invoke-codex.sh
+index 66d26dc..4edafbd 100644
+--- a/harness/lib/invoke-codex.sh
++++ b/harness/lib/invoke-codex.sh
+@@ -3,8 +3,7 @@
+ # When a phase routes to "codex", the harness runs it through the OpenAI Codex CLI (different training
+ # lineage ???????? the Amp-Oracle pattern). Generalized in S2 from the review-only path: a <mode> arg selects
+ # the sandbox, so the same lib serves READ-ONLY judge phases (review/evaluate) and WORKSPACE-WRITE
+-# writer phases (implement/plan/docs). A read-only back-compat wrapper (codex_review) keeps existing
+-# callers unchanged until it is retired in S7.
++# writer phases (implement/plan/docs).
+ #
+ # Safety properties:
+ #  - SANDBOX per mode: 'read-only' for judge phases (`--sandbox read-only`; the caller also hard-resets
+@@ -56,8 +55,3 @@ invoke_codex() {
+   fi
+   cat "$lastmsg" 2>/dev/null; rm -f "$lastmsg"; return "$rc"
+ }
+-
+-# Back-compat read-only wrapper (loop.sh calls this). Retired in S7.
+-codex_review() {  # <prompt> <root> <log> <model> <effort> <timeout_s>
+-  invoke_codex read-only "$1" "$2" "$3" "${4:-}" "${5:-}" "${6:-900}"
+-}
+diff --git a/harness/lib/review-codex.ps1 b/harness/lib/review-codex.ps1
+deleted file mode 100644
+index 4006ccb..0000000
+--- a/harness/lib/review-codex.ps1
++++ /dev/null
+@@ -1,4 +0,0 @@
+-??????<# review-codex.ps1 ???????? DEPRECATED back-compat shim. The cross-vendor codex lib was generalized to
+-   invoke-codex.ps1 (read-only + workspace-write) in S2; this keeps existing sourcers working until
+-   the shim is retired in S7 (see the cross-vendor execution plan). #>
+-. (Join-Path $PSScriptRoot 'invoke-codex.ps1')
+diff --git a/harness/lib/review-codex.sh b/harness/lib/review-codex.sh
+deleted file mode 100644
+index b43107e..0000000
+--- a/harness/lib/review-codex.sh
++++ /dev/null
+@@ -1,5 +0,0 @@
+-#!/usr/bin/env bash
+-# review-codex.sh ???????? DEPRECATED back-compat shim; sources invoke-codex.sh (generalized in S2). Retired in S7.
+-_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+-# shellcheck source=./invoke-codex.sh
+-source "$_dir/invoke-codex.sh"
+diff --git a/harness/loop.ps1 b/harness/loop.ps1
+index 4f1a6cf..fdf971d 100644
+--- a/harness/loop.ps1
++++ b/harness/loop.ps1
+@@ -61,7 +61,7 @@ if ($PSBoundParameters.ContainsKey('MaxIterations')) { $cfg.autonomy.maxIteratio
+ . (Join-Path $PSScriptRoot 'lib/gate.ps1')        # also provides Get-Prop (StrictMode-safe accessor)
+ . (Join-Path $PSScriptRoot 'lib/checkpoint.ps1')
+ . (Join-Path $PSScriptRoot 'lib/budget.ps1')
+-. (Join-Path $PSScriptRoot 'lib/review-codex.ps1')   # cross-vendor reviewer (models.review = 'codex')
++. (Join-Path $PSScriptRoot 'lib/invoke-codex.ps1')   # codex invocation (Test-CodexAvailable, Invoke-Codex) ???????? 
+dispatch.ps1 builds on it
+ . (Join-Path $PSScriptRoot 'lib/dispatch.ps1')       # Invoke-Phase: primary->fallback dispatcher (after gate + 
+invoke-codex)
+ 
+ $runId  = Get-LoopRunId -RunsDir (Join-Path $HarnessDir '.runs')   # atomically claims <project>/harness/.runs/<runId>/ 
+(mkdir-as-mutex)
+diff --git a/harness/loop.sh b/harness/loop.sh
+index 8d54199..50307c6 100644
+--- a/harness/loop.sh
++++ b/harness/loop.sh
+@@ -35,7 +35,7 @@ command -v jq >/dev/null || { echo "jq is required for the bash loop (brew/apt i
+ source "$SCRIPT_DIR/lib/gate.sh"
+ source "$SCRIPT_DIR/lib/checkpoint.sh"
+ source "$SCRIPT_DIR/lib/budget.sh"
+-source "$SCRIPT_DIR/lib/review-codex.sh"   # cross-vendor reviewer (models.review = "codex")
++source "$SCRIPT_DIR/lib/invoke-codex.sh"   # codex invocation (codex_available, invoke_codex) ???????? dispatch.sh builds 
+on it
+ source "$SCRIPT_DIR/lib/dispatch.sh"       # invoke_phase: primary->fallback dispatcher (after gate + invoke-codex)
+ 
+ cfg() { jq -r "$1" "$CONFIG"; }
+diff --git a/harness/tests/run-tests.ps1 b/harness/tests/run-tests.ps1
+index 137616d..8fb6334 100644
+--- a/harness/tests/run-tests.ps1
++++ b/harness/tests/run-tests.ps1
+@@ -106,7 +106,6 @@ ok "global flags precede the exec subcommand"      ([array]::IndexOf($ro,'--sand
+ ok "model passed through as -m"                     (($ro -join ' ') -match '-m gpt-x')
+ ok "effort passed as model_reasoning_effort"        (($ro -join ' ') -match 'model_reasoning_effort="high"')
+ ok "no model => no -m flag"                         (-not (($ww -join ' ') -match '(^| )-m ') )
+-ok "read-only wrapper still exists (back-compat)"   ([bool](Get-Command Invoke-CodexReview -ErrorAction SilentlyContinue))
+ 
+ Write-Host "usage-limit predicate: vendor-neutral markers (drives S3 fallback)"
+ ok "detects 'usage limit'"        (Test-UsageLimitError 'Error: monthly usage limit reached')
+@@ -119,11 +118,6 @@ ok "clean output => false"        (-not (Test-UsageLimitError 'review complete.
+ ok "stray 429 tokens => false"    (-not (Test-UsageLimitError 'processed 429 files successfully'))
+ ok "empty output => false"        (-not (Test-UsageLimitError ''))
+ 
+-Write-Host "back-compat shim: review-codex.ps1 still exposes the codex API"
+-. (Join-Path $libDir 'review-codex.ps1')
+-ok "shim loads Test-CodexAvailable" ([bool](Get-Command Test-CodexAvailable -ErrorAction SilentlyContinue))
+-ok "shim loads Invoke-Codex"        ([bool](Get-Command Invoke-Codex -ErrorAction SilentlyContinue))
+-
+ Write-Host "model routing: Resolve-PhaseModel (config.models -> --model; '' = inherit)"
+ $mcfg = [pscustomobject]@{ models = [pscustomobject]@{ implement='opus'; reviewFallback='fable' } }
+ ok "resolves implement model"          ((Resolve-PhaseModel $mcfg 'implement') -eq 'opus')
+diff --git a/harness/tests/run-tests.sh b/harness/tests/run-tests.sh
+index deda9d4..6065e59 100644
+--- a/harness/tests/run-tests.sh
++++ b/harness/tests/run-tests.sh
+@@ -61,12 +61,6 @@ usage_limit_error 'review complete VERDICT: SHIP' && ok 0 "clean output => false
+ usage_limit_error 'processed 429 files'           && ok 0 "stray 429 => false"       || ok 1 "stray 429 => false"
+ usage_limit_error ''                              && ok 0 "empty => false"           || ok 1 "empty => false"
+ 
+-echo "back-compat shim: review-codex.sh still exposes the codex API"
+-# loop.sh sources the shim (not invoke-codex.sh directly); assert it re-exposes the API from any cwd.
+-( source "$LIB/review-codex.sh" && command -v invoke_codex >/dev/null 2>&1 && command -v codex_review >/dev/null 2>&1 ) \
+-  && ok 1 "shim sources invoke-codex (invoke_codex + codex_review defined)" \
+-  || ok 0 "shim sources invoke-codex (invoke_codex + codex_review defined)"
+-
+ echo "block-destructive hook: blocks dangerous, allows safe"
+ hookrc() {  # $1 = command (no quotes/backslashes in our test inputs) ; echoes hook exit code
+   printf '{"tool_name":"Bash","tool_input":{"command":"%s"}}' "$1" \
+diff --git a/plugin/engine/fleet.ps1 b/plugin/engine/fleet.ps1
+index 7c2a62f..3bd64bd 100644
+--- a/plugin/engine/fleet.ps1
++++ b/plugin/engine/fleet.ps1
+@@ -53,7 +53,7 @@ $cfg = Get-Content $ConfigPath -Raw | ConvertFrom-Json
+ . (Join-Path $PSScriptRoot 'lib/checkpoint.ps1')   # Assert-CleanGitTree
+ . (Join-Path $PSScriptRoot 'lib/budget.ps1')       # Get-LoopRunId (atomic run-dir claim)
+ . (Join-Path $PSScriptRoot 'lib/fleet.ps1')
+-. (Join-Path $PSScriptRoot 'lib/review-codex.ps1')   # back-compat shim -> invoke-codex.ps1 (Test-CodexAvailable, 
+Invoke-Codex)
++. (Join-Path $PSScriptRoot 'lib/invoke-codex.ps1')   # codex invocation (Test-CodexAvailable, Invoke-Codex)
+ . (Join-Path $PSScriptRoot 'lib/dispatch.ps1')       # Invoke-Phase: primary->fallback dispatcher (workers re-source it 
+in-job)
+ 
+ $parallelCfg   = Get-Prop $cfg 'parallel'
+diff --git a/plugin/engine/fleet.sh b/plugin/engine/fleet.sh
+index 8767a44..6493441 100644
+--- a/plugin/engine/fleet.sh
++++ b/plugin/engine/fleet.sh
+@@ -43,7 +43,7 @@ source "$SCRIPT_DIR/lib/gate.sh"
+ source "$SCRIPT_DIR/lib/checkpoint.sh"
+ source "$SCRIPT_DIR/lib/budget.sh"
+ source "$SCRIPT_DIR/lib/fleet.sh"
+-source "$SCRIPT_DIR/lib/review-codex.sh"   # back-compat shim -> invoke-codex.sh (codex_available, invoke_codex)
++source "$SCRIPT_DIR/lib/invoke-codex.sh"   # codex invocation (codex_available, invoke_codex)
+ source "$SCRIPT_DIR/lib/dispatch.sh"       # invoke_phase: primary->fallback dispatcher
+ 
+ cfg() { jq -r "$1" "$CONFIG"; }
+diff --git a/plugin/engine/lib/invoke-codex.ps1 b/plugin/engine/lib/invoke-codex.ps1
+index bb1c948..935b438 100644
+--- a/plugin/engine/lib/invoke-codex.ps1
++++ b/plugin/engine/lib/invoke-codex.ps1
+@@ -3,8 +3,7 @@
+   "codex", the harness runs it through the OpenAI Codex CLI (a different training lineage ???????? the
+   Amp-Oracle pattern). Generalized in S2 from the review-only path: -Mode selects the sandbox, so the
+   same lib serves READ-ONLY judge phases (review/evaluate) and WORKSPACE-WRITE writer phases
+-  (implement/plan/docs). A read-only back-compat wrapper (Invoke-CodexReview) keeps existing callers
+-  unchanged until it is retired in S7.
++  (implement/plan/docs).
+ 
+   Safety properties (mirror invoke-codex.sh):
+    - SANDBOX per mode: 'read-only' for judge phases (`--sandbox read-only`; a judge must never mutate
+@@ -112,10 +111,3 @@ function Invoke-Codex {
+   if ($final) { return [pscustomobject]@{ Ok = $ok; Output = "$final" } }
+   return [pscustomobject]@{ Ok = $ok; Output = $out }
+ }
+-
+-# Back-compat: the review path calls this read-only wrapper. Retired in S7.
+-function Invoke-CodexReview {
+-  param([Parameter(Mandatory)][string]$Prompt, [Parameter(Mandatory)][string]$RepoRoot,
+-        [Parameter(Mandatory)][string]$LogPath, $CodexCfg, [string]$CodexCommand = 'codex')
+-  return (Invoke-Codex -Mode 'read-only' -Prompt $Prompt -RepoRoot $RepoRoot -LogPath $LogPath -CodexCfg $CodexCfg 
+-CodexCommand $CodexCommand)
+-}
+diff --git a/plugin/engine/lib/invoke-codex.sh b/plugin/engine/lib/invoke-codex.sh
+index 66d26dc..4edafbd 100644
+--- a/plugin/engine/lib/invoke-codex.sh
++++ b/plugin/engine/lib/invoke-codex.sh
+@@ -3,8 +3,7 @@
+ # When a phase routes to "codex", the harness runs it through the OpenAI Codex CLI (different training
+ # lineage ???????? the Amp-Oracle pattern). Generalized in S2 from the review-only path: a <mode> arg selects
+ # the sandbox, so the same lib serves READ-ONLY judge phases (review/evaluate) and WORKSPACE-WRITE
+-# writer phases (implement/plan/docs). A read-only back-compat wrapper (codex_review) keeps existing
+-# callers unchanged until it is retired in S7.
++# writer phases (implement/plan/docs).
+ #
+ # Safety properties:
+ #  - SANDBOX per mode: 'read-only' for judge phases (`--sandbox read-only`; the caller also hard-resets
+@@ -56,8 +55,3 @@ invoke_codex() {
+   fi
+   cat "$lastmsg" 2>/dev/null; rm -f "$lastmsg"; return "$rc"
+ }
+-
+-# Back-compat read-only wrapper (loop.sh calls this). Retired in S7.
+-codex_review() {  # <prompt> <root> <log> <model> <effort> <timeout_s>
+-  invoke_codex read-only "$1" "$2" "$3" "${4:-}" "${5:-}" "${6:-900}"
+-}
+diff --git a/plugin/engine/lib/review-codex.ps1 b/plugin/engine/lib/review-codex.ps1
+deleted file mode 100644
+index 4006ccb..0000000
+--- a/plugin/engine/lib/review-codex.ps1
++++ /dev/null
+@@ -1,4 +0,0 @@
+-??????<# review-codex.ps1 ???????? DEPRECATED back-compat shim. The cross-vendor codex lib was generalized to
+-   invoke-codex.ps1 (read-only + workspace-write) in S2; this keeps existing sourcers working until
+-   the shim is retired in S7 (see the cross-vendor execution plan). #>
+-. (Join-Path $PSScriptRoot 'invoke-codex.ps1')
+diff --git a/plugin/engine/lib/review-codex.sh b/plugin/engine/lib/review-codex.sh
+deleted file mode 100644
+index b43107e..0000000
+--- a/plugin/engine/lib/review-codex.sh
++++ /dev/null
+@@ -1,5 +0,0 @@
+-#!/usr/bin/env bash
+-# review-codex.sh ???????? DEPRECATED back-compat shim; sources invoke-codex.sh (generalized in S2). Retired in S7.
+-_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+-# shellcheck source=./invoke-codex.sh
+-source "$_dir/invoke-codex.sh"
+diff --git a/plugin/engine/loop.ps1 b/plugin/engine/loop.ps1
+index 4f1a6cf..fdf971d 100644
+--- a/plugin/engine/loop.ps1
++++ b/plugin/engine/loop.ps1
+@@ -61,7 +61,7 @@ if ($PSBoundParameters.ContainsKey('MaxIterations')) { $cfg.autonomy.maxIteratio
+ . (Join-Path $PSScriptRoot 'lib/gate.ps1')        # also provides Get-Prop (StrictMode-safe accessor)
+ . (Join-Path $PSScriptRoot 'lib/checkpoint.ps1')
+ . (Join-Path $PSScriptRoot 'lib/budget.ps1')
+-. (Join-Path $PSScriptRoot 'lib/review-codex.ps1')   # cross-vendor reviewer (models.review = 'codex')
++. (Join-Path $PSScriptRoot 'lib/invoke-codex.ps1')   # codex invocation (Test-CodexAvailable, Invoke-Codex) ???????? 
+dispatch.ps1 builds on it
+ . (Join-Path $PSScriptRoot 'lib/dispatch.ps1')       # Invoke-Phase: primary->fallback dispatcher (after gate + 
+invoke-codex)
+ 
+ $runId  = Get-LoopRunId -RunsDir (Join-Path $HarnessDir '.runs')   # atomically claims <project>/harness/.runs/<runId>/ 
+(mkdir-as-mutex)
+diff --git a/plugin/engine/loop.sh b/plugin/engine/loop.sh
+index 8d54199..50307c6 100644
+--- a/plugin/engine/loop.sh
++++ b/plugin/engine/loop.sh
+@@ -35,7 +35,7 @@ command -v jq >/dev/null || { echo "jq is required for the bash loop (brew/apt i
+ source "$SCRIPT_DIR/lib/gate.sh"
+ source "$SCRIPT_DIR/lib/checkpoint.sh"
+ source "$SCRIPT_DIR/lib/budget.sh"
+-source "$SCRIPT_DIR/lib/review-codex.sh"   # cross-vendor reviewer (models.review = "codex")
++source "$SCRIPT_DIR/lib/invoke-codex.sh"   # codex invocation (codex_available, invoke_codex) ???????? dispatch.sh builds 
+on it
+ source "$SCRIPT_DIR/lib/dispatch.sh"       # invoke_phase: primary->fallback dispatcher (after gate + invoke-codex)
+ 
+ cfg() { jq -r "$1" "$CONFIG"; }
+
+
+codex
+IÔÇÖll verify the live references and ordering against the checked-out tree, then compare the duplicated engine files. 
+Since this is a review, IÔÇÖll keep the output focused on defects only.
+exec
+"C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command 'Get-ChildItem -Path specs -File | Select-Object 
+-ExpandProperty FullName' in C:\Users\james\Repos\harness
+exec
+"C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command 'Get-Content -Raw state/fix_plan.md' in 
+C:\Users\james\Repos\harness
+exec
+"C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command 'Get-Content -Raw CLAUDE.md' in 
+C:\Users\james\Repos\harness
+ succeeded in 1434ms:
+<!--
+  This is the ROOT CONTEXT MAP. It is a navigation map, not a manual.
+  RULES FOR THIS FILE (the ratchet discipline):
+    ├óÔé¼┬ó Keep it under ~100 lines. It competes for the model's attention with the actual task.
+    ├óÔé¼┬ó Point to docs/ and nested CLAUDE.md files; do NOT inline full specs or style guides.
+    ├óÔé¼┬ó Every line in "Project rules" must trace to a real failure (added via /ratchet) or a hard
+      constraint. Delete rules that no longer earn their place.
+    ├óÔé¼┬ó `/harness-init` fills the {{PLACEHOLDERS}} below. Until then they are intentionally blank.
+-->
+
+# {{PROJECT_NAME}}
+
+{{ONE_LINE_DESCRIPTION}}
+
+## What this is
+- **Domain / market:** {{DOMAIN}}
+- **Type:** {{PROJECT_TYPE}}  <!-- greenfield (build from scratch) | brownfield (existing code ├óÔé¼ÔÇØ respect it; see 
+brownfield-safety skill) -->
+- **Shape:** {{PROJECT_SHAPE}}  <!-- e.g. "single Node app" or "headless: frontend/ (Next.js) + backend/ (FastAPI)" -->
+
+## Components (the buildable units)
+Each component has its own stack, gate, and (for non-trivial ones) its own nested `CLAUDE.md`. The
+harness runs each component's gate in its own directory; see `harness/harness.config.json` ├óÔÇáÔÇÖ `components`.
+
+| Component | Path | Stack | Run | Test |
+|-----------|------|-------|-----|------|
+| {{COMPONENT_NAME}} | `{{COMPONENT_PATH}}` | {{COMPONENT_STACK}} | `{{COMPONENT_RUN}}` | `{{COMPONENT_TEST}}` |
+<!-- one row per component; a single-root project has exactly one row with path `.` -->
+
+Cross-cutting (e.g. an e2e that exercises the components together): {{ROOT_E2E}}
+
+## Where things live (the map)
+- `specs/` ├óÔé¼ÔÇØ **immutable** requirements. Source of truth. Read first; never rewrite.
+- `docs/architecture/` ├óÔé¼ÔÇØ how the system fits together. Read before structural changes.
+- `docs/design-docs/` ├óÔé¼ÔÇØ decisions already made and *why*. Don't relitigate them.
+- `docs/execution-plans/` ├óÔé¼ÔÇØ versioned plans + progress logs for in-flight work.
+- `docs/technical-debt/` ├óÔé¼ÔÇØ known issues. Check before "discovering" one.
+- `docs/principles/` ├óÔé¼ÔÇØ engineering norms / golden principles for this repo.
+- `state/` ├óÔé¼ÔÇØ live work state: `tasks.json` (manifest), `fix_plan.md` (priority stack),
+  `PROGRESS.md` (session log), `handoff.md` (context-reset handoff), `evidence/` (e2e proof per task).
+- `AGENT_NOTES.md` ├óÔé¼ÔÇØ run/build gotchas and learnings. **Append here when you learn something.**
+
+## How to work here (the workflow: plan ├óÔÇáÔÇÖ execute ├óÔÇáÔÇÖ validate ├óÔÇáÔÇÖ review ├óÔÇáÔÇÖ record)
+Full contract: [`docs/principles/workflow.md`](docs/principles/workflow.md). `/work` drives one task
+through all phases; `/plan`, `/verify`, `/review` are the phases run individually (`/loop` is not a
+phase ├óÔé¼ÔÇØ it runs one full iteration end-to-end). In short:
+1. **Study first.** Read the relevant `specs/`, then the code, then `state/fix_plan.md`. Note which
+   **component** the task touches and work in that directory.
+   **Search the codebase before assuming something isn't implemented.** Think hard.
+2. **One task per iteration.** Pick the highest-priority unfinished item from `state/fix_plan.md`.
+3. **Implement fully.** No placeholders, no stubs, no "simple version for now."
+4. **Verify ├óÔé¼ÔÇØ this is the gate.** Run the changed component's gate (format ├óÔÇáÔÇÖ lint ├óÔÇáÔÇÖ typecheck ├óÔÇáÔÇÖ 
+build ├óÔÇáÔÇÖ
+   test) and the cross-cutting root gate.
+   Unit-green is not done: capture **end-to-end evidence** that it works as a user would see it.
+5. **Checkpoint.** Commit with a descriptive message when green (exception: in the headless loop the
+   RUNNER commits ├óÔé¼ÔÇØ PROMPT.md's no-commit rule wins there). Roll back a red tree, don't patch over it.
+6. **Record.** Tick the item in `state/fix_plan.md`; note *why* in code/docs for the next (amnesiac) loop.
+7. **Reset, don't compact.** At task boundaries: `/handoff` then `/clear` ├óÔé¼ÔÇØ state lives in files and
+   the SessionStart hook re-orients a fresh window. `/compact` is the mid-task emergency tool only.
+
+## Verification gate (must pass before "done")
+The gate is **per component** (its commands run in that component's directory), then a cross-cutting
+root gate. Exact commands live in `harness/harness.config.json`. For `{{COMPONENT_NAME}}`:
+```
+{{FORMAT_COMMAND}}
+{{LINT_COMMAND}}
+{{TYPECHECK_COMMAND}}
+{{BUILD_COMMAND}}
+{{TEST_COMMAND}}
+{{E2E_COMMAND}}
+```
+(Multi-component projects: one such block per component ├óÔé¼ÔÇØ the config is the source of truth.)
+The PostToolUse hook runs the fast subset (format/lint/typecheck) automatically on edit, **routed to
+the component that owns the changed file**. Failures come back with the fix in the message ├óÔé¼ÔÇØ read them.
+
+## Guardrails (hard constraints)
+- **Do not** weaken or delete tests to make a build pass. Fix the code or escalate.
+- **Do not** run destructive commands (`rm -rf`, `git push --force`, `DROP TABLE`, secrets exfil).
+  The PreToolUse hook blocks the obvious ones; don't try to route around it.
+- **Do not** edit anything under `specs/` ├óÔé¼ÔÇØ it is the contract. Propose changes to the human instead.
+  (One carve-out: `/plan`, `/onboard`, and `/harness-init` may **author new specs with the human's
+  approval**. Rewriting an existing spec to make work "pass" is never legitimate.)
+- **Escalate ambiguous product decisions** to the human rather than guessing. Ask for the *why*.
+- Review code in a **fresh context** (use `/review` or the `reviewer` subagent), never self-grade.
+
+## Project rules (the ratchet ├óÔé¼ÔÇØ grows only from real failures)
+<!-- Add entries via /ratchet. Format: "- [YYYY-MM-DD] <rule>  ├óÔé¼ÔÇØ because <the failure it prevents>" -->
+- [2026-07-14] Output-sniffing predicates (e.g. usage/limit detection) must be consulted ONLY on a FAILED
+  invocation (not-ok / nonzero exit), never to overturn a SUCCESS  ├óÔé¼ÔÇØ because the markers are substring-based,
+  so a successful write-phase build whose text merely mentions "overloaded"/"quota"/"429" would be reset to
+  base and retried on the fallback, silently discarding a good build (S2 review near-miss).
+- [2026-07-14] When a phase's resolved `Primary` model is '' (inherit ambient) but a per-phase `fallback`
+  IS configured, the fallback is reached ONLY on a failed invocation ├óÔé¼ÔÇØ it is NOT the happy-path model
+  ├óÔé¼ÔÇØ because `Invoke-Phase` runs the primary first; a config that pinned a reviewer purely via legacy
+  `reviewFallback` (with `review` unset) is therefore run on the ambient model on the happy path, not on
+  `reviewFallback` (S3 review ├óÔé¼ÔÇØ narrow, disclosed; the migrated `{model,fallback}` config avoids it).
+- [2026-07-14] Do not pin a fresh-context judge (`reviewer`/`evaluator` subagent) to a model tier that can
+  hit its own usage cap mid-review ├óÔé¼ÔÇØ when it dies with "reached your <model> limit", re-spawn the subagent
+  with a `model:` override to finish  ├óÔé¼ÔÇØ because the review actually failed to run this way (S3: the
+  Fable-pinned reviewer was knocked out by a Fable-5 usage limit). Broader fix (subagent-level fallback)
+  is a candidate for a later slice.
+- [2026-07-15] Engine code that runs a phase inside a PowerShell `Start-Job` must (a) re-source its libs
+  INSIDE the job ├óÔé¼ÔÇØ a Start-Job runs in a fresh runspace that does NOT inherit the parent's dot-sourced
+  functions (pass the lib dir via `-ArgumentList`; `$PSScriptRoot` differs inside), and (b) use a quiet
+  (`Out-Null`) output path, never `Out-Host` ├óÔé¼ÔÇØ because `Out-Host` produced inside a job is replayed to the
+  parent console at `Receive-Job` and CANNOT be suppressed by any stream redirect (`6>$null`/`*>$null` all
+  fail), so a worker's whole transcript would dump into the merge-queue console. Also assign the phase
+  result to a var so its object doesn't leak into the job output stream; emit only the `0/1` exit proxy the
+  caller reads (S4: the fleet worker's dispatcher wiring; de-risked with live experiments before building).
+
+## Nested context
+Larger subsystems may have their own `CLAUDE.md` next to their code (mirrors the one-map-per-package
+pattern). When working in a subsystem, read its local map too.
+
+
+ succeeded in 1479ms:
+# Fix plan
+
+The prioritized task stack. **Highest priority at the top.** The loop takes the single top unchecked
+item each iteration. Keep items small enough to finish in one iteration; split anything bigger.
+
+Format: `- [ ] <imperative task>  ├óÔé¼ÔÇØ done when: <verifiable condition>`
+
+> Empty by design. Run `/plan "<what you want>"` to populate it, or add items by hand. The loop stops
+> when there are no unchecked items left (config `loop.stopWhenPlanEmpty`).
+
+## Tasks
+<!-- Approved 2026-07-13: docs/execution-plans/2026-07-13-model-routing-parallelism-context.md -->
+- [x] Add `models` routing block (schema + config + settings.json session model + agent frontmatter + doctor drift-check)  
+├óÔé¼ÔÇØ done when: config declares session/explore/plan/implement/review/evaluate/docs models, frontmatter matches, doctor 
+checks it, self-tests green
+- [x] Add `explorer` agent (haiku, read-only) + fan-out wiring in PROMPT.md/planner/generator  ├óÔé¼ÔÇØ done when: agent 
+exists and all three surfaces route searches to it
+- [x] Pass `--model` at both loop invocation sites (main + periodic reviewer, ps1 + sh)  ├óÔé¼ÔÇØ done when: flags driven 
+by config, absent when unset, self-tests cover both
+- [x] Add `review-codex` lib (detect ├óÔÇáÔÇÖ read-only exec ├óÔÇáÔÇÖ watchdog ├óÔÇáÔÇÖ fail-closed parse ├óÔÇáÔÇÖ fable 
+fallback), wire into loop + /review  ├óÔé¼ÔÇØ done when: codex path and fallback both produce a parsed verdict; tests cover 
+detection-miss fallback
+- [x] Harden reviewer prompts to correctness/requirement gaps only (loop prompt + reviewer.md)  ├óÔé¼ÔÇØ done when: both 
+prompts constrain scope
+- [x] Make generator delegation the default in /work; encode plan-artifact contract in workflow.md  ├óÔé¼ÔÇØ done when: 
+inline implementation is trivial-only and the boundary rule is written
+- [x] Encode reset-over-compact policy (workflow.md + CLAUDE.md line + /work RECORD suggests /handoff + /clear)  ├óÔé¼ÔÇØ 
+done when: all three surfaces state it
+- [x] Phase A: generator `isolation: worktree` + merge-back step in /work  ├óÔé¼ÔÇØ done when: builds land via merge-back, 
+main tree stays clean
+- [x] Move `.checkpoint`/`.budget.json` into per-run dir + lock run-id allocation  ├óÔé¼ÔÇØ done when: two concurrent runs 
+can't clobber state; tests green
+- [x] Fleet runner Phase B (tasks.json ownership field ├óÔÇáÔÇÖ worktree pool ├óÔÇ░┬ñ3 ├óÔÇáÔÇÖ serialized merge queue)  
+├óÔé¼ÔÇØ done when: two independent tasks execute in parallel worktrees and land through the gated queue (dry-run + 
+selection/overlap logic tested; merge-queue paths NOT yet automated ├óÔé¼ÔÇØ see follow-ups)
+- [x] Fleet queue integration test: temp git repo + stub claude via HARNESS_CLAUDE_CMD, assert merge/park/tamper paths  
+├óÔé¼ÔÇØ done when: the queue's core outcomes have automated assertions on both runners 
+(harness/tests/fleet-queue-test.{ps1,sh}, 14/14 each; gate-red/conflict paths still only manually reasoned ├óÔé¼ÔÇØ extend 
+the stub if they ever regress)
+<!-- Approved 2026-07-13 (James): the next tranche ├óÔé¼ÔÇØ plugin split, sandboxing, evaluator wiring, overnight stages 
+1+2. -->
+- [x] Package the engine as a Claude Code plugin (ROADMAP "Distribution as a plugin"; the maintainer decided GO)  ├óÔé¼ÔÇØ done 
+when: engine (harness/, .claude/agents|hooks|skills, commands) installs as a versioned plugin, the scaffold (CLAUDE.md, 
+specs/, state/, /harness-init) remains the template half, and the deployed copies (already-configured projects) can 
+upgrade via plugin update instead of re-templating; audit agent frontmatter first (plugin agents ignore 
+hooks/mcpServers/permissionMode)
+      <!-- DONE 2026-07-14: plugin/ (payload) + plugin/hooks (node dispatcher) + plugin/engine (loop/fleet + wrappers) + 
+.claude-plugin/marketplace.json; real /plugin install verified end-to-end; docs/plugin-migration.md. Evidence: 
+state/evidence/2026-07-14-plugin-packaging/. Fresh-context review FIX-THEN-SHIP ├óÔÇáÔÇÖ all 5 findings fixed (eaf2a1b). E1 
+staged: dev repo still carries its own engine copies. -->
+- [x] Build `harness-migrate` (plugin-shipped script + `/harness-migrate` command) ├óÔé¼ÔÇØ migrate an existing copied-in 
+harness onto the plugin WITHOUT losing project customizations  ├óÔé¼ÔÇØ done when: it locates the installed plugin engine 
+and classifies every engine-ish file in the repo as IDENTICAL (safe to remove) / CUSTOMIZED (differs ├óÔé¼ÔÇØ keep + show 
+diff) / PROJECT-ONLY (keep); prints the plan; with `--apply` removes only IDENTICAL engine files, strips the 5 engine hook 
+blocks from `.claude/settings.json`, drops in the 4 wrappers, and writes a preservation report; leaves 
+CLAUDE.md/AGENT_NOTES/state/specs/config untouched; verified on a synthetic repo carrying a ratcheted denylist pattern in 
+block-destructive + a project-authored skill (both preserved), both runners
+<!-- Approved 2026-07-14: docs/execution-plans/2026-07-14-cross-vendor-per-phase-model-routing.md ├óÔé¼ÔÇØ the big 
+"cross-vendor per-phase routing" item decomposed into 7 slices (each lands in BOTH engine copies until the E2 flip). 
+Decisions locked: (A) orchestrator dispatches codex for non-headless phases; (B) tolerant reader for legacy flat configs; 
+(C) retry-once-on-fallback for usage-limit. -->
+- [x] Cross-vendor S1: `{model,fallback}` schema + nested default config + tolerant resolver  ├óÔé¼ÔÇØ done when: both 
+`harness.schema.json` copies define `{model,fallback}` per phase (Claude alias OR `codex`) + the `codex{}` block, 
+`harness/harness.config.json` uses the nested default, `Resolve-PhaseModel`/`phase_model` (+ plugin twins) return BOTH 
+fields and normalize the legacy flat string + `reviewFallback`├óÔÇáÔÇÖ`review.fallback`, and unit tests cover 
+nested/flat-legacy/null on both runners. No behavior change yet.
+      <!-- DONE 2026-07-14: implemented as two accessors (primary-returning Resolve-PhaseModel/phase_model tolerant of 
+nested+flat; new Resolve-PhaseFallback/phase_fallback) ├óÔé¼ÔÇØ capability-equivalent, twins IDENTICAL. Review SHIP. PS 80 
+/ bash 76 / fleet-queue 16 both. Evidence: state/evidence/2026-07-14-cross-vendor-s1/. CARRY├óÔÇáÔÇÖS3: when the review 
+path switches to phase_fallback, align Resolve-PhaseFallback('review') mixed-config legacy fall-through (or declare mixed 
+shape unsupported). -->
+- [x] Cross-vendor S1b (carry from S1 review): when S3 switches the review path to `phase_fallback`, resolve the 
+mixed-config asymmetry ├óÔé¼ÔÇØ `Resolve-PhaseModel('reviewFallback')` falls through to the legacy top-level 
+`reviewFallback` but `Resolve-PhaseFallback('review')` on a nested object never consults it ├óÔé¼ÔÇØ align the legacy 
+fall-through or declare the mixed shape unsupported. (Fold into S3; no standalone iteration needed.)
+      <!-- DONE 2026-07-14 (with S3): Resolve-PhaseFallback('review')/phase_fallback review now fall through 
+review.fallback├óÔÇáÔÇÖlegacy top-level reviewFallback├óÔÇáÔÇÖ'' across nested-null/flat/absent shapes, symmetric with 
+Resolve-PhaseModel('reviewFallback'). Tests assert the equality. -->
+- [x] Cross-vendor S2: usage-limit predicate + generalized codex lib (read-only + write modes)  ├óÔé¼ÔÇØ done when: 
+`Test-UsageLimitError($output,$exitCode)` (vendor-neutral markers) exists in `lib/gate.*` (+twins) with tests, and 
+`lib/invoke-codex.*` (renamed from review-codex, with a back-compat shim) takes a `-Mode read-only|workspace-write` 
+selecting the sandbox flag; unit tests assert arg assembly for BOTH modes via the injectable command; both runners green.
+      <!-- DONE 2026-07-14: Test-UsageLimitError/usage_limit_error (markers: usage/rate limit, quota, overloaded, too many 
+requests, HTTP 429 scoped to http/status/error/code); review-codex.*├óÔÇáÔÇÖinvoke-codex.* with a PURE arg-builder 
+(Get-CodexArgs/codex_args) + Invoke-Codex/-Mode + read-only back-compat shims so loop/fleet stay untouched (S3 wires). 
+Review SHIP (fresh ctx, independently reproduced). PS 99 / bash 90 / fleet-queue 16 both. Evidence: 
+state/evidence/2026-07-14-cross-vendor-s2/. CARRY├óÔÇáÔÇÖS3: consult the usage-limit predicate ONLY on a failed invocation 
+(nonzero exit/not-ok), never to overturn a SUCCESS ├óÔé¼ÔÇØ else a good write build mentioning "overloaded"/"quota" gets 
+reset+discarded (reviewer near-miss). -->
+- [x] Cross-vendor S3: headless dispatcher wired into loop implement + periodic review  ├óÔé¼ÔÇØ done when: an 
+`Invoke-Phase` dispatcher (primary├óÔÇáÔÇÖfallback, claude├óÔÇáÔÇØcodex, usage-limit trigger, write-phase reset-to-base 
+before retry, fail-closed on exhaustion) drives the loop's main implement call AND the periodic reviewer under the new 
+schema; tests assert the FALLBACK TRIGGER (unavailable + usage-limit) with a stub on both runners. NB (S2 review): consult 
+`Test-UsageLimitError` ONLY when the invocation FAILED (not-ok / nonzero exit), never to overturn a SUCCESS ├óÔé¼ÔÇØ the 
+marker set is substring-based (a successful build/review whose text mentions "overloaded"/"quota" would otherwise be 
+reset+discarded on a write phase). Also resolve the S1b mixed-config `Resolve-PhaseFallback('review')` legacy fall-through 
+here.
+      <!-- DONE 2026-07-14: lib/dispatch.{ps1,sh} Invoke-Phase/invoke_phase wired into loop implement (workspace-write) + 
+periodic review (read-only); fallback advances ONLY on codex-unavailable OR usage-limit failure (generic failure does NOT 
+switch vendors); ratchet honored (success never re-examined); write-phase reset before fallback only; fail-closed on 
+exhaustion. S1b folded in. Twins IDENTICAL. Fresh-ctx review (opus, after the Fable-pinned reviewer hit its own usage 
+limit) SHIP. Real live-fire read-only codex run through Invoke-Phase (Ok=True Path=codex). PS 113 / bash 104 / fleet-queue 
+16 both. Evidence: state/evidence/2026-07-14-cross-vendor-s3/. Narrow disclosed behavior change + 2 new ratchet rules 
+(CLAUDE.md). -->
+      <!-- NB for S4: fleet workers now route through the SAME lib/dispatch.* (implement = workspace-write); reuse 
+Invoke-Phase/invoke_phase rather than re-deriving the dispatch logic. -->
+      <!-- NB for S7: the earlier "codex NOT installed" caveat is now STALE ├óÔé¼ÔÇØ codex-cli 0.144.3 is installed + 
+logged in; the read-only path is live-fire-proven, only the WRITE path remains untested (supervise its first real run). -->
+- [x] Cross-vendor S4: fleet worker cross-vendor + fallback  ├óÔé¼ÔÇØ done when: fleet.ps1/.sh workers (+twins) route 
+through the same dispatcher (implement = workspace-write); dry-run + stub-fallback assertions on both runners.
+      <!-- DONE 2026-07-15: fleet.{ps1,sh} workers now build via Invoke-Phase/invoke_phase (workspace-write), inheriting 
+the loop's primary├óÔÇáÔÇÖfallback (real cfg implement={opus,fallback:codex}); reset ref = the worker's own batch/branch 
+base ($baseRef), reset runs in the worktree cwd. New `-Quiet` switch on Invoke-ClaudePhase/Invoke-Phase 
+(Out-Host├óÔÇáÔÇÖOut-Null) so the PS Start-Job worker's transcript isn't replayed to the console at Receive-Job (tee still 
+writes the log; loop's live-stream path unchanged). Bash worker calls invoke_phase DIRECTLY in the ( )& subshell (globals 
+survive) with stdout tee'd to $log. dispatch.sh unchanged; twins IDENTICAL. Fresh-ctx review SHIP (opus), no findings. PS 
+115 / bash 104 / fleet-queue 22 both runners (16 baseline + 3 fallback + 3 dry-run). Evidence: 
+state/evidence/2026-07-15-cross-vendor-s4/. -->
+      <!-- NB for S5: /work orchestrator (interactive) still spawns the Claude subagent; codex dispatch there is the S5 
+job. -->
+      <!-- NB: the codex WRITE (workspace-write) path ├óÔé¼ÔÇØ now reachable from BOTH loop and fleet ├óÔé¼ÔÇØ remains 
+live-fire-untested; supervise its first real run. -->
+- [x] Cross-vendor S5: interactive `/work` orchestrator protocol (Option A) + subagent docs  ├óÔé¼ÔÇØ done when: `/work` 
+command + planner/generator/reviewer agent docs (+ plugin twins) encode "resolve the phase model; if codex, invoke the 
+codex lib via Bash instead of spawning the Claude subagent; frontmatter stays the Claude model"; no subagent wraps codex 
+itself.
+      <!-- DONE 2026-07-15: `/work` gained a "Model routing per phase ├óÔé¼ÔÇØ resolve, then route" section (Claude primary 
+├óÔÇáÔÇÖ spawn the subagent pinned via model: override; codex primary ├óÔÇáÔÇÖ dispatch Invoke-Phase/invoke_phase or 
+Invoke-Codex via Bash, read-only for judges / workspace-write for writers; no subagent wraps codex) + pointers threaded 
+into Phases 1/2/4; each of planner/generator/reviewer got a "Cross-vendor note". Frontmatter UNCHANGED (generator=opus, 
+planner=fable, reviewer=fable=review's Claude fallback). Twins byte-identical. Fresh-ctx review (opus) SHIP; its one 
+accuracy finding fixed (bash resolvers take a config FILE PATH, not JSON content ├óÔé¼ÔÇØ PS resolvers take a parsed 
+object). Docs-only: PS 115/0 + fleet 22/0 re-run green, no .sh/engine touched so bash 104/0 unaffected. Evidence: 
+state/evidence/2026-07-15-cross-vendor-s5/. -->
+      <!-- NB for S6: the generator/planner Cross-vendor notes describe the S6-REWRITTEN doctor check 10 (frontmatter == 
+primary-when-Claude, else the phase's Claude fallback). No live contradiction today (implement/plan primaries are Claude), 
+but keep those notes honest when check 10 is rewritten. -->
+      <!-- NB for S6: doctor check 10 must map reviewer frontmatter to review.fallback (Claude) when review.model==codex 
+├óÔé¼ÔÇØ matches the shipped reviewer=fable. -->
+      <!-- NB for S7 ratchet candidate (reviewer-suggested, non-blocking): docs showing a shell call of an engine fn must 
+name args by real type (bash phase_model/phase_fallback take a config FILE PATH; PS resolvers take a parsed object). Left 
+as an AGENT_NOTES learning, not a CLAUDE.md rule (caught in review, cosmetic). -->
+
+- [x] Cross-vendor S6: `/harness-doctor` check 10 rewrite + `/harness-init` per-phase interview  ├óÔé¼ÔÇØ done when: check 
+10 (+twin) validates the `{model,fallback}` schema across surfaces (value legality, session must be Claude, 
+frontmatter==primary-or-fallback-when-codex, no codex├óÔÇáÔÇÖcodex fallback, per-phase codex reachability ├ó┼í┬á├»┬©┬Å), 
+and `/harness-init` (+twin) interactively picks model+fallback per phase with recommended defaults.
+      <!-- DONE 2026-07-15: DOCS ONLY. harness-doctor.md check 10 rewritten to five sub-rules ├óÔé¼ÔÇØ (a) value legality 
+(Claude alias/ID or literal `codex`), (b) settings.model==session.model AND session must be Claude (codex=├ó┬Ø┼Æ), (c) 
+frontmatter==phase primary when Claude ELSE (primary==codex) the phase's Claude fallback [the reviewer├óÔÇáÔÇÖfable branch 
+under review={codex,fable}], (d) no codex├óÔÇáÔÇÖcodex fallback, (e) codex reachability ├ó┼í┬á├»┬©┬Å (not ├ó┬Ø┼Æ) reported 
+for EVERY codex-routed phase ├óÔé¼ÔÇØ while still accepting the legacy flat + top-level reviewFallback shapes as valid (not 
+drift). harness-init.md "Model routing" bullet now walks each phase picking model+fallback via a ├é┬º4a 
+recommended-defaults table, honoring session-must-be-Claude + no-codex├óÔÇáÔÇÖcodex, writing config.models + settings.json 
++ agent frontmatter together. Twins byte-identical (git index-blob hash). REVIEW dogfooded the shipped review primary = 
+**codex read-only** via Invoke-Phase (Ok=True, Path=codex, UsedFallback=False) ├óÔÇáÔÇÖ FIX-THEN-SHIP: 1 Medium finding 
+(init prose "any codex-routed phase silently runs on its Claude arm" only holds for a codex-PRIMARY phase; a 
+Claude-primary+codex-fallback phase like implement={opus,codex} instead loses its safety net and fails closed on a primary 
+usage cap) ├óÔÇáÔÇÖ fixed by splitting the wording. PS 115/0 + fleet 22/0 (docs-only ├óÔÇáÔÇÖ bash 104/0 unaffected, no .sh 
+touched). Evidence: state/evidence/2026-07-15-cross-vendor-s6/. -->
+      <!-- NB for S7: check 10 is agent-executed PROSE (no automated self-test exists for it); S7's "docs reflect as-built" 
+is the natural place to note that, and to retire the review-codex shim. The S5 planner/generator 
+"frontmatter==primary-when-Claude else Claude fallback" notes are now actually enforced by check 10 (no longer just 
+described). -->
+      <!-- NB (ratchet candidate, left as AGENT_NOTES not CLAUDE.md ├óÔé¼ÔÇØ narrow/doc-only, mirrors S5's disposition): 
+docs describing codex fallback must distinguish codex-PRIMARY (unavailable ├óÔÇáÔÇÖ Claude fallback) from codex-FALLBACK 
+(unavailable ├óÔÇáÔÇÖ lost safety net, primary usage-cap fails closed). Caught in review. -->
+
+- [ ] Cross-vendor S7: docs + prune  ├óÔé¼ÔÇØ done when: AGENT_NOTES learnings appended, PROGRESS lines added, the 
+execution-plan doc reflects the as-built, and the `review-codex` back-compat shim is retired once nothing references it.
+- [ ] Plugin E2 flip: dev repo consumes its OWN plugin + delete the in-repo .claude/{agents,skills,commands,hooks} + 
+harness/{lib,profiles,templates,*.ps1,*.sh} engine copies (removes E1 duplication)  ├óÔé¼ÔÇØ done when: this repo installs 
+lean-agent-harness from its local marketplace, its harness/ is config+wrappers only, and all suites stay green sourced from 
+the plugin
+- [ ] Add CI (GitHub Actions) that runs run-tests.{ps1,sh} + fleet-queue-test.{ps1,sh} with jq on every push  ├óÔé¼ÔÇØ done 
+when: the bash --project-root path is exercised automatically (today it only runs when jq is installed by hand); closes the 
+review's "evidence cited CI that doesn't exist" finding
+- [ ] Sandboxing for unattended runs (ROADMAP "Sandboxing")  ├óÔé¼ÔÇØ done when: a documented, tested WSL2/devcontainer 
+profile exists for `mode: auto` (specs/ read-only, secrets via env, no host FS), and the loop warns when full-auto runs 
+outside it
+- [ ] Run the evaluator at the loop's periodic review point (ROADMAP "Inferential safeguards")  ├óÔé¼ÔÇØ done when: 
+`verification.evaluator.enabled` also gates the unattended loop ├óÔé¼ÔÇØ rubric scored at each review point, any 
+below-threshold criterion stops the loop like a REJECT
+- [ ] Overnight Stage 1: local unattended run recipe  ├óÔé¼ÔÇØ done when: a documented config preset (auto mode, 
+meterTokens+tokenBudget, reviewEveryNIterations=3, skipPermissions=false + allowlisted gate, fleet only for independent 
+tasks) plus a Task Scheduler/cron recipe exists, and one real overnight run has been done supervised-after-the-fact 
+(morning ledger + /review)
+- [ ] Overnight Stage 2: GitHub Actions nightly runner + Issues intake  ├óÔé¼ÔÇØ done when: a nightly cron workflow runs 
+loop.sh in a container and ends by pushing a branch + opening a PR with the ledger; issues labeled `agent` sync into 
+tasks.json at run start (planner) and are closed with the PR link on ship; tasks.json stays authoritative mid-run (GitHub = 
+intake + audit trail only); CI auth decision (API key vs subscription token) recorded
+- [ ] Live-fire the codex invoke path once codex CLI is installed (flag placement, `exec -` stdin, --output-last-message 
+parse)  ├óÔé¼ÔÇØ done when: one real codex review run log parses to a verdict; adjust flags per installed version
+      <!-- PARTIAL 2026-07-14: codex-cli 0.144.3 IS installed + logged in. READ-ONLY path live-fired through Invoke-Phase 
+(Ok=True, Path=codex, final-message parsed) ├óÔé¼ÔÇØ evidence 
+state/evidence/2026-07-14-cross-vendor-s3/live-codex-readonly*. REMAINING: a real workspace-WRITE run + a full 
+periodic-review verdict parse from the loop; keep supervised. -->
+
+
+- [ ] Live-fire the fleet on a real project with ├óÔÇ░┬Ñ2 independent tasks  ├óÔé¼ÔÇØ done when: two tasks land through the 
+gated queue end-to-end
+- [ ] (hardening, low) Fleet record-amend failure leaves tasks.json/PROGRESS staged; a later queue entry's gate-red reset 
+silently discards them while the ledger says merged  ├óÔé¼ÔÇØ done when: pending record is stashed/written to the run dir 
+instead of left staged (re-review finding 2, non-blocking)
+<!--
+  Examples (note: deliberately NOT written as "- [ ]" so the loop's open-task counter doesn't
+  treat these sample lines as real work). Copy the shape, uncomment as real "- [ ]" items above:
+    Scaffold the project skeleton  ├óÔé¼ÔÇØ done when: app builds and the gate runs green on an empty app
+    Add health-check endpoint      ├óÔé¼ÔÇØ done when: GET /health returns 200 + {status:"ok"}, with a unit test + e2e curl 
+evidence
+-->
+
+## Done
+<!-- move completed items here (or just tick them to "- [x]") so the live stack stays readable -->
+
+
+ succeeded in 1507ms:
+C:\Users\james\Repos\harness\specs\000-overview.md
+C:\Users\james\Repos\harness\specs\README.md
+
+codex
+The project notes confirm this slice is explicitly about retiring the shim and preserving the `harness/` Ôåö 
+`plugin/engine/` byte-identical invariant. IÔÇÖm checking for hidden callers now rather than relying on the pasted diff.
+exec
+"C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command "Get-Content -Raw specs\\000-overview.md" in 
+C:\Users\james\Repos\harness
+exec
+"C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command 'rg -n 
+"review-codex|codex_review|Invoke-CodexReview|invoke_codex|Invoke-Codex|codex_available|Test-CodexAvailable" harness 
+plugin/engine .claude plugin 2>$null' in C:\Users\james\Repos\harness
+exec
+"C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command "Get-Content -Raw specs\\README.md" in 
+C:\Users\james\Repos\harness
+exec
+"C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command 'git diff --cached --name-status' in 
+C:\Users\james\Repos\harness
+ succeeded in 851ms:
+M	harness/fleet.ps1
+M	harness/fleet.sh
+M	harness/lib/invoke-codex.ps1
+M	harness/lib/invoke-codex.sh
+D	harness/lib/review-codex.ps1
+D	harness/lib/review-codex.sh
+M	harness/loop.ps1
+M	harness/loop.sh
+M	harness/tests/run-tests.ps1
+M	harness/tests/run-tests.sh
+M	plugin/engine/fleet.ps1
+M	plugin/engine/fleet.sh
+M	plugin/engine/lib/invoke-codex.ps1
+M	plugin/engine/lib/invoke-codex.sh
+D	plugin/engine/lib/review-codex.ps1
+D	plugin/engine/lib/review-codex.sh
+M	plugin/engine/loop.ps1
+M	plugin/engine/loop.sh
+warning: unable to access 'C:\Users\james/.config/git/ignore': Permission denied
+
+ succeeded in 1100ms:
+# 000 ├óÔé¼ÔÇØ Project overview (spec)
+
+> Template. `/harness-init` (or your first `/plan`) fills this in with the human. This is the immutable
+> source of truth ├óÔé¼ÔÇØ get it roughly right, then change it only deliberately. Delete these quote lines
+> once it's real.
+
+- Status: draft
+- Owner: {{OWNER}}
+- Last reviewed: {{DATE}}
+
+## Problem
+<What problem does this project solve, for whom? The one outcome that must be true for it to matter.>
+
+## Users & context
+<Who uses it, in what setting, with what constraints (offline? regulated? real-time?).>
+
+## Scope
+**In scope (v1):**
+- <core capability 1>
+
+**Out of scope (for now):**
+- <explicitly excluded ├óÔé¼ÔÇØ prevents scope creep>
+
+## Non-functional requirements
+<Performance, security, privacy, compliance, platforms, budgets ├óÔé¼ÔÇØ whatever is load-bearing.>
+
+## Acceptance criteria (the bar)
+Falsifiable and, where possible, executable. The gate and the evaluator hold work to these.
+- [ ] <criterion 1 ├óÔé¼ÔÇØ e.g. "a new user can sign up and reach the dashboard in < 3 steps">
+- [ ] <criterion 2 ├óÔé¼ÔÇØ e.g. "API rejects malformed input with 400 + error body, never 500">
+- [ ] <criterion 3>
+
+## Open questions
+<Anything genuinely undecided. Resolve with the human before building against an assumption.>
+
+
+ succeeded in 1117ms:
+# specs/
+
+The **immutable source of truth** for requirements. Agents read this first and **never rewrite it** ├óÔé¼ÔÇØ
+it's the contract. Changes to requirements come from the human (or a `/plan` session you approve), not
+from an autonomous loop deciding the spec was inconvenient.
+
+Why immutable matters: in a memory-less loop, the spec is the only fixed reference point. If the agent
+could edit it to match whatever it built, "done" would mean nothing. Keep it stable; keep it honest.
+
+## Conventions
+- One concern per file, numbered for order: `NNN-<slug>.md` (`000-overview.md` is the project overview).
+- Every spec ends with **executable, falsifiable acceptance criteria** ├óÔé¼ÔÇØ the bar the gate and the
+  evaluator hold work to. Prefer measurable ("returns 201 + Location header", "p95 < 200ms") over prose.
+- If a requirement genuinely changes, the human edits the spec deliberately and notes the change; the
+  plan and tasks then follow.
+
+See [`000-overview.md`](./000-overview.md) for the starting template.
+
+
+ succeeded in 1197ms:
+plugin\engine\fleet.sh:46:source "$SCRIPT_DIR/lib/invoke-codex.sh"   # codex invocation (codex_available, invoke_codex)
+plugin\engine\fleet.ps1:56:. (Join-Path $PSScriptRoot 'lib/invoke-codex.ps1')   # codex invocation (Test-CodexAvailable, 
+Invoke-Codex)
+plugin\engine\fleet.ps1:174:    . (Join-Path $libDir 'invoke-codex.ps1')  # Test-CodexAvailable, Invoke-Codex
+plugin\engine\loop.ps1:64:. (Join-Path $PSScriptRoot 'lib/invoke-codex.ps1')   # codex invocation (Test-CodexAvailable, 
+Invoke-Codex) ÔÇö dispatch.ps1 builds on it
+plugin/engine\loop.ps1:64:. (Join-Path $PSScriptRoot 'lib/invoke-codex.ps1')   # codex invocation (Test-CodexAvailable, 
+Invoke-Codex) ÔÇö dispatch.ps1 builds on it
+plugin/engine\loop.sh:38:source "$SCRIPT_DIR/lib/invoke-codex.sh"   # codex invocation (codex_available, invoke_codex) ÔÇö 
+dispatch.sh builds on it
+harness\loop.ps1:64:. (Join-Path $PSScriptRoot 'lib/invoke-codex.ps1')   # codex invocation (Test-CodexAvailable, 
+Invoke-Codex) ÔÇö dispatch.ps1 builds on it
+harness\fleet.sh:46:source "$SCRIPT_DIR/lib/invoke-codex.sh"   # codex invocation (codex_available, invoke_codex)
+plugin\engine\lib\invoke-codex.sh:19:# codex_available <auth> [cmd] ÔÇö exit 0 if usable; on failure echoes the reason and 
+exits 1.
+plugin\engine\lib\invoke-codex.sh:23:codex_available() {
+plugin\engine\lib\invoke-codex.sh:43:# invoke_codex <mode> <prompt> <root> <log> <model> <effort> <timeout_s> [cmd] ÔÇö 
+echoes the
+plugin\engine\lib\invoke-codex.sh:46:invoke_codex() {
+harness\fleet.ps1:56:. (Join-Path $PSScriptRoot 'lib/invoke-codex.ps1')   # codex invocation (Test-CodexAvailable, 
+Invoke-Codex)
+harness\fleet.ps1:174:    . (Join-Path $libDir 'invoke-codex.ps1')  # Test-CodexAvailable, Invoke-Codex
+plugin\engine\lib\invoke-codex.ps1:25:function Test-CodexAvailable {
+plugin\engine\lib\invoke-codex.ps1:66:function Invoke-Codex {
+plugin\commands\work.md:47:   headless `claude -p`, not the rich subagent; acceptable for a fallback). Use 
+`Invoke-Codex`/`invoke_codex
+harness\tests\run-tests.sh:37:source "$LIB/invoke-codex.sh"   # codex_available needs no jq and no codex install
+harness\tests\run-tests.sh:38:if r="$(codex_available chatgpt no-such-codex-xyz)"; then av=0; else av=1; fi
+harness\tests\run-tests.sh:40:if r="$( (unset CODEX_API_KEY; codex_available api-key ls) )"; then av=0; else av=1; fi   # 
+binary present; api-key mode probes only the env var
+harness\tests\run-tests.sh:42:if r="$(CODEX_API_KEY=test-key codex_available api-key ls)"; then av=0; else av=1; fi
+harness\tests\run-tests.ps1:89:$a = Test-CodexAvailable -Auth 'chatgpt' -CodexCommand 'no-such-codex-xyz'
+harness\tests\run-tests.ps1:92:$b = Test-CodexAvailable -Auth 'api-key' -CodexCommand 'git'   # binary present; api-key 
+mode probes only the env var
+harness\tests\run-tests.ps1:95:$c = Test-CodexAvailable -Auth 'api-key' -CodexCommand 'git'
+plugin\engine\lib\dispatch.sh:5:# (usage_limit_error) and invoke-codex.sh (codex_available, invoke_codex), which loop.sh 
+sources first.
+plugin\engine\lib\dispatch.sh:45:      if ! codex_available "$codex_auth" "$codex_cmd" >/dev/null 2>&1; then
+plugin\engine\lib\dispatch.sh:48:      if out="$(invoke_codex "$mode" "$prompt" "$root" "$log" "$codex_model" 
+"$codex_effort" "$codex_timeout" "$codex_cmd")"; then rc=0; else rc=$?; fi
+plugin\engine\lib\dispatch.ps1:6:  Get-Prop) and invoke-codex.ps1 (Test-CodexAvailable, Invoke-Codex), which the loop 
+sources first.
+plugin\engine\lib\dispatch.ps1:96:      $avail = Test-CodexAvailable -Auth $auth -CodexCommand $CodexCommand
+plugin\engine\lib\dispatch.ps1:98:      $res = Invoke-Codex -Mode $Mode -Prompt $Prompt -RepoRoot $RepoRoot -LogPath 
+$LogPath -CodexCfg $CodexCfg -CodexCommand $CodexCommand
+plugin\engine\loop.sh:38:source "$SCRIPT_DIR/lib/invoke-codex.sh"   # codex invocation (codex_available, invoke_codex) ÔÇö 
+dispatch.sh builds on it
+plugin/engine\lib\invoke-codex.sh:19:# codex_available <auth> [cmd] ÔÇö exit 0 if usable; on failure echoes the reason and 
+exits 1.
+plugin/engine\lib\invoke-codex.sh:23:codex_available() {
+plugin/engine\lib\invoke-codex.sh:43:# invoke_codex <mode> <prompt> <root> <log> <model> <effort> <timeout_s> [cmd] ÔÇö 
+echoes the
+plugin/engine\lib\invoke-codex.sh:46:invoke_codex() {
+plugin/engine\lib\invoke-codex.ps1:25:function Test-CodexAvailable {
+plugin/engine\lib\invoke-codex.ps1:66:function Invoke-Codex {
+plugin/engine\lib\dispatch.sh:5:# (usage_limit_error) and invoke-codex.sh (codex_available, invoke_codex), which loop.sh 
+sources first.
+plugin/engine\lib\dispatch.sh:45:      if ! codex_available "$codex_auth" "$codex_cmd" >/dev/null 2>&1; then
+plugin/engine\lib\dispatch.sh:48:      if out="$(invoke_codex "$mode" "$prompt" "$root" "$log" "$codex_model" 
+"$codex_effort" "$codex_timeout" "$codex_cmd")"; then rc=0; else rc=$?; fi
+plugin/engine\lib\dispatch.ps1:6:  Get-Prop) and invoke-codex.ps1 (Test-CodexAvailable, Invoke-Codex), which the loop 
+sources first.
+plugin/engine\lib\dispatch.ps1:96:      $avail = Test-CodexAvailable -Auth $auth -CodexCommand $CodexCommand
+plugin/engine\lib\dispatch.ps1:98:      $res = Invoke-Codex -Mode $Mode -Prompt $Prompt -RepoRoot $RepoRoot -LogPath 
+$LogPath -CodexCfg $CodexCfg -CodexCommand $CodexCommand
+plugin/engine\fleet.sh:46:source "$SCRIPT_DIR/lib/invoke-codex.sh"   # codex invocation (codex_available, invoke_codex)
+plugin/engine\fleet.ps1:56:. (Join-Path $PSScriptRoot 'lib/invoke-codex.ps1')   # codex invocation (Test-CodexAvailable, 
+Invoke-Codex)
+plugin/engine\fleet.ps1:174:    . (Join-Path $libDir 'invoke-codex.ps1')  # Test-CodexAvailable, Invoke-Codex
+harness\loop.sh:38:source "$SCRIPT_DIR/lib/invoke-codex.sh"   # codex invocation (codex_available, invoke_codex) ÔÇö 
+dispatch.sh builds on it
+harness\lib\invoke-codex.sh:19:# codex_available <auth> [cmd] ÔÇö exit 0 if usable; on failure echoes the reason and exits 
+1.
+harness\lib\invoke-codex.sh:23:codex_available() {
+harness\lib\invoke-codex.sh:43:# invoke_codex <mode> <prompt> <root> <log> <model> <effort> <timeout_s> [cmd] ÔÇö echoes the
+harness\lib\invoke-codex.sh:46:invoke_codex() {
+harness\lib\dispatch.sh:5:# (usage_limit_error) and invoke-codex.sh (codex_available, invoke_codex), which loop.sh sources 
+first.
+harness\lib\dispatch.sh:45:      if ! codex_available "$codex_auth" "$codex_cmd" >/dev/null 2>&1; then
+harness\lib\dispatch.sh:48:      if out="$(invoke_codex "$mode" "$prompt" "$root" "$log" "$codex_model" "$codex_effort" 
+"$codex_timeout" "$codex_cmd")"; then rc=0; else rc=$?; fi
+harness\lib\invoke-codex.ps1:25:function Test-CodexAvailable {
+harness\lib\invoke-codex.ps1:66:function Invoke-Codex {
+harness\lib\dispatch.ps1:6:  Get-Prop) and invoke-codex.ps1 (Test-CodexAvailable, Invoke-Codex), which the loop sources 
+first.
+harness\lib\dispatch.ps1:96:      $avail = Test-CodexAvailable -Auth $auth -CodexCommand $CodexCommand
+harness\lib\dispatch.ps1:98:      $res = Invoke-Codex -Mode $Mode -Prompt $Prompt -RepoRoot $RepoRoot -LogPath $LogPath 
+-CodexCfg $CodexCfg -CodexCommand $CodexCommand
+.claude\commands\work.md:47:   headless `claude -p`, not the rich subagent; acceptable for a fallback). Use 
+`Invoke-Codex`/`invoke_codex
+
+codex
+The symbol search found the expected direct API calls in `dispatch.*` and no remaining wrapper calls. IÔÇÖm also checking 
+the staged blobs themselves because this repoÔÇÖs twin invariant is stricter than ÔÇ£looks the same in the diff.ÔÇØ
+exec
+"C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command '$pairs = 
+@('"'fleet.ps1','fleet.sh','lib/invoke-codex.ps1','lib/invoke-codex.sh','loop.ps1','loop.sh'); foreach ("'$p in $pairs) { 
+$h = git show ":harness/$p" | git hash-object --stdin; $e = git show ":plugin/engine/$p" | git hash-object --stdin; 
+"$p`t$h`t$e`t$($h -eq $e)" }' in C:\Users\james\Repos\harness
+exec
+"C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command 'git diff --cached --check' in 
+C:\Users\james\Repos\harness
+exec
+"C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command 'git ls-files -s harness/lib/review-codex.ps1 
+harness/lib/review-codex.sh plugin/engine/lib/review-codex.ps1 plugin/engine/lib/review-codex.sh' in 
+C:\Users\james\Repos\harness
+exec
+"C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command "Select-String -Path harness\\loop.sh,harness\\fle
+et.sh,harness\\loop.ps1,harness\\fleet.ps1,plugin\\engine\\loop.sh,plugin\\engine\\fleet.sh,plugin\\engine\\loop.ps1,plugin\
+\engine\\fleet.ps1 -Pattern 'invoke-codex|dispatch' | ForEach-Object { \""'$($_.Path):$($_.LineNumber):$($_.Line.Trim())" 
+}' in C:\Users\james\Repos\harness
+ succeeded in 685ms:
+C:\Users\james\Repos\harness\harness\loop.sh:38:source "$SCRIPT_DIR/lib/invoke-codex.sh"   # codex invocation 
+(codex_available, invoke_codex) ÔÇö dispatch.sh builds on it
+C:\Users\james\Repos\harness\harness\loop.sh:39:source "$SCRIPT_DIR/lib/dispatch.sh"       # invoke_phase: 
+primary->fallback dispatcher (after gate + invoke-codex)
+C:\Users\james\Repos\harness\harness\loop.sh:126:# Route the judge through the cross-vendor dispatcher (invoke_phase, 
+READ-ONLY): primary = the resolved
+C:\Users\james\Repos\harness\harness\loop.sh:240:# Invoke the implement phase through the cross-vendor dispatcher 
+(invoke_phase). Prompt via STDIN (the
+C:\Users\james\Repos\harness\harness\loop.sh:244:# metering. The dispatcher runs $IMPLEMENT_MODEL (primary) and, ONLY on 
+codex-unavailability or a
+C:\Users\james\Repos\harness\harness\fleet.sh:46:source "$SCRIPT_DIR/lib/invoke-codex.sh"   # codex invocation 
+(codex_available, invoke_codex)
+C:\Users\james\Repos\harness\harness\fleet.sh:47:source "$SCRIPT_DIR/lib/dispatch.sh"       # invoke_phase: 
+primary->fallback dispatcher
+C:\Users\james\Repos\harness\harness\fleet.sh:162:# Route the worker build through the SAME dispatcher the loop uses 
+(invoke_phase, workspace-write): the
+C:\Users\james\Repos\harness\harness\loop.ps1:64:. (Join-Path $PSScriptRoot 'lib/invoke-codex.ps1')   # codex invocation 
+(Test-CodexAvailable, Invoke-Codex) ÔÇö dispatch.ps1 builds on it
+C:\Users\james\Repos\harness\harness\loop.ps1:65:. (Join-Path $PSScriptRoot 'lib/dispatch.ps1')       # Invoke-Phase: 
+primary->fallback dispatcher (after gate + invoke-codex)
+C:\Users\james\Repos\harness\harness\loop.ps1:132:# Route the judge through the cross-vendor dispatcher (Invoke-Phase, 
+READ-ONLY): -Primary is the
+C:\Users\james\Repos\harness\harness\loop.ps1:278:# --- invoke the implement phase through the cross-vendor dispatcher 
+(Invoke-Phase) ---
+C:\Users\james\Repos\harness\harness\loop.ps1:280:# dispatcher's claude arm pipes it in (the documented `cat file | claude 
+-p` pattern) and Tee's the
+C:\Users\james\Repos\harness\harness\loop.ps1:284:# The dispatcher runs $implementModel (primary) and, ONLY on 
+codex-unavailability or a usage-limit
+C:\Users\james\Repos\harness\harness\loop.ps1:301:Update-BudgetFromLog -LogPath $iterLog   # the dispatcher wrote the 
+transcript to $iterLog
+C:\Users\james\Repos\harness\harness\fleet.ps1:56:. (Join-Path $PSScriptRoot 'lib/invoke-codex.ps1')   # codex invocation 
+(Test-CodexAvailable, Invoke-Codex)
+C:\Users\james\Repos\harness\harness\fleet.ps1:57:. (Join-Path $PSScriptRoot 'lib/dispatch.ps1')       # Invoke-Phase: 
+primary->fallback dispatcher (workers re-source it in-job)
+C:\Users\james\Repos\harness\harness\fleet.ps1:157:# Route the worker build through the SAME dispatcher the loop uses 
+(Invoke-Phase, workspace-write): the
+C:\Users\james\Repos\harness\harness\fleet.ps1:174:. (Join-Path $libDir 'invoke-codex.ps1')  # Test-CodexAvailable, 
+Invoke-Codex
+C:\Users\james\Repos\harness\harness\fleet.ps1:175:. (Join-Path $libDir 'dispatch.ps1')      # Invoke-Phase
+C:\Users\james\Repos\harness\plugin\engine\loop.sh:38:source "$SCRIPT_DIR/lib/invoke-codex.sh"   # codex invocation 
+(codex_available, invoke_codex) ÔÇö dispatch.sh builds on it
+C:\Users\james\Repos\harness\plugin\engine\loop.sh:39:source "$SCRIPT_DIR/lib/dispatch.sh"       # invoke_phase: 
+primary->fallback dispatcher (after gate + invoke-codex)
+C:\Users\james\Repos\harness\plugin\engine\loop.sh:126:# Route the judge through the cross-vendor dispatcher (invoke_phase, 
+READ-ONLY): primary = the resolved
+C:\Users\james\Repos\harness\plugin\engine\loop.sh:240:# Invoke the implement phase through the cross-vendor dispatcher 
+(invoke_phase). Prompt via STDIN (the
+C:\Users\james\Repos\harness\plugin\engine\loop.sh:244:# metering. The dispatcher runs $IMPLEMENT_MODEL (primary) and, ONLY 
+on codex-unavailability or a
+C:\Users\james\Repos\harness\plugin\engine\fleet.sh:46:source "$SCRIPT_DIR/lib/invoke-codex.sh"   # codex invocation 
+(codex_available, invoke_codex)
+C:\Users\james\Repos\harness\plugin\engine\fleet.sh:47:source "$SCRIPT_DIR/lib/dispatch.sh"       # invoke_phase: 
+primary->fallback dispatcher
+C:\Users\james\Repos\harness\plugin\engine\fleet.sh:162:# Route the worker build through the SAME dispatcher the loop uses 
+(invoke_phase, workspace-write): the
+C:\Users\james\Repos\harness\plugin\engine\loop.ps1:64:. (Join-Path $PSScriptRoot 'lib/invoke-codex.ps1')   # codex 
+invocation (Test-CodexAvailable, Invoke-Codex) ÔÇö dispatch.ps1 builds on it
+C:\Users\james\Repos\harness\plugin\engine\loop.ps1:65:. (Join-Path $PSScriptRoot 'lib/dispatch.ps1')       # Invoke-Phase: 
+primary->fallback dispatcher (after gate + invoke-codex)
+C:\Users\james\Repos\harness\plugin\engine\loop.ps1:132:# Route the judge through the cross-vendor dispatcher 
+(Invoke-Phase, READ-ONLY): -Primary is the
+C:\Users\james\Repos\harness\plugin\engine\loop.ps1:278:# --- invoke the implement phase through the cross-vendor 
+dispatcher (Invoke-Phase) ---
+C:\Users\james\Repos\harness\plugin\engine\loop.ps1:280:# dispatcher's claude arm pipes it in (the documented `cat file | 
+claude -p` pattern) and Tee's the
+C:\Users\james\Repos\harness\plugin\engine\loop.ps1:284:# The dispatcher runs $implementModel (primary) and, ONLY on 
+codex-unavailability or a usage-limit
+C:\Users\james\Repos\harness\plugin\engine\loop.ps1:301:Update-BudgetFromLog -LogPath $iterLog   # the dispatcher wrote the 
+transcript to $iterLog
+C:\Users\james\Repos\harness\plugin\engine\fleet.ps1:56:. (Join-Path $PSScriptRoot 'lib/invoke-codex.ps1')   # codex 
+invocation (Test-CodexAvailable, Invoke-Codex)
+C:\Users\james\Repos\harness\plugin\engine\fleet.ps1:57:. (Join-Path $PSScriptRoot 'lib/dispatch.ps1')       # 
+Invoke-Phase: primary->fallback dispatcher (workers re-source it in-job)
+C:\Users\james\Repos\harness\plugin\engine\fleet.ps1:157:# Route the worker build through the SAME dispatcher the loop uses 
+(Invoke-Phase, workspace-write): the
+C:\Users\james\Repos\harness\plugin\engine\fleet.ps1:174:. (Join-Path $libDir 'invoke-codex.ps1')  # Test-CodexAvailable, 
+Invoke-Codex
+C:\Users\james\Repos\harness\plugin\engine\fleet.ps1:175:. (Join-Path $libDir 'dispatch.ps1')      # Invoke-Phase
+
+ succeeded in 837ms:
+warning: unable to access 'C:\Users\james/.config/git/ignore': Permission denied
+
+ succeeded in 848ms:
+ succeeded in 1546ms:
+fleet.ps1	662c0bd0dc672292bcca0d8f9ad1abd832029eb4	662c0bd0dc672292bcca0d8f9ad1abd832029eb4	True
+fleet.sh	e9b2a3b89b8493c0d69dedaab9942cf618f579e1	e9b2a3b89b8493c0d69dedaab9942cf618f579e1	True
+lib/invoke-codex.ps1	57b2a52e0031021d873490ea347618bd30864a1d	57b2a52e0031021d873490ea347618bd30864a1d	True
+lib/invoke-codex.sh	def6a899f4bf68480503e97b7ebb0a7986a3dca7	def6a899f4bf68480503e97b7ebb0a7986a3dca7	True
+loop.ps1	984e6ba7247ba9e8958e5e1567f014d89e23930f	984e6ba7247ba9e8958e5e1567f014d89e23930f	True
+loop.sh	c9e4463791225e65a6f0fba348a2a29e4379c1da	c9e4463791225e65a6f0fba348a2a29e4379c1da	True
+
+codex
+Ordering is intact in all four entry points and in the PowerShell fleet job re-source path: `invoke-codex` is loaded 
+immediately before `dispatch`. The staged hashes also match for every edited twin, and the deleted shim files are absent 
+from the index.
+exec
+"C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command 'git grep --cached -n -E "source 
+.*invoke-codex|Join-Path .*invoke-codex|source .*dispatch|Join-Path .*dispatch" -- harness/loop.sh harness/fleet.sh 
+harness/loop.ps1 harness/fleet.ps1 plugin/engine/loop.sh plugin/engine/fleet.sh plugin/engine/loop.ps1 
+plugin/engine/fleet.ps1' in C:\Users\james\Repos\harness
+exec
+"C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command "git grep --cached -n -E 
+\"codex_review|Invoke-CodexReview|lib/review-codex\\.(sh|ps1)|source .*review-codex|Join-Path .*review-codex\" -- . 
+2>"'$null' in C:\Users\james\Repos\harness
+exec
+"C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command "git grep --cached -n -E \"source 
+\\\"\\"'$LIB/invoke-codex'"\\.sh\\\"|Join-Path \\"'$libDir '"'invoke-codex\\.ps1'|review-codex\" -- 
+harness/tests/run-tests.sh harness/tests/run-tests.ps1" in C:\Users\james\Repos\harness
+ succeeded in 513ms:
+AGENT_NOTES.md:60:  wrappers (`Invoke-CodexReview`/`codex_review`) preserve every existing call site ÔÇö loop/fleet 
+untouched.
+docs/execution-plans/2026-07-13-model-routing-parallelism-context.md:74:### Mechanism ÔÇö new 
+`harness/lib/review-codex.ps1` + `.sh`
+state/evidence/2026-07-14-cross-vendor-s2/RESULTS.md:27:  `Invoke-CodexReview`/`codex_review` (read-only wrappers). No 
+wiring changed (S3 does that).
+state/evidence/2026-07-14-cross-vendor-s2/diffstat.txt:6: harness/lib/review-codex.ps1                       |  98 
++----------------
+state/evidence/2026-07-14-cross-vendor-s2/diffstat.txt:7: harness/lib/review-codex.sh                        |  54 +--------
+state/evidence/2026-07-14-cross-vendor-s2/diffstat.txt:14: plugin/engine/lib/review-codex.ps1                 |  98 
++----------------
+state/evidence/2026-07-14-cross-vendor-s2/diffstat.txt:15: plugin/engine/lib/review-codex.sh                  |  54 
++--------
+state/evidence/2026-07-14-cross-vendor-s3/run-tests-sh.txt:29:  ok  shim sources invoke-codex (invoke_codex + codex_review 
+defined)
+
+2026-07-15T09:11:19.350310Z ERROR codex_core::tools::router: error=Exit code: 1
+Wall time: 1.2 seconds
+Output:
+fatal: ambiguous argument '\': unknown revision or path not in the working tree.
+Use '--' to separate paths from revisions, like this:
+'git <command> [<revision>...] -- [<file>...]'
+
+ exited 1 in 1161ms:
+fatal: ambiguous argument '\': unknown revision or path not in the working tree.
+Use '--' to separate paths from revisions, like this:
+'git <command> [<revision>...] -- [<file>...]'
+
+ succeeded in 1554ms:
+harness/fleet.ps1:56:. (Join-Path $PSScriptRoot 'lib/invoke-codex.ps1')   # codex invocation (Test-CodexAvailable, 
+Invoke-Codex)
+harness/fleet.ps1:57:. (Join-Path $PSScriptRoot 'lib/dispatch.ps1')       # Invoke-Phase: primary->fallback dispatcher 
+(workers re-source it in-job)
+harness/fleet.ps1:174:    . (Join-Path $libDir 'invoke-codex.ps1')  # Test-CodexAvailable, Invoke-Codex
+harness/fleet.ps1:175:    . (Join-Path $libDir 'dispatch.ps1')      # Invoke-Phase
+harness/fleet.sh:46:source "$SCRIPT_DIR/lib/invoke-codex.sh"   # codex invocation (codex_available, invoke_codex)
+harness/fleet.sh:47:source "$SCRIPT_DIR/lib/dispatch.sh"       # invoke_phase: primary->fallback dispatcher
+harness/loop.ps1:64:. (Join-Path $PSScriptRoot 'lib/invoke-codex.ps1')   # codex invocation (Test-CodexAvailable, 
+Invoke-Codex) ÔÇö dispatch.ps1 builds on it
+harness/loop.ps1:65:. (Join-Path $PSScriptRoot 'lib/dispatch.ps1')       # Invoke-Phase: primary->fallback dispatcher 
+(after gate + invoke-codex)
+harness/loop.sh:38:source "$SCRIPT_DIR/lib/invoke-codex.sh"   # codex invocation (codex_available, invoke_codex) ÔÇö 
+dispatch.sh builds on it
+harness/loop.sh:39:source "$SCRIPT_DIR/lib/dispatch.sh"       # invoke_phase: primary->fallback dispatcher (after gate + 
+invoke-codex)
+plugin/engine/fleet.ps1:56:. (Join-Path $PSScriptRoot 'lib/invoke-codex.ps1')   # codex invocation (Test-CodexAvailable, 
+Invoke-Codex)
+plugin/engine/fleet.ps1:57:. (Join-Path $PSScriptRoot 'lib/dispatch.ps1')       # Invoke-Phase: primary->fallback 
+dispatcher (workers re-source it in-job)
+plugin/engine/fleet.ps1:174:    . (Join-Path $libDir 'invoke-codex.ps1')  # Test-CodexAvailable, Invoke-Codex
+plugin/engine/fleet.ps1:175:    . (Join-Path $libDir 'dispatch.ps1')      # Invoke-Phase
+plugin/engine/fleet.sh:46:source "$SCRIPT_DIR/lib/invoke-codex.sh"   # codex invocation (codex_available, invoke_codex)
+plugin/engine/fleet.sh:47:source "$SCRIPT_DIR/lib/dispatch.sh"       # invoke_phase: primary->fallback dispatcher
+plugin/engine/loop.ps1:64:. (Join-Path $PSScriptRoot 'lib/invoke-codex.ps1')   # codex invocation (Test-CodexAvailable, 
+Invoke-Codex) ÔÇö dispatch.ps1 builds on it
+plugin/engine/loop.ps1:65:. (Join-Path $PSScriptRoot 'lib/dispatch.ps1')       # Invoke-Phase: primary->fallback dispatcher 
+(after gate + invoke-codex)
+plugin/engine/loop.sh:38:source "$SCRIPT_DIR/lib/invoke-codex.sh"   # codex invocation (codex_available, invoke_codex) ÔÇö 
+dispatch.sh builds on it
+plugin/engine/loop.sh:39:source "$SCRIPT_DIR/lib/dispatch.sh"       # invoke_phase: primary->fallback dispatcher (after 
+gate + invoke-codex)
+
+codex
+The only remaining wrapper/shim mentions in the staged index are historical docs/evidence, not executable call sites. IÔÇÖm 
+doing one last test-file sanity check because those were edited in this slice.
+exec
+"C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command 'git grep --cached -n -E 
+"Invoke-CodexReview|codex_review" -- harness plugin/engine .claude plugin/commands 2>$null' in C:\Users\james\Repos\harness
+exec
+"C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command 'git diff --cached -- harness/tests/run-tests.sh 
+harness/tests/run-tests.ps1' in C:\Users\james\Repos\harness
+exec
+"C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command "Select-String -Path 
+harness\\tests\\run-tests.sh,harness\\tests\\run-tests.ps1 -Pattern 
+'invoke-codex|review-codex|Invoke-CodexReview|codex_review' | ForEach-Object { 
+\""'$($_.Path):$($_.LineNumber):$($_.Line.Trim())" }' in C:\Users\james\Repos\harness
+2026-07-15T09:11:27.963102Z ERROR codex_core::tools::router: error=Exit code: 1
+Wall time: 0.9 seconds
+Output:
+
+ exited 1 in 874ms:
+ succeeded in 922ms:
+C:\Users\james\Repos\harness\harness\tests\run-tests.sh:36:# shellcheck source=../lib/invoke-codex.sh
+C:\Users\james\Repos\harness\harness\tests\run-tests.sh:37:source "$LIB/invoke-codex.sh"   # codex_available needs no jq 
+and no codex install
+C:\Users\james\Repos\harness\harness\tests\run-tests.ps1:17:. (Join-Path $libDir 'invoke-codex.ps1')
+
+ succeeded in 994ms:
+diff --git a/harness/tests/run-tests.ps1 b/harness/tests/run-tests.ps1
+index 137616d..8fb6334 100644
+--- a/harness/tests/run-tests.ps1
++++ b/harness/tests/run-tests.ps1
+@@ -106,7 +106,6 @@ ok "global flags precede the exec subcommand"      ([array]::IndexOf($ro,'--sand
+ ok "model passed through as -m"                     (($ro -join ' ') -match '-m gpt-x')
+ ok "effort passed as model_reasoning_effort"        (($ro -join ' ') -match 'model_reasoning_effort="high"')
+ ok "no model => no -m flag"                         (-not (($ww -join ' ') -match '(^| )-m ') )
+-ok "read-only wrapper still exists (back-compat)"   ([bool](Get-Command Invoke-CodexReview -ErrorAction SilentlyContinue))
+ 
+ Write-Host "usage-limit predicate: vendor-neutral markers (drives S3 fallback)"
+ ok "detects 'usage limit'"        (Test-UsageLimitError 'Error: monthly usage limit reached')
+@@ -119,11 +118,6 @@ ok "clean output => false"        (-not (Test-UsageLimitError 'review complete.
+ ok "stray 429 tokens => false"    (-not (Test-UsageLimitError 'processed 429 files successfully'))
+ ok "empty output => false"        (-not (Test-UsageLimitError ''))
+ 
+-Write-Host "back-compat shim: review-codex.ps1 still exposes the codex API"
+-. (Join-Path $libDir 'review-codex.ps1')
+-ok "shim loads Test-CodexAvailable" ([bool](Get-Command Test-CodexAvailable -ErrorAction SilentlyContinue))
+-ok "shim loads Invoke-Codex"        ([bool](Get-Command Invoke-Codex -ErrorAction SilentlyContinue))
+-
+ Write-Host "model routing: Resolve-PhaseModel (config.models -> --model; '' = inherit)"
+ $mcfg = [pscustomobject]@{ models = [pscustomobject]@{ implement='opus'; reviewFallback='fable' } }
+ ok "resolves implement model"          ((Resolve-PhaseModel $mcfg 'implement') -eq 'opus')
+diff --git a/harness/tests/run-tests.sh b/harness/tests/run-tests.sh
+index deda9d4..6065e59 100644
+--- a/harness/tests/run-tests.sh
++++ b/harness/tests/run-tests.sh
+@@ -61,12 +61,6 @@ usage_limit_error 'review complete VERDICT: SHIP' && ok 0 "clean output => false
+ usage_limit_error 'processed 429 files'           && ok 0 "stray 429 => false"       || ok 1 "stray 429 => false"
+ usage_limit_error ''                              && ok 0 "empty => false"           || ok 1 "empty => false"
+ 
+-echo "back-compat shim: review-codex.sh still exposes the codex API"
+-# loop.sh sources the shim (not invoke-codex.sh directly); assert it re-exposes the API from any cwd.
+-( source "$LIB/review-codex.sh" && command -v invoke_codex >/dev/null 2>&1 && command -v codex_review >/dev/null 2>&1 ) \
+-  && ok 1 "shim sources invoke-codex (invoke_codex + codex_review defined)" \
+-  || ok 0 "shim sources invoke-codex (invoke_codex + codex_review defined)"
+-
+ echo "block-destructive hook: blocks dangerous, allows safe"
+ hookrc() {  # $1 = command (no quotes/backslashes in our test inputs) ; echoes hook exit code
+   printf '{"tool_name":"Bash","tool_input":{"command":"%s"}}' "$1" \
+warning: unable to access 'C:\Users\james/.config/git/ignore': Permission denied
+
+codex
+No findings.
+
+I verified no executable caller still references `codex_review`, `Invoke-CodexReview`, or `review-codex.*`; remaining 
+mentions are historical docs/evidence only. `invoke-codex.*` is sourced before `dispatch.*` in loop, fleet, and the 
+PowerShell fleet job runspace. Staged twin hashes match for every edited engine file, and the test removals are limited to 
+shim/wrapper assertions while tests still source `invoke-codex.*` directly.
+
+VERDICT: SHIP
+tokens used
+27,341
+No findings.
+
+I verified no executable caller still references `codex_review`, `Invoke-CodexReview`, or `review-codex.*`; remaining mentions are historical docs/evidence only. `invoke-codex.*` is sourced before `dispatch.*` in loop, fleet, and the PowerShell fleet job runspace. Staged twin hashes match for every edited engine file, and the test removals are limited to shim/wrapper assertions while tests still source `invoke-codex.*` directly.
+
+VERDICT: SHIP
+

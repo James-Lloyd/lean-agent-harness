@@ -1,0 +1,11 @@
+twin byte-parity (git diff --no-index; empty output = identical):
+  SYNC   lib/dispatch.ps1
+  SYNC   lib/dispatch.sh
+  SYNC   lib/gate.ps1
+  SYNC   lib/gate.sh
+  SYNC   loop.ps1
+  SYNC   loop.sh
+BOM on new/edited .ps1 twins (expect ef bb bf):
+  plugin/engine/lib/dispatch.ps1:  ef bb bf
+  plugin/engine/lib/gate.ps1:  ef bb bf
+  plugin/engine/loop.ps1:  ef bb bf

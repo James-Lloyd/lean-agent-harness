@@ -1,0 +1,24 @@
+fleet queue: live-fire with stub claude (merge, record, tamper-park)
+  ok  T-A output merged to main tree
+  ok  T-B output merged to main tree
+  ok  T-EVIL work did NOT land
+  ok  T-A merge commit exists
+  ok  T-B merge commit exists
+  ok  no T-EVIL commit
+  ok  T-A recorded validated
+  ok  T-B passes=true
+  ok  T-EVIL still todo
+  ok  T-EVIL parked in ledger
+  ok  T-CRASH parked with its real exit code
+  ok  T-CRASH work did not land
+  ok  tamper surfaced in handoff.md
+  ok  T-EVIL branch kept
+  ok  T-A branch cleaned up
+  ok  tracked tree clean after fleet
+  ok  T-FB built by the FALLBACK model
+  ok  T-FB merge commit exists
+  ok  T-FB recorded validated
+  ok  dry-run invoked no model
+  ok  dry-run left no new fleet branches
+  ok  dry-run left no new worktrees
+FLEET QUEUE RESULT: 22 passed, 0 failed

@@ -1,0 +1,4 @@
+### run-tests.ps1 (PowerShell, authoritative) ===
+  ok  hook dispatcher self-test passes (node)
+
+RESULT: 79 passed, 0 failed

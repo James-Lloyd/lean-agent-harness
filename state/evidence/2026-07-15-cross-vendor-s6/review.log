@@ -1,0 +1,1474 @@
+﻿node.exe : OpenAI Codex v0.144.3
+At C:\Users\james\AppData\Roaming\npm\codex.ps1:22 char:14
++ ...    $input | & "node$exe"  "$basedir/node_modules/@openai/codex/bin/co ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (OpenAI Codex v0.144.3:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+--------
+workdir: C:\Users\james\Repos\harness
+model: gpt-5.5
+provider: openai
+approval: never
+sandbox: read-only
+reasoning effort: high
+reasoning summaries: none
+session id: 019f64f5-3e66-7b93-ae98-ab8d5c770896
+--------
+user
+You are a fresh-context, skeptical code reviewer. Judge ONLY the diff described below on its own merits
+against the written spec ???????? you have NOT seen the conversation that produced it. This is a DOCS-ONLY change
+to two Claude Code slash-command markdown files (and their byte-identical plugin twins). Do not run any
+write commands; you are in a read-only sandbox. You MAY read files in the repo to verify claims.
+
+## The task (fix_plan item "Cross-vendor S6")
+Rewrite `/harness-doctor` check 10 + add a `/harness-init` per-phase model interview.
+Done when: check 10 (+plugin twin) validates the `{model,fallback}` schema across surfaces
+???????? (a) value legality (each model/fallback is a known Claude alias/ID OR the literal `codex`),
+(b) session must be Claude, (c) each agent frontmatter `model:` == its phase's PRIMARY when Claude,
+ELSE (primary==codex) == the phase's Claude FALLBACK, (d) no `codex->codex` fallback is allowed,
+(e) codex reachability probe stays ???????????? (not ??????) and reports for EVERY codex-routed phase ????????
+AND `/harness-init` (+twin) interactively picks model+fallback per phase with recommended defaults.
+
+## The authoritative spec
+`docs/execution-plans/2026-07-14-cross-vendor-per-phase-model-routing.md` ???????? read ????4a (default table),
+????4e (doctor check 10, the five rules), ????4f (harness-init interview). The diff must faithfully encode
+????4e in check 10 and ????4f in the init model-routing bullet.
+
+## Ground-truth facts to check the docs against (verify by reading the files)
+- Shipped config `harness/harness.config.json` ???????? `models`:
+  session={opus,null}, explore={haiku,null}, plan={fable,null}, implement={opus,codex},
+  review={codex,fable}, evaluate={fable,null}, docs={haiku,null}, codex block present.
+- `.claude/settings.json` model == opus (== session.model, Claude ???????).
+- Agent frontmatters (`.claude/agents/*.md`): planner=fable, generator=opus, reviewer=fable,
+  explorer=haiku, evaluator=fable, doc-gardener=haiku.
+- The phase????????agent map the doctor must assert: planner????????plan, generator????????implement, 
+explorer????????explore,
+  reviewer????????review, evaluator????????evaluate, doc-gardener????????docs.
+- The interesting branch: review.primary==codex, so `reviewer` frontmatter must equal review's CLAUDE
+  FALLBACK (fable), NOT codex. Check the diff's check 10 says this correctly, and that the harness-init
+  table/prose says it too.
+
+## The diff under review (staged)
+See `state/evidence/2026-07-15-cross-vendor-s6/staged.diff` in the repo (read it). The two changed files are:
+- `.claude/commands/harness-doctor.md` ???????? check 10 rewrite.
+- `.claude/commands/harness-init.md` ???????? the "Model routing" bullet in Step 3.
+(The plugin twins `plugin/commands/harness-doctor.md` and `plugin/commands/harness-init.md` are asserted
+byte-identical by git index-blob hash ???????? you need not re-verify that; focus on correctness of the prose.)
+
+## What to judge
+1. Correctness vs ????4e: do all five rules (a????????e) appear in check 10, stated accurately? In particular is
+   rule (c) the "frontmatter == primary-when-Claude, else the phase's Claude fallback" rule correct, and
+   does it correctly identify the `reviewer`????????`fable` branch under the shipped config?
+2. Correctness vs ????4f: does the init bullet walk each phase picking model+fallback with the ????4a
+   recommended defaults, honoring "session must be Claude" and "no codex->codex"?
+3. Legacy tolerance: does check 10 still accept the legacy flat `"phase":"alias"` form and legacy
+   top-level `reviewFallback` as valid (not drift), per Decision 2 / the resolver's behavior?
+4. Internal consistency: any claim in the new prose that contradicts the shipped config or the actual
+   agent frontmatters? Any leftover reference to the OLD flat-only mapping (e.g. `models.reviewFallback`
+   as the reviewer's phase, or "three surfaces" language that misdescribes the new checks)?
+5. Any factual error, omission, or ambiguity that would make a future agent RUNNING /harness-doctor or
+   /harness-init do the wrong thing.
+
+## Output
+A verdict line: `VERDICT: SHIP` | `VERDICT: FIX-THEN-SHIP` | `VERDICT: REJECT`, then a short numbered
+list of findings (each: severity, file, the problem, the fix). If SHIP with no findings, say so plainly.
+Be concrete and cite the exact prose. Do not nitpick style; judge correctness against the spec.
+
+
+codex
+IÔÇÖll review the staged docs diff against the local spec and current config/frontmatter only. IÔÇÖm going to read the 
+referenced spec sections, the staged diff, and the shipped files needed to verify the factual branches.
+exec
+"C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command "Get-Content -Raw 
+state\\evidence\\2026-07-15-cross-vendor-s6\\staged.diff" in C:\Users\james\Repos\harness
+exec
+"C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command "Get-Content -Raw state\\fix_plan.md" in 
+C:\Users\james\Repos\harness
+exec
+"C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command 'Get-Content -Raw CLAUDE.md' in 
+C:\Users\james\Repos\harness
+exec
+"C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command "Get-Content -Raw 
+docs\\execution-plans\\2026-07-14-cross-vendor-per-phase-model-routing.md" in C:\Users\james\Repos\harness
+2026-07-15T08:47:18.257023Z ERROR codex_core::exec: exec error: windows sandbox: CreateProcessWithLogonW failed: 5
+2026-07-15T08:47:18.265441Z ERROR codex_core::tools::router: error=execution error: Io(Custom { kind: Other, error: 
+"windows sandbox: CreateProcessWithLogonW failed: 5" })
+ exited -1 in 0ms:
+execution error: Io(Custom { kind: Other, error: "windows sandbox: CreateProcessWithLogonW failed: 5" })
+ succeeded in 3243ms:
+diff --git a/.claude/commands/harness-doctor.md b/.claude/commands/harness-doctor.md
+index 559eb91..c327647 100644
+--- a/.claude/commands/harness-doctor.md
++++ b/.claude/commands/harness-doctor.md
+@@ -53,15 +53,34 @@ behaves oddly.
+    `reviewEveryNIterations == 0` (the unattended loop will run the deterministic gate with no inferential
+    judge ├óÔé¼ÔÇØ fine, but say so).
+ 
+-10. **Model routing agrees across its three surfaces.** `config.models` is the declared table; check the
+-    mechanisms match it: `.claude/settings.json` `model` == `models.session`; each agent's frontmatter
+-    `model:` matches its phase (`planner`├óÔÇáÔÇÖ`models.plan`, `generator`├óÔÇáÔÇÖ`models.implement`,
+-    `explorer`├óÔÇáÔÇÖ`models.explore`, `reviewer`├óÔÇáÔÇÖ`models.reviewFallback`, `evaluator`├óÔÇáÔÇÖ`models.evaluate`,
+-    `doc-gardener`├óÔÇáÔÇÖ`models.docs`). A missing `models` block is ├ó┼ôÔÇª (routing is optional ├óÔé¼ÔÇØ everything
+-    inherits); a *partial* mismatch is ├ó┬Ø┼Æ (silent drift is exactly what this check exists to catch).
+-    If `models.review == "codex"`: probe `codex --version` and (auth `chatgpt`) `codex login status`
+-    exit 0, or (auth `api-key`) `CODEX_API_KEY` set ├óÔé¼ÔÇØ unavailable is ├ó┼í┬á├»┬©┬Å not ├ó┬Ø┼Æ (review falls back to
+-    `models.reviewFallback` by design; say which path a review would take today).
++10. **Model routing agrees across its surfaces (per-phase `{model, fallback}`).** `config.models` is the
++    declared table ├óÔé¼ÔÇØ each phase is `{ "model": <primary>, "fallback": <secondary|null> }`, where every
++    value is a **known Claude alias** (`opus`/`sonnet`/`haiku`/`fable`) or a full `claude-*` ID, **or**
++    the literal **`"codex"`** (cross-vendor OpenAI Codex CLI). Be **tolerant of the legacy flat shape**:
++    a bare `"phase": "alias"` normalizes to `{model:"alias", fallback:null}`, and a legacy top-level
++    `reviewFallback` to `review.fallback` ├óÔé¼ÔÇØ treat both as valid, not drift (the resolver normalizes
++    them). A missing `models` block is ├ó┼ôÔÇª (routing is optional ├óÔé¼ÔÇØ everything inherits the session model);
++    a *partial* mismatch is ├ó┬Ø┼Æ (silent drift is exactly what this check exists to catch). Verify, in order:
++    - **(a) Value legality.** Every `model`/`fallback` is a known Claude alias/ID or `"codex"`; anything
++      else (typo, retired alias) is ├ó┬Ø┼Æ.
++    - **(b) Session is Claude.** `.claude/settings.json` `model` == `models.session.model`, and
++      `session.model` must be a **Claude** model ├óÔé¼ÔÇØ `session.model == "codex"` is ├ó┬Ø┼Æ (the main window is
++      Claude and can't be swapped mid-session, so `session.fallback` is ignored).
++    - **(c) Frontmatter tracks the phase's Claude landing model.** Each agent's `model:` frontmatter must
++      match its phase ├óÔé¼ÔÇØ `planner`├óÔÇáÔÇÖ`plan`, `generator`├óÔÇáÔÇÖ`implement`, `explorer`├óÔÇáÔÇÖ`explore`,
++      `reviewer`├óÔÇáÔÇÖ`review`, `evaluator`├óÔÇáÔÇÖ`evaluate`, `doc-gardener`├óÔÇáÔÇÖ`docs`. The rule: frontmatter == the
++      phase's **primary** when the primary is a Claude model; when the primary is `"codex"`, frontmatter
++      must == the phase's **Claude `fallback`** (so a spawned subagent still lands on the right model) and
++      you note "phase is codex-routed ├óÔé¼ÔÇØ frontmatter tracks its Claude fallback." With the shipped config
++      this is the `reviewer` branch (`review = {codex, fable}` ├óÔÇáÔÇÖ `reviewer` frontmatter must be `fable`).
++    - **(d) No `codex ├óÔÇáÔÇÖ codex` fallback.** A `fallback` equal to a `codex` primary is ├ó┬Ø┼Æ ├óÔé¼ÔÇØ there is no
++      cross-vendor escape hatch beyond one hop, so both candidates being codex leaves a usage-limit stop
++      nowhere to go.
++    - **(e) Codex reachability (├ó┼í┬á├»┬©┬Å not ├ó┬Ø┼Æ), for every codex-routed phase.** For **each** phase whose
++      `model` OR `fallback` is `"codex"`, probe `codex --version` and (auth `chatgpt`) `codex login
++      status` exit 0, or (auth `api-key`) `CODEX_API_KEY` set. Unavailable is ├ó┼í┬á├»┬©┬Å not ├ó┬Ø┼Æ ├óÔé¼ÔÇØ that phase 
+runs
++      on (or falls back to) its Claude arm by design; say which path each codex-routed phase would take
++      today.
+ 
+ ## Output
+ A short checklist (one line per check, ├ó┼ôÔÇª/├ó┼í┬á├»┬©┬Å/├ó┬Ø┼Æ + the finding) and, at the end, the single most 
+important
+diff --git a/.claude/commands/harness-init.md b/.claude/commands/harness-init.md
+index 7190aec..17bc15a 100644
+--- a/.claude/commands/harness-init.md
++++ b/.claude/commands/harness-init.md
+@@ -87,12 +87,30 @@ With answers in hand:
+   `fleet.sh`) so `powershell harness/loop.ps1 ├óÔé¼┬ª` and cron keep working; they locate the installed engine
+   and dispatch `--project-root <repo>`. `harness/` then holds only `harness.config.json` + these wrappers
+   + gitignored runtime ├óÔé¼ÔÇØ no engine code.
+-- **Model routing** ├óÔé¼ÔÇØ ask whether the shipped `models` defaults suit this project (session opus /
+-  explore haiku / plan fable / implement opus / review codex├óÔÇáÔÇÖfable fallback). If changed, update
+-  `config.models` AND its mechanisms together: `.claude/settings.json` `model` (= `models.session`) and
+-  the `model:` frontmatter of the matching `.claude/agents/*.md`. `/harness-doctor` check 10 fails on
+-  drift between the three surfaces. If review stays `codex`, confirm the codex CLI is installed and
+-  signed in (`codex login`); otherwise reviews silently use the fallback model.
++- **Model routing (per phase, `{model, fallback}`).** Walk the human through each phase (batched via
++  AskUserQuestion) and pick a **primary `model`** and a **`fallback`** ├óÔé¼ÔÇØ the model to use when the
++  primary is unavailable or hits a usage/limit error. Each may be a **Claude alias**
++  (`opus`/`sonnet`/`haiku`/`fable`) or the literal **`codex`** (cross-vendor OpenAI Codex CLI);
++  `fallback: null` = no fallback. Lead with the shipped **recommended defaults** and let them accept or
++  override per phase:
++  | Phase | model | fallback | why |
++  |-------|-------|----------|-----|
++  | `session` | `opus` | (n/a) | the main window ├óÔé¼ÔÇØ **must be Claude**, never codex |
++  | `explore` | `haiku` | `null` | cheap read-only scout |
++  | `plan` | `fable` | `null` | fast planner |
++  | `implement` | `opus` | `codex` | strongest builder + cross-vendor safety net on a usage cap |
++  | `review` | `codex` | `fable` | independent cross-vendor judge, Claude fallback |
++  | `evaluate` | `fable` | `null` | rubric scorer |
++  | `docs` | `haiku` | `null` | doc gardener |
++
++  Constraints to honor as you pick: `session.model` **must be Claude** (never `codex`); a `fallback` must
++  not equal a `codex` primary (no `codex├óÔÇáÔÇÖcodex`). Then write all surfaces **together**: `config.models`
++  (nested `{model,fallback}` per phase), `.claude/settings.json` `model` (= `session.model`), and the
++  `model:` frontmatter of each `.claude/agents/*.md` ├óÔé¼ÔÇØ frontmatter tracks the phase's **primary** when
++  that's Claude, else (primary `codex`) the phase's **Claude `fallback`** (so `reviewer` frontmatter is
++  `review`'s fallback = `fable` under the defaults). `/harness-doctor` check 10 enforces exactly this. For
++  any phase routed to `codex` (as primary or fallback), confirm the codex CLI is installed and signed in
++  (`codex login`); otherwise that phase silently runs on its Claude arm.
+ - **Allowlist the gate** ├óÔé¼ÔÇØ append the project's gate commands discovered in the interview (the test/
+   build/lint runners, e.g. `Bash(pnpm test:*)`, `Bash(uv run pytest:*)`) to `permissions.allow` in
+   `.claude/settings.json`. Why: in headless `-p` runs nobody answers permission prompts ├óÔé¼ÔÇØ non-allowlisted
+
+
+ succeeded in 3243ms:
+<!--
+  This is the ROOT CONTEXT MAP. It is a navigation map, not a manual.
+  RULES FOR THIS FILE (the ratchet discipline):
+    ├óÔé¼┬ó Keep it under ~100 lines. It competes for the model's attention with the actual task.
+    ├óÔé¼┬ó Point to docs/ and nested CLAUDE.md files; do NOT inline full specs or style guides.
+    ├óÔé¼┬ó Every line in "Project rules" must trace to a real failure (added via /ratchet) or a hard
+      constraint. Delete rules that no longer earn their place.
+    ├óÔé¼┬ó `/harness-init` fills the {{PLACEHOLDERS}} below. Until then they are intentionally blank.
+-->
+
+# {{PROJECT_NAME}}
+
+{{ONE_LINE_DESCRIPTION}}
+
+## What this is
+- **Domain / market:** {{DOMAIN}}
+- **Type:** {{PROJECT_TYPE}}  <!-- greenfield (build from scratch) | brownfield (existing code ├óÔé¼ÔÇØ respect it; see 
+brownfield-safety skill) -->
+- **Shape:** {{PROJECT_SHAPE}}  <!-- e.g. "single Node app" or "headless: frontend/ (Next.js) + backend/ (FastAPI)" -->
+
+## Components (the buildable units)
+Each component has its own stack, gate, and (for non-trivial ones) its own nested `CLAUDE.md`. The
+harness runs each component's gate in its own directory; see `harness/harness.config.json` ├óÔÇáÔÇÖ `components`.
+
+| Component | Path | Stack | Run | Test |
+|-----------|------|-------|-----|------|
+| {{COMPONENT_NAME}} | `{{COMPONENT_PATH}}` | {{COMPONENT_STACK}} | `{{COMPONENT_RUN}}` | `{{COMPONENT_TEST}}` |
+<!-- one row per component; a single-root project has exactly one row with path `.` -->
+
+Cross-cutting (e.g. an e2e that exercises the components together): {{ROOT_E2E}}
+
+## Where things live (the map)
+- `specs/` ├óÔé¼ÔÇØ **immutable** requirements. Source of truth. Read first; never rewrite.
+- `docs/architecture/` ├óÔé¼ÔÇØ how the system fits together. Read before structural changes.
+- `docs/design-docs/` ├óÔé¼ÔÇØ decisions already made and *why*. Don't relitigate them.
+- `docs/execution-plans/` ├óÔé¼ÔÇØ versioned plans + progress logs for in-flight work.
+- `docs/technical-debt/` ├óÔé¼ÔÇØ known issues. Check before "discovering" one.
+- `docs/principles/` ├óÔé¼ÔÇØ engineering norms / golden principles for this repo.
+- `state/` ├óÔé¼ÔÇØ live work state: `tasks.json` (manifest), `fix_plan.md` (priority stack),
+  `PROGRESS.md` (session log), `handoff.md` (context-reset handoff), `evidence/` (e2e proof per task).
+- `AGENT_NOTES.md` ├óÔé¼ÔÇØ run/build gotchas and learnings. **Append here when you learn something.**
+
+## How to work here (the workflow: plan ├óÔÇáÔÇÖ execute ├óÔÇáÔÇÖ validate ├óÔÇáÔÇÖ review ├óÔÇáÔÇÖ record)
+Full contract: [`docs/principles/workflow.md`](docs/principles/workflow.md). `/work` drives one task
+through all phases; `/plan`, `/verify`, `/review` are the phases run individually (`/loop` is not a
+phase ├óÔé¼ÔÇØ it runs one full iteration end-to-end). In short:
+1. **Study first.** Read the relevant `specs/`, then the code, then `state/fix_plan.md`. Note which
+   **component** the task touches and work in that directory.
+   **Search the codebase before assuming something isn't implemented.** Think hard.
+2. **One task per iteration.** Pick the highest-priority unfinished item from `state/fix_plan.md`.
+3. **Implement fully.** No placeholders, no stubs, no "simple version for now."
+4. **Verify ├óÔé¼ÔÇØ this is the gate.** Run the changed component's gate (format ├óÔÇáÔÇÖ lint ├óÔÇáÔÇÖ typecheck ├óÔÇáÔÇÖ 
+build ├óÔÇáÔÇÖ
+   test) and the cross-cutting root gate.
+   Unit-green is not done: capture **end-to-end evidence** that it works as a user would see it.
+5. **Checkpoint.** Commit with a descriptive message when green (exception: in the headless loop the
+   RUNNER commits ├óÔé¼ÔÇØ PROMPT.md's no-commit rule wins there). Roll back a red tree, don't patch over it.
+6. **Record.** Tick the item in `state/fix_plan.md`; note *why* in code/docs for the next (amnesiac) loop.
+7. **Reset, don't compact.** At task boundaries: `/handoff` then `/clear` ├óÔé¼ÔÇØ state lives in files and
+   the SessionStart hook re-orients a fresh window. `/compact` is the mid-task emergency tool only.
+
+## Verification gate (must pass before "done")
+The gate is **per component** (its commands run in that component's directory), then a cross-cutting
+root gate. Exact commands live in `harness/harness.config.json`. For `{{COMPONENT_NAME}}`:
+```
+{{FORMAT_COMMAND}}
+{{LINT_COMMAND}}
+{{TYPECHECK_COMMAND}}
+{{BUILD_COMMAND}}
+{{TEST_COMMAND}}
+{{E2E_COMMAND}}
+```
+(Multi-component projects: one such block per component ├óÔé¼ÔÇØ the config is the source of truth.)
+The PostToolUse hook runs the fast subset (format/lint/typecheck) automatically on edit, **routed to
+the component that owns the changed file**. Failures come back with the fix in the message ├óÔé¼ÔÇØ read them.
+
+## Guardrails (hard constraints)
+- **Do not** weaken or delete tests to make a build pass. Fix the code or escalate.
+- **Do not** run destructive commands (`rm -rf`, `git push --force`, `DROP TABLE`, secrets exfil).
+  The PreToolUse hook blocks the obvious ones; don't try to route around it.
+- **Do not** edit anything under `specs/` ├óÔé¼ÔÇØ it is the contract. Propose changes to the human instead.
+  (One carve-out: `/plan`, `/onboard`, and `/harness-init` may **author new specs with the human's
+  approval**. Rewriting an existing spec to make work "pass" is never legitimate.)
+- **Escalate ambiguous product decisions** to the human rather than guessing. Ask for the *why*.
+- Review code in a **fresh context** (use `/review` or the `reviewer` subagent), never self-grade.
+
+## Project rules (the ratchet ├óÔé¼ÔÇØ grows only from real failures)
+<!-- Add entries via /ratchet. Format: "- [YYYY-MM-DD] <rule>  ├óÔé¼ÔÇØ because <the failure it prevents>" -->
+- [2026-07-14] Output-sniffing predicates (e.g. usage/limit detection) must be consulted ONLY on a FAILED
+  invocation (not-ok / nonzero exit), never to overturn a SUCCESS  ├óÔé¼ÔÇØ because the markers are substring-based,
+  so a successful write-phase build whose text merely mentions "overloaded"/"quota"/"429" would be reset to
+  base and retried on the fallback, silently discarding a good build (S2 review near-miss).
+- [2026-07-14] When a phase's resolved `Primary` model is '' (inherit ambient) but a per-phase `fallback`
+  IS configured, the fallback is reached ONLY on a failed invocation ├óÔé¼ÔÇØ it is NOT the happy-path model
+  ├óÔé¼ÔÇØ because `Invoke-Phase` runs the primary first; a config that pinned a reviewer purely via legacy
+  `reviewFallback` (with `review` unset) is therefore run on the ambient model on the happy path, not on
+  `reviewFallback` (S3 review ├óÔé¼ÔÇØ narrow, disclosed; the migrated `{model,fallback}` config avoids it).
+- [2026-07-14] Do not pin a fresh-context judge (`reviewer`/`evaluator` subagent) to a model tier that can
+  hit its own usage cap mid-review ├óÔé¼ÔÇØ when it dies with "reached your <model> limit", re-spawn the subagent
+  with a `model:` override to finish  ├óÔé¼ÔÇØ because the review actually failed to run this way (S3: the
+  Fable-pinned reviewer was knocked out by a Fable-5 usage limit). Broader fix (subagent-level fallback)
+  is a candidate for a later slice.
+- [2026-07-15] Engine code that runs a phase inside a PowerShell `Start-Job` must (a) re-source its libs
+  INSIDE the job ├óÔé¼ÔÇØ a Start-Job runs in a fresh runspace that does NOT inherit the parent's dot-sourced
+  functions (pass the lib dir via `-ArgumentList`; `$PSScriptRoot` differs inside), and (b) use a quiet
+  (`Out-Null`) output path, never `Out-Host` ├óÔé¼ÔÇØ because `Out-Host` produced inside a job is replayed to the
+  parent console at `Receive-Job` and CANNOT be suppressed by any stream redirect (`6>$null`/`*>$null` all
+  fail), so a worker's whole transcript would dump into the merge-queue console. Also assign the phase
+  result to a var so its object doesn't leak into the job output stream; emit only the `0/1` exit proxy the
+  caller reads (S4: the fleet worker's dispatcher wiring; de-risked with live experiments before building).
+
+## Nested context
+Larger subsystems may have their own `CLAUDE.md` next to their code (mirrors the one-map-per-package
+pattern). When working in a subsystem, read its local map too.
+
+
+ succeeded in 3241ms:
+# Execution plan: cross-vendor per-phase model routing + automatic fallback
+
+**Status: APPROVED 2026-07-14.** Decisions locked (├é┬º8): (1) Option A ├óÔé¼ÔÇØ the orchestrator dispatches to
+the codex lib instead of spawning the Claude subagent when a phase routes to codex; (2) tolerant reader
+├óÔé¼ÔÇØ accept both the legacy flat string and the new `{model,fallback}` so deployed configs keep working;
+(3) retry once on the fallback within the same iteration on a usage/limit error (reset a write tree to
+base first). Supersedes the model-routing slice of the
+[2026-07-13 plan](2026-07-13-model-routing-parallelism-context.md), which shipped per-phase *Claude*
+routing plus a **review-only** cross-vendor path. This plan generalizes cross-vendor + fallback to
+**every** phase.
+
+Parent fix_plan item: _"Per-phase model selection + CROSS-VENDOR fallback for ALL phases (GPT via
+`codex login`)"_. The handoff flagged it large and required it to open with its own decomposition ├óÔé¼ÔÇØ this
+is that decomposition. It replaces the single item with the slices in ├é┬º7.
+
+---
+
+## 1. Goal (James's clarification, 2026-07-14)
+Be able to **run OR fall back to GPT (codex) for any phase** ├óÔé¼ÔÇØ explore, plan, implement, review,
+evaluate, docs ├óÔé¼ÔÇØ not just review. Fallback fires when the **primary is unavailable or hits a
+usage/limit error**. Cost/quality are reasons to *select* a model per phase, **not** auto-fallback
+triggers. Interactive per-phase pick (with recommendations) belongs in `/harness-init`;
+`/harness-doctor` must validate the new schema; tests must cover the **fallback trigger**.
+
+## 2. What exists today (verified inventory, 2026-07-14)
+- **One declared table** `config.models` ├óÔÇáÔÇÖ three enforcement surfaces: `.claude/settings.json` `model`
+  (session), `model:` agent frontmatter (subagents), `--model` flags in loop/fleet (headless).
+- **Single runtime chokepoint** `Resolve-PhaseModel` / `phase_model` (`lib/gate.ps1` L42-46 / `gate.sh`
+  L23-25) reads `config.models.<phase>` and returns a string. Only **three phases reach a real
+  invocation**: `implement` (loop `L303` / fleet `L153`, `.sh` twins), `review` (loop periodic reviewer
+  `L139-157`), and `reviewFallback` (the claude arm of the review path). `session/explore/plan/evaluate/
+  docs` have **no headless call site** ├óÔé¼ÔÇØ they are wired only through settings.json + frontmatter.
+- **Cross-vendor lives only in review** (`lib/review-codex.*`): read-only sandbox
+  (`--sandbox read-only --ask-for-approval never`), external watchdog, `--output-last-message` verdict
+  parse, and a **pre-invocation** fallback (codex-unavailable ├óÔÇáÔÇÖ claude reviewer on `reviewFallback`).
+  There is **no** runtime usage/limit fallback, and **no** codex path for any other phase.
+- **E1 duplication is still in place:** every engine file exists twice ├óÔé¼ÔÇØ `harness/` ├óÔÇáÔÇØ `plugin/engine/`,
+  `.claude/agents` ├óÔÇáÔÇØ `plugin/agents`, `.claude/commands` ├óÔÇáÔÇØ `plugin/commands`. Until the E2 flip (a
+  separate queued task), **every change here lands in both copies.** Line numbers are identical.
+
+## 3. The three hard problems (why this is large)
+
+### 3a. Subagent frontmatter is static ├óÔé¼ÔÇØ it can't express "codex, or fall back to Claude"
+`session/explore/plan/evaluate/docs` run as Claude subagents (or the main window), configured by
+**static** `model:` frontmatter. Frontmatter can name a Claude model; it cannot say "run this phase on
+codex" nor "fall back on a usage-limit." A Claude subagent also can't *become* codex mid-run. So routing
+a non-headless phase cross-vendor **cannot** live in frontmatter ├óÔé¼ÔÇØ the caller must dispatch to a codex
+path *instead of* spawning the subagent. This splits the mechanism in two:
+- **Headless (loop + fleet):** already shell out to `claude -p --model`. Generalizing is concrete and
+  testable here ├óÔé¼ÔÇØ a resolver + a dispatcher that runs claude *or* codex with fallback.
+- **Interactive (`/work` + subagents):** the **orchestrator** must resolve the phase's model and, when
+  it is codex, invoke the codex lib via Bash rather than spawning the Claude subagent. This is a
+  documented orchestrator protocol, not a config mechanism. (See Decision 1.)
+
+### 3b. Codex must WRITE for implement/plan/docs ├óÔé¼ÔÇØ today's codex path is deliberately read-only
+The review path hard-codes `--sandbox read-only` because a judge must never mutate what it judges. But
+`implement` (and `plan`/`docs` when routed to codex) must be able to edit the tree. That is a **second
+codex invocation mode** (`--sandbox workspace-write --ask-for-approval never`). Its output is not a
+verdict but a **mutated tree**, which then flows through the existing gate + auto-rollback exactly like a
+Claude implement iteration. Safety model is unchanged: a bad codex build goes red ├óÔÇáÔÇÖ the loop rolls back;
+belt-and-braces reset is *not* applied to a write phase (that would discard the intended change) ├óÔé¼ÔÇØ only
+to read-only judge phases.
+
+### 3c. Fallback on a usage/limit error is new for the *Claude* side
+Today the only fallback is codex-unavailable ├óÔÇáÔÇÖ claude, decided **before** invocation. "Fall back on a
+usage/limit error" requires **post-invocation** detection on both vendors: parse the CLI output/exit for
+rate-limit / quota / overloaded markers. This is a new, unit-testable predicate driving the dispatcher.
+For a **write** phase, a mid-run usage-limit can leave a partial tree ├óÔÇáÔÇÖ the dispatcher resets to the
+iteration base before retrying on the fallback (see Decision 3).
+
+## 4. Design
+
+### 4a. Config schema ├óÔé¼ÔÇØ `{model, fallback}` per phase
+```jsonc
+"models": {
+  "session":   { "model": "opus",  "fallback": null    },  // session must be a Claude model (the main window is Claude)
+  "explore":   { "model": "haiku", "fallback": null    },
+  "plan":      { "model": "fable", "fallback": null    },
+  "implement": { "model": "opus",  "fallback": "codex" },  // Claude primary, GPT fallback
+  "review":    { "model": "codex", "fallback": "fable" },  // was models.review + models.reviewFallback
+  "evaluate":  { "model": "fable", "fallback": null    },
+  "docs":      { "model": "haiku", "fallback": null    },
+  "codex":     { "model": null, "reasoningEffort": "high", "auth": "chatgpt", "timeoutSeconds": 900 }
+}
+```
+- `model` and `fallback` are each a **Claude alias/ID** *or* the literal `"codex"`. `null` fallback = no
+  fallback (behaves like today for phases that don't set one). `codex{}` stays ├óÔé¼ÔÇØ it configures *how*
+  codex runs whenever **any** phase routes to it (no longer review-specific; the schema description
+  changes accordingly).
+- `review.fallback` replaces the old top-level `reviewFallback`. `session.fallback` is ignored (the main
+  window can't be swapped mid-session); doctor flags `session.model == "codex"` as an error.
+- **Tolerant reader (Decision 2):** the resolver normalizes a legacy flat value ├óÔé¼ÔÇØ `"implement": "opus"`
+  ├óÔÇáÔÇÖ `{model:"opus", fallback:null}`, and legacy top-level `reviewFallback` ├óÔÇáÔÇÖ `review.fallback` ├óÔé¼ÔÇØ so the
+  deployed copies (already-configured projects) keep working without an immediate config rewrite.
+
+### 4b. Resolver returns `{model, fallback}`
+`Resolve-PhaseModel` / `phase_model` grow to return both fields (normalized, tolerant of the legacy flat
+shape). A thin `Get-PhaseModel`/`phase_model` (primary-only) stays for the settings/frontmatter drift
+checks that only care about the primary.
+
+### 4c. Generalized codex lib + a vendor-neutral dispatcher
+Extend `lib/review-codex.*` (rename to `lib/invoke-codex.*`; keep a shim so nothing breaks mid-migration)
+so `Invoke-Codex` takes a **`-Mode read-only|workspace-write`** parameter that selects the sandbox flag;
+everything else (temp-file prompt, flags-before-`exec`, watchdog, `--output-last-message`) is reused. A
+new **`Test-UsageLimitError($output,$exitCode)`** predicate (in `lib/gate.*`, vendor-neutral pattern set:
+`usage limit`, `rate limit`, `quota`, `overloaded`, HTTP `429`) drives fallback.
+
+A new dispatcher `Invoke-Phase` centralizes the routing:
+```
+Invoke-Phase(phase, prompt, mode, primary, fallback, repoRoot):
+  for candidate in [primary, fallback (if set)]:
+    if candidate == 'codex':
+        if not Test-CodexAvailable: continue      # pre-invocation unavailability -> next candidate
+        out, ok = Invoke-Codex(mode, ...)
+    else:
+        out, ok = Invoke-Claude(--model candidate, ...)   # claude arm
+    if ok and not Test-UsageLimitError(out): return {out, path: candidate, usedFallback: candidate!=primary}
+    # unavailable OR usage-limit -> try next candidate (reset a write tree to base first)
+  return fail-closed   # both exhausted -> stop for a human (loop records + halts)
+```
+The loop's periodic reviewer and main implement call, and the fleet worker, all route through
+`Invoke-Phase` (review = read-only; implement = workspace-write).
+
+### 4d. Interactive `/work` orchestrator protocol (Decision 1 = Option A)
+For a phase whose resolved primary is `codex` (or whose fallback becomes active), the `/work`
+orchestrator invokes the codex lib via Bash **instead of** spawning the Claude subagent; when the primary
+is a Claude model, it spawns the subagent as today. Subagent frontmatter stays pinned to the phase's
+**Claude** model (used when the phase is Claude, and as the model doctor validates). Encoded in the
+`/work` command + `planner`/`generator`/`reviewer` agent docs. No subagent ever wraps codex itself.
+
+### 4e. `/harness-doctor` check 10, rewritten
+- Every `model`/`fallback` value is a known Claude alias/ID **or** `"codex"`; else ├ó┬Ø┼Æ.
+- `settings.json` `model` == `session.model`; `session.model` must be Claude (├ó┬Ø┼Æ if `codex`).
+- Each agent frontmatter `model:` == its phase's **primary** if that's Claude; if the phase's primary is
+  `codex`, frontmatter must equal the phase's **Claude fallback** (so a spawned subagent still lands on
+  the right model) and doctor notes "phase is codex-routed."
+- A `fallback` equal to a `codex` primary (codex├óÔÇáÔÇÖcodex) is ├ó┬Ø┼Æ (no escape hatch). Codex reachability probe
+  stays ├ó┼í┬á├»┬©┬Å not ├ó┬Ø┼Æ, and now reports for **every** codex-routed phase, not just review.
+
+### 4f. `/harness-init` interactive per-phase pick
+Walk each phase: choose `model` + `fallback` with recommended defaults (the ├é┬º4a table), then write
+`config.models` + the three mechanisms together. Prose interview (as today), no scripted writer.
+
+## 5. Surfaces to touch (each in BOTH copies until E2)
+Schema (`harness.schema.json`) ├é┬À dogfood config (`harness/harness.config.json`) ├é┬À resolver (`lib/gate.*`)
+├é┬À codex lib (`lib/invoke-codex.*`) ├é┬À loop (`loop.ps1/.sh` implement + periodic review) ├é┬À fleet
+(`fleet.ps1/.sh` worker) ├é┬À 6 agent frontmatters (values unchanged; doctor semantics change) ├é┬À
+`settings.json` (unchanged) ├é┬À `/work` + planner/generator/reviewer docs ├é┬À `harness-doctor.md` (check 10)
+├é┬À `harness-init.md` (model section) ├é┬À tests (`run-tests.ps1/.sh`, maybe `fleet-queue-test.*`) ├é┬À
+AGENT_NOTES + PROGRESS + evidence.
+
+## 6. Safety / risk notes
+- **Codex write mode is live-fire-untested** (same caveat as the existing "live-fire the codex invoke
+  path" fix_plan item). Ship the arg assembly behind unit tests (injectable `CodexCommand`), gate the
+  real write path behind the loop's rollback, and mark it for a supervised first run.
+- **No infinite fallback:** a single primary├óÔÇáÔÇÖfallback hop, fallback never `codex├óÔÇáÔÇÖcodex`; both exhausted =
+  fail-closed stop.
+- **Write-phase reset discipline:** read-only judge phases keep the belt-and-braces hard reset; write
+  phases must NOT (it would discard the build) ├óÔé¼ÔÇØ the gate + `autoRollbackOnRed` are their safety net.
+- **bash 3.2** (macOS) for all `.sh`; new `.ps1` files carry a UTF-8 BOM (PS 5.1); guardrail hook blocks
+  literal `rm -rf`/`git reset --hard` in our own commands ├óÔé¼ÔÇØ assemble from parts / `git commit -F`.
+
+## 7. Slices (replace the single fix_plan item; one task per iteration)
+1. **Schema + config + tolerant resolver** ├óÔé¼ÔÇØ `{model,fallback}` in both schema files, nested default
+   config, `Resolve-PhaseModel`/`phase_model` return both fields and normalize the legacy flat shape +
+   `reviewFallback`; unit tests for nested, flat-legacy, and null. *No behavior change yet.*
+2. **Usage-limit predicate + generalized codex lib** ├óÔé¼ÔÇØ `Test-UsageLimitError` (+ tests);
+   `lib/invoke-codex.*` with a `-Mode read-only|workspace-write` arg; unit tests assert arg assembly for
+   both modes via injectable command; keep a `review-codex` shim.
+3. **Headless dispatcher: loop implement + periodic review** ├óÔé¼ÔÇØ `Invoke-Phase` wired into the main
+   implement call and the periodic reviewer under the new schema; claude├óÔÇáÔÇÖcodex and usage-limit fallback
+   both fire; write-phase reset discipline; tests assert the **fallback trigger** with a stub.
+4. **Fleet worker cross-vendor + fallback** ├óÔé¼ÔÇØ the same dispatcher in `fleet.ps1/.sh` workers; dry-run +
+   stub-fallback tests.
+5. **Interactive `/work` orchestrator protocol** ├óÔé¼ÔÇØ encode Option A in the `/work` command + planner/
+   generator/reviewer docs; frontmatter semantics documented; doctor already covers the rest.
+6. **`/harness-doctor` check 10 + `/harness-init` interview** ├óÔé¼ÔÇØ rewrite check 10 for the new schema
+   across surfaces; add the per-phase init pick with recommended defaults.
+7. **Docs + prune** ├óÔé¼ÔÇØ AGENT_NOTES learnings, this plan ├óÔÇáÔÇÖ APPROVED, PROGRESS lines, evidence; retire the
+   `review-codex` shim once nothing references it.
+
+## 8. Decisions (LOCKED 2026-07-14)
+1. **Interactive cross-vendor mechanism ├óÔÇáÔÇÖ Option A.** The `/work` orchestrator dispatches to the codex
+   lib via Bash instead of spawning the Claude subagent when a phase routes to codex; frontmatter stays
+   the Claude model. (Rejected: B ├óÔé¼ÔÇØ subagent internally shells to codex, indirection; C ├óÔé¼ÔÇØ interactive
+   stays Claude-only.)
+2. **Schema migration ├óÔÇáÔÇÖ tolerant reader.** Accept both the legacy flat string and the new
+   `{model,fallback}`; normalize flat├óÔÇáÔÇÖnested and `reviewFallback`├óÔÇáÔÇÖ`review.fallback` in the resolver, so
+   deployed project configs keep working without an immediate rewrite. (the maintainer deferred to
+   the recommendation.)
+3. **Usage-limit fallback ├óÔÇáÔÇÖ retry once on the fallback** within the same iteration; reset a write-phase
+   tree to the iteration base before the retry; both candidates exhausted = fail-closed stop.
+
+
+codex
+The diff clearly rewrites only the two command docs. IÔÇÖve got the spec and diff now; next IÔÇÖm checking the actual 
+shipped config and agent frontmatter so any finding is tied to facts in the repo, not just the prompt.
+exec
+"C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command "Get-Content -Raw state\\fix_plan.md" in 
+C:\Users\james\Repos\harness
+exec
+"C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command "Get-Content -Raw harness\\harness.config.json" 
+in C:\Users\james\Repos\harness
+exec
+"C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command "Get-Content -Raw .claude\\settings.json" in 
+C:\Users\james\Repos\harness
+exec
+"C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command "Get-ChildItem .claude\\agents\\*.md | 
+ForEach-Object { "'$_.Name; Select-String -Path $_.FullName -Pattern '"'"'^model:'"' | ForEach-Object { "'$_.Line } }' in 
+C:\Users\james\Repos\harness
+ succeeded in 708ms:
+doc-gardener.md
+model: haiku
+evaluator.md
+model: fable
+explorer.md
+model: haiku
+generator.md
+model: opus
+planner.md
+model: fable
+reviewer.md
+model: fable
+
+ succeeded in 999ms:
+# Fix plan
+
+The prioritized task stack. **Highest priority at the top.** The loop takes the single top unchecked
+item each iteration. Keep items small enough to finish in one iteration; split anything bigger.
+
+Format: `- [ ] <imperative task>  ├óÔé¼ÔÇØ done when: <verifiable condition>`
+
+> Empty by design. Run `/plan "<what you want>"` to populate it, or add items by hand. The loop stops
+> when there are no unchecked items left (config `loop.stopWhenPlanEmpty`).
+
+## Tasks
+<!-- Approved 2026-07-13: docs/execution-plans/2026-07-13-model-routing-parallelism-context.md -->
+- [x] Add `models` routing block (schema + config + settings.json session model + agent frontmatter + doctor drift-check)  
+├óÔé¼ÔÇØ done when: config declares session/explore/plan/implement/review/evaluate/docs models, frontmatter matches, doctor 
+checks it, self-tests green
+- [x] Add `explorer` agent (haiku, read-only) + fan-out wiring in PROMPT.md/planner/generator  ├óÔé¼ÔÇØ done when: agent 
+exists and all three surfaces route searches to it
+- [x] Pass `--model` at both loop invocation sites (main + periodic reviewer, ps1 + sh)  ├óÔé¼ÔÇØ done when: flags driven 
+by config, absent when unset, self-tests cover both
+- [x] Add `review-codex` lib (detect ├óÔÇáÔÇÖ read-only exec ├óÔÇáÔÇÖ watchdog ├óÔÇáÔÇÖ fail-closed parse ├óÔÇáÔÇÖ fable 
+fallback), wire into loop + /review  ├óÔé¼ÔÇØ done when: codex path and fallback both produce a parsed verdict; tests cover 
+detection-miss fallback
+- [x] Harden reviewer prompts to correctness/requirement gaps only (loop prompt + reviewer.md)  ├óÔé¼ÔÇØ done when: both 
+prompts constrain scope
+- [x] Make generator delegation the default in /work; encode plan-artifact contract in workflow.md  ├óÔé¼ÔÇØ done when: 
+inline implementation is trivial-only and the boundary rule is written
+- [x] Encode reset-over-compact policy (workflow.md + CLAUDE.md line + /work RECORD suggests /handoff + /clear)  ├óÔé¼ÔÇØ 
+done when: all three surfaces state it
+- [x] Phase A: generator `isolation: worktree` + merge-back step in /work  ├óÔé¼ÔÇØ done when: builds land via merge-back, 
+main tree stays clean
+- [x] Move `.checkpoint`/`.budget.json` into per-run dir + lock run-id allocation  ├óÔé¼ÔÇØ done when: two concurrent runs 
+can't clobber state; tests green
+- [x] Fleet runner Phase B (tasks.json ownership field ├óÔÇáÔÇÖ worktree pool ├óÔÇ░┬ñ3 ├óÔÇáÔÇÖ serialized merge queue)  
+├óÔé¼ÔÇØ done when: two independent tasks execute in parallel worktrees and land through the gated queue (dry-run + 
+selection/overlap logic tested; merge-queue paths NOT yet automated ├óÔé¼ÔÇØ see follow-ups)
+- [x] Fleet queue integration test: temp git repo + stub claude via HARNESS_CLAUDE_CMD, assert merge/park/tamper paths  
+├óÔé¼ÔÇØ done when: the queue's core outcomes have automated assertions on both runners 
+(harness/tests/fleet-queue-test.{ps1,sh}, 14/14 each; gate-red/conflict paths still only manually reasoned ├óÔé¼ÔÇØ extend 
+the stub if they ever regress)
+<!-- Approved 2026-07-13 (James): the next tranche ├óÔé¼ÔÇØ plugin split, sandboxing, evaluator wiring, overnight stages 
+1+2. -->
+- [x] Package the engine as a Claude Code plugin (ROADMAP "Distribution as a plugin"; the maintainer decided GO)  ├óÔé¼ÔÇØ done 
+when: engine (harness/, .claude/agents|hooks|skills, commands) installs as a versioned plugin, the scaffold (CLAUDE.md, 
+specs/, state/, /harness-init) remains the template half, and the deployed copies (already-configured projects) can 
+upgrade via plugin update instead of re-templating; audit agent frontmatter first (plugin agents ignore 
+hooks/mcpServers/permissionMode)
+      <!-- DONE 2026-07-14: plugin/ (payload) + plugin/hooks (node dispatcher) + plugin/engine (loop/fleet + wrappers) + 
+.claude-plugin/marketplace.json; real /plugin install verified end-to-end; docs/plugin-migration.md. Evidence: 
+state/evidence/2026-07-14-plugin-packaging/. Fresh-context review FIX-THEN-SHIP ├óÔÇáÔÇÖ all 5 findings fixed (eaf2a1b). E1 
+staged: dev repo still carries its own engine copies. -->
+- [x] Build `harness-migrate` (plugin-shipped script + `/harness-migrate` command) ├óÔé¼ÔÇØ migrate an existing copied-in 
+harness onto the plugin WITHOUT losing project customizations  ├óÔé¼ÔÇØ done when: it locates the installed plugin engine 
+and classifies every engine-ish file in the repo as IDENTICAL (safe to remove) / CUSTOMIZED (differs ├óÔé¼ÔÇØ keep + show 
+diff) / PROJECT-ONLY (keep); prints the plan; with `--apply` removes only IDENTICAL engine files, strips the 5 engine hook 
+blocks from `.claude/settings.json`, drops in the 4 wrappers, and writes a preservation report; leaves 
+CLAUDE.md/AGENT_NOTES/state/specs/config untouched; verified on a synthetic repo carrying a ratcheted denylist pattern in 
+block-destructive + a project-authored skill (both preserved), both runners
+<!-- Approved 2026-07-14: docs/execution-plans/2026-07-14-cross-vendor-per-phase-model-routing.md ├óÔé¼ÔÇØ the big 
+"cross-vendor per-phase routing" item decomposed into 7 slices (each lands in BOTH engine copies until the E2 flip). 
+Decisions locked: (A) orchestrator dispatches codex for non-headless phases; (B) tolerant reader for legacy flat configs; 
+(C) retry-once-on-fallback for usage-limit. -->
+- [x] Cross-vendor S1: `{model,fallback}` schema + nested default config + tolerant resolver  ├óÔé¼ÔÇØ done when: both 
+`harness.schema.json` copies define `{model,fallback}` per phase (Claude alias OR `codex`) + the `codex{}` block, 
+`harness/harness.config.json` uses the nested default, `Resolve-PhaseModel`/`phase_model` (+ plugin twins) return BOTH 
+fields and normalize the legacy flat string + `reviewFallback`├óÔÇáÔÇÖ`review.fallback`, and unit tests cover 
+nested/flat-legacy/null on both runners. No behavior change yet.
+      <!-- DONE 2026-07-14: implemented as two accessors (primary-returning Resolve-PhaseModel/phase_model tolerant of 
+nested+flat; new Resolve-PhaseFallback/phase_fallback) ├óÔé¼ÔÇØ capability-equivalent, twins IDENTICAL. Review SHIP. PS 80 
+/ bash 76 / fleet-queue 16 both. Evidence: state/evidence/2026-07-14-cross-vendor-s1/. CARRY├óÔÇáÔÇÖS3: when the review 
+path switches to phase_fallback, align Resolve-PhaseFallback('review') mixed-config legacy fall-through (or declare mixed 
+shape unsupported). -->
+- [x] Cross-vendor S1b (carry from S1 review): when S3 switches the review path to `phase_fallback`, resolve the 
+mixed-config asymmetry ├óÔé¼ÔÇØ `Resolve-PhaseModel('reviewFallback')` falls through to the legacy top-level 
+`reviewFallback` but `Resolve-PhaseFallback('review')` on a nested object never consults it ├óÔé¼ÔÇØ align the legacy 
+fall-through or declare the mixed shape unsupported. (Fold into S3; no standalone iteration needed.)
+      <!-- DONE 2026-07-14 (with S3): Resolve-PhaseFallback('review')/phase_fallback review now fall through 
+review.fallback├óÔÇáÔÇÖlegacy top-level reviewFallback├óÔÇáÔÇÖ'' across nested-null/flat/absent shapes, symmetric with 
+Resolve-PhaseModel('reviewFallback'). Tests assert the equality. -->
+- [x] Cross-vendor S2: usage-limit predicate + generalized codex lib (read-only + write modes)  ├óÔé¼ÔÇØ done when: 
+`Test-UsageLimitError($output,$exitCode)` (vendor-neutral markers) exists in `lib/gate.*` (+twins) with tests, and 
+`lib/invoke-codex.*` (renamed from review-codex, with a back-compat shim) takes a `-Mode read-only|workspace-write` 
+selecting the sandbox flag; unit tests assert arg assembly for BOTH modes via the injectable command; both runners green.
+      <!-- DONE 2026-07-14: Test-UsageLimitError/usage_limit_error (markers: usage/rate limit, quota, overloaded, too many 
+requests, HTTP 429 scoped to http/status/error/code); review-codex.*├óÔÇáÔÇÖinvoke-codex.* with a PURE arg-builder 
+(Get-CodexArgs/codex_args) + Invoke-Codex/-Mode + read-only back-compat shims so loop/fleet stay untouched (S3 wires). 
+Review SHIP (fresh ctx, independently reproduced). PS 99 / bash 90 / fleet-queue 16 both. Evidence: 
+state/evidence/2026-07-14-cross-vendor-s2/. CARRY├óÔÇáÔÇÖS3: consult the usage-limit predicate ONLY on a failed invocation 
+(nonzero exit/not-ok), never to overturn a SUCCESS ├óÔé¼ÔÇØ else a good write build mentioning "overloaded"/"quota" gets 
+reset+discarded (reviewer near-miss). -->
+- [x] Cross-vendor S3: headless dispatcher wired into loop implement + periodic review  ├óÔé¼ÔÇØ done when: an 
+`Invoke-Phase` dispatcher (primary├óÔÇáÔÇÖfallback, claude├óÔÇáÔÇØcodex, usage-limit trigger, write-phase reset-to-base 
+before retry, fail-closed on exhaustion) drives the loop's main implement call AND the periodic reviewer under the new 
+schema; tests assert the FALLBACK TRIGGER (unavailable + usage-limit) with a stub on both runners. NB (S2 review): consult 
+`Test-UsageLimitError` ONLY when the invocation FAILED (not-ok / nonzero exit), never to overturn a SUCCESS ├óÔé¼ÔÇØ the 
+marker set is substring-based (a successful build/review whose text mentions "overloaded"/"quota" would otherwise be 
+reset+discarded on a write phase). Also resolve the S1b mixed-config `Resolve-PhaseFallback('review')` legacy fall-through 
+here.
+      <!-- DONE 2026-07-14: lib/dispatch.{ps1,sh} Invoke-Phase/invoke_phase wired into loop implement (workspace-write) + 
+periodic review (read-only); fallback advances ONLY on codex-unavailable OR usage-limit failure (generic failure does NOT 
+switch vendors); ratchet honored (success never re-examined); write-phase reset before fallback only; fail-closed on 
+exhaustion. S1b folded in. Twins IDENTICAL. Fresh-ctx review (opus, after the Fable-pinned reviewer hit its own usage 
+limit) SHIP. Real live-fire read-only codex run through Invoke-Phase (Ok=True Path=codex). PS 113 / bash 104 / fleet-queue 
+16 both. Evidence: state/evidence/2026-07-14-cross-vendor-s3/. Narrow disclosed behavior change + 2 new ratchet rules 
+(CLAUDE.md). -->
+      <!-- NB for S4: fleet workers now route through the SAME lib/dispatch.* (implement = workspace-write); reuse 
+Invoke-Phase/invoke_phase rather than re-deriving the dispatch logic. -->
+      <!-- NB for S7: the earlier "codex NOT installed" caveat is now STALE ├óÔé¼ÔÇØ codex-cli 0.144.3 is installed + 
+logged in; the read-only path is live-fire-proven, only the WRITE path remains untested (supervise its first real run). -->
+- [x] Cross-vendor S4: fleet worker cross-vendor + fallback  ├óÔé¼ÔÇØ done when: fleet.ps1/.sh workers (+twins) route 
+through the same dispatcher (implement = workspace-write); dry-run + stub-fallback assertions on both runners.
+      <!-- DONE 2026-07-15: fleet.{ps1,sh} workers now build via Invoke-Phase/invoke_phase (workspace-write), inheriting 
+the loop's primary├óÔÇáÔÇÖfallback (real cfg implement={opus,fallback:codex}); reset ref = the worker's own batch/branch 
+base ($baseRef), reset runs in the worktree cwd. New `-Quiet` switch on Invoke-ClaudePhase/Invoke-Phase 
+(Out-Host├óÔÇáÔÇÖOut-Null) so the PS Start-Job worker's transcript isn't replayed to the console at Receive-Job (tee still 
+writes the log; loop's live-stream path unchanged). Bash worker calls invoke_phase DIRECTLY in the ( )& subshell (globals 
+survive) with stdout tee'd to $log. dispatch.sh unchanged; twins IDENTICAL. Fresh-ctx review SHIP (opus), no findings. PS 
+115 / bash 104 / fleet-queue 22 both runners (16 baseline + 3 fallback + 3 dry-run). Evidence: 
+state/evidence/2026-07-15-cross-vendor-s4/. -->
+      <!-- NB for S5: /work orchestrator (interactive) still spawns the Claude subagent; codex dispatch there is the S5 
+job. -->
+      <!-- NB: the codex WRITE (workspace-write) path ├óÔé¼ÔÇØ now reachable from BOTH loop and fleet ├óÔé¼ÔÇØ remains 
+live-fire-untested; supervise its first real run. -->
+- [x] Cross-vendor S5: interactive `/work` orchestrator protocol (Option A) + subagent docs  ├óÔé¼ÔÇØ done when: `/work` 
+command + planner/generator/reviewer agent docs (+ plugin twins) encode "resolve the phase model; if codex, invoke the 
+codex lib via Bash instead of spawning the Claude subagent; frontmatter stays the Claude model"; no subagent wraps codex 
+itself.
+      <!-- DONE 2026-07-15: `/work` gained a "Model routing per phase ├óÔé¼ÔÇØ resolve, then route" section (Claude primary 
+├óÔÇáÔÇÖ spawn the subagent pinned via model: override; codex primary ├óÔÇáÔÇÖ dispatch Invoke-Phase/invoke_phase or 
+Invoke-Codex via Bash, read-only for judges / workspace-write for writers; no subagent wraps codex) + pointers threaded 
+into Phases 1/2/4; each of planner/generator/reviewer got a "Cross-vendor note". Frontmatter UNCHANGED (generator=opus, 
+planner=fable, reviewer=fable=review's Claude fallback). Twins byte-identical. Fresh-ctx review (opus) SHIP; its one 
+accuracy finding fixed (bash resolvers take a config FILE PATH, not JSON content ├óÔé¼ÔÇØ PS resolvers take a parsed 
+object). Docs-only: PS 115/0 + fleet 22/0 re-run green, no .sh/engine touched so bash 104/0 unaffected. Evidence: 
+state/evidence/2026-07-15-cross-vendor-s5/. -->
+      <!-- NB for S6: the generator/planner Cross-vendor notes describe the S6-REWRITTEN doctor check 10 (frontmatter == 
+primary-when-Claude, else the phase's Claude fallback). No live contradiction today (implement/plan primaries are Claude), 
+but keep those notes honest when check 10 is rewritten. -->
+      <!-- NB for S6: doctor check 10 must map reviewer frontmatter to review.fallback (Claude) when review.model==codex 
+├óÔé¼ÔÇØ matches the shipped reviewer=fable. -->
+      <!-- NB for S7 ratchet candidate (reviewer-suggested, non-blocking): docs showing a shell call of an engine fn must 
+name args by real type (bash phase_model/phase_fallback take a config FILE PATH; PS resolvers take a parsed object). Left 
+as an AGENT_NOTES learning, not a CLAUDE.md rule (caught in review, cosmetic). -->
+
+- [ ] Cross-vendor S6: `/harness-doctor` check 10 rewrite + `/harness-init` per-phase interview  ├óÔé¼ÔÇØ done when: check 
+10 (+twin) validates the `{model,fallback}` schema across surfaces (value legality, session must be Claude, 
+frontmatter==primary-or-fallback-when-codex, no codex├óÔÇáÔÇÖcodex fallback, per-phase codex reachability ├ó┼í┬á├»┬©┬Å), 
+and `/harness-init` (+twin) interactively picks model+fallback per phase with recommended defaults.
+- [ ] Cross-vendor S7: docs + prune  ├óÔé¼ÔÇØ done when: AGENT_NOTES learnings appended, PROGRESS lines added, the 
+execution-plan doc reflects the as-built, and the `review-codex` back-compat shim is retired once nothing references it.
+- [ ] Plugin E2 flip: dev repo consumes its OWN plugin + delete the in-repo .claude/{agents,skills,commands,hooks} + 
+harness/{lib,profiles,templates,*.ps1,*.sh} engine copies (removes E1 duplication)  ├óÔé¼ÔÇØ done when: this repo installs 
+lean-agent-harness from its local marketplace, its harness/ is config+wrappers only, and all suites stay green sourced from 
+the plugin
+- [ ] Add CI (GitHub Actions) that runs run-tests.{ps1,sh} + fleet-queue-test.{ps1,sh} with jq on every push  ├óÔé¼ÔÇØ done 
+when: the bash --project-root path is exercised automatically (today it only runs when jq is installed by hand); closes the 
+review's "evidence cited CI that doesn't exist" finding
+- [ ] Sandboxing for unattended runs (ROADMAP "Sandboxing")  ├óÔé¼ÔÇØ done when: a documented, tested WSL2/devcontainer 
+profile exists for `mode: auto` (specs/ read-only, secrets via env, no host FS), and the loop warns when full-auto runs 
+outside it
+- [ ] Run the evaluator at the loop's periodic review point (ROADMAP "Inferential safeguards")  ├óÔé¼ÔÇØ done when: 
+`verification.evaluator.enabled` also gates the unattended loop ├óÔé¼ÔÇØ rubric scored at each review point, any 
+below-threshold criterion stops the loop like a REJECT
+- [ ] Overnight Stage 1: local unattended run recipe  ├óÔé¼ÔÇØ done when: a documented config preset (auto mode, 
+meterTokens+tokenBudget, reviewEveryNIterations=3, skipPermissions=false + allowlisted gate, fleet only for independent 
+tasks) plus a Task Scheduler/cron recipe exists, and one real overnight run has been done supervised-after-the-fact 
+(morning ledger + /review)
+- [ ] Overnight Stage 2: GitHub Actions nightly runner + Issues intake  ├óÔé¼ÔÇØ done when: a nightly cron workflow runs 
+loop.sh in a container and ends by pushing a branch + opening a PR with the ledger; issues labeled `agent` sync into 
+tasks.json at run start (planner) and are closed with the PR link on ship; tasks.json stays authoritative mid-run (GitHub = 
+intake + audit trail only); CI auth decision (API key vs subscription token) recorded
+- [ ] Live-fire the codex invoke path once codex CLI is installed (flag placement, `exec -` stdin, --output-last-message 
+parse)  ├óÔé¼ÔÇØ done when: one real codex review run log parses to a verdict; adjust flags per installed version
+      <!-- PARTIAL 2026-07-14: codex-cli 0.144.3 IS installed + logged in. READ-ONLY path live-fired through Invoke-Phase 
+(Ok=True, Path=codex, final-message parsed) ├óÔé¼ÔÇØ evidence 
+state/evidence/2026-07-14-cross-vendor-s3/live-codex-readonly*. REMAINING: a real workspace-WRITE run + a full 
+periodic-review verdict parse from the loop; keep supervised. -->
+
+
+- [ ] Live-fire the fleet on a real project with ├óÔÇ░┬Ñ2 independent tasks  ├óÔé¼ÔÇØ done when: two tasks land through the 
+gated queue end-to-end
+- [ ] (hardening, low) Fleet record-amend failure leaves tasks.json/PROGRESS staged; a later queue entry's gate-red reset 
+silently discards them while the ledger says merged  ├óÔé¼ÔÇØ done when: pending record is stashed/written to the run dir 
+instead of left staged (re-review finding 2, non-blocking)
+<!--
+  Examples (note: deliberately NOT written as "- [ ]" so the loop's open-task counter doesn't
+  treat these sample lines as real work). Copy the shape, uncomment as real "- [ ]" items above:
+    Scaffold the project skeleton  ├óÔé¼ÔÇØ done when: app builds and the gate runs green on an empty app
+    Add health-check endpoint      ├óÔé¼ÔÇØ done when: GET /health returns 200 + {status:"ok"}, with a unit test + e2e curl 
+evidence
+-->
+
+## Done
+<!-- move completed items here (or just tick them to "- [x]") so the live stack stays readable -->
+
+
+ succeeded in 1008ms:
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "_comment": "Harness defaults. Hooks default to Windows PowerShell (powershell.exe, .ps1) for this machine; /harness-init 
+swaps the commands to the .sh mirror on Linux/macOS (and to 'pwsh' if you standardize on PowerShell 7). /harness-init also 
+APPENDS the project's gate commands (e.g. Bash(pnpm test:*)) to permissions.allow ├óÔé¼ÔÇØ in headless -p runs nobody 
+answers prompts, so a non-allowlisted Bash call is auto-denied and the agent can't run the verification gate. Personal 
+overrides belong in settings.local.json (gitignored). The `model` key mirrors harness.config.json models.session (declared 
+routing table; /harness-doctor checks agreement).",
+  "_security_note": "We intentionally do NOT deny Edit/Write of harness.config.json, .claude/**, or specs/** here, because 
+/harness-init, /harness-prune, and /plan legitimately write those (deny rules can't be lifted per-command). Instead: (1) 
+the autonomous loop protects its gate config via a config-hash pin ├óÔé¼ÔÇØ it rolls back and stops if the config changes 
+mid-iteration ├óÔé¼ÔÇØ and a ConfigChange hook freezes the settings surface for the same window; (2) DURING a loop run 
+(loop.ps1/loop.sh set HARNESS_LOCK_SPECS before invoking the model) specs/ is made immutable on BOTH surfaces ├óÔé¼ÔÇØ the 
+protect-specs PreToolUse hook covers Edit/Write/MultiEdit/NotebookEdit, and block-destructive covers shell-mediated writes 
+(redirects/mv/rm into specs/) while still allowing reads. git reset --hard is hard-blocked by the hook (not an ask rule 
+├óÔé¼ÔÇØ an ask would be dead code under an unconditional exit-2 block; if you genuinely need it, run it yourself in a 
+terminal, where hooks don't apply). These hooks are best-effort denylists, NOT a sandbox ├óÔé¼ÔÇØ a determined agent can 
+find a phrasing they miss. Spec/test integrity in supervised use rests on the fresh-context /review and the guardrails in 
+CLAUDE.md/PROMPT.md. For unattended/auto runs, additionally run inside a sandbox/container with specs/ mounted read-only 
+(there is no native Windows sandbox ├óÔé¼ÔÇØ use WSL2 or a devcontainer).",
+
+  "model": "opus",
+
+  "permissions": {
+    "allow": [
+      "Read",
+      "Edit",
+      "Write",
+      "Bash(git status:*)",
+      "Bash(git diff:*)",
+      "Bash(git log:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)"
+    ],
+    "deny": [
+      "Read(./**/.env)",
+      "Read(./**/.env.*)",
+      "Read(./secrets/**)",
+      "Read(./**/credentials.json)",
+      "Read(./**/id_rsa)",
+      "Read(./**/id_ed25519)",
+      "Read(./**/*.pem)",
+      "Read(./**/*.key)"
+    ],
+    "ask": [
+      "Bash(git push:*)"
+    ]
+  },
+
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash|PowerShell",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "powershell -NoProfile -ExecutionPolicy Bypass -File 
+\"${CLAUDE_PROJECT_DIR}/.claude/hooks/block-destructive.ps1\"",
+            "timeout": 30
+          }
+        ]
+      },
+      {
+        "matcher": "Edit|Write|MultiEdit|NotebookEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "powershell -NoProfile -ExecutionPolicy Bypass -File 
+\"${CLAUDE_PROJECT_DIR}/.claude/hooks/protect-specs.ps1\"",
+            "timeout": 30
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write|MultiEdit|NotebookEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "powershell -NoProfile -ExecutionPolicy Bypass -File 
+\"${CLAUDE_PROJECT_DIR}/.claude/hooks/format-and-check.ps1\"",
+            "timeout": 120
+          }
+        ]
+      }
+    ],
+    "ConfigChange": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "powershell -NoProfile -ExecutionPolicy Bypass -File 
+\"${CLAUDE_PROJECT_DIR}/.claude/hooks/lock-config.ps1\"",
+            "timeout": 15
+          }
+        ]
+      }
+    ],
+    "SessionStart": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "powershell -NoProfile -ExecutionPolicy Bypass -File 
+\"${CLAUDE_PROJECT_DIR}/.claude/hooks/session-start.ps1\"",
+            "timeout": 30
+          }
+        ]
+      }
+    ]
+  }
+}
+
+
+ succeeded in 1027ms:
+{
+  "$schema": "./harness.schema.json",
+  "_comment": "The one file you tune per project. /harness-init writes the stack-specific bits. A project is one-or-more 
+COMPONENTS (each a buildable sub-repo with its own stack + gate) plus a cross-cutting root gate for integration/e2e. A 
+single-root project is just one component with path '.'. See harness.schema.json for the full field reference.",
+
+  "project": {
+    "_comment": "greenfield = building from scratch (establish stack/specs, higher autonomy OK). brownfield = an existing 
+codebase (understand & respect it first, supervised by default, baseline must be green before changes). /harness-init 
+detects and sets this.",
+    "type": "greenfield",
+    "baseline": { "established": false, "ref": null }
+  },
+
+  "models": {
+    "_comment": "Per-phase model routing (declared here; enforced via settings.json `model`, agent frontmatter, and loop 
+--model flags ├óÔé¼ÔÇØ /harness-doctor checks they agree). Each phase is {model, fallback}: model/fallback are a Claude 
+alias|full ID or the literal 'codex' (cross-vendor OpenAI Codex CLI); null = inherit session / no fallback. fallback fires 
+when the primary is unavailable or hits a usage/limit error (never codex->codex). codex{} configures the Codex CLI for ANY 
+phase routed to it. The legacy flat 'phase': 'alias' form is still accepted by the resolver for back-compat.",
+    "session":   { "model": "opus",  "fallback": null },
+    "explore":   { "model": "haiku", "fallback": null },
+    "plan":      { "model": "fable", "fallback": null },
+    "implement": { "model": "opus",  "fallback": "codex" },
+    "review":    { "model": "codex", "fallback": "fable" },
+    "evaluate":  { "model": "fable", "fallback": null },
+    "docs":      { "model": "haiku", "fallback": null },
+    "codex":     { "model": null, "reasoningEffort": "high", "auth": "chatgpt", "timeoutSeconds": 900 }
+  },
+
+  "autonomy": {
+    "mode": "supervised",
+    "maxIterations": 20,
+    "maxTurnsPerIteration": 40,
+    "tokenBudget": null,
+    "meterTokens": false,
+    "skipPermissions": false,
+    "checkpoints": {
+      "planApproval": true,
+      "beforeRiskyOps": true,
+      "everyNIterations": 5
+    }
+  },
+
+  "loop": {
+    "promptFile": "PROMPT.md",
+    "planFile": "state/fix_plan.md",
+    "progressFile": "state/PROGRESS.md",
+    "oneItemPerIteration": true,
+    "autoRollbackOnRed": true,
+    "commitOnGreen": true,
+    "tagOnGreen": true,
+    "stopWhenPlanEmpty": true
+  },
+
+  "workflow": {
+    "phases": ["plan", "execute", "validate", "review", "record"],
+    "checkpointBetweenPhases": true,
+    "requireSprintContractBefore": "execute",
+    "requireReviewBefore": "done"
+  },
+
+  "parallel": {
+    "_comment": "Fleet runner (harness/fleet.ps1|.sh): opt-in parallel workers over independent tasks (declared 'files' 
+ownership in tasks.json), serialized merge queue. 3 = the productive default; review bandwidth binds before compute.",
+    "maxWorkers": 3,
+    "workerMaxTurns": null,
+    "workerTimeoutSeconds": 3600
+  },
+
+  "components": [
+    {
+      "name": "root",
+      "path": ".",
+      "profile": null,
+      "languages": [],
+      "packageManager": null,
+      "runtime": null,
+      "commands": { "install": null, "run": null },
+      "gate": {
+        "format": null,
+        "lint": null,
+        "typecheck": null,
+        "build": null,
+        "test": null,
+        "e2e": null
+      }
+    }
+  ],
+
+  "gate": {
+    "_comment": "Cross-cutting / integration gate, run from the repo ROOT after every component gate passes. For a 
+multi-component project this usually holds only the e2e that exercises the components together; leave the rest null. For a 
+single-component project, leave this entirely null (the component gate covers it).",
+    "format": null,
+    "lint": null,
+    "typecheck": null,
+    "build": null,
+    "test": null,
+    "e2e": null
+  },
+
+  "verification": {
+    "freshContextReview": true,
+    "requireE2EEvidence": true,
+    "reviewEveryNIterations": 0,
+    "evaluator": {
+      "enabled": false,
+      "rubric": "docs/principles/evaluator-rubric.md",
+      "failBelow": 7
+    }
+  }
+}
+
+
+codex
+The config matches the ground-truth branch: `review.model` is `codex`, `review.fallback` is `fable`, and `reviewer.md` is 
+pinned to `fable`. IÔÇÖm doing one more pass for legacy-tolerance and reachability wording before I give the verdict.
+exec
+"C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command "rg -n \"reviewFallback|three 
+surfaces|flat|codex-routed|reviewer|codex login|silently\" .claude\\commands\\harness-doctor.md 
+.claude\\commands\\harness-init.md" in C:\Users\james\Repos\harness
+exec
+"C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command '$i=0; Get-Content 
+.claude'"\\commands\\harness-init.md | ForEach-Object { "'$i++; if($i -ge 87 -and $i -le 120){ '"'{0,4}: {1}' -f "'$i, $_ } 
+}' in C:\Users\james\Repos\harness
+exec
+"C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command '$i=0; Get-Content 
+.claude'"\\commands\\harness-doctor.md | ForEach-Object { "'$i++; if($i -ge 53 -and $i -le 88){ '"'{0,4}: {1}' -f "'$i, $_ 
+} }' in C:\Users\james\Repos\harness
+ succeeded in 581ms:
+  87:   `fleet.sh`) so `powershell harness/loop.ps1 ├óÔé¼┬ª` and cron keep working; they locate the installed engine
+  88:   and dispatch `--project-root <repo>`. `harness/` then holds only `harness.config.json` + these wrappers
+  89:   + gitignored runtime ├óÔé¼ÔÇØ no engine code.
+  90: - **Model routing (per phase, `{model, fallback}`).** Walk the human through each phase (batched via
+  91:   AskUserQuestion) and pick a **primary `model`** and a **`fallback`** ├óÔé¼ÔÇØ the model to use when the
+  92:   primary is unavailable or hits a usage/limit error. Each may be a **Claude alias**
+  93:   (`opus`/`sonnet`/`haiku`/`fable`) or the literal **`codex`** (cross-vendor OpenAI Codex CLI);
+  94:   `fallback: null` = no fallback. Lead with the shipped **recommended defaults** and let them accept or
+  95:   override per phase:
+  96:   | Phase | model | fallback | why |
+  97:   |-------|-------|----------|-----|
+  98:   | `session` | `opus` | (n/a) | the main window ├óÔé¼ÔÇØ **must be Claude**, never codex |
+  99:   | `explore` | `haiku` | `null` | cheap read-only scout |
+ 100:   | `plan` | `fable` | `null` | fast planner |
+ 101:   | `implement` | `opus` | `codex` | strongest builder + cross-vendor safety net on a usage cap |
+ 102:   | `review` | `codex` | `fable` | independent cross-vendor judge, Claude fallback |
+ 103:   | `evaluate` | `fable` | `null` | rubric scorer |
+ 104:   | `docs` | `haiku` | `null` | doc gardener |
+ 105: 
+ 106:   Constraints to honor as you pick: `session.model` **must be Claude** (never `codex`); a `fallback` must
+ 107:   not equal a `codex` primary (no `codex├óÔÇáÔÇÖcodex`). Then write all surfaces **together**: `config.models`
+ 108:   (nested `{model,fallback}` per phase), `.claude/settings.json` `model` (= `session.model`), and the
+ 109:   `model:` frontmatter of each `.claude/agents/*.md` ├óÔé¼ÔÇØ frontmatter tracks the phase's **primary** when
+ 110:   that's Claude, else (primary `codex`) the phase's **Claude `fallback`** (so `reviewer` frontmatter is
+ 111:   `review`'s fallback = `fable` under the defaults). `/harness-doctor` check 10 enforces exactly this. For
+ 112:   any phase routed to `codex` (as primary or fallback), confirm the codex CLI is installed and signed in
+ 113:   (`codex login`); otherwise that phase silently runs on its Claude arm.
+ 114: - **Allowlist the gate** ├óÔé¼ÔÇØ append the project's gate commands discovered in the interview (the test/
+ 115:   build/lint runners, e.g. `Bash(pnpm test:*)`, `Bash(uv run pytest:*)`) to `permissions.allow` in
+ 116:   `.claude/settings.json`. Why: in headless `-p` runs nobody answers permission prompts ├óÔé¼ÔÇØ non-allowlisted
+ 117:   Bash is auto-denied, so without this the loop's agent can't run the verification gate at all (Phase 3
+ 118:   of `PROMPT.md` silently never happens).
+ 119: 
+ 120: ## Step 4 ├óÔé¼ÔÇØ Scaffold the working state
+
+ succeeded in 580ms:
+  53:    `reviewEveryNIterations == 0` (the unattended loop will run the deterministic gate with no inferential
+  54:    judge ├óÔé¼ÔÇØ fine, but say so).
+  55: 
+  56: 10. **Model routing agrees across its surfaces (per-phase `{model, fallback}`).** `config.models` is the
+  57:     declared table ├óÔé¼ÔÇØ each phase is `{ "model": <primary>, "fallback": <secondary|null> }`, where every
+  58:     value is a **known Claude alias** (`opus`/`sonnet`/`haiku`/`fable`) or a full `claude-*` ID, **or**
+  59:     the literal **`"codex"`** (cross-vendor OpenAI Codex CLI). Be **tolerant of the legacy flat shape**:
+  60:     a bare `"phase": "alias"` normalizes to `{model:"alias", fallback:null}`, and a legacy top-level
+  61:     `reviewFallback` to `review.fallback` ├óÔé¼ÔÇØ treat both as valid, not drift (the resolver normalizes
+  62:     them). A missing `models` block is ├ó┼ôÔÇª (routing is optional ├óÔé¼ÔÇØ everything inherits the session model);
+  63:     a *partial* mismatch is ├ó┬Ø┼Æ (silent drift is exactly what this check exists to catch). Verify, in order:
+  64:     - **(a) Value legality.** Every `model`/`fallback` is a known Claude alias/ID or `"codex"`; anything
+  65:       else (typo, retired alias) is ├ó┬Ø┼Æ.
+  66:     - **(b) Session is Claude.** `.claude/settings.json` `model` == `models.session.model`, and
+  67:       `session.model` must be a **Claude** model ├óÔé¼ÔÇØ `session.model == "codex"` is ├ó┬Ø┼Æ (the main window is
+  68:       Claude and can't be swapped mid-session, so `session.fallback` is ignored).
+  69:     - **(c) Frontmatter tracks the phase's Claude landing model.** Each agent's `model:` frontmatter must
+  70:       match its phase ├óÔé¼ÔÇØ `planner`├óÔÇáÔÇÖ`plan`, `generator`├óÔÇáÔÇÖ`implement`, `explorer`├óÔÇáÔÇÖ`explore`,
+  71:       `reviewer`├óÔÇáÔÇÖ`review`, `evaluator`├óÔÇáÔÇÖ`evaluate`, `doc-gardener`├óÔÇáÔÇÖ`docs`. The rule: frontmatter 
+== the
+  72:       phase's **primary** when the primary is a Claude model; when the primary is `"codex"`, frontmatter
+  73:       must == the phase's **Claude `fallback`** (so a spawned subagent still lands on the right model) and
+  74:       you note "phase is codex-routed ├óÔé¼ÔÇØ frontmatter tracks its Claude fallback." With the shipped config
+  75:       this is the `reviewer` branch (`review = {codex, fable}` ├óÔÇáÔÇÖ `reviewer` frontmatter must be `fable`).
+  76:     - **(d) No `codex ├óÔÇáÔÇÖ codex` fallback.** A `fallback` equal to a `codex` primary is ├ó┬Ø┼Æ ├óÔé¼ÔÇØ there is 
+no
+  77:       cross-vendor escape hatch beyond one hop, so both candidates being codex leaves a usage-limit stop
+  78:       nowhere to go.
+  79:     - **(e) Codex reachability (├ó┼í┬á├»┬©┬Å not ├ó┬Ø┼Æ), for every codex-routed phase.** For **each** phase whose
+  80:       `model` OR `fallback` is `"codex"`, probe `codex --version` and (auth `chatgpt`) `codex login
+  81:       status` exit 0, or (auth `api-key`) `CODEX_API_KEY` set. Unavailable is ├ó┼í┬á├»┬©┬Å not ├ó┬Ø┼Æ ├óÔé¼ÔÇØ that 
+phase runs
+  82:       on (or falls back to) its Claude arm by design; say which path each codex-routed phase would take
+  83:       today.
+  84: 
+  85: ## Output
+  86: A short checklist (one line per check, ├ó┼ôÔÇª/├ó┼í┬á├»┬©┬Å/├ó┬Ø┼Æ + the finding) and, at the end, the single most 
+important
+  87: thing to fix if anything is red. Recommend `/ratchet` for any failure class that should never recur.
+  88: Also advise running Claude Code's native `/doctor`: this command checks *harness* semantics; `/doctor`
+
+2026-07-15T08:47:47.153952Z ERROR codex_core::tools::router: error=Exit code: 1
+Wall time: 4.5 seconds
+Output:
+rg : The term 'rg' is not recognized as the name of a cmdlet, function, script file, or operable program. Check the 
+spelling of the name, or if a path was included, verify that the path is correct and try again.
+At line:2 char:1
++ rg -n "reviewFallback|three surfaces|flat|codex-routed|reviewer|codex ...
++ ~~
+    + CategoryInfo          : ObjectNotFound: (rg:String) [], CommandNotFoundException
+    + FullyQualifiedErrorId : CommandNotFoundException
+ 
+
+ exited 1 in 4460ms:
+rg : The term 'rg' is not recognized as the name of a cmdlet, function, script file, or operable program. Check the 
+spelling of the name, or if a path was included, verify that the path is correct and try again.
+At line:2 char:1
++ rg -n "reviewFallback|three surfaces|flat|codex-routed|reviewer|codex ...
++ ~~
+    + CategoryInfo          : ObjectNotFound: (rg:String) [], CommandNotFoundException
+    + FullyQualifiedErrorId : CommandNotFoundException
+ 
+
+codex
+One possible ambiguity is the ÔÇ£codex unavailableÔÇØ fallback wording for phases where Codex is the secondary, not the 
+primary. IÔÇÖm checking the dispatcher semantics so I donÔÇÖt overstate that as a spec issue if itÔÇÖs just shorthand.
+exec
+"C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command "Select-String -Path harness\\lib\\dispatch.ps1 
+-Pattern 'function Invoke-Phase|Test-CodexAvailable|fallback|UsageLimit|candidate|codex' -Context 2,3" in 
+C:\Users\james\Repos\harness
+exec
+"C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command "Select-String -Path harness\\lib\\dispatch.sh 
+-Pattern 'invoke_phase\\(|codex_available|fallback|usage_limit|candidate|codex' -Context 2,3" in 
+C:\Users\james\Repos\harness
+ succeeded in 355ms:
+
+  harness\lib\dispatch.sh:1:#!/usr/bin/env bash
+  harness\lib\dispatch.sh:2:# dispatch.sh ÔÇö vendor-neutral phase dispatcher (S3; bash mirror of dispatch.ps1). Runs a 
+phase through
+> harness\lib\dispatch.sh:3:# a PRIMARY model and, ONLY on pre-invocation codex-unavailability or a 
+usage/limit-flagged failure,
+> harness\lib\dispatch.sh:4:# retries once on a FALLBACK candidate (claude<->codex); fail-closed on exhaustion. 
+Depends on gate.sh
+> harness\lib\dispatch.sh:5:# (usage_limit_error) and invoke-codex.sh (codex_available, invoke_codex), which loop.sh 
+sources first.
+  harness\lib\dispatch.sh:6:#
+  harness\lib\dispatch.sh:7:# bash can't return a struct: stdout = the phase output, return 0 = success / nonzero = 
+failure, and
+  harness\lib\dispatch.sh:8:# three globals carry the metadata:
+> harness\lib\dispatch.sh:9:#   INVOKE_PHASE_PATH          codex|claude|""   which vendor produced the result ("" on 
+exhaustion)
+> harness\lib\dispatch.sh:10:#   INVOKE_PHASE_USED_FALLBACK 0|1               whether the fallback candidate 
+produced/attempted it
+  harness\lib\dispatch.sh:11:#   INVOKE_PHASE_REASON        ""|invoke-failed|exhausted
+  harness\lib\dispatch.sh:12:# Extra claude args come via a caller-set array INVOKE_PHASE_CLAUDE_ARGS (guarded for the 
+unset/empty case
+  harness\lib\dispatch.sh:13:# under set -u). bash 3.2 / BSD-grep safe.
+  harness\lib\dispatch.sh:14:#
+  harness\lib\dispatch.sh:15:# Discipline (CLAUDE.md ratchet + parent plan ┬º1/┬º3b/┬º4c ÔÇö mirror of dispatch.ps1):
+> harness\lib\dispatch.sh:16:#  - USAGE-LIMIT ONLY ON FAILURE. usage_limit_error is consulted ONLY on a nonzero 
+result; a SUCCESS is
+  harness\lib\dispatch.sh:17:#    returned immediately and NEVER re-examined for usage markers.
+> harness\lib\dispatch.sh:18:#  - SCOPED FALLBACK. Advance to the fallback ONLY on (a) codex-unavailability or (b) a 
+usage-limit
+> harness\lib\dispatch.sh:19:#    failure. A generic non-usage failure returns as failure (invoke-failed) WITHOUT 
+trying the fallback.
+> harness\lib\dispatch.sh:20:#  - WRITE-PHASE RESET. In workspace-write mode, hard-reset to <reset_ref> BEFORE a 
+fallback candidate;
+  harness\lib\dispatch.sh:21:#    never before the primary, never in read-only. A successful write phase is NOT reset 
+(gate +
+  harness\lib\dispatch.sh:22:#    autoRollbackOnRed are the safety net).
+  harness\lib\dispatch.sh:23:
+> harness\lib\dispatch.sh:24:# invoke_phase <mode> <prompt> <root> <log> <primary> <fallback> <reset_ref> <max_turns> 
+<codex_auth>
+> harness\lib\dispatch.sh:25:#              <codex_model> <codex_effort> <codex_timeout> [claude_cmd] [codex_cmd]
+> harness\lib\dispatch.sh:26:invoke_phase() {
+> harness\lib\dispatch.sh:27:  local mode="$1" prompt="$2" root="$3" log="$4" primary="$5" fallback="$6" 
+reset_ref="$7" \
+> harness\lib\dispatch.sh:28:        max_turns="${8:-40}" codex_auth="${9:-chatgpt}" codex_model="${10:-}" 
+codex_effort="${11:-}" \
+> harness\lib\dispatch.sh:29:        codex_timeout="${12:-900}" claude_cmd="${13:-${HARNESS_CLAUDE_CMD:-claude}}" 
+codex_cmd="${14:-codex}"
+> harness\lib\dispatch.sh:30:  INVOKE_PHASE_PATH=""; INVOKE_PHASE_USED_FALLBACK=0; INVOKE_PHASE_REASON=""
+> harness\lib\dispatch.sh:31:  local candidates
+> harness\lib\dispatch.sh:32:  candidates=("$primary")
+> harness\lib\dispatch.sh:33:  [ -n "$fallback" ] && candidates+=("$fallback")
+> harness\lib\dispatch.sh:34:  local n="${#candidates[@]}" idx=0 cand is_fallback vendor out rc last_out=""
+  harness\lib\dispatch.sh:35:  while [ "$idx" -lt "$n" ]; do
+> harness\lib\dispatch.sh:36:    cand="${candidates[$idx]}"
+> harness\lib\dispatch.sh:37:    if [ "$idx" -gt 0 ]; then is_fallback=1; else is_fallback=0; fi
+> harness\lib\dispatch.sh:38:    if [ "$is_fallback" = "1" ] && [ "$mode" = "workspace-write" ] && [ -n "$reset_ref" 
+]; then
+> harness\lib\dispatch.sh:39:      # A usage-limited primary may have left a partial tree; reset to base before the 
+fallback retry.
+  harness\lib\dispatch.sh:40:      git reset --hard "$reset_ref" >/dev/null 2>&1 || true
+  harness\lib\dispatch.sh:41:      git clean -fd >/dev/null 2>&1 || true
+  harness\lib\dispatch.sh:42:    fi
+> harness\lib\dispatch.sh:43:    if [ "$cand" = "codex" ]; then
+> harness\lib\dispatch.sh:44:      vendor="codex"
+> harness\lib\dispatch.sh:45:      if ! codex_available "$codex_auth" "$codex_cmd" >/dev/null 2>&1; then
+> harness\lib\dispatch.sh:46:        last_out="codex unavailable"; idx=$((idx+1)); continue   # (a) advance
+  harness\lib\dispatch.sh:47:      fi
+> harness\lib\dispatch.sh:48:      if out="$(invoke_codex "$mode" "$prompt" "$root" "$log" "$codex_model" 
+"$codex_effort" "$codex_timeout" "$codex_cmd")"; then rc=0; else rc=$?; fi
+  harness\lib\dispatch.sh:49:    else
+  harness\lib\dispatch.sh:50:      vendor="claude"
+  harness\lib\dispatch.sh:51:      local cargs
+  harness\lib\dispatch.sh:59:    if [ "$rc" -eq 0 ]; then
+  harness\lib\dispatch.sh:60:      # SUCCESS: return immediately ÔÇö never re-examine a success for usage markers 
+(ratchet).
+> harness\lib\dispatch.sh:61:      INVOKE_PHASE_PATH="$vendor"; INVOKE_PHASE_USED_FALLBACK="$is_fallback"; 
+INVOKE_PHASE_REASON=""
+  harness\lib\dispatch.sh:62:      printf '%s' "$out"; return 0
+  harness\lib\dispatch.sh:63:    fi
+  harness\lib\dispatch.sh:64:    last_out="$out"
+> harness\lib\dispatch.sh:65:    if usage_limit_error "$out"; then idx=$((idx+1)); continue; fi   # (b) usage-limit 
+failure -> advance
+> harness\lib\dispatch.sh:66:    # Generic (non-usage) failure: stop here, DON'T advance to the fallback.
+> harness\lib\dispatch.sh:67:    INVOKE_PHASE_PATH="$vendor"; INVOKE_PHASE_USED_FALLBACK="$is_fallback"; 
+INVOKE_PHASE_REASON="invoke-failed"
+  harness\lib\dispatch.sh:68:    printf '%s' "$out"; return 1
+  harness\lib\dispatch.sh:69:  done
+> harness\lib\dispatch.sh:70:  # Every candidate was unavailable or usage-limited: fail closed.
+  harness\lib\dispatch.sh:71:  INVOKE_PHASE_PATH=""
+> harness\lib\dispatch.sh:72:  if [ "$n" -gt 1 ]; then INVOKE_PHASE_USED_FALLBACK=1; else 
+INVOKE_PHASE_USED_FALLBACK=0; fi
+  harness\lib\dispatch.sh:73:  INVOKE_PHASE_REASON="exhausted"
+  harness\lib\dispatch.sh:74:  printf '%s' "$last_out"; return 1
+  harness\lib\dispatch.sh:75:}
+
+
+
+ succeeded in 362ms:
+
+  harness\lib\dispatch.ps1:1:<#
+  harness\lib\dispatch.ps1:2:  dispatch.ps1 ÔÇö vendor-neutral phase dispatcher (S3). Runs a phase through a PRIMARY 
+model and, ONLY
+> harness\lib\dispatch.ps1:3:  on pre-invocation codex-unavailability or a usage/limit-flagged failure, retries once 
+on a FALLBACK
+> harness\lib\dispatch.ps1:4:  candidate (claude<->codex). Fail-closed on exhaustion. This is the single chokepoint 
+the loop's
+> harness\lib\dispatch.ps1:5:  implement call and periodic reviewer route through; it depends on gate.ps1 
+(Test-UsageLimitError,
+> harness\lib\dispatch.ps1:6:  Get-Prop) and invoke-codex.ps1 (Test-CodexAvailable, Invoke-Codex), which the loop 
+sources first.
+  harness\lib\dispatch.ps1:7:
+  harness\lib\dispatch.ps1:8:  Discipline (CLAUDE.md ratchet + parent plan ┬º1/┬º3b/┬º4c ÔÇö mirror of dispatch.sh):
+> harness\lib\dispatch.ps1:9:   - USAGE-LIMIT ONLY ON FAILURE. Test-UsageLimitError is consulted ONLY on a not-ok 
+result. A SUCCESS
+  harness\lib\dispatch.ps1:10:     is returned immediately and is NEVER re-examined for usage markers ÔÇö a good 
+build/review whose text
+  harness\lib\dispatch.ps1:11:     merely mentions "overloaded"/"quota"/"429" must not be reset and discarded.
+> harness\lib\dispatch.ps1:12:   - SCOPED FALLBACK. The fallback candidate is tried ONLY on (a) pre-invocation 
+codex-unavailability or
+> harness\lib\dispatch.ps1:13:     (b) a failed invocation that Test-UsageLimitError flags. A generic non-usage 
+failure returns as a
+> harness\lib\dispatch.ps1:14:     failure (Reason='invoke-failed') WITHOUT trying the fallback ÔÇö the caller handles 
+it as today.
+> harness\lib\dispatch.ps1:15:   - WRITE-PHASE RESET. In workspace-write mode, hard-reset the tree to $ResetRef BEFORE 
+a fallback
+> harness\lib\dispatch.ps1:16:     candidate (a usage-limited primary may have left a partial tree). NEVER before the 
+primary, NEVER in
+  harness\lib\dispatch.ps1:17:     read-only mode. A successful write phase is NOT belt-and-braces reset (that would 
+discard the build);
+  harness\lib\dispatch.ps1:18:     the gate + autoRollbackOnRed are its safety net.
+  harness\lib\dispatch.ps1:19:#>
+  harness\lib\dispatch.ps1:63:
+  harness\lib\dispatch.ps1:64:# The dispatcher. Returns a result object (see below). See the file header for the 
+discipline it honors.
+> harness\lib\dispatch.ps1:65:function Invoke-Phase {
+  harness\lib\dispatch.ps1:66:  param(
+  harness\lib\dispatch.ps1:67:    [Parameter(Mandatory)][ValidateSet('read-only','workspace-write')][string]$Mode,
+  harness\lib\dispatch.ps1:68:    [Parameter(Mandatory)][string]$Prompt,
+  harness\lib\dispatch.ps1:70:    [string]$LogPath = '',
+  harness\lib\dispatch.ps1:71:    [string]$Primary = '',                 # '' = inherit the ambient claude default 
+(pre-routing behavior)
+> harness\lib\dispatch.ps1:72:    [string]$Fallback = '',                # '' = no fallback candidate
+> harness\lib\dispatch.ps1:73:    $CodexCfg = $null,
+> harness\lib\dispatch.ps1:74:    [string]$ResetRef = '',                # iteration base; only used before a 
+write-phase fallback
+  harness\lib\dispatch.ps1:75:    [int]$MaxTurns = 40,
+  harness\lib\dispatch.ps1:76:    [string[]]$ClaudeExtraArgs = @(),
+  harness\lib\dispatch.ps1:77:    [string]$ClaudeCommand = '',           # injectable for tests; else 
+$env:HARNESS_CLAUDE_CMD ?? 'claude'
+> harness\lib\dispatch.ps1:78:    [string]$CodexCommand = 'codex',       # injectable for tests
+  harness\lib\dispatch.ps1:79:    [switch]$Quiet                         # fleet workers pass -Quiet so Start-Job 
+doesn't replay the transcript
+  harness\lib\dispatch.ps1:80:  )
+  harness\lib\dispatch.ps1:81:  $claudeCmd = if ($ClaudeCommand) { $ClaudeCommand } elseif ($env:HARNESS_CLAUDE_CMD) { 
+$env:HARNESS_CLAUDE_CMD } else { 'claude' }
+> harness\lib\dispatch.ps1:82:  $auth = [string](Get-Prop $CodexCfg 'auth'); if (-not $auth) { $auth = 'chatgpt' }
+> harness\lib\dispatch.ps1:83:  $candidates = @($Primary)
+> harness\lib\dispatch.ps1:84:  if ($Fallback) { $candidates += $Fallback }
+  harness\lib\dispatch.ps1:85:  $lastOut = ''
+> harness\lib\dispatch.ps1:86:  for ($idx = 0; $idx -lt $candidates.Count; $idx++) {
+> harness\lib\dispatch.ps1:87:    $cand = [string]$candidates[$idx]
+> harness\lib\dispatch.ps1:88:    $isFallback = ($idx -gt 0)
+> harness\lib\dispatch.ps1:89:    if ($isFallback -and $Mode -eq 'workspace-write' -and $ResetRef) {
+> harness\lib\dispatch.ps1:90:      # A usage-limited primary may have left a partial tree; reset to base before the 
+fallback retry.
+  harness\lib\dispatch.ps1:91:      $prevEAP = $ErrorActionPreference; $ErrorActionPreference = 'Continue'
+  harness\lib\dispatch.ps1:92:      try { & git reset --hard $ResetRef *> $null; & git clean -fd *> $null } finally { 
+$ErrorActionPreference = $prevEAP }
+  harness\lib\dispatch.ps1:93:    }
+> harness\lib\dispatch.ps1:94:    if ($cand -eq 'codex') {
+> harness\lib\dispatch.ps1:95:      $vendor = 'codex'
+> harness\lib\dispatch.ps1:96:      $avail = Test-CodexAvailable -Auth $auth -CodexCommand $CodexCommand
+> harness\lib\dispatch.ps1:97:      if (-not $avail.Available) { $lastOut = "codex unavailable: $($avail.Reason)"; 
+continue }   # (a) advance
+> harness\lib\dispatch.ps1:98:      $res = Invoke-Codex -Mode $Mode -Prompt $Prompt -RepoRoot $RepoRoot -LogPath 
+$LogPath -CodexCfg $CodexCfg -CodexCommand $CodexCommand
+  harness\lib\dispatch.ps1:99:    } else {
+  harness\lib\dispatch.ps1:100:      $vendor = 'claude'
+  harness\lib\dispatch.ps1:101:      $res = Invoke-ClaudePhase -Model $cand -Prompt $Prompt -LogPath $LogPath 
+-MaxTurns $MaxTurns -ExtraArgs $ClaudeExtraArgs -ClaudeCommand $claudeCmd -Quiet:$Quiet
+  harness\lib\dispatch.ps1:103:    if ($res.Ok) {
+  harness\lib\dispatch.ps1:104:      # SUCCESS: return immediately ÔÇö never re-examine a success for usage markers 
+(ratchet).
+> harness\lib\dispatch.ps1:105:      return [pscustomobject]@{ Ok = $true; Output = "$($res.Output)"; Path = $vendor; 
+UsedFallback = $isFallback; Reason = '' }
+  harness\lib\dispatch.ps1:106:    }
+  harness\lib\dispatch.ps1:107:    $lastOut = "$($res.Output)"
+> harness\lib\dispatch.ps1:108:    if (Test-UsageLimitError $res.Output) { continue }   # (b) usage-limit failure -> 
+advance to the fallback
+> harness\lib\dispatch.ps1:109:    # Generic (non-usage) failure: stop here, DON'T advance to the fallback.
+> harness\lib\dispatch.ps1:110:    return [pscustomobject]@{ Ok = $false; Output = "$($res.Output)"; Path = $vendor; 
+UsedFallback = $isFallback; Reason = 'invoke-failed' }
+  harness\lib\dispatch.ps1:111:  }
+> harness\lib\dispatch.ps1:112:  # Every candidate was unavailable or usage-limited: fail closed.
+> harness\lib\dispatch.ps1:113:  return [pscustomobject]@{ Ok = $false; Output = "$lastOut"; Path = $null; 
+UsedFallback = ($candidates.Count -gt 1); Reason = 'exhausted' }
+  harness\lib\dispatch.ps1:114:}
+
+
+
+codex
+I found the only substantive risk: the core schema and frontmatter rules are encoded correctly, but one generalized init 
+sentence may misdescribe what happens when Codex is configured as a fallback rather than a primary. IÔÇÖm checking whether 
+that should affect the ship verdict.
+exec
+"C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command "Select-String -Path harness\\harness.schema.json 
+-Pattern 'opus|sonnet|haiku|fable|claude-|codex|modelAliases' -Context 1,2" in C:\Users\james\Repos\harness
+exec
+"C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command "Select-String -Path 
+harness\\lib\\gate.ps1,harness\\lib\\gate.sh -Pattern 
+'Resolve-PhaseFallback|reviewFallback|phase_fallback|Resolve-PhaseModel|phase_model' -Context 1,3" in 
+C:\Users\james\Repos\harness
+ succeeded in 481ms:
+
+  harness\harness.schema.json:23:      "type": "object",
+> harness\harness.schema.json:24:      "description": "Per-phase model routing ÔÇö the single DECLARED routing table. 
+The enforcing mechanisms are: .claude/settings.json `model` (session), `model:` frontmatter in .claude/agents/*.md 
+(subagents), and `--model` flags in loop.ps1/loop.sh (headless). /harness-init writes the mechanisms from this block; 
+/harness-doctor fails on drift between them. Each phase is either a bare Claude alias/ID (or 'codex') ÔÇö the legacy 
+FLAT form, still accepted ÔÇö OR an object {model, fallback} where `model` is the phase's primary and `fallback` is used 
+when the primary is unavailable or hits a usage/limit error. Values are Claude aliases (haiku|sonnet|opus|fable), full 
+model IDs, or the literal 'codex' (cross-vendor OpenAI Codex CLI); null/absent = inherit the ambient session model 
+(pre-routing behavior).",
+  harness\harness.schema.json:25:      "properties": {
+> harness\harness.schema.json:26:        "session": { "$ref": "#/definitions/phaseRouting", "description": "Model for 
+the main interactive window (written to .claude/settings.json `model`). Must resolve to a Claude model ÔÇö the main 
+window is Claude and cannot be swapped mid-session; a codex primary here is a doctor error. /model still overrides 
+live." },
+  harness\harness.schema.json:27:        "explore": { "$ref": "#/definitions/phaseRouting", "description": "Model for 
+the read-only explorer agent that other phases fan searches out to. Exploration is a fan-out pattern, not a pipeline 
+phase ÔÇö see the 2026-07-13 execution plan." },
+  harness\harness.schema.json:28:        "plan": { "$ref": "#/definitions/phaseRouting", "description": "Model for the 
+planner agent." },
+  harness\harness.schema.json:29:        "implement": { "$ref": "#/definitions/phaseRouting", "description": "Model 
+for the generator agent AND the headless loop's main iteration (`claude -p --model`)." },
+> harness\harness.schema.json:30:        "review": { "$ref": "#/definitions/phaseRouting", "description": "Reviewer 
+routing. A `model` of the literal string 'codex' routes review through the OpenAI Codex CLI (cross-vendor judge; see 
+harness/lib/invoke-codex.*); any Claude alias/ID uses the internal fresh-context reviewer on that model. `fallback` 
+(replacing the deprecated top-level reviewFallback) is the Claude model used when a codex primary is 
+missing/unauthenticated or hits a usage/limit error." },
+> harness\harness.schema.json:31:        "reviewFallback": { "type": ["string", "null"], "description": "DEPRECATED ÔÇö 
+use `review.fallback`; still read for back-compat. Claude model for the internal reviewer agent, used as the automatic 
+fallback when `review` is 'codex' but codex is missing/unauthenticated." },
+  harness\harness.schema.json:32:        "evaluate": { "$ref": "#/definitions/phaseRouting", "description": "Model for 
+the evaluator agent (judges deserve the strongest model)." },
+  harness\harness.schema.json:33:        "docs": { "$ref": "#/definitions/phaseRouting", "description": "Model for the 
+doc-gardener agent." },
+> harness\harness.schema.json:34:        "codex": {
+  harness\harness.schema.json:35:          "type": "object",
+> harness\harness.schema.json:36:          "description": "Settings for the OpenAI Codex CLI ÔÇö used whenever ANY 
+phase's model or fallback resolves to 'codex' (no longer review-specific).",
+  harness\harness.schema.json:37:          "properties": {
+> harness\harness.schema.json:38:            "model": { "type": ["string", "null"], "description": "Passed as `codex 
+exec -m`. null = don't pin; float on the CLI's default (recommended ÔÇö pinned IDs rot as OpenAI retires models)." },
+> harness\harness.schema.json:39:            "reasoningEffort": { "type": ["string", "null"], "enum": ["minimal", 
+"low", "medium", "high", "xhigh", null], "description": "Sets codex `model_reasoning_effort` for the run. Default 
+high." },
+> harness\harness.schema.json:40:            "auth": { "enum": ["chatgpt", "api-key"], "description": "chatgpt = 
+ChatGPT-plan sign-in (`codex login`; usage billed to the plan). api-key = expect CODEX_API_KEY in the environment 
+(metered). Detection differs: chatgpt is probed via `codex login status`; api-key via the env var being set." },
+> harness\harness.schema.json:41:            "timeoutSeconds": { "type": "integer", "minimum": 60, "description": 
+"External watchdog for the codex run ÔÇö codex exec has NO --max-turns/--timeout of its own. On expiry the run is killed 
+and treated as a fail-closed failure. Default 900." }
+  harness\harness.schema.json:42:          }
+  harness\harness.schema.json:43:        }
+  harness\harness.schema.json:148:    "phaseRouting": {
+> harness\harness.schema.json:149:      "description": "Per-phase routing: either a Claude alias/ID or 'codex' as a 
+bare string (legacy flat form, still accepted), OR an object {model, fallback} where each is a Claude alias/ID or the 
+literal 'codex'. null/absent = inherit the ambient session model.",
+  harness\harness.schema.json:150:      "oneOf": [
+  harness\harness.schema.json:151:        { "type": ["string", "null"] },
+  harness\harness.schema.json:153:          "properties": {
+> harness\harness.schema.json:154:            "model":    { "type": ["string", "null"], "description": "Primary model 
+for this phase: a Claude alias (haiku|sonnet|opus|fable), a full ID, or the literal 'codex' (cross-vendor OpenAI Codex 
+CLI)." },
+> harness\harness.schema.json:155:            "fallback": { "type": ["string", "null"], "description": "Model used 
+when the primary is unavailable or hits a usage/limit error: a Claude alias/ID or 'codex'. null = no fallback. Must 
+not be 'codex' when model is already 'codex'." }
+  harness\harness.schema.json:156:          },
+  harness\harness.schema.json:157:          "additionalProperties": false }
+
+
+
+ succeeded in 490ms:
+
+  harness\lib\gate.ps1:42:# loop/fleet still read the PRIMARY through this, so their behavior is unchanged by the 
+migration.
+> harness\lib\gate.ps1:43:# SPECIAL CASE: the pseudo-phase 'reviewFallback' (still asked for by the review path) 
+resolves to
+> harness\lib\gate.ps1:44:# review.fallback (nested) or the legacy top-level models.reviewFallback. Lives here (not in 
+loop.ps1)
+> harness\lib\gate.ps1:45:# so the self-tests exercise it; mirror of phase_model in gate.sh.
+> harness\lib\gate.ps1:46:function Resolve-PhaseModel($Config, [string]$Phase) {
+  harness\lib\gate.ps1:47:  $models = Get-Prop $Config 'models'
+> harness\lib\gate.ps1:48:  if ($Phase -eq 'reviewFallback') {
+  harness\lib\gate.ps1:49:    $review = Get-Prop $models 'review'
+  harness\lib\gate.ps1:50:    if ($null -ne $review -and $review -isnot [string]) {
+  harness\lib\gate.ps1:51:      $rf = Get-Prop $review 'fallback'
+  harness\lib\gate.ps1:53:    }
+> harness\lib\gate.ps1:54:    $legacy = Get-Prop $models 'reviewFallback'
+  harness\lib\gate.ps1:55:    if ($null -ne $legacy) { return ("$legacy").Trim() }
+  harness\lib\gate.ps1:56:    return ''
+  harness\lib\gate.ps1:57:  }
+  harness\lib\gate.ps1:67:# when there is none. Tolerant of both shapes: the nested {model, fallback} object returns 
+its .fallback;
+> harness\lib\gate.ps1:68:# a legacy flat string has no per-phase fallback. Mirror of phase_fallback in gate.sh.
+> harness\lib\gate.ps1:69:# SPECIAL CASE review (S1b): must be SYMMETRIC with Resolve-PhaseModel('reviewFallback') ÔÇö 
+resolve to
+> harness\lib\gate.ps1:70:# review.fallback if non-null, ELSE the legacy top-level models.reviewFallback if non-null, 
+ELSE '' ÔÇö for
+  harness\lib\gate.ps1:71:# the nested-null, flat-string, AND absent-review shapes alike. Without this, a mixed config 
+(nested
+> harness\lib\gate.ps1:72:# review:{model,fallback:null} + legacy top-level reviewFallback) had the two accessors 
+disagree.
+> harness\lib\gate.ps1:73:function Resolve-PhaseFallback($Config, [string]$Phase) {
+  harness\lib\gate.ps1:74:  $models = Get-Prop $Config 'models'
+  harness\lib\gate.ps1:75:  $m = Get-Prop $models $Phase
+  harness\lib\gate.ps1:76:  if ($Phase -eq 'review') {
+  harness\lib\gate.ps1:80:    }
+> harness\lib\gate.ps1:81:    $legacy = Get-Prop $models 'reviewFallback'      # else the legacy top-level (symmetry 
+with reviewFallback pseudo-phase)
+  harness\lib\gate.ps1:82:    if ($null -ne $legacy) { return ("$legacy").Trim() }
+  harness\lib\gate.ps1:83:    return ''
+  harness\lib\gate.ps1:84:  }
+  harness\lib\gate.sh:22:# degrades to). Tolerant of BOTH shapes: the new nested {model, fallback} object AND the 
+legacy flat
+> harness\lib\gate.sh:23:# 'phase':'alias' string. SPECIAL CASE 'reviewFallback' (a pseudo-phase the review path still 
+asks for):
+> harness\lib\gate.sh:24:# resolves to review.fallback (nested) or the legacy top-level models.reviewFallback.
+> harness\lib\gate.sh:25:# Mirror of Resolve-PhaseModel in gate.ps1; lives here so the self-tests can exercise it.
+> harness\lib\gate.sh:26:phase_model() {  # $1 config path  $2 phase
+  harness\lib\gate.sh:27:  local config="$1" p="$2"
+> harness\lib\gate.sh:28:  if [ "$p" = "reviewFallback" ]; then
+  harness\lib\gate.sh:29:    jq -r '
+  harness\lib\gate.sh:30:      (.models.review) as $r
+  harness\lib\gate.sh:31:      | if ($r|type) == "object" and $r.fallback != null then $r.fallback
+> harness\lib\gate.sh:32:        elif .models.reviewFallback != null then .models.reviewFallback
+  harness\lib\gate.sh:33:        else "" end' "$config"
+  harness\lib\gate.sh:34:    return
+  harness\lib\gate.sh:35:  fi
+  harness\lib\gate.sh:44:# {model, fallback} returns its .fallback; a legacy flat string has no per-phase fallback.
+> harness\lib\gate.sh:45:# Mirror of Resolve-PhaseFallback in gate.ps1.
+> harness\lib\gate.sh:46:# SPECIAL CASE review (S1b): must be SYMMETRIC with phase_model reviewFallback ÔÇö 
+review.fallback if
+> harness\lib\gate.sh:47:# non-null, else the legacy top-level models.reviewFallback if non-null, else "" ÔÇö for the 
+nested-null,
+  harness\lib\gate.sh:48:# flat-string, AND absent-review shapes alike (a mixed config had the two accessors disagree 
+otherwise).
+> harness\lib\gate.sh:49:phase_fallback() {  # $1 config path  $2 phase
+  harness\lib\gate.sh:50:  local config="$1" p="$2"
+  harness\lib\gate.sh:51:  if [ "$p" = "review" ]; then
+  harness\lib\gate.sh:52:    jq -r '
+  harness\lib\gate.sh:54:      | if ($r|type) == "object" and $r.fallback != null then $r.fallback
+> harness\lib\gate.sh:55:        elif .models.reviewFallback != null then .models.reviewFallback
+  harness\lib\gate.sh:56:        else "" end' "$config"
+  harness\lib\gate.sh:57:    return
+  harness\lib\gate.sh:58:  fi
+
+
+
+codex
+VERDICT: FIX-THEN-SHIP
+
+1. **Medium, [.claude/commands/harness-init.md](C:/Users/james/Repos/harness/.claude/commands/harness-init.md:112):** The 
+prose overgeneralizes Codex unavailability: ÔÇ£For any phase routed to `codex` (as primary or fallback)ÔÇª otherwise that 
+phase silently runs on its Claude arm.ÔÇØ That is true for a Codex primary with Claude fallback, like 
+`review={codex,fable}`, but not for a Claude primary with Codex fallback, like shipped `implement={opus,codex}`. If Opus 
+hits a usage cap and Codex is unavailable, the fallback safety net is unavailable and the dispatcher exhausts/fails closed, 
+not ÔÇ£silently runs on Claude.ÔÇØ  
+   **Fix:** Split the wording: Codex-primary phases fall back to their Claude fallback; Claude-primary phases keep running 
+Claude on the happy path but lose the Codex fallback safety net if Codex is unavailable.
+
+All other checked requirements look correct: check 10 encodes rules (a)-(e), preserves legacy flat shape and 
+`reviewFallback`, maps `reviewer` to `review.fallback=fable` under the shipped config, and the init defaults match ┬º4a.
+tokens used
+45,762
+VERDICT: FIX-THEN-SHIP
+
+1. **Medium, [.claude/commands/harness-init.md](C:/Users/james/Repos/harness/.claude/commands/harness-init.md:112):** The prose overgeneralizes Codex unavailability: ÔÇ£For any phase routed to `codex` (as primary or fallback)ÔÇª otherwise that phase silently runs on its Claude arm.ÔÇØ That is true for a Codex primary with Claude fallback, like `review={codex,fable}`, but not for a Claude primary with Codex fallback, like shipped `implement={opus,codex}`. If Opus hits a usage cap and Codex is unavailable, the fallback safety net is unavailable and the dispatcher exhausts/fails closed, not ÔÇ£silently runs on Claude.ÔÇØ  
+   **Fix:** Split the wording: Codex-primary phases fall back to their Claude fallback; Claude-primary phases keep running Claude on the happy path but lose the Codex fallback safety net if Codex is unavailable.
+
+All other checked requirements look correct: check 10 encodes rules (a)-(e), preserves legacy flat shape and `reviewFallback`, maps `reviewer` to `review.fallback=fable` under the shipped config, and the init defaults match ┬º4a.
+

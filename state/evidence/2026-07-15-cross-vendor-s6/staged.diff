@@ -1,0 +1,92 @@
+diff --git a/.claude/commands/harness-doctor.md b/.claude/commands/harness-doctor.md
+index 559eb91..c327647 100644
+--- a/.claude/commands/harness-doctor.md
++++ b/.claude/commands/harness-doctor.md
+@@ -53,15 +53,34 @@ behaves oddly.
+    `reviewEveryNIterations == 0` (the unattended loop will run the deterministic gate with no inferential
+    judge — fine, but say so).
+ 
+-10. **Model routing agrees across its three surfaces.** `config.models` is the declared table; check the
+-    mechanisms match it: `.claude/settings.json` `model` == `models.session`; each agent's frontmatter
+-    `model:` matches its phase (`planner`→`models.plan`, `generator`→`models.implement`,
+-    `explorer`→`models.explore`, `reviewer`→`models.reviewFallback`, `evaluator`→`models.evaluate`,
+-    `doc-gardener`→`models.docs`). A missing `models` block is ✅ (routing is optional — everything
+-    inherits); a *partial* mismatch is ❌ (silent drift is exactly what this check exists to catch).
+-    If `models.review == "codex"`: probe `codex --version` and (auth `chatgpt`) `codex login status`
+-    exit 0, or (auth `api-key`) `CODEX_API_KEY` set — unavailable is ⚠️ not ❌ (review falls back to
+-    `models.reviewFallback` by design; say which path a review would take today).
++10. **Model routing agrees across its surfaces (per-phase `{model, fallback}`).** `config.models` is the
++    declared table — each phase is `{ "model": <primary>, "fallback": <secondary|null> }`, where every
++    value is a **known Claude alias** (`opus`/`sonnet`/`haiku`/`fable`) or a full `claude-*` ID, **or**
++    the literal **`"codex"`** (cross-vendor OpenAI Codex CLI). Be **tolerant of the legacy flat shape**:
++    a bare `"phase": "alias"` normalizes to `{model:"alias", fallback:null}`, and a legacy top-level
++    `reviewFallback` to `review.fallback` — treat both as valid, not drift (the resolver normalizes
++    them). A missing `models` block is ✅ (routing is optional — everything inherits the session model);
++    a *partial* mismatch is ❌ (silent drift is exactly what this check exists to catch). Verify, in order:
++    - **(a) Value legality.** Every `model`/`fallback` is a known Claude alias/ID or `"codex"`; anything
++      else (typo, retired alias) is ❌.
++    - **(b) Session is Claude.** `.claude/settings.json` `model` == `models.session.model`, and
++      `session.model` must be a **Claude** model — `session.model == "codex"` is ❌ (the main window is
++      Claude and can't be swapped mid-session, so `session.fallback` is ignored).
++    - **(c) Frontmatter tracks the phase's Claude landing model.** Each agent's `model:` frontmatter must
++      match its phase — `planner`→`plan`, `generator`→`implement`, `explorer`→`explore`,
++      `reviewer`→`review`, `evaluator`→`evaluate`, `doc-gardener`→`docs`. The rule: frontmatter == the
++      phase's **primary** when the primary is a Claude model; when the primary is `"codex"`, frontmatter
++      must == the phase's **Claude `fallback`** (so a spawned subagent still lands on the right model) and
++      you note "phase is codex-routed — frontmatter tracks its Claude fallback." With the shipped config
++      this is the `reviewer` branch (`review = {codex, fable}` → `reviewer` frontmatter must be `fable`).
++    - **(d) No `codex → codex` fallback.** A `fallback` equal to a `codex` primary is ❌ — there is no
++      cross-vendor escape hatch beyond one hop, so both candidates being codex leaves a usage-limit stop
++      nowhere to go.
++    - **(e) Codex reachability (⚠️ not ❌), for every codex-routed phase.** For **each** phase whose
++      `model` OR `fallback` is `"codex"`, probe `codex --version` and (auth `chatgpt`) `codex login
++      status` exit 0, or (auth `api-key`) `CODEX_API_KEY` set. Unavailable is ⚠️ not ❌ — that phase runs
++      on (or falls back to) its Claude arm by design; say which path each codex-routed phase would take
++      today.
+ 
+ ## Output
+ A short checklist (one line per check, ✅/⚠️/❌ + the finding) and, at the end, the single most important
+diff --git a/.claude/commands/harness-init.md b/.claude/commands/harness-init.md
+index 7190aec..17f2a97 100644
+--- a/.claude/commands/harness-init.md
++++ b/.claude/commands/harness-init.md
+@@ -87,12 +87,33 @@ With answers in hand:
+   `fleet.sh`) so `powershell harness/loop.ps1 …` and cron keep working; they locate the installed engine
+   and dispatch `--project-root <repo>`. `harness/` then holds only `harness.config.json` + these wrappers
+   + gitignored runtime — no engine code.
+-- **Model routing** — ask whether the shipped `models` defaults suit this project (session opus /
+-  explore haiku / plan fable / implement opus / review codex→fable fallback). If changed, update
+-  `config.models` AND its mechanisms together: `.claude/settings.json` `model` (= `models.session`) and
+-  the `model:` frontmatter of the matching `.claude/agents/*.md`. `/harness-doctor` check 10 fails on
+-  drift between the three surfaces. If review stays `codex`, confirm the codex CLI is installed and
+-  signed in (`codex login`); otherwise reviews silently use the fallback model.
++- **Model routing (per phase, `{model, fallback}`).** Walk the human through each phase (batched via
++  AskUserQuestion) and pick a **primary `model`** and a **`fallback`** — the model to use when the
++  primary is unavailable or hits a usage/limit error. Each may be a **Claude alias**
++  (`opus`/`sonnet`/`haiku`/`fable`) or the literal **`codex`** (cross-vendor OpenAI Codex CLI);
++  `fallback: null` = no fallback. Lead with the shipped **recommended defaults** and let them accept or
++  override per phase:
++  | Phase | model | fallback | why |
++  |-------|-------|----------|-----|
++  | `session` | `opus` | (n/a) | the main window — **must be Claude**, never codex |
++  | `explore` | `haiku` | `null` | cheap read-only scout |
++  | `plan` | `fable` | `null` | fast planner |
++  | `implement` | `opus` | `codex` | strongest builder + cross-vendor safety net on a usage cap |
++  | `review` | `codex` | `fable` | independent cross-vendor judge, Claude fallback |
++  | `evaluate` | `fable` | `null` | rubric scorer |
++  | `docs` | `haiku` | `null` | doc gardener |
++
++  Constraints to honor as you pick: `session.model` **must be Claude** (never `codex`); a `fallback` must
++  not equal a `codex` primary (no `codex→codex`). Then write all surfaces **together**: `config.models`
++  (nested `{model,fallback}` per phase), `.claude/settings.json` `model` (= `session.model`), and the
++  `model:` frontmatter of each `.claude/agents/*.md` — frontmatter tracks the phase's **primary** when
++  that's Claude, else (primary `codex`) the phase's **Claude `fallback`** (so `reviewer` frontmatter is
++  `review`'s fallback = `fable` under the defaults). `/harness-doctor` check 10 enforces exactly this. For
++  any phase routed to `codex`, confirm the codex CLI is installed and signed in (`codex login`) — the
++  effect of it being unavailable depends on where codex sits: a **codex-primary** phase (e.g. `review`)
++  silently runs on its Claude `fallback`; a **Claude-primary phase with a codex `fallback`** (e.g.
++  `implement`) still runs its Claude primary on the happy path but loses the safety net, so a usage cap
++  on the primary then has nowhere to fall back and the run fails closed.
+ - **Allowlist the gate** — append the project's gate commands discovered in the interview (the test/
+   build/lint runners, e.g. `Bash(pnpm test:*)`, `Bash(uv run pytest:*)`) to `permissions.allow` in
+   `.claude/settings.json`. Why: in headless `-p` runs nobody answers permission prompts — non-allowlisted

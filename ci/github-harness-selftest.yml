@@ -1,0 +1,71 @@
+# Harness self-test CI — ACTIVATE-ME TEMPLATE.
+#
+# This lives in ci/ (not .github/workflows/) so the repo can be pushed with a token that lacks the
+# GitHub `workflow` scope. To turn it on, copy it into place:
+#
+#     mkdir -p .github/workflows && cp ci/github-harness-selftest.yml .github/workflows/harness-selftest.yml
+#
+# then commit (you may need `gh auth refresh -h github.com -s workflow`, or add it via the GitHub web UI).
+#
+# It tests the HARNESS's own logic (gate routing, the destructive-command denylist, budget, plan-counting)
+# on every push/PR — the harness practicing what it preaches ("test the harness"). It does NOT run a user
+# project's gate; /harness-init wires that per project (see the commented job at the bottom).
+
+name: harness self-test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  selftest-linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install jq
+        run: sudo apt-get update && sudo apt-get install -y jq
+      - name: Bash self-tests
+        run: bash harness/tests/run-tests.sh
+      - name: Fleet merge-queue integration test (stub claude)
+        run: bash harness/tests/fleet-queue-test.sh
+      - name: Shell syntax check
+        run: |
+          for f in $(find . -name '*.sh' -not -path './.git/*'); do bash -n "$f"; done
+
+  selftest-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: PowerShell self-tests
+        shell: pwsh
+        run: pwsh -NoProfile -ExecutionPolicy Bypass -File harness/tests/run-tests.ps1
+
+  # Windows PowerShell 5.1 is the harness's DOCUMENTED engine (the plugin's PowerShell hooks + the
+  # harness/loop.ps1 wrapper invoke `powershell` and carry `#requires -Version 5.1`) — CI must exercise
+  # it, not just pwsh, or 5.1-only
+  # breakage (native-arg quote mangling, ASCII $OutputEncoding, encoding quirks) ships unseen.
+  selftest-windows-ps51:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Windows PowerShell 5.1 self-tests
+        shell: powershell
+        run: powershell -NoProfile -ExecutionPolicy Bypass -File harness/tests/run-tests.ps1
+      - name: Fleet merge-queue integration test (stub claude, PS 5.1)
+        shell: powershell
+        run: powershell -NoProfile -ExecutionPolicy Bypass -File harness/tests/fleet-queue-test.ps1
+
+  # --- Per-project gate (template) -------------------------------------------------------------------
+  # Uncomment and adapt once /harness-init has filled your gate. Runs each component's gate on PRs so
+  # the same checks the loop enforces locally also guard the remote.
+  #
+  # project-gate:
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     - uses: actions/checkout@v4
+  #     - run: |
+  #         # cd frontend && pnpm install && pnpm run build && pnpm test -- --run && cd ..
+  #         # cd backend  && uv sync && uv run ruff check . && uv run pytest -q && cd ..
+  #         echo "wire your component gates here (see harness/harness.config.json)"

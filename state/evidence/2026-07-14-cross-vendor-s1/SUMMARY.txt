@@ -1,0 +1,24 @@
+S1 evidence — cross-vendor per-phase model routing (foundation, NO runtime behavior change)
+
+Slice S1 of docs/execution-plans/2026-07-14-cross-vendor-per-phase-model-routing.md. Generalized the
+model-routing config from a flat models.<phase>:"alias" table to per-phase {model, fallback}, with a
+tolerant resolver that still accepts the legacy flat shape so deployed configs keep working. Only the two
+schema files, the dogfood config, the resolver functions (+ plugin twins), and the tests were touched;
+loop/fleet/agents/doctor/init/codex-lib were NOT changed. Both schema copies gained a reusable
+definitions.phaseRouting (oneOf flat-string | {model,fallback}); each phase property $refs it;
+reviewFallback kept + marked DEPRECATED; codex{} description broadened to "any phase routed to codex".
+The dogfood config models block migrated to nested form (top-level reviewFallback removed -> review.fallback).
+Resolve-PhaseModel/phase_model still return the PRIMARY (tolerant of nested + flat; reviewFallback
+pseudo-phase -> review.fallback or legacy top-level); new Resolve-PhaseFallback/phase_fallback added.
+
+Results (all green):
+  run-tests.ps1       : 80 passed, 0 failed  (re-run on HEAD+staged after merge)
+  run-tests.sh (jq1.7.1): 76 passed, 0 failed  (re-run on HEAD+staged after merge)
+  fleet-queue-test.ps1: 16 passed, 0 failed
+  fleet-queue-test.sh : 16 passed, 0 failed
+  twin-sync: gate.ps1 / gate.sh / harness.schema.json all IDENTICAL to plugin/engine twins
+  JSON validation: config + both schemas parse
+
+Net effect (unchanged for every existing loop/fleet read), migrated dogfood config, both resolvers:
+  Resolve-PhaseModel   implement=opus  review=codex  reviewFallback=fable
+  Resolve-PhaseFallback implement=codex  review=fable

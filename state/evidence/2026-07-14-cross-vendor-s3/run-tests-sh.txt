@@ -1,0 +1,144 @@
+plan counter: grep -c emits a single clean count (the bug fix)
+  ok  counts 2 open items, single line (got '2')
+  ok  empty plan => 0 (no double line) (got '0')
+review verdict: fail-closed last-VERDICT-line parsing
+  ok  SHIP on a clean final verdict (got 'SHIP')
+  ok  REJECT wins as the last VERDICT line (got 'REJECT')
+  ok  mid-sentence SHIP is not a verdict (got 'NONE')
+  ok  empty output fails closed (got 'NONE')
+codex reviewer: availability probe drives the claude fallback
+  ok  missing binary => unavailable with reason (got 'codex CLI not found')
+  ok  api-key mode without CODEX_API_KEY => unavailable (got 'CODEX_API_KEY not set')
+  ok  api-key mode with CODEX_API_KEY => available
+codex arg-assembly: mode selects the sandbox flag
+  ok  read-only mode => sandbox read-only
+  ok  workspace-write mode => sandbox workspace-write
+  ok  keeps --ask-for-approval never
+  ok  model passed as -m
+  ok  no model => no -m flag
+usage-limit predicate: vendor-neutral markers
+  ok  detects usage limit
+  ok  detects rate limit
+  ok  detects quota (any case)
+  ok  detects overloaded
+  ok  detects HTTP 429
+  ok  clean output => false
+  ok  stray 429 => false
+  ok  empty => false
+back-compat shim: review-codex.sh still exposes the codex API
+  ok  shim sources invoke-codex (invoke_codex + codex_review defined)
+block-destructive hook: blocks dangerous, allows safe
+  ok  blocks rm -fr (flag order)
+  ok  blocks rm <dir> -rf (flags after operand)
+  ok  blocks git push -f (short flag)
+  ok  blocks find -delete
+  ok  blocks git reset --hard <sha>
+  ok  blocks secret read via grep
+  ok  allows git status
+  ok  allows npm test
+  ok  allows normal git push
+  ok  ALLOWS git push --force-with-lease (recommended)
+block-destructive: work-discard + remote-pipe coverage, false-positive exemptions
+  ok  blocks git checkout . (bare dot)
+  ok  blocks git restore .
+  ok  blocks git clean --force (long form)
+  ok  blocks iwr | iex
+  ok  allows git checkout feature-branch
+  ok  allows cat .env.example (template)
+  ok  allows src/api.key.ts (source, not a key file)
+  ok  blocks reading server.key
+  ok  blocks rm with quoted flags (got '2')
+  ok  allows commit msg mentioning drop table (got '0')
+block-destructive: spec-lock blocks shell writes to specs/ only when locked
+  ok  blocks shell write to specs/ when locked
+  ok  allows shell write to specs/ when unlocked
+  ok  blocks >specs/ redirect without a space when locked
+  ok  blocks touch specs/ when locked
+  ok  ALLOWS sed -n ranged READ of specs/ when locked
+  ok  ALLOWS cp specs/ -> elsewhere (read) when locked
+  ok  blocks cp -> specs/ (write) when locked
+protect-specs hook: locks specs/ only when HARNESS_LOCK_SPECS is set
+  ok  blocks specs/ write when locked
+  ok  allows non-spec write when locked
+  ok  allows specs/ write when unlocked
+  ok  blocks specs/*.ipynb via notebook_path when locked
+gate (jq present): multi-component pass + failure attribution
+  [frontend] gate (.)
+  - format : true
+  - test : true
+  [backend] gate (.)
+  - format : true
+  - test : true
+  [root] cross-cutting gate
+  - e2e : true
+  ok  multi-component all-green passes
+  [frontend] gate (.)
+  - format : true
+  [backend] gate (.)
+  - format : true
+  - lint : false
+    x lint failed in /c/Users/james/Repos/harness/.claude/worktrees/agent-ab80dd584fe2d3afd/harness/../.:
+      
+  ok  failure attributed to backend:lint (got 'backend:lint')
+  [ghost] gate (no-such-dir-xyz)
+  x component 'ghost' path missing: no-such-dir-xyz
+  ok  missing component dir fails the gate (got 'ghost:path-missing')
+  [root] gate (.)
+  - format : echo oops 1>&2
+  - test : true
+  ok  stderr-on-exit-0 gate passes
+fleet: ownership overlap + batch selection (file-partitioned parallelism)
+  ok  same dir overlaps
+  ok  nested path overlaps
+  ok  glob suffix normalized
+  ok  case/slash-insensitive parity
+  ok  disjoint dirs do not overlap
+  ok  empty entry overlaps everything (fail-closed)
+  ok  selects T1,T3,T6 (skips overlap/status/unowned) (got 'T1,T3,T6')
+  ok  maxWorkers caps the batch (got 'T1,T3')
+model routing: phase_model (config.models -> --model; empty = inherit)
+  ok  resolves implement model (got 'opus')
+  ok  resolves reviewFallback model (got 'fable')
+  ok  missing phase key => inherit (got '')
+  ok  explicit null => inherit (got '')
+  ok  no models block => inherit (got '')
+model routing: nested {model,fallback} shape + phase_fallback
+  ok  nested primary => model (got 'opus')
+  ok  nested review primary => codex (got 'codex')
+  ok  nested fallback => fallback model (got 'codex')
+  ok  reviewFallback pseudo-phase => review.fallback (got 'fable')
+  ok  nested null fallback => inherit (got '')
+  ok  nested absent phase => inherit (model) (got '')
+  ok  nested absent phase => inherit (fallback) (got '')
+  ok  flat-legacy primary still resolves (got 'opus')
+  ok  flat-legacy reviewFallback (top-level) (got 'fable')
+  ok  flat review fallback => top-level reviewFallback (got 'fable')
+  ok  flat non-review phase has no fallback (got '')
+model routing S1b: phase_fallback review symmetric with reviewFallback pseudo-phase
+  ok  mixed review.fallback=null falls to legacy (got 'fable')
+  ok  mixed: fallback accessor == reviewFallback pseudo (a='fable' b='fable')
+  ok  nested review.fallback=sonnet => fallback accessor (got 'sonnet')
+  ok  nested review.fallback=sonnet => reviewFallback pseudo (got 'sonnet')
+  ok  absent review + legacy => fallback accessor (got 'fable')
+  ok  non-review nested null fallback still => '' (got '')
+dispatch: invoke_phase fallback trigger (stub claude; deterministic, no real model/codex)
+  ok  1 primary success => ok, path=claude, no fallback
+  ok  2 usage-limit => fallback fires, ok, usedFallback=1
+  ok  3 codex unavailable => claude fallback, ok, path=claude
+  ok  4 generic failure => not-ok, invoke-failed, no fallback
+  ok  4 fallback stub was NEVER invoked (marker absent)
+  ok  5 both usage-limited => not-ok, exhausted, path empty
+  ok  6 success w/ 'overloaded' text => ok, no fallback (ratchet)
+  ok  6 fallback NOT consulted on the success
+  ok  budget resets to 0
+  ok  tokenBudget 0 = no cap (parity with budget.ps1)
+  ok  budget meters max-not-sum (expect 150, got '150')
+  ok  budget includes cache tokens (expect 3150, got '3150')
+  ok  run-004 after run-002 was cleaned up (got 'run-004')
+  ok  allocation claims the dir (2nd call => run-005, got 'run-005')
+plugin: cross-platform hook dispatcher (node)
+  ok  hook dispatcher self-test passes (node)
+migrate: end-to-end classify + apply on a synthetic repo
+  ok  harness-migrate self-test passes
+
+RESULT: 104 passed, 0 failed

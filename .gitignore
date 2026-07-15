@@ -1,0 +1,58 @@
+# --- Harness runtime artifacts -------------------------------------------------
+# State files are committed (they ARE the memory), but transient run output is not.
+# NOTE: git does NOT support inline (trailing) comments — keep comments on their own lines.
+# per-loop logs, transcripts, ledger, scratch:
+harness/.runs/
+# live token/cost accounting for the current run:
+harness/.budget.json
+# current loop checkpoint ref (crash-recovery breadcrumb):
+harness/.checkpoint
+# fleet worker worktrees (parallel builds; parked ones are cleaned up by hand):
+harness/.worktrees/
+# plugin/engine is the runtime engine source (this dev repo dogfoods it post-E2 flip); never track
+# runtime artifacts that a direct-engine run may write there:
+plugin/engine/.runs/
+plugin/engine/.budget.json
+plugin/engine/.checkpoint
+plugin/engine/.worktrees/
+# fleet workers' escalation channel (surfaced into state/handoff.md by the runner):
+FLEET_NOTES.md
+*.harness.log
+# regenerated each context reset; not worth versioning:
+state/handoff.md
+# personal overrides (permissions, env) — never commit:
+.claude/settings.local.json
+
+# --- Secrets -------------------------------------------------------------------
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+*.cer
+secrets/
+**/credentials.json
+**/id_rsa
+**/id_ed25519
+.npmrc
+.pgpass
+.aws/credentials
+**/*.keystore
+
+# --- OS / editor ---------------------------------------------------------------
+.DS_Store
+Thumbs.db
+desktop.ini
+.idea/
+.vscode/*
+!.vscode/extensions.json
+*.swp
+
+# --- Add your stack's build/dep artifacts below (or let /harness-init do it) ----
+# node_modules/  dist/  build/  __pycache__/  .venv/  target/  bin/  obj/
+
+# agent-internal memory (subagent scratch — never commit)
+.claude/agent-memory/
+.claude/worktrees/

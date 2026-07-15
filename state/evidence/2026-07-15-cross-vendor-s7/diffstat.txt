@@ -1,0 +1,19 @@
+ harness/fleet.ps1                  |  2 +-
+ harness/fleet.sh                   |  2 +-
+ harness/lib/invoke-codex.ps1       | 10 +---------
+ harness/lib/invoke-codex.sh        |  8 +-------
+ harness/lib/review-codex.ps1       |  4 ----
+ harness/lib/review-codex.sh        |  5 -----
+ harness/loop.ps1                   |  2 +-
+ harness/loop.sh                    |  2 +-
+ harness/tests/run-tests.ps1        |  6 ------
+ harness/tests/run-tests.sh         |  6 ------
+ plugin/engine/fleet.ps1            |  2 +-
+ plugin/engine/fleet.sh             |  2 +-
+ plugin/engine/lib/invoke-codex.ps1 | 10 +---------
+ plugin/engine/lib/invoke-codex.sh  |  8 +-------
+ plugin/engine/lib/review-codex.ps1 |  4 ----
+ plugin/engine/lib/review-codex.sh  |  5 -----
+ plugin/engine/loop.ps1             |  2 +-
+ plugin/engine/loop.sh              |  2 +-
+ 18 files changed, 12 insertions(+), 70 deletions(-)

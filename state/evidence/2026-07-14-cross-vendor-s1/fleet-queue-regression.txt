@@ -1,0 +1,6 @@
+### fleet-queue-test.ps1 ===
+  ok  tracked tree clean after fleet
+FLEET QUEUE RESULT: 16 passed, 0 failed
+### fleet-queue-test.sh ===
+  ok  tracked tree clean after fleet
+FLEET QUEUE RESULT: 16 passed, 0 failed

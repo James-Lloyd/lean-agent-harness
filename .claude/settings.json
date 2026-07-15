@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "_comment": "Harness defaults. Hooks default to Windows PowerShell (powershell.exe, .ps1) for this machine; /harness-init swaps the commands to the .sh mirror on Linux/macOS (and to 'pwsh' if you standardize on PowerShell 7). /harness-init also APPENDS the project's gate commands (e.g. Bash(pnpm test:*)) to permissions.allow — in headless -p runs nobody answers prompts, so a non-allowlisted Bash call is auto-denied and the agent can't run the verification gate. Personal overrides belong in settings.local.json (gitignored). The `model` key mirrors harness.config.json models.session (declared routing table; /harness-doctor checks agreement).",
+  "_security_note": "We intentionally do NOT deny Edit/Write of harness.config.json, .claude/**, or specs/** here, because /harness-init, /harness-prune, and /plan legitimately write those (deny rules can't be lifted per-command). Instead: (1) the autonomous loop protects its gate config via a config-hash pin — it rolls back and stops if the config changes mid-iteration — and a ConfigChange hook freezes the settings surface for the same window; (2) DURING a loop run (loop.ps1/loop.sh set HARNESS_LOCK_SPECS before invoking the model) specs/ is made immutable on BOTH surfaces — the protect-specs PreToolUse hook covers Edit/Write/MultiEdit/NotebookEdit, and block-destructive covers shell-mediated writes (redirects/mv/rm into specs/) while still allowing reads. These hooks (protect-specs, block-destructive, format-and-check, lock-config, session-start) are now supplied by the installed lean-agent-harness plugin (plugin/hooks/hooks.json -> run.mjs), NOT by this repo's .claude/hooks/ — the E2 flip deleted the in-repo copies. git reset --hard is hard-blocked by the hook (not an ask rule — an ask would be dead code under an unconditional exit-2 block; if you genuinely need it, run it yourself in a terminal, where hooks don't apply). These hooks are best-effort denylists, NOT a sandbox — a determined agent can find a phrasing they miss. Spec/test integrity in supervised use rests on the fresh-context /review and the guardrails in CLAUDE.md/PROMPT.md. For unattended/auto runs, additionally run inside a sandbox/container with specs/ mounted read-only (there is no native Windows sandbox — use WSL2 or a devcontainer).",
+
+  "model": "opus",
+
+  "permissions": {
+    "allow": [
+      "Read",
+      "Edit",
+      "Write",
+      "Bash(git status:*)",
+      "Bash(git diff:*)",
+      "Bash(git log:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)"
+    ],
+    "deny": [
+      "Read(./**/.env)",
+      "Read(./**/.env.*)",
+      "Read(./secrets/**)",
+      "Read(./**/credentials.json)",
+      "Read(./**/id_rsa)",
+      "Read(./**/id_ed25519)",
+      "Read(./**/*.pem)",
+      "Read(./**/*.key)"
+    ],
+    "ask": [
+      "Bash(git push:*)"
+    ]
+  }
+}

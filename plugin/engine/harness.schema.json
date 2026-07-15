@@ -1,0 +1,173 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Harness configuration",
+  "description": "Configuration for the autonomy loop, the plan->execute->validate->review workflow, and the per-component verification gate. Tune per project; /harness-init seeds the stack-specific fields.",
+  "type": "object",
+  "properties": {
+    "project": {
+      "type": "object",
+      "description": "Whether this is a new or existing codebase. Greenfield and brownfield need different handling: greenfield establishes the stack/specs and tolerates higher autonomy; brownfield must first be understood and respected (mapped via /onboard), needs a green baseline before changes, and defaults to supervised with isolated, small-scope work.",
+      "properties": {
+        "type": { "enum": ["greenfield", "brownfield"], "description": "greenfield = built from scratch; brownfield = pre-existing code the harness must not break." },
+        "baseline": {
+          "type": "object",
+          "description": "The known-good starting point for a brownfield project. Established by /harness-init or /onboard: run the discovered gate and confirm it passes (or record which parts were already red). Without this, auto-rollback can't distinguish 'my change broke it' from 'it was broken before I started'.",
+          "properties": {
+            "established": { "type": "boolean" },
+            "ref": { "type": ["string", "null"], "description": "git commit the baseline gate was green at." }
+          }
+        }
+      }
+    },
+    "models": {
+      "type": "object",
+      "description": "Per-phase model routing — the single DECLARED routing table. The enforcing mechanisms are: .claude/settings.json `model` (session), `model:` frontmatter in .claude/agents/*.md (subagents), and `--model` flags in loop.ps1/loop.sh (headless). /harness-init writes the mechanisms from this block; /harness-doctor fails on drift between them. Each phase is either a bare Claude alias/ID (or 'codex') — the legacy FLAT form, still accepted — OR an object {model, fallback} where `model` is the phase's primary and `fallback` is used when the primary is unavailable or hits a usage/limit error. Values are Claude aliases (haiku|sonnet|opus|fable), full model IDs, or the literal 'codex' (cross-vendor OpenAI Codex CLI); null/absent = inherit the ambient session model (pre-routing behavior).",
+      "properties": {
+        "session": { "$ref": "#/definitions/phaseRouting", "description": "Model for the main interactive window (written to .claude/settings.json `model`). Must resolve to a Claude model — the main window is Claude and cannot be swapped mid-session; a codex primary here is a doctor error. /model still overrides live." },
+        "explore": { "$ref": "#/definitions/phaseRouting", "description": "Model for the read-only explorer agent that other phases fan searches out to. Exploration is a fan-out pattern, not a pipeline phase — see the 2026-07-13 execution plan." },
+        "plan": { "$ref": "#/definitions/phaseRouting", "description": "Model for the planner agent." },
+        "implement": { "$ref": "#/definitions/phaseRouting", "description": "Model for the generator agent AND the headless loop's main iteration (`claude -p --model`)." },
+        "review": { "$ref": "#/definitions/phaseRouting", "description": "Reviewer routing. A `model` of the literal string 'codex' routes review through the OpenAI Codex CLI (cross-vendor judge; see harness/lib/invoke-codex.*); any Claude alias/ID uses the internal fresh-context reviewer on that model. `fallback` (replacing the deprecated top-level reviewFallback) is the Claude model used when a codex primary is missing/unauthenticated or hits a usage/limit error." },
+        "reviewFallback": { "type": ["string", "null"], "description": "DEPRECATED — use `review.fallback`; still read for back-compat. Claude model for the internal reviewer agent, used as the automatic fallback when `review` is 'codex' but codex is missing/unauthenticated." },
+        "evaluate": { "$ref": "#/definitions/phaseRouting", "description": "Model for the evaluator agent (judges deserve the strongest model)." },
+        "docs": { "$ref": "#/definitions/phaseRouting", "description": "Model for the doc-gardener agent." },
+        "codex": {
+          "type": "object",
+          "description": "Settings for the OpenAI Codex CLI — used whenever ANY phase's model or fallback resolves to 'codex' (no longer review-specific).",
+          "properties": {
+            "model": { "type": ["string", "null"], "description": "Passed as `codex exec -m`. null = don't pin; float on the CLI's default (recommended — pinned IDs rot as OpenAI retires models)." },
+            "reasoningEffort": { "type": ["string", "null"], "enum": ["minimal", "low", "medium", "high", "xhigh", null], "description": "Sets codex `model_reasoning_effort` for the run. Default high." },
+            "auth": { "enum": ["chatgpt", "api-key"], "description": "chatgpt = ChatGPT-plan sign-in (`codex login`; usage billed to the plan). api-key = expect CODEX_API_KEY in the environment (metered). Detection differs: chatgpt is probed via `codex login status`; api-key via the env var being set." },
+            "timeoutSeconds": { "type": "integer", "minimum": 60, "description": "External watchdog for the codex run — codex exec has NO --max-turns/--timeout of its own. On expiry the run is killed and treated as a fail-closed failure. Default 900." }
+          }
+        }
+      }
+    },
+    "autonomy": {
+      "type": "object",
+      "description": "How much rope the loop gets. Configurable from supervised to full-auto.",
+      "properties": {
+        "mode": {
+          "enum": ["supervised", "auto"],
+          "description": "supervised = pause at checkpoints for human y/n; auto = run unattended (Ralph-style) within the caps below."
+        },
+        "maxIterations": { "type": "integer", "minimum": 1, "description": "Hard cap on loop iterations." },
+        "maxTurnsPerIteration": { "type": "integer", "minimum": 1, "description": "Passed to `claude -p --max-turns` to hard-bound a single iteration's tool-call turns (so one iteration can't run away). Default 40." },
+        "tokenBudget": { "type": ["integer", "null"], "description": "Per-run token cap. By default an ESTIMATE (claude -p text mode rarely reports counts, so a per-iteration estimate is used); set meterTokens=true to meter real usage from the model's JSON output (much closer, still approximate). Reset at each run start. The HARD runaway bounds are maxIterations + maxTurnsPerIteration. null = no cap." },
+        "meterTokens": { "type": "boolean", "description": "When true, invoke the model with `--output-format json` so each iteration reports real `usage` (input+output tokens), making tokenBudget a much closer cap than the per-iteration estimate (parsed best-effort from the JSON, so still approximate). Trade-off: the per-iteration log is JSON rather than streamed text. Default false." },
+        "skipPermissions": { "type": "boolean", "description": "Only honored when mode=auto. Passes --dangerously-skip-permissions for true unattended runs. DANGEROUS — safety rests on the gate + rollback + PreToolUse hook. Default false." },
+        "checkpoints": {
+          "type": "object",
+          "description": "Where supervised mode pauses for human approval (ignored in auto mode).",
+          "properties": {
+            "planApproval": { "type": "boolean", "description": "Pause after planning, before any code." },
+            "beforeRiskyOps": { "type": "boolean", "description": "Pause before pushes / migrations / deploys." },
+            "everyNIterations": { "type": "integer", "minimum": 0, "description": "Pause every N iterations. 0 = never." }
+          }
+        }
+      }
+    },
+    "loop": {
+      "type": "object",
+      "properties": {
+        "promptFile": { "type": "string" },
+        "planFile": { "type": "string" },
+        "progressFile": { "type": "string" },
+        "oneItemPerIteration": { "type": "boolean", "description": "Enforce single-task iterations. Keep true." },
+        "autoRollbackOnRed": { "type": "boolean", "description": "git reset a failed iteration so the tree is never left broken." },
+        "commitOnGreen": { "type": "boolean" },
+        "tagOnGreen": { "type": "boolean", "description": "git tag each green iteration (loop-N)." },
+        "stopWhenPlanEmpty": { "type": "boolean" }
+      }
+    },
+    "workflow": {
+      "type": "object",
+      "description": "The plan->execute->validate->review->record lifecycle that /work drives a task through. Each task in state/tasks.json carries a `status` that advances along these phases.",
+      "properties": {
+        "phases": { "type": "array", "items": { "type": "string" }, "description": "Ordered phase names. The task `status` lifecycle is todo -> planned -> in_progress -> validated -> reviewed -> done." },
+        "checkpointBetweenPhases": { "type": "boolean", "description": "In supervised mode, pause for human review between phases." },
+        "requireSprintContractBefore": { "type": ["string", "null"], "description": "Phase that may not start until a sprint contract (agreed definition of done) exists. Default 'execute'." },
+        "requireReviewBefore": { "type": ["string", "null"], "description": "Status a task may not reach until a fresh-context review has passed. Default 'done'." }
+      }
+    },
+    "parallel": {
+      "type": "object",
+      "description": "The fleet runner (harness/fleet.ps1 | fleet.sh): OPT-IN parallel execution of independent tasks across git worktrees with a serialized merge queue (squash-merge -> full gate on the combined state -> commit; conflict/red/tamper parks the branch for a human). Eligibility is declared, not guessed: a task must carry a non-empty `files` ownership list in state/tasks.json, and overlapping tasks never share a batch. Not the default way to work — coding has fewer truly parallelizable tasks than it seems and every worker costs real tokens.",
+      "properties": {
+        "maxWorkers": { "type": "integer", "minimum": 1, "description": "Max concurrent workers per fleet batch. Default 3 — human review bandwidth binds before compute; 2-4 is the productive range." },
+        "workerMaxTurns": { "type": ["integer", "null"], "minimum": 1, "description": "Per-worker `claude -p --max-turns`. null = autonomy.maxTurnsPerIteration (default 40)." },
+        "workerTimeoutSeconds": { "type": "integer", "minimum": 60, "description": "Wall-clock watchdog for the whole worker batch; a straggler is killed and its task parked (never merged). Default 3600." }
+      }
+    },
+    "components": {
+      "type": "array",
+      "description": "The buildable units of the project. ONE entry for a single-root project (path '.'); MANY for a multi-repo layout (e.g. frontend/ + backend/), each with its own stack and gate. The harness runs each component's gate in that component's own directory. This is what makes the harness work for headless FE+BE projects.",
+      "items": {
+        "type": "object",
+        "required": ["name", "path", "gate"],
+        "properties": {
+          "name": { "type": "string", "description": "Short label, e.g. 'frontend', 'backend', 'root'." },
+          "path": { "type": "string", "description": "Directory of this component relative to the repo root ('.' for a single-root project). Gate commands run with this as the working directory, and the edit-hook routes a changed file to the component whose path is its deepest prefix." },
+          "profile": { "type": ["string", "null"], "description": "Name of the stack profile in harness/profiles/ used to derive this component's gate." },
+          "languages": { "type": "array", "items": { "type": "string" } },
+          "packageManager": { "type": ["string", "null"] },
+          "runtime": { "type": ["string", "null"] },
+          "commands": {
+            "type": "object",
+            "properties": {
+              "install": { "type": ["string", "null"] },
+              "run": { "type": ["string", "null"], "description": "How to run this component locally (dev server, entrypoint)." }
+            }
+          },
+          "gate": { "$ref": "#/definitions/gate" }
+        }
+      }
+    },
+    "gate": {
+      "description": "Cross-cutting / integration gate, run from the repo ROOT after every component gate passes. Multi-component: usually only `e2e` (exercising the components together); single-component: leave entirely null.",
+      "allOf": [{ "$ref": "#/definitions/gate" }]
+    },
+    "verification": {
+      "type": "object",
+      "properties": {
+        "freshContextReview": { "type": "boolean", "description": "Require an independent review in a fresh context before merge. Doer != judge." },
+        "requireE2EEvidence": { "type": "boolean", "description": "Require captured end-to-end evidence, not just passing unit tests." },
+        "reviewEveryNIterations": { "type": "integer", "minimum": 0, "description": "Wire the inferential judge into the unattended loop: every N GREEN (committed) iterations, spawn a fresh-context reviewer headless over the last N commits. On a REJECT verdict the loop records the finding to state/handoff.md and stops for a human. 0 = off (the loop runs the deterministic gate only — see ROADMAP). Requires loop.commitOnGreen." },
+        "evaluator": {
+          "type": "object",
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "rubric": { "type": "string" },
+            "failBelow": { "type": "number", "description": "Sprint fails if any criterion scores below this hard threshold." }
+          }
+        }
+      }
+    }
+  },
+  "definitions": {
+    "phaseRouting": {
+      "description": "Per-phase routing: either a Claude alias/ID or 'codex' as a bare string (legacy flat form, still accepted), OR an object {model, fallback} where each is a Claude alias/ID or the literal 'codex'. null/absent = inherit the ambient session model.",
+      "oneOf": [
+        { "type": ["string", "null"] },
+        { "type": "object",
+          "properties": {
+            "model":    { "type": ["string", "null"], "description": "Primary model for this phase: a Claude alias (haiku|sonnet|opus|fable), a full ID, or the literal 'codex' (cross-vendor OpenAI Codex CLI)." },
+            "fallback": { "type": ["string", "null"], "description": "Model used when the primary is unavailable or hits a usage/limit error: a Claude alias/ID or 'codex'. null = no fallback. Must not be 'codex' when model is already 'codex'." }
+          },
+          "additionalProperties": false }
+      ]
+    },
+    "gate": {
+      "type": "object",
+      "description": "A verification gate. Each value is a shell command (run in the relevant working directory) or null to skip that step. Execution order is fixed: format -> lint -> typecheck -> build -> test -> e2e. The harness defines WHEN; the stack profile defines WHAT. This is the seam that makes the harness tech-agnostic.",
+      "properties": {
+        "format":    { "type": ["string", "null"] },
+        "lint":      { "type": ["string", "null"] },
+        "typecheck": { "type": ["string", "null"] },
+        "build":     { "type": ["string", "null"] },
+        "test":      { "type": ["string", "null"] },
+        "e2e":       { "type": ["string", "null"], "description": "End-to-end / user-level check. Unit-green is not done." }
+      }
+    }
+  }
+}

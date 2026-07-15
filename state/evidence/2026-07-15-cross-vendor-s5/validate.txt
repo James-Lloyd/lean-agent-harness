@@ -1,0 +1,25 @@
+# S5 VALIDATE evidence — baseline 859ac05
+
+## Scope: docs-only (git status --porcelain), no engine/.sh/.ps1 touched
+ M .claude/agents/generator.md
+ M .claude/agents/planner.md
+ M .claude/agents/reviewer.md
+ M .claude/commands/work.md
+ M plugin/agents/generator.md
+ M plugin/agents/planner.md
+ M plugin/agents/reviewer.md
+ M plugin/commands/work.md
+?? state/evidence/2026-07-15-cross-vendor-s5/
+
+## Twin identity (.claude/ <-> plugin/ payload) — git diff --no-index empty == IDENTICAL
+  IDENTICAL  commands/work.md
+  IDENTICAL  agents/generator.md
+  IDENTICAL  agents/reviewer.md
+  IDENTICAL  agents/planner.md
+
+## Engine test suites (re-run, must equal baseline)
+  PowerShell run-tests.ps1      : 115 passed, 0 failed   (baseline 115/0)
+  PowerShell fleet-queue-test   :  22 passed, 0 failed   (baseline 22/0)
+  bash run-tests.sh / fleet-*   : NOT re-run this session — jq unavailable and the
+    self-chosen download was blocked by the auto-mode classifier. Change touches NO
+    .sh or engine code (docs only), so the bash baseline 104/0 + 22/0 cannot regress.

@@ -1,0 +1,102 @@
+{
+  "$schema": "../plugin/engine/harness.schema.json",
+  "_comment": "The one file you tune per project. /harness-init writes the stack-specific bits. A project is one-or-more COMPONENTS (each a buildable sub-repo with its own stack + gate) plus a cross-cutting root gate for integration/e2e. A single-root project is just one component with path '.'. See harness.schema.json for the full field reference.",
+
+  "project": {
+    "_comment": "greenfield = building from scratch (establish stack/specs, higher autonomy OK). brownfield = an existing codebase (understand & respect it first, supervised by default, baseline must be green before changes). /harness-init detects and sets this.",
+    "type": "greenfield",
+    "baseline": { "established": false, "ref": null }
+  },
+
+  "models": {
+    "_comment": "Per-phase model routing (declared here; enforced via settings.json `model`, agent frontmatter, and loop --model flags — /harness-doctor checks they agree). Each phase is {model, fallback}: model/fallback are a Claude alias|full ID or the literal 'codex' (cross-vendor OpenAI Codex CLI); null = inherit session / no fallback. fallback fires when the primary is unavailable or hits a usage/limit error (never codex->codex). codex{} configures the Codex CLI for ANY phase routed to it. The legacy flat 'phase': 'alias' form is still accepted by the resolver for back-compat.",
+    "session":   { "model": "opus",  "fallback": null },
+    "explore":   { "model": "haiku", "fallback": null },
+    "plan":      { "model": "fable", "fallback": null },
+    "implement": { "model": "opus",  "fallback": "codex" },
+    "review":    { "model": "codex", "fallback": "fable" },
+    "evaluate":  { "model": "fable", "fallback": null },
+    "docs":      { "model": "haiku", "fallback": null },
+    "codex":     { "model": null, "reasoningEffort": "high", "auth": "chatgpt", "timeoutSeconds": 900 }
+  },
+
+  "autonomy": {
+    "mode": "supervised",
+    "maxIterations": 20,
+    "maxTurnsPerIteration": 40,
+    "tokenBudget": null,
+    "meterTokens": false,
+    "skipPermissions": false,
+    "checkpoints": {
+      "planApproval": true,
+      "beforeRiskyOps": true,
+      "everyNIterations": 5
+    }
+  },
+
+  "loop": {
+    "promptFile": "PROMPT.md",
+    "planFile": "state/fix_plan.md",
+    "progressFile": "state/PROGRESS.md",
+    "oneItemPerIteration": true,
+    "autoRollbackOnRed": true,
+    "commitOnGreen": true,
+    "tagOnGreen": true,
+    "stopWhenPlanEmpty": true
+  },
+
+  "workflow": {
+    "phases": ["plan", "execute", "validate", "review", "record"],
+    "checkpointBetweenPhases": true,
+    "requireSprintContractBefore": "execute",
+    "requireReviewBefore": "done"
+  },
+
+  "parallel": {
+    "_comment": "Fleet runner (harness/fleet.ps1|.sh): opt-in parallel workers over independent tasks (declared 'files' ownership in tasks.json), serialized merge queue. 3 = the productive default; review bandwidth binds before compute.",
+    "maxWorkers": 3,
+    "workerMaxTurns": null,
+    "workerTimeoutSeconds": 3600
+  },
+
+  "components": [
+    {
+      "name": "root",
+      "path": ".",
+      "profile": null,
+      "languages": [],
+      "packageManager": null,
+      "runtime": null,
+      "commands": { "install": null, "run": null },
+      "gate": {
+        "format": null,
+        "lint": null,
+        "typecheck": null,
+        "build": null,
+        "test": null,
+        "e2e": null
+      }
+    }
+  ],
+
+  "gate": {
+    "_comment": "Cross-cutting / integration gate, run from the repo ROOT after every component gate passes. For a multi-component project this usually holds only the e2e that exercises the components together; leave the rest null. For a single-component project, leave this entirely null (the component gate covers it).",
+    "format": null,
+    "lint": null,
+    "typecheck": null,
+    "build": null,
+    "test": null,
+    "e2e": null
+  },
+
+  "verification": {
+    "freshContextReview": true,
+    "requireE2EEvidence": true,
+    "reviewEveryNIterations": 0,
+    "evaluator": {
+      "enabled": false,
+      "rubric": "docs/principles/evaluator-rubric.md",
+      "failBelow": 7
+    }
+  }
+}
