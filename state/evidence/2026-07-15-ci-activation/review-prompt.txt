@@ -1,0 +1,21 @@
+You are a fresh-context code reviewer. Judge ONLY the working-tree diff in this repo, independently.
+
+The change activates the harness's self-test CI. Inspect the diff yourself with:
+  git --no-pager status --short
+  git --no-pager diff
+  git --no-pager diff --stat
+plus the new untracked file .github/workflows/harness-selftest.yml (compare it to ci/github-harness-selftest.yml with: diff ci/github-harness-selftest.yml .github/workflows/harness-selftest.yml).
+
+Task acceptance criteria: a GitHub Actions workflow runs run-tests.{ps1,sh} + fleet-queue-test.{ps1,sh}
+(with jq installed on the Linux job) on every push/PR, so the bash --project-root code path runs
+automatically. HARNESS_ENGINE must resolve correctly in CI (run-tests.sh defaults it to
+$REPO_ROOT/plugin/engine; fleet-queue-test.sh sets it itself).
+
+Review scope: correctness and requirement-gap issues ONLY. Specifically check:
+1. Does the activated .github/workflows/ file actually run both bash suites on Linux with jq installed?
+2. Does it run the PowerShell suites on Windows (pwsh and/or 5.1)?
+3. Any YAML/step errors that would make the workflow fail to parse or the jobs fail spuriously?
+4. Is the corrected header accurate (the file IS now under .github/workflows/, template stays in ci/)?
+5. Any doc-drift introduced (ci/README.md note)?
+
+Give a verdict: SHIP, FIX-THEN-SHIP (list each fix), or REJECT (with reasons). Be concise.

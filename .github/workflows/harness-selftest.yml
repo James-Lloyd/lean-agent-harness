@@ -1,15 +1,15 @@
-# Harness self-test CI — ACTIVATE-ME TEMPLATE.
+# Harness self-test CI — ACTIVATED copy of ci/github-harness-selftest.yml.
 #
-# This lives in ci/ (not .github/workflows/) so the repo can be pushed with a token that lacks the
-# GitHub `workflow` scope. To turn it on, copy it into place:
+# Source of truth / template: ci/github-harness-selftest.yml (kept there so the repo can be pushed
+# with a token that LACKS the GitHub `workflow` scope). When you change CI, edit both — or re-copy:
 #
-#     mkdir -p .github/workflows && cp ci/github-harness-selftest.yml .github/workflows/harness-selftest.yml
+#     cp ci/github-harness-selftest.yml .github/workflows/harness-selftest.yml
 #
-# then commit (you may need `gh auth refresh -h github.com -s workflow`, or add it via the GitHub web UI).
-#
-# It tests the HARNESS's own logic (gate routing, the destructive-command denylist, budget, plan-counting)
-# on every push/PR — the harness practicing what it preaches ("test the harness"). It does NOT run a user
-# project's gate; /harness-init wires that per project (see the commented job at the bottom).
+# It tests the HARNESS's own logic (gate routing, the destructive-command denylist, budget, plan-counting,
+# fleet merge-queue, harness-migrate) on every push/PR — the harness practicing what it preaches. The
+# Linux job installs jq so the bash suites (and their `--project-root` code paths, exercised via
+# migrate-test.sh and the fleet.sh wrapper) run automatically, not just when jq is installed by hand.
+# It does NOT run a user project's gate; /harness-init wires that per project (commented job at the bottom).
 
 name: harness self-test
 
