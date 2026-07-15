@@ -101,6 +101,14 @@ their Claude subagents (execute's `codex` is a fallback only). Subagent frontmat
   in the main tree — the changes land staged-but-uncommitted, exactly what VALIDATE wants. Then
   `git worktree remove <worktree>` and delete the branch. A merge conflict means the main tree moved
   mid-build: resolve it consciously against the task's intent, or send back — never auto-resolve.
+- **First verify the worktree's base is not stale.** A delegated `isolation: worktree` agent can come up
+  on an *ancestor* of `main`, not its tip (`git -C <worktree> log --oneline -1` vs `git rev-parse HEAD`).
+  If they differ, do **not** merge blind: for every file the worktree touched
+  (`git -C <worktree> status --short`), confirm it is unchanged between the worktree's base and `main`'s
+  tip (`git diff --quiet <base> HEAD -- <file>`). All identical ⇒ the squash-merge (merge-base = the
+  base) applies exactly the agent's diff and is safe. Any file *differs* ⇒ the build sat on stale content
+  for a file that moved: rebase the worktree onto the tip and re-verify, or rebuild the task — never
+  squash a stale-base change over a moved file. (Recurred twice: S7 + the sandboxing task.)
 - Set `status: "in_progress"`. **Checkpoint** (and pause before any risky op if `beforeRiskyOps`).
 
 ## Phase 3 — VALIDATE

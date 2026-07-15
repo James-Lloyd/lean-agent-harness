@@ -106,6 +106,13 @@ the component that owns the changed file**. Failures come back with the fix in t
   fail), so a worker's whole transcript would dump into the merge-queue console. Also assign the phase
   result to a var so its object doesn't leak into the job output stream; emit only the `0/1` exit proxy the
   caller reads (S4: the fleet worker's dispatcher wiring; de-risked with live experiments before building).
+- [2026-07-15] A delegated `isolation: worktree` agent can be checked out on an ANCESTOR of `main`, not its
+  tip — so before squash-merging its work the orchestrator MUST compare the worktree's base to `HEAD` and,
+  if they differ, prove every file the agent touched is byte-identical between base and tip
+  (`git diff --quiet <base> HEAD -- <file>`) before trusting the merge; the agent itself must sanity-check
+  its HEAD against the task's premises and escalate on mismatch — because a stale base silently builds on
+  old content for any file that moved, and a blind squash would merge that regression (recurred S7 +
+  sandboxing; both caught, once by the generator, once by the orchestrator's pre-merge diff).
 
 ## Nested context
 Larger subsystems may have their own `CLAUDE.md` next to their code (mirrors the one-map-per-package
