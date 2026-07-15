@@ -230,6 +230,19 @@ if ($cfg.autonomy.mode -eq 'auto' -and (Get-Prop $cfg.autonomy 'skipPermissions'
   Write-Host "    are in .claude/settings.json permissions.allow (/harness-init adds them)." -ForegroundColor DarkGray
 }
 
+# Sandbox guard: full-auto runs UNATTENDED. The destructive-command deny-list is defense-in-depth, not a
+# sandbox, so honestly warn (not block — Confirm-Checkpoint is a no-op in auto by design) when auto runs
+# outside a recognized isolation profile. Test-Sandboxed lives in lib/gate.ps1 (already dot-sourced above).
+if ($cfg.autonomy.mode -eq 'auto' -and -not (Test-Sandboxed)) {
+  Write-Host ""
+  Write-Host "⚠️  AUTO mode but NOT in a recognized SANDBOX. This run is full-auto and UNATTENDED." -ForegroundColor Red
+  Write-Host "    Unattended auto should run inside the documented isolation profile (container/devcontainer or" -ForegroundColor Red
+  Write-Host "    WSL2-native FS), not directly on your host. The destructive-command deny-list is defense-in-" -ForegroundColor Red
+  Write-Host "    depth, NOT a sandbox — and --dangerously-skip-permissions voids it entirely." -ForegroundColor Red
+  Write-Host "    See docs/sandboxing.md. Mark a sandbox explicitly with:  `$env:HARNESS_SANDBOX = '1'" -ForegroundColor Red
+  Write-Host ""
+}
+
 # Lock specs/ for the duration of the run: the protect-specs PreToolUse hook (inherited by the headless
 # claude child) blocks edits under specs/ while this is set. The loop must never rewrite the contract.
 $env:HARNESS_LOCK_SPECS = '1'

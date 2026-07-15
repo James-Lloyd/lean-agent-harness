@@ -1,0 +1,378 @@
+diff --git a/docs/sandboxing.md b/docs/sandboxing.md
+new file mode 100644
+index 0000000..bc61607
+--- /dev/null
++++ b/docs/sandboxing.md
+@@ -0,0 +1,108 @@
++# Sandboxing for unattended runs
++
++`autonomy.mode: auto` runs the loop **unattended** — a fresh headless `claude` per iteration, no human at
++the keyboard to answer a permission prompt or veto a checkpoint. This doc explains why that wants a
++sandbox, how the harness recognizes one, and the two supported profiles for running `auto` safely.
++
++## Why a sandbox
++
++The harness has defense-in-depth, but **defense-in-depth is not a sandbox**:
++
++- The **destructive-command deny-list** (the `block-destructive` PreToolUse hook) matches both shell
++  tools and fails closed on a denylist hit. It is a denylist — it stops the *obvious* footguns
++  (`rm -rf`, `git push --force`, `DROP TABLE`, secret exfil), not everything an agent could do.
++- `--dangerously-skip-permissions` (set when `autonomy.skipPermissions: true`) **voids the permission
++  layer entirely** — deny/ask rules lose their teeth. Only run that inside real isolation.
++- On **Windows there is no native OS sandbox** for this. The supported answer is WSL2 or a devcontainer
++  (both are Linux) — see the two profiles below.
++
++So for unattended `auto` you want an environment where the *worst case* is bounded: no host filesystem to
++scribble on, secrets scoped to the run, an ephemeral workspace you can throw away.
++
++## How detection works
++
++The loop checks whether it is sandboxed at startup. If `mode: auto` and it is **not**, it prints a loud
++warning (it does **not** block — in `auto` there is no human to confirm, so a warning is the honest
++thing). The predicate is `is_sandboxed` (bash, `plugin/engine/lib/gate.sh`) / `Test-Sandboxed`
++(PowerShell, `plugin/engine/lib/gate.ps1`), which are capability-equivalent mirrors.
++
++**`HARNESS_SANDBOX` is the explicit, cross-platform contract and always wins when set:**
++
++| `HARNESS_SANDBOX` | Result |
++|-------------------|--------|
++| `1`, `true`, `yes` (any case) | **sandboxed** |
++| `0`, `false`, `no`, empty | **not sandboxed** (overrides any auto-detected marker) |
++| unset | fall through to auto-detection |
++
++When `HARNESS_SANDBOX` is **unset**, the predicate auto-detects common container markers — **any** present
++means sandboxed:
++
++- file `/.dockerenv` exists (Docker)
++- file `/run/.containerenv` exists (Podman)
++- `CODESPACES` is set (GitHub Codespaces)
++- `REMOTE_CONTAINERS` is set (VS Code Dev Containers)
++- `DEVCONTAINER` is set (devcontainer spec)
++- `container` is set (systemd-nspawn / Podman — value is the runtime name, e.g. `lxc`)
++- `/proc/1/cgroup` exists and contains `docker`, `containerd`, `lxc`, or `kubepods` (incl. Kubernetes)
++
++> **Bare WSL2 is NOT auto-detected.** WSL2 shares your Windows kernel and can reach `/mnt/c`, and it trips
++> none of the markers above. If you run `auto` in WSL2 you must **opt in** explicitly with
++> `export HARNESS_SANDBOX=1` (after cloning into the WSL-native FS — see Profile B). This is deliberate:
++> WSL2 is weaker isolation than a container, so you affirm it rather than get it for free.
++
++## Profile A — devcontainer (recommended, strong isolation)
++
++Copy `plugin/engine/templates/devcontainer.json` to your project's `.devcontainer/devcontainer.json`,
++then open the repo in the container (VS Code "Reopen in Container", or the `devcontainer` CLI). The
++template is strict JSON (no `//` comments — a harness self-test parses it) and is the **no-host-FS**
++variant. Security properties it gives you:
++
++- **`containerEnv.HARNESS_SANDBOX = "1"`** — the loop recognizes the container as a sandbox, so no warning.
++- **Volume workspace, no host bind** — `workspaceMount` uses a named Docker **volume**
++  (`source=harness-workspace,type=volume`) mounted at `/workspace`, so the agent never touches your host
++  filesystem. The workspace is ephemeral: delete the volume to reset.
++- **`specs/` read-only** — the **authoritative** guard is the loop's `HARNESS_LOCK_SPECS` protect-specs
++  PreToolUse hook: it blocks any agent edit under `specs/` regardless of filesystem permissions, so the
++  contract can't be rewritten to make work "pass". The template's `postCreateCommand` also runs
++  `chmod -R a-w specs` as **best-effort** FS hardening — note it is not a hard guarantee (the same
++  container user, or root in the image, can chmod it back, and it no-ops if `specs/` is absent); the hook,
++  not the chmod, is what actually enforces the read-only contract.
++- **Secrets via env, never baked** — `remoteEnv` pulls `ANTHROPIC_API_KEY` / `CODEX_API_KEY` from your
++  **host** env with `${localEnv:...}`. They are never written into the image or committed.
++- A minimal Ubuntu base plus the `github-cli` and `node` features (node is needed by the plugin's hook
++  dispatcher; `gh` for PR flows). Trim what you don't use.
++
++> **Network egress** is a property you configure at the **container/host** level (e.g. a locked-down
++> Docker network, an egress proxy, or `--network none` where the run doesn't need the internet). It is
++> **not** engine-enforced — the harness cannot police outbound traffic for you.
++
++## Profile B — raw WSL2 (weaker, opt-in)
++
++For Windows users without Docker, WSL2 is a workable fallback with **weaker** isolation (shared kernel;
++WSL can reach `/mnt/c`):
++
++1. Clone the repo into the **WSL-native filesystem** (e.g. `~/work/...`), **not** `/mnt/c/...` — running
++   from `/mnt/c` both defeats the isolation and is slow.
++2. Install the toolchain: `jq`, `node`, `git`, plus your project's gate tools and the `claude` CLI.
++3. Opt in to the sandbox contract: `export HARNESS_SANDBOX=1` (put it in your shell profile for the run).
++4. Run the loop: `bash harness/loop.sh --mode auto`.
++
++Because the kernel is shared and `/mnt/c` is reachable, keep secrets out of any env you don't want the
++agent to see, and don't point it at host paths you care about. A devcontainer (Profile A) is stronger;
++prefer it when you can run Docker.
++
++## The warning you'll see outside a profile
++
++Run `auto` on your bare host (no `HARNESS_SANDBOX`, no container markers) and the loop prints, before the
++first iteration:
++
++```
++⚠️  AUTO mode but NOT in a recognized SANDBOX. This run is full-auto and UNATTENDED.
++    Unattended auto should run inside the documented isolation profile (container/devcontainer or
++    WSL2-native FS), not directly on your host. The destructive-command deny-list is defense-in-
++    depth, NOT a sandbox — and --dangerously-skip-permissions voids it entirely.
++    See docs/sandboxing.md. Mark a sandbox explicitly with:  export HARNESS_SANDBOX=1
++```
++
++It warns but does not stop (in `auto` there is no human to confirm). Supervised mode and any run inside a
++recognized sandbox print nothing.
+diff --git a/harness/tests/run-tests.ps1 b/harness/tests/run-tests.ps1
+index 4e923b3..6e4c267 100644
+--- a/harness/tests/run-tests.ps1
++++ b/harness/tests/run-tests.ps1
+@@ -125,6 +125,54 @@ ok "clean output => false"        (-not (Test-UsageLimitError 'review complete.
+ ok "stray 429 tokens => false"    (-not (Test-UsageLimitError 'processed 429 files successfully'))
+ ok "empty output => false"        (-not (Test-UsageLimitError ''))
+ 
++Write-Host "sandbox predicate: HARNESS_SANDBOX contract + auto-detect (Test-Sandboxed, gate.ps1)"
++# Save/restore HARNESS_SANDBOX around each case in a finally so no state leaks into the rest of the suite.
++$sbSaved = $env:HARNESS_SANDBOX
++try {
++  $env:HARNESS_SANDBOX = '1';     ok "HARNESS_SANDBOX=1 => sandboxed"        (Test-Sandboxed)
++  $env:HARNESS_SANDBOX = 'true';  ok "HARNESS_SANDBOX=true => sandboxed"     (Test-Sandboxed)
++  $env:HARNESS_SANDBOX = 'yes';   ok "HARNESS_SANDBOX=yes => sandboxed"      (Test-Sandboxed)
++  $env:HARNESS_SANDBOX = 'YES';   ok "HARNESS_SANDBOX=YES => sandboxed (case-insensitive)" (Test-Sandboxed)
++  $env:HARNESS_SANDBOX = '0';     ok "HARNESS_SANDBOX=0 => NOT sandboxed"    (-not (Test-Sandboxed))
++  $env:HARNESS_SANDBOX = 'false'; ok "HARNESS_SANDBOX=false => NOT sandboxed" (-not (Test-Sandboxed))
++  # Explicit falsy OVERRIDES an auto-detect marker: set a Codespaces-like marker, assert 0 still wins.
++  $csSaved = $env:CODESPACES
++  try {
++    $env:CODESPACES = 'true'; $env:HARNESS_SANDBOX = '0'
++    ok "explicit 0 beats markers" (-not (Test-Sandboxed))
++  } finally { if ($null -eq $csSaved) { Remove-Item Env:CODESPACES -ErrorAction SilentlyContinue } else { $env:CODESPACES = $csSaved } }
++  # Marker env vars are PRESENCE markers (any set => sandboxed), NOT truthy: CODESPACES=false is still
++  # present, and `container` holds a runtime NAME. Save/restore each marker so cases stay isolated.
++  Remove-Item Env:HARNESS_SANDBOX -ErrorAction SilentlyContinue   # unset the explicit signal for marker cases
++  $markSaved = @{}; foreach ($m in 'CODESPACES','REMOTE_CONTAINERS','DEVCONTAINER','container') { $markSaved[$m] = [Environment]::GetEnvironmentVariable($m) }
++  $restoreMarks = { foreach ($m in $markSaved.Keys) { if ($null -eq $markSaved[$m]) { Remove-Item "Env:$m" -ErrorAction SilentlyContinue } else { Set-Item "Env:$m" $markSaved[$m] } } }
++  try {
++    foreach ($m in $markSaved.Keys) { Remove-Item "Env:$m" -ErrorAction SilentlyContinue }
++    # Result depends on the host: bare host => NOT sandboxed; inside a container the fs markers (/.dockerenv,
++    # cgroup) remain and can't be unset, so sandboxed is correct there. On Windows these paths never exist
++    # (always the bare-host branch); the branch keeps the suite honest if pwsh runs inside a Linux container.
++    $hostCg = if (Test-Path '/proc/1/cgroup') { (Get-Content '/proc/1/cgroup' -Raw -ErrorAction SilentlyContinue) -match 'docker|containerd|lxc|kubepods' } else { $false }
++    $hostIsContainer = (Test-Path '/.dockerenv') -or (Test-Path '/run/.containerenv') -or $hostCg
++    if (-not $hostIsContainer) {
++      ok "unset + no markers (bare host) => NOT sandboxed" (-not (Test-Sandboxed))
++    } else {
++      ok "unset env markers but host is a container => sandboxed (fs marker)" (Test-Sandboxed)
++    }
++    $env:CODESPACES = 'false'; ok "CODESPACES=false (present, not truthy) => sandboxed" (Test-Sandboxed); Remove-Item Env:CODESPACES -ErrorAction SilentlyContinue
++    $env:container = 'lxc';    ok "container=lxc (name value, present) => sandboxed" (Test-Sandboxed);    Remove-Item Env:container -ErrorAction SilentlyContinue
++  } finally { & $restoreMarks }
++} finally {
++  if ($null -eq $sbSaved) { Remove-Item Env:HARNESS_SANDBOX -ErrorAction SilentlyContinue } else { $env:HARNESS_SANDBOX = $sbSaved }
++}
++
++Write-Host "sandbox template: devcontainer.json parses and marks itself a sandbox"
++$dcFile = Join-Path $engineDir 'templates/devcontainer.json'
++$dcParsed = $null
++try { $dcParsed = Get-Content $dcFile -Raw | ConvertFrom-Json } catch { $dcParsed = $null }
++ok "devcontainer.json is valid JSON (ConvertFrom-Json)" ($null -ne $dcParsed)
++ok "devcontainer sets HARNESS_SANDBOX=1" ($null -ne $dcParsed -and $dcParsed.containerEnv.HARNESS_SANDBOX -eq '1')
++ok "devcontainer uses a volume workspace (no host FS bind)" ($null -ne $dcParsed -and $dcParsed.workspaceMount -eq 'source=harness-workspace,target=/workspace,type=volume')
++
+ Write-Host "model routing: Resolve-PhaseModel (config.models -> --model; '' = inherit)"
+ $mcfg = [pscustomobject]@{ models = [pscustomobject]@{ implement='opus'; reviewFallback='fable' } }
+ ok "resolves implement model"          ((Resolve-PhaseModel $mcfg 'implement') -eq 'opus')
+diff --git a/harness/tests/run-tests.sh b/harness/tests/run-tests.sh
+index a6b96e4..2cde670 100644
+--- a/harness/tests/run-tests.sh
++++ b/harness/tests/run-tests.sh
+@@ -66,6 +66,31 @@ usage_limit_error 'review complete VERDICT: SHIP' && ok 0 "clean output => false
+ usage_limit_error 'processed 429 files'           && ok 0 "stray 429 => false"       || ok 1 "stray 429 => false"
+ usage_limit_error ''                              && ok 0 "empty => false"           || ok 1 "empty => false"
+ 
++echo "sandbox predicate: HARNESS_SANDBOX contract + auto-detect (is_sandboxed, gate.sh)"
++# Each case runs in a SUBSHELL so the env var never leaks into the next case or the rest of the suite.
++( export HARNESS_SANDBOX=1;     is_sandboxed ) && ok 1 "HARNESS_SANDBOX=1 => sandboxed"        || ok 0 "HARNESS_SANDBOX=1 => sandboxed"
++( export HARNESS_SANDBOX=true;  is_sandboxed ) && ok 1 "HARNESS_SANDBOX=true => sandboxed"     || ok 0 "HARNESS_SANDBOX=true => sandboxed"
++( export HARNESS_SANDBOX=yes;   is_sandboxed ) && ok 1 "HARNESS_SANDBOX=yes => sandboxed"      || ok 0 "HARNESS_SANDBOX=yes => sandboxed"
++( export HARNESS_SANDBOX=YES;   is_sandboxed ) && ok 1 "HARNESS_SANDBOX=YES => sandboxed (case-insensitive)" || ok 0 "HARNESS_SANDBOX=YES => sandboxed (case-insensitive)"
++( export HARNESS_SANDBOX=0;     is_sandboxed ) && ok 0 "HARNESS_SANDBOX=0 => NOT sandboxed"    || ok 1 "HARNESS_SANDBOX=0 => NOT sandboxed"
++( export HARNESS_SANDBOX=false; is_sandboxed ) && ok 0 "HARNESS_SANDBOX=false => NOT sandboxed" || ok 1 "HARNESS_SANDBOX=false => NOT sandboxed"
++# Explicit falsy OVERRIDES any auto-detected marker: fake a docker-like cgroup env and assert 0 still wins.
++( export HARNESS_SANDBOX=0 CODESPACES=true REMOTE_CONTAINERS=1; is_sandboxed ) && ok 0 "explicit 0 beats markers" || ok 1 "explicit 0 beats markers"
++# Unset explicit signal + scrub env markers. The RESULT depends on the host: on a bare host => NOT
++# sandboxed; INSIDE a container (this task's own sandbox profile!) the filesystem markers (/.dockerenv,
++# cgroup) remain and CANNOT be unset, so the correct answer there is sandboxed. Branch on host bareness so
++# the suite passes both on a normal host AND inside the devcontainer/CI-container it ships.
++if [ ! -f /.dockerenv ] && [ ! -f /run/.containerenv ] \
++   && ! { [ -f /proc/1/cgroup ] && grep -qE 'docker|containerd|lxc|kubepods' /proc/1/cgroup 2>/dev/null; }; then
++  ( unset HARNESS_SANDBOX CODESPACES REMOTE_CONTAINERS DEVCONTAINER container; is_sandboxed ) && ok 0 "unset + no markers (bare host) => NOT sandboxed" || ok 1 "unset + no markers (bare host) => NOT sandboxed"
++else
++  ( unset HARNESS_SANDBOX CODESPACES REMOTE_CONTAINERS DEVCONTAINER container; is_sandboxed ) && ok 1 "unset env markers but host is a container => sandboxed (fs marker)" || ok 0 "unset env markers but host is a container => sandboxed (fs marker)"
++fi
++# Marker env vars are PRESENCE markers (any set => sandboxed), NOT truthy: CODESPACES=false is still present,
++# and `container` holds a runtime NAME. Scrub the other markers so each case isolates the one under test.
++( unset HARNESS_SANDBOX REMOTE_CONTAINERS DEVCONTAINER container; export CODESPACES=false; is_sandboxed ) && ok 1 "CODESPACES=false (present, not truthy) => sandboxed" || ok 0 "CODESPACES=false (present, not truthy) => sandboxed"
++( unset HARNESS_SANDBOX CODESPACES REMOTE_CONTAINERS DEVCONTAINER; export container=lxc; is_sandboxed ) && ok 1 "container=lxc (name value, present) => sandboxed" || ok 0 "container=lxc (name value, present) => sandboxed"
++
+ echo "block-destructive hook: blocks dangerous, allows safe"
+ hookrc() {  # $1 = command (no quotes/backslashes in our test inputs) ; echoes hook exit code
+   printf '{"tool_name":"Bash","tool_input":{"command":"%s"}}' "$1" \
+@@ -317,6 +342,13 @@ STUB
+   ok "$([ "$rid" = "run-005" ] && echo 1 || echo 0)" "allocation claims the dir (2nd call => run-005, got '$rid')"
+   rm -rf "$tmpruns"
+   rm -f "$passcfg" "$failcfg" "$stderrcfg" "$blog"
++
++  # devcontainer template: must be STRICT JSON (a project copies it to .devcontainer/devcontainer.json)
++  # and must mark itself a sandbox so the loop recognizes it (containerEnv.HARNESS_SANDBOX == "1").
++  dcfile="$ENGINE/templates/devcontainer.json"
++  ok "$([ -f "$dcfile" ] && jq empty "$dcfile" >/dev/null 2>&1 && echo 1 || echo 0)" "devcontainer.json is strict JSON (jq parses, no comments)"
++  ok "$([ "$(jq -r '.containerEnv.HARNESS_SANDBOX' "$dcfile" 2>/dev/null)" = "1" ] && echo 1 || echo 0)" "devcontainer sets HARNESS_SANDBOX=1"
++  ok "$([ "$(jq -r '.workspaceMount' "$dcfile" 2>/dev/null)" = "source=harness-workspace,target=/workspace,type=volume" ] && echo 1 || echo 0)" "devcontainer uses a volume workspace (no host FS bind)"
+ else
+   echo "  (skipping jq-dependent gate/budget tests — jq not installed)"
+ fi
+diff --git a/plugin/engine/lib/gate.ps1 b/plugin/engine/lib/gate.ps1
+index acc1d41..2c94eae 100644
+--- a/plugin/engine/lib/gate.ps1
++++ b/plugin/engine/lib/gate.ps1
+@@ -103,6 +103,38 @@ function Test-UsageLimitError {
+   return $false
+ }
+ 
++# Sandbox detection for unattended `auto` runs. Mirror of is_sandboxed in gate.sh; lives here (not in
++# loop.ps1) so the self-tests can exercise it. Contract: the env var HARNESS_SANDBOX is the EXPLICIT,
++# cross-platform signal and ALWAYS wins when it is SET — truthy (1/true/yes, case-insensitive) =>
++# sandboxed; anything else (0/false/no/empty) => NOT sandboxed, even inside a container. Only when
++# HARNESS_SANDBOX is UNSET do we auto-detect common container markers (ANY present => sandboxed).
++# Returns [bool]. On Windows the /proc and /.dockerenv probes simply won't match — the PS runner is the
++# host case and the env var is the portable contract.
++function Test-Sandboxed {
++  $explicit = [Environment]::GetEnvironmentVariable('HARNESS_SANDBOX')   # $null when unset, '' when set-empty
++  if ($null -ne $explicit) {
++    # Exact case-insensitive match, NO trimming — parity with bash (which does not trim), so a stray
++    # " true " resolves identically on both runners. Contract blesses only exact 1/true/yes.
++    return (@('1','true','yes') -contains $explicit.ToLowerInvariant())
++  }
++  if (Test-Path '/.dockerenv') { return $true }                          # docker
++  if (Test-Path '/run/.containerenv') { return $true }                   # podman
++  # Marker env vars are PRESENCE markers: a runtime SETS them to signal itself, so any one being set
++  # (even to empty) => sandboxed. GetEnvironmentVariable returns $null only when UNSET ('' when set-empty),
++  # so `$null -ne` is the set-ness test — matches bash ${VAR+x}. `container` holds a runtime NAME, not a bool.
++  if ($null -ne [Environment]::GetEnvironmentVariable('CODESPACES'))        { return $true }   # GitHub Codespaces
++  if ($null -ne [Environment]::GetEnvironmentVariable('REMOTE_CONTAINERS')) { return $true }   # VS Code dev containers
++  if ($null -ne [Environment]::GetEnvironmentVariable('DEVCONTAINER'))      { return $true }   # devcontainer spec
++  if ($null -ne [Environment]::GetEnvironmentVariable('container'))         { return $true }   # systemd-nspawn / podman
++  if (Test-Path '/proc/1/cgroup') {
++    try {
++      $cg = Get-Content '/proc/1/cgroup' -Raw -ErrorAction SilentlyContinue
++      if ($cg -match 'docker|containerd|lxc|kubepods') { return $true }
++    } catch {}
++  }
++  return $false
++}
++
+ function Invoke-GateStep([string]$name, [string]$cmd, [string]$workDir) {
+   if ([string]::IsNullOrWhiteSpace([string]$cmd)) { return $true }   # null/absent = skip
+   Write-Host "  - $name : $cmd" -ForegroundColor DarkGray
+diff --git a/plugin/engine/lib/gate.sh b/plugin/engine/lib/gate.sh
+index 8a4a39d..1f95813 100644
+--- a/plugin/engine/lib/gate.sh
++++ b/plugin/engine/lib/gate.sh
+@@ -71,6 +71,35 @@ usage_limit_error() {  # $1 output text  $2 exit code (reserved) ; return 0 if a
+   return 1
+ }
+ 
++# Sandbox detection for unattended `auto` runs. Mirror of Test-Sandboxed in gate.ps1; lives here so the
++# self-tests can exercise it. Contract: the env var HARNESS_SANDBOX is the EXPLICIT, cross-platform signal
++# and ALWAYS wins when it is SET — truthy (1/true/yes, case-insensitive) => sandboxed; anything else
++# (0/false/no/empty) => NOT sandboxed, even inside a container. Only when HARNESS_SANDBOX is UNSET do we
++# auto-detect common container markers (ANY present => sandboxed). Returns 0 (sandboxed) / 1 (not).
++# On Windows/pwsh the /proc and /.dockerenv probes simply won't match — the env var is the portable
++# contract there (the PS runner is the host case).
++is_sandboxed() {
++  if [ -n "${HARNESS_SANDBOX+x}" ]; then          # SET (even to empty) => the explicit signal wins
++    case "$(printf '%s' "${HARNESS_SANDBOX}" | tr '[:upper:]' '[:lower:]')" in
++      1|true|yes) return 0 ;;
++      *)          return 1 ;;
++    esac
++  fi
++  [ -f /.dockerenv ] && return 0                  # docker
++  [ -f /run/.containerenv ] && return 0           # podman
++  # Marker env vars are PRESENCE markers: a runtime SETS them to signal itself, so any one being set
++  # (even to empty) => sandboxed. Use ${VAR+x} (set-ness), NOT ${VAR:-} (non-empty) or a truthy test —
++  # `container` in particular holds a runtime NAME (e.g. "lxc"/"podman"), not a boolean.
++  [ -n "${CODESPACES+x}" ] && return 0            # GitHub Codespaces
++  [ -n "${REMOTE_CONTAINERS+x}" ] && return 0     # VS Code dev containers
++  [ -n "${DEVCONTAINER+x}" ] && return 0          # devcontainer spec
++  [ -n "${container+x}" ] && return 0             # systemd-nspawn / podman (value = runtime name)
++  if [ -f /proc/1/cgroup ] && grep -qE 'docker|containerd|lxc|kubepods' /proc/1/cgroup 2>/dev/null; then
++    return 0
++  fi
++  return 1
++}
++
+ _gate_step() {  # $1 name  $2 cmd  $3 workdir
+   local name="$1" cmd="$2" workdir="$3"
+   { [ "$cmd" = "null" ] || [ -z "$cmd" ]; } && return 0
+diff --git a/plugin/engine/loop.ps1 b/plugin/engine/loop.ps1
+index fdf971d..fcdeb1f 100644
+--- a/plugin/engine/loop.ps1
++++ b/plugin/engine/loop.ps1
+@@ -230,6 +230,19 @@ if ($cfg.autonomy.mode -eq 'auto' -and (Get-Prop $cfg.autonomy 'skipPermissions'
+   Write-Host "    are in .claude/settings.json permissions.allow (/harness-init adds them)." -ForegroundColor DarkGray
+ }
+ 
++# Sandbox guard: full-auto runs UNATTENDED. The destructive-command deny-list is defense-in-depth, not a
++# sandbox, so honestly warn (not block — Confirm-Checkpoint is a no-op in auto by design) when auto runs
++# outside a recognized isolation profile. Test-Sandboxed lives in lib/gate.ps1 (already dot-sourced above).
++if ($cfg.autonomy.mode -eq 'auto' -and -not (Test-Sandboxed)) {
++  Write-Host ""
++  Write-Host "⚠️  AUTO mode but NOT in a recognized SANDBOX. This run is full-auto and UNATTENDED." -ForegroundColor Red
++  Write-Host "    Unattended auto should run inside the documented isolation profile (container/devcontainer or" -ForegroundColor Red
++  Write-Host "    WSL2-native FS), not directly on your host. The destructive-command deny-list is defense-in-" -ForegroundColor Red
++  Write-Host "    depth, NOT a sandbox — and --dangerously-skip-permissions voids it entirely." -ForegroundColor Red
++  Write-Host "    See docs/sandboxing.md. Mark a sandbox explicitly with:  `$env:HARNESS_SANDBOX = '1'" -ForegroundColor Red
++  Write-Host ""
++}
++
+ # Lock specs/ for the duration of the run: the protect-specs PreToolUse hook (inherited by the headless
+ # claude child) blocks edits under specs/ while this is set. The loop must never rewrite the contract.
+ $env:HARNESS_LOCK_SPECS = '1'
+diff --git a/plugin/engine/loop.sh b/plugin/engine/loop.sh
+index 50307c6..3921bbf 100644
+--- a/plugin/engine/loop.sh
++++ b/plugin/engine/loop.sh
+@@ -210,6 +210,19 @@ else
+   echo "    are in .claude/settings.json permissions.allow (/harness-init adds them)."
+ fi
+ 
++# Sandbox guard: full-auto runs UNATTENDED. The destructive-command deny-list is defense-in-depth, not a
++# sandbox, so honestly warn (not block — confirm_checkpoint is a no-op in auto by design) when auto runs
++# outside a recognized isolation profile. is_sandboxed lives in lib/gate.sh (already sourced above).
++if [ "$MODE" = "auto" ] && ! is_sandboxed; then
++  echo ""
++  echo "⚠️  AUTO mode but NOT in a recognized SANDBOX. This run is full-auto and UNATTENDED."
++  echo "    Unattended auto should run inside the documented isolation profile (container/devcontainer or"
++  echo "    WSL2-native FS), not directly on your host. The destructive-command deny-list is defense-in-"
++  echo "    depth, NOT a sandbox — and --dangerously-skip-permissions voids it entirely."
++  echo "    See docs/sandboxing.md. Mark a sandbox explicitly with:  export HARNESS_SANDBOX=1"
++  echo ""
++fi
++
+ # Lock specs/ for the run: the protect-specs PreToolUse hook (inherited by the headless claude child)
+ # blocks edits under specs/ while this is exported. The loop must never rewrite the contract.
+ export HARNESS_LOCK_SPECS=1
+diff --git a/plugin/engine/templates/devcontainer.json b/plugin/engine/templates/devcontainer.json
+new file mode 100644
+index 0000000..37ca9cc
+--- /dev/null
++++ b/plugin/engine/templates/devcontainer.json
+@@ -0,0 +1,18 @@
++{
++  "name": "lean-agent-harness (unattended auto)",
++  "image": "mcr.microsoft.com/devcontainers/base:ubuntu",
++  "features": {
++    "ghcr.io/devcontainers/features/github-cli:1": {},
++    "ghcr.io/devcontainers/features/node:1": {}
++  },
++  "containerEnv": {
++    "HARNESS_SANDBOX": "1"
++  },
++  "remoteEnv": {
++    "ANTHROPIC_API_KEY": "${localEnv:ANTHROPIC_API_KEY}",
++    "CODEX_API_KEY": "${localEnv:CODEX_API_KEY}"
++  },
++  "workspaceMount": "source=harness-workspace,target=/workspace,type=volume",
++  "workspaceFolder": "/workspace",
++  "postCreateCommand": "chmod -R a-w specs 2>/dev/null || true"
++}

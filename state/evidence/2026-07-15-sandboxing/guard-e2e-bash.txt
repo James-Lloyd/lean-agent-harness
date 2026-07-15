@@ -1,0 +1,5 @@
+=== RUN 1: HARNESS_SANDBOX UNSET (expect warning) ===
+  PASS: warning present when unsandboxed
+=== RUN 2: HARNESS_SANDBOX=1 (expect NO warning) ===
+  PASS: no warning when HARNESS_SANDBOX=1
+GUARD E2E (bash): PASS

@@ -1,0 +1,2662 @@
+﻿node.exe : OpenAI Codex v0.144.3
+At C:\Users\james\AppData\Roaming\npm\codex.ps1:22 char:14
++ ...    $input | & "node$exe"  "$basedir/node_modules/@openai/codex/bin/co ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (OpenAI Codex v0.144.3:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+--------
+workdir: C:\Users\james\Repos\harness
+model: gpt-5.5
+provider: openai
+approval: never
+sandbox: read-only
+reasoning effort: high
+reasoning summaries: none
+session id: 019f66b0-eb02-70b2-b86e-b885d4fdab69
+--------
+user
+You are a fresh-context code reviewer. Judge the STAGED DIFF below against the sprint contract. You did
+not write this code and have no memory of the conversation that produced it ???????? reason only from the diff,
+the contract, and the repo you can read (read-only).
+
+## Task under review
+"Sandboxing for unattended runs" in the lean-agent-harness engine. Definition of done:
+1. A sandbox-detection predicate `Test-Sandboxed` (PowerShell, `plugin/engine/lib/gate.ps1`) +
+   `is_sandboxed` (bash, `plugin/engine/lib/gate.sh`), capability-equivalent. Contract: env var
+   `HARNESS_SANDBOX` is the explicit signal and ALWAYS wins when SET ???????? truthy (`1`/`true`/`yes`,
+   case-insensitive) => sandboxed; anything else (`0`/`false`/`no`/empty) => NOT sandboxed. Unset =>
+   auto-detect container markers (`/.dockerenv`, `/run/.containerenv`, `$CODESPACES`, `$REMOTE_CONTAINERS`,
+   `$DEVCONTAINER`, `$container`, `docker|containerd|lxc|kubepods` in `/proc/1/cgroup`); any present =>
+   sandboxed. Auto-detect only flips to true; the explicit var wins either way.
+2. A loop startup guard in `loop.{ps1,sh}`: when `autonomy.mode == auto` AND not sandboxed => print a loud
+   warning citing `docs/sandboxing.md`. WARN-ONLY (no confirm/block ???????? confirm_checkpoint is a no-op in auto
+   by design, so it can't block; a plain warning is honest). No behavior change when sandboxed or mode???????auto.
+3. Template `plugin/engine/templates/devcontainer.json` ???????? strict valid JSON, `HARNESS_SANDBOX=1`, secrets
+   via env (`${localEnv:...}`), no host-FS bind (volume workspace), specs/ read-only.
+4. Doc `docs/sandboxing.md` ???????? devcontainer + WSL2 paths, security properties, detection, the warning.
+5. Unit tests (both runners) for the predicate + template-is-valid-JSON.
+
+## What to check (scope: correctness + requirement gaps ONLY)
+- Does the bash predicate correctly implement the contract, especially the "SET but empty => NOT
+  sandboxed" and "explicit falsy beats a present container marker" edge cases? Is `${HARNESS_SANDBOX+x}`
+  the right test for "is set (even to empty)"?
+- Is the PowerShell `Test-Sandboxed` capability-equivalent (same truthy/falsy/unset semantics)? On Windows
+  the /proc + /.dockerenv probes won't match ???????? is that handled without throwing under StrictMode?
+- Is the guard placed and gated correctly (mode==auto AND not-sandboxed), and is it genuinely warn-only?
+- Is the devcontainer.json strict JSON (no `//` comments) and does it actually satisfy the security
+  properties it claims (no host bind, secrets via env, specs read-only)?
+- Any regression risk to the existing gate/loop behavior from these additions?
+Do NOT nitpick style. Report only correctness bugs, contract violations, or missing done-when items.
+
+End your review with exactly one line: `VERDICT: SHIP` (guardrails intact, criteria met) or
+`VERDICT: REJECT` (something is wrong ???????? default to REJECT when unsure). A fix-then-ship should be REJECT
+with the specific fix.
+
+## STAGED DIFF
+See `state/evidence/2026-07-15-sandboxing/review-input.diff` in the repo (you can read it), or the inline
+copy below. Also read the full new files `plugin/engine/templates/devcontainer.json` and
+`docs/sandboxing.md` and the current `plugin/engine/lib/gate.ps1` / `gate.sh` for full context.
+
+
+---STAGED DIFF---
+diff --git a/docs/sandboxing.md b/docs/sandboxing.md
+new file mode 100644
+index 0000000..e31370a
+--- /dev/null
++++ b/docs/sandboxing.md
+@@ -0,0 +1,104 @@
++# Sandboxing for unattended runs
++
++`autonomy.mode: auto` runs the loop **unattended** ???????? a fresh headless `claude` per iteration, no human at
++the keyboard to answer a permission prompt or veto a checkpoint. This doc explains why that wants a
++sandbox, how the harness recognizes one, and the two supported profiles for running `auto` safely.
++
++## Why a sandbox
++
++The harness has defense-in-depth, but **defense-in-depth is not a sandbox**:
++
++- The **destructive-command deny-list** (the `block-destructive` PreToolUse hook) matches both shell
++  tools and fails closed on a denylist hit. It is a denylist ???????? it stops the *obvious* footguns
++  (`rm -rf`, `git push --force`, `DROP TABLE`, secret exfil), not everything an agent could do.
++- `--dangerously-skip-permissions` (set when `autonomy.skipPermissions: true`) **voids the permission
++  layer entirely** ???????? deny/ask rules lose their teeth. Only run that inside real isolation.
++- On **Windows there is no native OS sandbox** for this. The supported answer is WSL2 or a devcontainer
++  (both are Linux) ???????? see the two profiles below.
++
++So for unattended `auto` you want an environment where the *worst case* is bounded: no host filesystem to
++scribble on, secrets scoped to the run, an ephemeral workspace you can throw away.
++
++## How detection works
++
++The loop checks whether it is sandboxed at startup. If `mode: auto` and it is **not**, it prints a loud
++warning (it does **not** block ???????? in `auto` there is no human to confirm, so a warning is the honest
++thing). The predicate is `is_sandboxed` (bash, `plugin/engine/lib/gate.sh`) / `Test-Sandboxed`
++(PowerShell, `plugin/engine/lib/gate.ps1`), which are capability-equivalent mirrors.
++
++**`HARNESS_SANDBOX` is the explicit, cross-platform contract and always wins when set:**
++
++| `HARNESS_SANDBOX` | Result |
++|-------------------|--------|
++| `1`, `true`, `yes` (any case) | **sandboxed** |
++| `0`, `false`, `no`, empty | **not sandboxed** (overrides any auto-detected marker) |
++| unset | fall through to auto-detection |
++
++When `HARNESS_SANDBOX` is **unset**, the predicate auto-detects common container markers ???????? **any** present
++means sandboxed:
++
++- file `/.dockerenv` exists (Docker)
++- file `/run/.containerenv` exists (Podman)
++- `CODESPACES` is truthy (GitHub Codespaces)
++- `REMOTE_CONTAINERS` is set (VS Code Dev Containers)
++- `DEVCONTAINER` is set (devcontainer spec)
++- `container` is set (systemd-nspawn / Podman)
++- `/proc/1/cgroup` exists and contains `docker`, `containerd`, `lxc`, or `kubepods` (incl. Kubernetes)
++
++> **Bare WSL2 is NOT auto-detected.** WSL2 shares your Windows kernel and can reach `/mnt/c`, and it trips
++> none of the markers above. If you run `auto` in WSL2 you must **opt in** explicitly with
++> `export HARNESS_SANDBOX=1` (after cloning into the WSL-native FS ???????? see Profile B). This is deliberate:
++> WSL2 is weaker isolation than a container, so you affirm it rather than get it for free.
++
++## Profile A ???????? devcontainer (recommended, strong isolation)
++
++Copy `plugin/engine/templates/devcontainer.json` to your project's `.devcontainer/devcontainer.json`,
++then open the repo in the container (VS Code "Reopen in Container", or the `devcontainer` CLI). The
++template is strict JSON (no `//` comments ???????? a harness self-test parses it) and is the **no-host-FS**
++variant. Security properties it gives you:
++
++- **`containerEnv.HARNESS_SANDBOX = "1"`** ???????? the loop recognizes the container as a sandbox, so no warning.
++- **Volume workspace, no host bind** ???????? `workspaceMount` uses a named Docker **volume**
++  (`source=harness-workspace,type=volume`) mounted at `/workspace`, so the agent never touches your host
++  filesystem. The workspace is ephemeral: delete the volume to reset.
++- **`specs/` read-only** ???????? `postCreateCommand` runs `chmod -R a-w specs`, belt-and-braces with the loop's
++  `HARNESS_LOCK_SPECS` protect-specs hook. The contract can't be rewritten to make work "pass".
++- **Secrets via env, never baked** ???????? `remoteEnv` pulls `ANTHROPIC_API_KEY` / `CODEX_API_KEY` from your
++  **host** env with `${localEnv:...}`. They are never written into the image or committed.
++- A minimal Ubuntu base plus the `github-cli` and `node` features (node is needed by the plugin's hook
++  dispatcher; `gh` for PR flows). Trim what you don't use.
++
++> **Network egress** is a property you configure at the **container/host** level (e.g. a locked-down
++> Docker network, an egress proxy, or `--network none` where the run doesn't need the internet). It is
++> **not** engine-enforced ???????? the harness cannot police outbound traffic for you.
++
++## Profile B ???????? raw WSL2 (weaker, opt-in)
++
++For Windows users without Docker, WSL2 is a workable fallback with **weaker** isolation (shared kernel;
++WSL can reach `/mnt/c`):
++
++1. Clone the repo into the **WSL-native filesystem** (e.g. `~/work/...`), **not** `/mnt/c/...` ???????? running
++   from `/mnt/c` both defeats the isolation and is slow.
++2. Install the toolchain: `jq`, `node`, `git`, plus your project's gate tools and the `claude` CLI.
++3. Opt in to the sandbox contract: `export HARNESS_SANDBOX=1` (put it in your shell profile for the run).
++4. Run the loop: `bash harness/loop.sh --mode auto`.
++
++Because the kernel is shared and `/mnt/c` is reachable, keep secrets out of any env you don't want the
++agent to see, and don't point it at host paths you care about. A devcontainer (Profile A) is stronger;
++prefer it when you can run Docker.
++
++## The warning you'll see outside a profile
++
++Run `auto` on your bare host (no `HARNESS_SANDBOX`, no container markers) and the loop prints, before the
++first iteration:
++
++```
++????????????  AUTO mode but NOT in a recognized SANDBOX. This run is full-auto and UNATTENDED.
++    Unattended auto should run inside the documented isolation profile (container/devcontainer or
++    WSL2-native FS), not directly on your host. The destructive-command deny-list is defense-in-
++    depth, NOT a sandbox ???????? and --dangerously-skip-permissions voids it entirely.
++    See docs/sandboxing.md. Mark a sandbox explicitly with:  export HARNESS_SANDBOX=1
++```
++
++It warns but does not stop (in `auto` there is no human to confirm). Supervised mode and any run inside a
++recognized sandbox print nothing.
+diff --git a/harness/tests/run-tests.ps1 b/harness/tests/run-tests.ps1
+index 4e923b3..d7c7a40 100644
+--- a/harness/tests/run-tests.ps1
++++ b/harness/tests/run-tests.ps1
+@@ -125,6 +125,37 @@ ok "clean output => false"        (-not (Test-UsageLimitError 'review complete.
+ ok "stray 429 tokens => false"    (-not (Test-UsageLimitError 'processed 429 files successfully'))
+ ok "empty output => false"        (-not (Test-UsageLimitError ''))
+ 
++Write-Host "sandbox predicate: HARNESS_SANDBOX contract + auto-detect (Test-Sandboxed, gate.ps1)"
++# Save/restore HARNESS_SANDBOX around each case in a finally so no state leaks into the rest of the suite.
++$sbSaved = $env:HARNESS_SANDBOX
++try {
++  $env:HARNESS_SANDBOX = '1';     ok "HARNESS_SANDBOX=1 => sandboxed"        (Test-Sandboxed)
++  $env:HARNESS_SANDBOX = 'true';  ok "HARNESS_SANDBOX=true => sandboxed"     (Test-Sandboxed)
++  $env:HARNESS_SANDBOX = 'yes';   ok "HARNESS_SANDBOX=yes => sandboxed"      (Test-Sandboxed)
++  $env:HARNESS_SANDBOX = 'YES';   ok "HARNESS_SANDBOX=YES => sandboxed (case-insensitive)" (Test-Sandboxed)
++  $env:HARNESS_SANDBOX = '0';     ok "HARNESS_SANDBOX=0 => NOT sandboxed"    (-not (Test-Sandboxed))
++  $env:HARNESS_SANDBOX = 'false'; ok "HARNESS_SANDBOX=false => NOT sandboxed" (-not (Test-Sandboxed))
++  # Explicit falsy OVERRIDES an auto-detect marker: set a Codespaces-like marker, assert 0 still wins.
++  $csSaved = $env:CODESPACES
++  try {
++    $env:CODESPACES = 'true'; $env:HARNESS_SANDBOX = '0'
++    ok "explicit 0 beats markers" (-not (Test-Sandboxed))
++  } finally { if ($null -eq $csSaved) { Remove-Item Env:CODESPACES -ErrorAction SilentlyContinue } else { $env:CODESPACES 
+= $csSaved } }
++  # Unset + no container markers on this host => NOT sandboxed.
++  Remove-Item Env:HARNESS_SANDBOX -ErrorAction SilentlyContinue
++  ok "unset + no markers => NOT sandboxed" (-not (Test-Sandboxed))
++} finally {
++  if ($null -eq $sbSaved) { Remove-Item Env:HARNESS_SANDBOX -ErrorAction SilentlyContinue } else { $env:HARNESS_SANDBOX = 
+$sbSaved }
++}
++
++Write-Host "sandbox template: devcontainer.json parses and marks itself a sandbox"
++$dcFile = Join-Path $engineDir 'templates/devcontainer.json'
++$dcParsed = $null
++try { $dcParsed = Get-Content $dcFile -Raw | ConvertFrom-Json } catch { $dcParsed = $null }
++ok "devcontainer.json is valid JSON (ConvertFrom-Json)" ($null -ne $dcParsed)
++ok "devcontainer sets HARNESS_SANDBOX=1" ($null -ne $dcParsed -and $dcParsed.containerEnv.HARNESS_SANDBOX -eq '1')
++ok "devcontainer uses a volume workspace (no host FS bind)" ($null -ne $dcParsed -and $dcParsed.workspaceMount -eq 
+'source=harness-workspace,target=/workspace,type=volume')
++
+ Write-Host "model routing: Resolve-PhaseModel (config.models -> --model; '' = inherit)"
+ $mcfg = [pscustomobject]@{ models = [pscustomobject]@{ implement='opus'; reviewFallback='fable' } }
+ ok "resolves implement model"          ((Resolve-PhaseModel $mcfg 'implement') -eq 'opus')
+diff --git a/harness/tests/run-tests.sh b/harness/tests/run-tests.sh
+index a6b96e4..59fef45 100644
+--- a/harness/tests/run-tests.sh
++++ b/harness/tests/run-tests.sh
+@@ -66,6 +66,20 @@ usage_limit_error 'review complete VERDICT: SHIP' && ok 0 "clean output => false
+ usage_limit_error 'processed 429 files'           && ok 0 "stray 429 => false"       || ok 1 "stray 429 => false"
+ usage_limit_error ''                              && ok 0 "empty => false"           || ok 1 "empty => false"
+ 
++echo "sandbox predicate: HARNESS_SANDBOX contract + auto-detect (is_sandboxed, gate.sh)"
++# Each case runs in a SUBSHELL so the env var never leaks into the next case or the rest of the suite.
++( export HARNESS_SANDBOX=1;     is_sandboxed ) && ok 1 "HARNESS_SANDBOX=1 => sandboxed"        || ok 0 "HARNESS_SANDBOX=1 
+=> sandboxed"
++( export HARNESS_SANDBOX=true;  is_sandboxed ) && ok 1 "HARNESS_SANDBOX=true => sandboxed"     || ok 0 
+"HARNESS_SANDBOX=true => sandboxed"
++( export HARNESS_SANDBOX=yes;   is_sandboxed ) && ok 1 "HARNESS_SANDBOX=yes => sandboxed"      || ok 0 
+"HARNESS_SANDBOX=yes => sandboxed"
++( export HARNESS_SANDBOX=YES;   is_sandboxed ) && ok 1 "HARNESS_SANDBOX=YES => sandboxed (case-insensitive)" || ok 0 
+"HARNESS_SANDBOX=YES => sandboxed (case-insensitive)"
++( export HARNESS_SANDBOX=0;     is_sandboxed ) && ok 0 "HARNESS_SANDBOX=0 => NOT sandboxed"    || ok 1 "HARNESS_SANDBOX=0 
+=> NOT sandboxed"
++( export HARNESS_SANDBOX=false; is_sandboxed ) && ok 0 "HARNESS_SANDBOX=false => NOT sandboxed" || ok 1 
+"HARNESS_SANDBOX=false => NOT sandboxed"
++# Explicit falsy OVERRIDES any auto-detected marker: fake a docker-like cgroup env and assert 0 still wins.
++( export HARNESS_SANDBOX=0 CODESPACES=true REMOTE_CONTAINERS=1; is_sandboxed ) && ok 0 "explicit 0 beats markers" || ok 1 
+"explicit 0 beats markers"
++# Unset + no container markers on this dev/CI host => NOT sandboxed. Scrub every marker in the subshell so
++# the case is deterministic regardless of the host's ambient env.
++( unset HARNESS_SANDBOX CODESPACES REMOTE_CONTAINERS DEVCONTAINER container; is_sandboxed ) && ok 0 "unset + no markers => 
+NOT sandboxed" || ok 1 "unset + no markers => NOT sandboxed"
++
+ echo "block-destructive hook: blocks dangerous, allows safe"
+ hookrc() {  # $1 = command (no quotes/backslashes in our test inputs) ; echoes hook exit code
+   printf '{"tool_name":"Bash","tool_input":{"command":"%s"}}' "$1" \
+@@ -317,6 +331,13 @@ STUB
+   ok "$([ "$rid" = "run-005" ] && echo 1 || echo 0)" "allocation claims the dir (2nd call => run-005, got '$rid')"
+   rm -rf "$tmpruns"
+   rm -f "$passcfg" "$failcfg" "$stderrcfg" "$blog"
++
++  # devcontainer template: must be STRICT JSON (a project copies it to .devcontainer/devcontainer.json)
++  # and must mark itself a sandbox so the loop recognizes it (containerEnv.HARNESS_SANDBOX == "1").
++  dcfile="$ENGINE/templates/devcontainer.json"
++  ok "$([ -f "$dcfile" ] && jq empty "$dcfile" >/dev/null 2>&1 && echo 1 || echo 0)" "devcontainer.json is strict JSON (jq 
+parses, no comments)"
++  ok "$([ "$(jq -r '.containerEnv.HARNESS_SANDBOX' "$dcfile" 2>/dev/null)" = "1" ] && echo 1 || echo 0)" "devcontainer 
+sets HARNESS_SANDBOX=1"
++  ok "$([ "$(jq -r '.workspaceMount' "$dcfile" 2>/dev/null)" = "source=harness-workspace,target=/workspace,type=volume" ] 
+&& echo 1 || echo 0)" "devcontainer uses a volume workspace (no host FS bind)"
+ else
+   echo "  (skipping jq-dependent gate/budget tests ???????? jq not installed)"
+ fi
+diff --git a/plugin/engine/lib/gate.ps1 b/plugin/engine/lib/gate.ps1
+index acc1d41..b994c7e 100644
+--- a/plugin/engine/lib/gate.ps1
++++ b/plugin/engine/lib/gate.ps1
+@@ -103,6 +103,34 @@ function Test-UsageLimitError {
+   return $false
+ }
+ 
++# Sandbox detection for unattended `auto` runs. Mirror of is_sandboxed in gate.sh; lives here (not in
++# loop.ps1) so the self-tests can exercise it. Contract: the env var HARNESS_SANDBOX is the EXPLICIT,
++# cross-platform signal and ALWAYS wins when it is SET ???????? truthy (1/true/yes, case-insensitive) =>
++# sandboxed; anything else (0/false/no/empty) => NOT sandboxed, even inside a container. Only when
++# HARNESS_SANDBOX is UNSET do we auto-detect common container markers (ANY present => sandboxed).
++# Returns [bool]. On Windows the /proc and /.dockerenv probes simply won't match ???????? the PS runner is the
++# host case and the env var is the portable contract.
++function Test-Sandboxed {
++  $explicit = [Environment]::GetEnvironmentVariable('HARNESS_SANDBOX')   # $null when unset, '' when set-empty
++  if ($null -ne $explicit) {
++    return (@('1','true','yes') -contains $explicit.Trim().ToLowerInvariant())
++  }
++  if (Test-Path '/.dockerenv') { return $true }                          # docker
++  if (Test-Path '/run/.containerenv') { return $true }                   # podman
++  $cs = [Environment]::GetEnvironmentVariable('CODESPACES')
++  if ($cs -and (@('1','true','yes') -contains $cs.Trim().ToLowerInvariant())) { return $true }
++  if ([Environment]::GetEnvironmentVariable('REMOTE_CONTAINERS')) { return $true }   # VS Code dev containers
++  if ([Environment]::GetEnvironmentVariable('DEVCONTAINER'))      { return $true }   # devcontainer spec
++  if ([Environment]::GetEnvironmentVariable('container'))         { return $true }   # systemd-nspawn / podman
++  if (Test-Path '/proc/1/cgroup') {
++    try {
++      $cg = Get-Content '/proc/1/cgroup' -Raw -ErrorAction SilentlyContinue
++      if ($cg -match 'docker|containerd|lxc|kubepods') { return $true }
++    } catch {}
++  }
++  return $false
++}
++
+ function Invoke-GateStep([string]$name, [string]$cmd, [string]$workDir) {
+   if ([string]::IsNullOrWhiteSpace([string]$cmd)) { return $true }   # null/absent = skip
+   Write-Host "  - $name : $cmd" -ForegroundColor DarkGray
+diff --git a/plugin/engine/lib/gate.sh b/plugin/engine/lib/gate.sh
+index 8a4a39d..fb51a32 100644
+--- a/plugin/engine/lib/gate.sh
++++ b/plugin/engine/lib/gate.sh
+@@ -71,6 +71,32 @@ usage_limit_error() {  # $1 output text  $2 exit code (reserved) ; return 0 if a
+   return 1
+ }
+ 
++# Sandbox detection for unattended `auto` runs. Mirror of Test-Sandboxed in gate.ps1; lives here so the
++# self-tests can exercise it. Contract: the env var HARNESS_SANDBOX is the EXPLICIT, cross-platform signal
++# and ALWAYS wins when it is SET ???????? truthy (1/true/yes, case-insensitive) => sandboxed; anything else
++# (0/false/no/empty) => NOT sandboxed, even inside a container. Only when HARNESS_SANDBOX is UNSET do we
++# auto-detect common container markers (ANY present => sandboxed). Returns 0 (sandboxed) / 1 (not).
++# On Windows/pwsh the /proc and /.dockerenv probes simply won't match ???????? the env var is the portable
++# contract there (the PS runner is the host case).
++is_sandboxed() {
++  if [ -n "${HARNESS_SANDBOX+x}" ]; then          # SET (even to empty) => the explicit signal wins
++    case "$(printf '%s' "${HARNESS_SANDBOX}" | tr '[:upper:]' '[:lower:]')" in
++      1|true|yes) return 0 ;;
++      *)          return 1 ;;
++    esac
++  fi
++  [ -f /.dockerenv ] && return 0                  # docker
++  [ -f /run/.containerenv ] && return 0           # podman
++  case "$(printf '%s' "${CODESPACES:-}" | tr '[:upper:]' '[:lower:]')" in 1|true|yes) return 0 ;; esac
++  [ -n "${REMOTE_CONTAINERS:-}" ] && return 0     # VS Code dev containers
++  [ -n "${DEVCONTAINER:-}" ] && return 0          # devcontainer spec
++  [ -n "${container:-}" ] && return 0             # systemd-nspawn / podman
++  if [ -f /proc/1/cgroup ] && grep -qE 'docker|containerd|lxc|kubepods' /proc/1/cgroup 2>/dev/null; then
++    return 0
++  fi
++  return 1
++}
++
+ _gate_step() {  # $1 name  $2 cmd  $3 workdir
+   local name="$1" cmd="$2" workdir="$3"
+   { [ "$cmd" = "null" ] || [ -z "$cmd" ]; } && return 0
+diff --git a/plugin/engine/loop.ps1 b/plugin/engine/loop.ps1
+index fdf971d..fcdeb1f 100644
+--- a/plugin/engine/loop.ps1
++++ b/plugin/engine/loop.ps1
+@@ -230,6 +230,19 @@ if ($cfg.autonomy.mode -eq 'auto' -and (Get-Prop $cfg.autonomy 'skipPermissions'
+   Write-Host "    are in .claude/settings.json permissions.allow (/harness-init adds them)." -ForegroundColor DarkGray
+ }
+ 
++# Sandbox guard: full-auto runs UNATTENDED. The destructive-command deny-list is defense-in-depth, not a
++# sandbox, so honestly warn (not block ???????? Confirm-Checkpoint is a no-op in auto by design) when auto runs
++# outside a recognized isolation profile. Test-Sandboxed lives in lib/gate.ps1 (already dot-sourced above).
++if ($cfg.autonomy.mode -eq 'auto' -and -not (Test-Sandboxed)) {
++  Write-Host ""
++  Write-Host "????????????  AUTO mode but NOT in a recognized SANDBOX. This run is full-auto and UNATTENDED." 
+-ForegroundColor Red
++  Write-Host "    Unattended auto should run inside the documented isolation profile (container/devcontainer or" 
+-ForegroundColor Red
++  Write-Host "    WSL2-native FS), not directly on your host. The destructive-command deny-list is defense-in-" 
+-ForegroundColor Red
++  Write-Host "    depth, NOT a sandbox ???????? and --dangerously-skip-permissions voids it entirely." -ForegroundColor Red
++  Write-Host "    See docs/sandboxing.md. Mark a sandbox explicitly with:  `$env:HARNESS_SANDBOX = '1'" -ForegroundColor 
+Red
++  Write-Host ""
++}
++
+ # Lock specs/ for the duration of the run: the protect-specs PreToolUse hook (inherited by the headless
+ # claude child) blocks edits under specs/ while this is set. The loop must never rewrite the contract.
+ $env:HARNESS_LOCK_SPECS = '1'
+diff --git a/plugin/engine/loop.sh b/plugin/engine/loop.sh
+index 50307c6..3921bbf 100644
+--- a/plugin/engine/loop.sh
++++ b/plugin/engine/loop.sh
+@@ -210,6 +210,19 @@ else
+   echo "    are in .claude/settings.json permissions.allow (/harness-init adds them)."
+ fi
+ 
++# Sandbox guard: full-auto runs UNATTENDED. The destructive-command deny-list is defense-in-depth, not a
++# sandbox, so honestly warn (not block ???????? confirm_checkpoint is a no-op in auto by design) when auto runs
++# outside a recognized isolation profile. is_sandboxed lives in lib/gate.sh (already sourced above).
++if [ "$MODE" = "auto" ] && ! is_sandboxed; then
++  echo ""
++  echo "????????????  AUTO mode but NOT in a recognized SANDBOX. This run is full-auto and UNATTENDED."
++  echo "    Unattended auto should run inside the documented isolation profile (container/devcontainer or"
++  echo "    WSL2-native FS), not directly on your host. The destructive-command deny-list is defense-in-"
++  echo "    depth, NOT a sandbox ???????? and --dangerously-skip-permissions voids it entirely."
++  echo "    See docs/sandboxing.md. Mark a sandbox explicitly with:  export HARNESS_SANDBOX=1"
++  echo ""
++fi
++
+ # Lock specs/ for the run: the protect-specs PreToolUse hook (inherited by the headless claude child)
+ # blocks edits under specs/ while this is exported. The loop must never rewrite the contract.
+ export HARNESS_LOCK_SPECS=1
+diff --git a/plugin/engine/templates/devcontainer.json b/plugin/engine/templates/devcontainer.json
+new file mode 100644
+index 0000000..37ca9cc
+--- /dev/null
++++ b/plugin/engine/templates/devcontainer.json
+@@ -0,0 +1,18 @@
++{
++  "name": "lean-agent-harness (unattended auto)",
++  "image": "mcr.microsoft.com/devcontainers/base:ubuntu",
++  "features": {
++    "ghcr.io/devcontainers/features/github-cli:1": {},
++    "ghcr.io/devcontainers/features/node:1": {}
++  },
++  "containerEnv": {
++    "HARNESS_SANDBOX": "1"
++  },
++  "remoteEnv": {
++    "ANTHROPIC_API_KEY": "${localEnv:ANTHROPIC_API_KEY}",
++    "CODEX_API_KEY": "${localEnv:CODEX_API_KEY}"
++  },
++  "workspaceMount": "source=harness-workspace,target=/workspace,type=volume",
++  "workspaceFolder": "/workspace",
++  "postCreateCommand": "chmod -R a-w specs 2>/dev/null || true"
++}
+
+
+codex
+IÔÇÖll review this as a staged-diff/code-review task and read the referenced repo files for context before judging the 
+contract.
+exec
+"C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command 'Get-Content -Raw 
+state/evidence/2026-07-15-sandboxing/review-input.diff' in C:\Users\james\Repos\harness
+exec
+"C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command 'Get-Content -Raw state/fix_plan.md' in 
+C:\Users\james\Repos\harness
+exec
+"C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command 'Get-Content -Raw CLAUDE.md' in 
+C:\Users\james\Repos\harness
+exec
+"C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command 'Get-ChildItem -Recurse specs | Select-Object 
+-ExpandProperty FullName' in C:\Users\james\Repos\harness
+ succeeded in 1504ms:
+# Fix plan
+
+The prioritized task stack. **Highest priority at the top.** The loop takes the single top unchecked
+item each iteration. Keep items small enough to finish in one iteration; split anything bigger.
+
+Format: `- [ ] <imperative task>  ├óÔé¼ÔÇØ done when: <verifiable condition>`
+
+> Empty by design. Run `/plan "<what you want>"` to populate it, or add items by hand. The loop stops
+> when there are no unchecked items left (config `loop.stopWhenPlanEmpty`).
+
+## Tasks
+<!-- Approved 2026-07-13: docs/execution-plans/2026-07-13-model-routing-parallelism-context.md -->
+- [x] Add `models` routing block (schema + config + settings.json session model + agent frontmatter + doctor drift-check)  
+├óÔé¼ÔÇØ done when: config declares session/explore/plan/implement/review/evaluate/docs models, frontmatter matches, doctor 
+checks it, self-tests green
+- [x] Add `explorer` agent (haiku, read-only) + fan-out wiring in PROMPT.md/planner/generator  ├óÔé¼ÔÇØ done when: agent 
+exists and all three surfaces route searches to it
+- [x] Pass `--model` at both loop invocation sites (main + periodic reviewer, ps1 + sh)  ├óÔé¼ÔÇØ done when: flags driven 
+by config, absent when unset, self-tests cover both
+- [x] Add `review-codex` lib (detect ├óÔÇáÔÇÖ read-only exec ├óÔÇáÔÇÖ watchdog ├óÔÇáÔÇÖ fail-closed parse ├óÔÇáÔÇÖ fable 
+fallback), wire into loop + /review  ├óÔé¼ÔÇØ done when: codex path and fallback both produce a parsed verdict; tests cover 
+detection-miss fallback
+- [x] Harden reviewer prompts to correctness/requirement gaps only (loop prompt + reviewer.md)  ├óÔé¼ÔÇØ done when: both 
+prompts constrain scope
+- [x] Make generator delegation the default in /work; encode plan-artifact contract in workflow.md  ├óÔé¼ÔÇØ done when: 
+inline implementation is trivial-only and the boundary rule is written
+- [x] Encode reset-over-compact policy (workflow.md + CLAUDE.md line + /work RECORD suggests /handoff + /clear)  ├óÔé¼ÔÇØ 
+done when: all three surfaces state it
+- [x] Phase A: generator `isolation: worktree` + merge-back step in /work  ├óÔé¼ÔÇØ done when: builds land via merge-back, 
+main tree stays clean
+- [x] Move `.checkpoint`/`.budget.json` into per-run dir + lock run-id allocation  ├óÔé¼ÔÇØ done when: two concurrent runs 
+can't clobber state; tests green
+- [x] Fleet runner Phase B (tasks.json ownership field ├óÔÇáÔÇÖ worktree pool ├óÔÇ░┬ñ3 ├óÔÇáÔÇÖ serialized merge queue)  
+├óÔé¼ÔÇØ done when: two independent tasks execute in parallel worktrees and land through the gated queue (dry-run + 
+selection/overlap logic tested; merge-queue paths NOT yet automated ├óÔé¼ÔÇØ see follow-ups)
+- [x] Fleet queue integration test: temp git repo + stub claude via HARNESS_CLAUDE_CMD, assert merge/park/tamper paths  
+├óÔé¼ÔÇØ done when: the queue's core outcomes have automated assertions on both runners 
+(harness/tests/fleet-queue-test.{ps1,sh}, 14/14 each; gate-red/conflict paths still only manually reasoned ├óÔé¼ÔÇØ extend 
+the stub if they ever regress)
+<!-- Approved 2026-07-13 (James): the next tranche ├óÔé¼ÔÇØ plugin split, sandboxing, evaluator wiring, overnight stages 
+1+2. -->
+- [x] Package the engine as a Claude Code plugin (ROADMAP "Distribution as a plugin"; the maintainer decided GO)  ├óÔé¼ÔÇØ 
+done when: engine (harness/, .claude/agents|hooks|skills, commands) installs as a versioned plugin, the scaffold 
+(CLAUDE.md, specs/, state/, /harness-init) remains the template half, and the deployed copies (already-configured projects) 
+can upgrade via plugin update instead of re-templating; audit agent frontmatter first (plugin agents ignore 
+hooks/mcpServers/permissionMode)
+      <!-- DONE 2026-07-14: plugin/ (payload) + plugin/hooks (node dispatcher) + plugin/engine (loop/fleet + wrappers) + 
+.claude-plugin/marketplace.json; real /plugin install verified end-to-end; docs/plugin-migration.md. Evidence: 
+state/evidence/2026-07-14-plugin-packaging/. Fresh-context review FIX-THEN-SHIP ├óÔÇáÔÇÖ all 5 findings fixed (eaf2a1b). E1 
+staged: dev repo still carries its own engine copies. -->
+- [x] Build `harness-migrate` (plugin-shipped script + `/harness-migrate` command) ├óÔé¼ÔÇØ migrate an existing copied-in 
+harness onto the plugin WITHOUT losing project customizations  ├óÔé¼ÔÇØ done when: it locates the installed plugin engine 
+and classifies every engine-ish file in the repo as IDENTICAL (safe to remove) / CUSTOMIZED (differs ├óÔé¼ÔÇØ keep + show 
+diff) / PROJECT-ONLY (keep); prints the plan; with `--apply` removes only IDENTICAL engine files, strips the 5 engine hook 
+blocks from `.claude/settings.json`, drops in the 4 wrappers, and writes a preservation report; leaves 
+CLAUDE.md/AGENT_NOTES/state/specs/config untouched; verified on a synthetic repo carrying a ratcheted denylist pattern in 
+block-destructive + a project-authored skill (both preserved), both runners
+<!-- Approved 2026-07-14: docs/execution-plans/2026-07-14-cross-vendor-per-phase-model-routing.md ├óÔé¼ÔÇØ the big 
+"cross-vendor per-phase routing" item decomposed into 7 slices (each lands in BOTH engine copies until the E2 flip). 
+Decisions locked: (A) orchestrator dispatches codex for non-headless phases; (B) tolerant reader for legacy flat configs; 
+(C) retry-once-on-fallback for usage-limit. -->
+- [x] Cross-vendor S1: `{model,fallback}` schema + nested default config + tolerant resolver  ├óÔé¼ÔÇØ done when: both 
+`harness.schema.json` copies define `{model,fallback}` per phase (Claude alias OR `codex`) + the `codex{}` block, 
+`harness/harness.config.json` uses the nested default, `Resolve-PhaseModel`/`phase_model` (+ plugin twins) return BOTH 
+fields and normalize the legacy flat string + `reviewFallback`├óÔÇáÔÇÖ`review.fallback`, and unit tests cover 
+nested/flat-legacy/null on both runners. No behavior change yet.
+      <!-- DONE 2026-07-14: implemented as two accessors (primary-returning Resolve-PhaseModel/phase_model tolerant of 
+nested+flat; new Resolve-PhaseFallback/phase_fallback) ├óÔé¼ÔÇØ capability-equivalent, twins IDENTICAL. Review SHIP. PS 80 
+/ bash 76 / fleet-queue 16 both. Evidence: state/evidence/2026-07-14-cross-vendor-s1/. CARRY├óÔÇáÔÇÖS3: when the review 
+path switches to phase_fallback, align Resolve-PhaseFallback('review') mixed-config legacy fall-through (or declare mixed 
+shape unsupported). -->
+- [x] Cross-vendor S1b (carry from S1 review): when S3 switches the review path to `phase_fallback`, resolve the 
+mixed-config asymmetry ├óÔé¼ÔÇØ `Resolve-PhaseModel('reviewFallback')` falls through to the legacy top-level 
+`reviewFallback` but `Resolve-PhaseFallback('review')` on a nested object never consults it ├óÔé¼ÔÇØ align the legacy 
+fall-through or declare the mixed shape unsupported. (Fold into S3; no standalone iteration needed.)
+      <!-- DONE 2026-07-14 (with S3): Resolve-PhaseFallback('review')/phase_fallback review now fall through 
+review.fallback├óÔÇáÔÇÖlegacy top-level reviewFallback├óÔÇáÔÇÖ'' across nested-null/flat/absent shapes, symmetric with 
+Resolve-PhaseModel('reviewFallback'). Tests assert the equality. -->
+- [x] Cross-vendor S2: usage-limit predicate + generalized codex lib (read-only + write modes)  ├óÔé¼ÔÇØ done when: 
+`Test-UsageLimitError($output,$exitCode)` (vendor-neutral markers) exists in `lib/gate.*` (+twins) with tests, and 
+`lib/invoke-codex.*` (renamed from review-codex, with a back-compat shim) takes a `-Mode read-only|workspace-write` 
+selecting the sandbox flag; unit tests assert arg assembly for BOTH modes via the injectable command; both runners green.
+      <!-- DONE 2026-07-14: Test-UsageLimitError/usage_limit_error (markers: usage/rate limit, quota, overloaded, too many 
+requests, HTTP 429 scoped to http/status/error/code); review-codex.*├óÔÇáÔÇÖinvoke-codex.* with a PURE arg-builder 
+(Get-CodexArgs/codex_args) + Invoke-Codex/-Mode + read-only back-compat shims so loop/fleet stay untouched (S3 wires). 
+Review SHIP (fresh ctx, independently reproduced). PS 99 / bash 90 / fleet-queue 16 both. Evidence: 
+state/evidence/2026-07-14-cross-vendor-s2/. CARRY├óÔÇáÔÇÖS3: consult the usage-limit predicate ONLY on a failed invocation 
+(nonzero exit/not-ok), never to overturn a SUCCESS ├óÔé¼ÔÇØ else a good write build mentioning "overloaded"/"quota" gets 
+reset+discarded (reviewer near-miss). -->
+- [x] Cross-vendor S3: headless dispatcher wired into loop implement + periodic review  ├óÔé¼ÔÇØ done when: an 
+`Invoke-Phase` dispatcher (primary├óÔÇáÔÇÖfallback, claude├óÔÇáÔÇØcodex, usage-limit trigger, write-phase reset-to-base 
+before retry, fail-closed on exhaustion) drives the loop's main implement call AND the periodic reviewer under the new 
+schema; tests assert the FALLBACK TRIGGER (unavailable + usage-limit) with a stub on both runners. NB (S2 review): consult 
+`Test-UsageLimitError` ONLY when the invocation FAILED (not-ok / nonzero exit), never to overturn a SUCCESS ├óÔé¼ÔÇØ the 
+marker set is substring-based (a successful build/review whose text mentions "overloaded"/"quota" would otherwise be 
+reset+discarded on a write phase). Also resolve the S1b mixed-config `Resolve-PhaseFallback('review')` legacy fall-through 
+here.
+      <!-- DONE 2026-07-14: lib/dispatch.{ps1,sh} Invoke-Phase/invoke_phase wired into loop implement (workspace-write) + 
+periodic review (read-only); fallback advances ONLY on codex-unavailable OR usage-limit failure (generic failure does NOT 
+switch vendors); ratchet honored (success never re-examined); write-phase reset before fallback only; fail-closed on 
+exhaustion. S1b folded in. Twins IDENTICAL. Fresh-ctx review (opus, after the Fable-pinned reviewer hit its own usage 
+limit) SHIP. Real live-fire read-only codex run through Invoke-Phase (Ok=True Path=codex). PS 113 / bash 104 / fleet-queue 
+16 both. Evidence: state/evidence/2026-07-14-cross-vendor-s3/. Narrow disclosed behavior change + 2 new ratchet rules 
+(CLAUDE.md). -->
+      <!-- NB for S4: fleet workers now route through the SAME lib/dispatch.* (implement = workspace-write); reuse 
+Invoke-Phase/invoke_phase rather than re-deriving the dispatch logic. -->
+      <!-- NB for S7: the earlier "codex NOT installed" caveat is now STALE ├óÔé¼ÔÇØ codex-cli 0.144.3 is installed + 
+logged in; the read-only path is live-fire-proven, only the WRITE path remains untested (supervise its first real run). -->
+- [x] Cross-vendor S4: fleet worker cross-vendor + fallback  ├óÔé¼ÔÇØ done when: fleet.ps1/.sh workers (+twins) route 
+through the same dispatcher (implement = workspace-write); dry-run + stub-fallback assertions on both runners.
+      <!-- DONE 2026-07-15: fleet.{ps1,sh} workers now build via Invoke-Phase/invoke_phase (workspace-write), inheriting 
+the loop's primary├óÔÇáÔÇÖfallback (real cfg implement={opus,fallback:codex}); reset ref = the worker's own batch/branch 
+base ($baseRef), reset runs in the worktree cwd. New `-Quiet` switch on Invoke-ClaudePhase/Invoke-Phase 
+(Out-Host├óÔÇáÔÇÖOut-Null) so the PS Start-Job worker's transcript isn't replayed to the console at Receive-Job (tee still 
+writes the log; loop's live-stream path unchanged). Bash worker calls invoke_phase DIRECTLY in the ( )& subshell (globals 
+survive) with stdout tee'd to $log. dispatch.sh unchanged; twins IDENTICAL. Fresh-ctx review SHIP (opus), no findings. PS 
+115 / bash 104 / fleet-queue 22 both runners (16 baseline + 3 fallback + 3 dry-run). Evidence: 
+state/evidence/2026-07-15-cross-vendor-s4/. -->
+      <!-- NB for S5: /work orchestrator (interactive) still spawns the Claude subagent; codex dispatch there is the S5 
+job. -->
+      <!-- NB: the codex WRITE (workspace-write) path ├óÔé¼ÔÇØ now reachable from BOTH loop and fleet ├óÔé¼ÔÇØ remains 
+live-fire-untested; supervise its first real run. -->
+- [x] Cross-vendor S5: interactive `/work` orchestrator protocol (Option A) + subagent docs  ├óÔé¼ÔÇØ done when: `/work` 
+command + planner/generator/reviewer agent docs (+ plugin twins) encode "resolve the phase model; if codex, invoke the 
+codex lib via Bash instead of spawning the Claude subagent; frontmatter stays the Claude model"; no subagent wraps codex 
+itself.
+      <!-- DONE 2026-07-15: `/work` gained a "Model routing per phase ├óÔé¼ÔÇØ resolve, then route" section (Claude primary 
+├óÔÇáÔÇÖ spawn the subagent pinned via model: override; codex primary ├óÔÇáÔÇÖ dispatch Invoke-Phase/invoke_phase or 
+Invoke-Codex via Bash, read-only for judges / workspace-write for writers; no subagent wraps codex) + pointers threaded 
+into Phases 1/2/4; each of planner/generator/reviewer got a "Cross-vendor note". Frontmatter UNCHANGED (generator=opus, 
+planner=fable, reviewer=fable=review's Claude fallback). Twins byte-identical. Fresh-ctx review (opus) SHIP; its one 
+accuracy finding fixed (bash resolvers take a config FILE PATH, not JSON content ├óÔé¼ÔÇØ PS resolvers take a parsed 
+object). Docs-only: PS 115/0 + fleet 22/0 re-run green, no .sh/engine touched so bash 104/0 unaffected. Evidence: 
+state/evidence/2026-07-15-cross-vendor-s5/. -->
+      <!-- NB for S6: the generator/planner Cross-vendor notes describe the S6-REWRITTEN doctor check 10 (frontmatter == 
+primary-when-Claude, else the phase's Claude fallback). No live contradiction today (implement/plan primaries are Claude), 
+but keep those notes honest when check 10 is rewritten. -->
+      <!-- NB for S6: doctor check 10 must map reviewer frontmatter to review.fallback (Claude) when review.model==codex 
+├óÔé¼ÔÇØ matches the shipped reviewer=fable. -->
+      <!-- NB for S7 ratchet candidate (reviewer-suggested, non-blocking): docs showing a shell call of an engine fn must 
+name args by real type (bash phase_model/phase_fallback take a config FILE PATH; PS resolvers take a parsed object). Left 
+as an AGENT_NOTES learning, not a CLAUDE.md rule (caught in review, cosmetic). -->
+
+- [x] Cross-vendor S6: `/harness-doctor` check 10 rewrite + `/harness-init` per-phase interview  ├óÔé¼ÔÇØ done when: check 
+10 (+twin) validates the `{model,fallback}` schema across surfaces (value legality, session must be Claude, 
+frontmatter==primary-or-fallback-when-codex, no codex├óÔÇáÔÇÖcodex fallback, per-phase codex reachability ├ó┼í┬á├»┬©┬Å), 
+and `/harness-init` (+twin) interactively picks model+fallback per phase with recommended defaults.
+      <!-- DONE 2026-07-15: DOCS ONLY. harness-doctor.md check 10 rewritten to five sub-rules ├óÔé¼ÔÇØ (a) value legality 
+(Claude alias/ID or literal `codex`), (b) settings.model==session.model AND session must be Claude (codex=├ó┬Ø┼Æ), (c) 
+frontmatter==phase primary when Claude ELSE (primary==codex) the phase's Claude fallback [the reviewer├óÔÇáÔÇÖfable branch 
+under review={codex,fable}], (d) no codex├óÔÇáÔÇÖcodex fallback, (e) codex reachability ├ó┼í┬á├»┬©┬Å (not ├ó┬Ø┼Æ) reported 
+for EVERY codex-routed phase ├óÔé¼ÔÇØ while still accepting the legacy flat + top-level reviewFallback shapes as valid (not 
+drift). harness-init.md "Model routing" bullet now walks each phase picking model+fallback via a ├é┬º4a 
+recommended-defaults table, honoring session-must-be-Claude + no-codex├óÔÇáÔÇÖcodex, writing config.models + settings.json 
++ agent frontmatter together. Twins byte-identical (git index-blob hash). REVIEW dogfooded the shipped review primary = 
+**codex read-only** via Invoke-Phase (Ok=True, Path=codex, UsedFallback=False) ├óÔÇáÔÇÖ FIX-THEN-SHIP: 1 Medium finding 
+(init prose "any codex-routed phase silently runs on its Claude arm" only holds for a codex-PRIMARY phase; a 
+Claude-primary+codex-fallback phase like implement={opus,codex} instead loses its safety net and fails closed on a primary 
+usage cap) ├óÔÇáÔÇÖ fixed by splitting the wording. PS 115/0 + fleet 22/0 (docs-only ├óÔÇáÔÇÖ bash 104/0 unaffected, no .sh 
+touched). Evidence: state/evidence/2026-07-15-cross-vendor-s6/. -->
+      <!-- NB for S7: check 10 is agent-executed PROSE (no automated self-test exists for it); S7's "docs reflect as-built" 
+is the natural place to note that, and to retire the review-codex shim. The S5 planner/generator 
+"frontmatter==primary-when-Claude else Claude fallback" notes are now actually enforced by check 10 (no longer just 
+described). -->
+      <!-- NB (ratchet candidate, left as AGENT_NOTES not CLAUDE.md ├óÔé¼ÔÇØ narrow/doc-only, mirrors S5's disposition): 
+docs describing codex fallback must distinguish codex-PRIMARY (unavailable ├óÔÇáÔÇÖ Claude fallback) from codex-FALLBACK 
+(unavailable ├óÔÇáÔÇÖ lost safety net, primary usage-cap fails closed). Caught in review. -->
+
+- [x] Cross-vendor S7: docs + prune  ├óÔé¼ÔÇØ done when: AGENT_NOTES learnings appended, PROGRESS lines added, the 
+execution-plan doc reflects the as-built, and the `review-codex` back-compat shim is retired once nothing references it.
+      <!-- DONE 2026-07-15: retired the dead `review-codex` shim ├óÔé¼ÔÇØ repointed the 4 `source .../review-codex.*` lines 
+in loop.{sh,ps1}+fleet.{sh,ps1} (├âÔÇö2 twins) at lib/invoke-codex.*, deleted the 4 review-codex.{sh,ps1} files, dropped 
+the codex_review/Invoke-CodexReview read-only wrappers from invoke-codex.*, trimmed the 3 shim-specific test assertions. 
+Safe: no live caller reached the wrappers (review runs loop/fleet ├óÔÇáÔÇÖ lib/dispatch.* ├óÔÇáÔÇÖ 
+invoke_codex/Invoke-Codex directly; the shim only re-sourced invoke-codex). Added execution-plan ├é┬º9 "as-built" 
+(S1├óÔé¼ÔÇ£S6 as shipped). Twins byte-identical (git blob hash, all 6 engine pairs). Fresh-ctx REVIEW via the shipped 
+review primary = codex read-only through Invoke-Phase (Ok=True, Path=codex, UsedFallback=False) ├óÔÇáÔÇÖ SHIP, no findings 
+├óÔé¼ÔÇØ also e2e proof the pruned lib works end-to-end. New baselines PS 112 / bash 103 / fleet-queue 22 both runners 
+(from 115/104; only removed shim assertions). NB: the generator's isolated worktree was based on a stale pre-S2 commit 
+(0d852c0) ├óÔé¼ÔÇØ it correctly escalated; prune done inline. Evidence: state/evidence/2026-07-15-cross-vendor-s7/. -->
+      <!-- NB for E2 flip (next item): S7 removed 4 files + shrank invoke-codex.*/tests; when the dev repo consumes its own 
+plugin, only plugin/engine/ survives ├óÔé¼ÔÇØ the in-repo harness/lib copies go. No shim files remain to confuse the 
+classifier. -->
+      <!-- Ratchet candidate (S7, offered): a delegated worktree (isolation: worktree) can be based on a stale ancestor of 
+main ├óÔé¼ÔÇØ the subagent must sanity-check its HEAD vs the task's premises and escalate on mismatch (as S7's generator 
+did), and the orchestrator must not re-dispatch into the same stale base. Left for James to promote/drop. -->
+      
+- [x] Plugin E2 flip: dev repo consumes its OWN plugin + delete the in-repo .claude/{agents,skills,commands,hooks} + 
+harness/{lib,profiles,templates,*.ps1,*.sh} engine copies (removes E1 duplication)  ├óÔé¼ÔÇØ done when: this repo installs 
+lean-agent-harness from its local marketplace, its harness/ is config+wrappers only, and all suites stay green sourced from 
+the plugin
+      <!-- DONE 2026-07-15: E1 duplication removed. Part 2 (James: /plugin marketplace add ./ + /plugin install, done 
+pre-session ├óÔé¼ÔÇØ 0.2.0 installed). Part 3 (this session): git rm harness/{lib,profiles,templates,harness.schema.json} + 
+full-engine loop/fleet.{ps1,sh} + .claude/{agents,commands,skills,hooks}; dropped in the 4 plugin/engine/wrappers; James 
+hand-edited .claude/settings.json to strip the 5 engine hook blocks (agent CANNOT self-modify guard hooks ├óÔé¼ÔÇØ 
+auto-mode classifier reserves it for a human; agent restored the git-push ask rule after); repointed both configs' $schema 
+├óÔÇáÔÇÖ ../plugin/engine/harness.schema.json; re-pointed fleet-queue-test.{ps1,sh} via 
+HARNESS_ENGINE=<repo>/plugin/engine. harness/ = config + 4 wrappers + tests only. All 4 suites GREEN sourced from 
+plugin/engine: PS 112 / bash 103 / fleet-queue 22├âÔÇö2. Wrapper├óÔÇáÔÇÖengine dispatch proven both HYBRID 
+(HARNESS_ENGINE├óÔÇáÔÇÖin-repo plugin/engine) and DISCOVERY (installed 0.2.0 under ~/.claude/plugins). Fresh-ctx REVIEW = 
+SHIP (opus; the fable-pinned reviewer hit a Fable-5 cap mid-review ├óÔÇáÔÇÖ re-spawned with model:opus per the CLAUDE.md 
+ratchet) ├óÔé¼ÔÇØ 2 non-blocking doc-drift nits (README table / settings _security_note / ci comment) all fixed in-commit. 
+Diff 62 files +104/├ó╦åÔÇÖ4490. Evidence: state/evidence/2026-07-15-plugin-e2-flip/. -->
+      <!-- NB: HYBRID load path (James' decision) ├óÔé¼ÔÇØ real /plugin install so /plugin update works, BUT nothing 
+auto-sets HARNESS_ENGINE for a bare `powershell harness/loop.ps1`; it falls through to the ~/.claude/plugins CACHE (0.2.0 
+at flip time), which is stale vs live plugin/engine edits. To run the loop against live in-repo engine edits, set 
+HARNESS_ENGINE=<repo>/plugin/engine first (as the tests do). Twin-identity is now retired ├óÔé¼ÔÇØ plugin/ is the sole 
+source. -->
+      <!-- NB: agent self-modification wall ├óÔé¼ÔÇØ the auto-mode classifier blocks the AGENT from editing 
+.claude/settings.json to remove/weaken guard hooks (3 denials, incl. after a user grant); a permission rule did NOT lift 
+it. Guard-STRENGTHENING edits (re-adding the ask rule) + comment rewords DID pass. Future settings hook-surface changes in 
+this repo need a human hand-edit. (Ratchet candidate ├óÔé¼ÔÇØ James to promote/drop.) -->
+      <!-- NB: SessionStart double-fire ├óÔé¼ÔÇØ while both in-repo .claude/hooks AND the plugin hooks were wired, the 
+SessionStart banner fired TWICE (seen at this session's start). Removing the in-repo hooks block fixes it; verify a SINGLE 
+banner after the next restart. -->
+      <!-- FOLLOW-UP: after next restart, re-run /harness-doctor (check 10 is agent-executed prose) to confirm the 
+plugin-sourced config still validates; confirm single SessionStart banner + /work loads from the plugin only (unscoped 
+commands/agents gone this session ├óÔé¼ÔÇØ deleting .claude/{commands,agents} dropped them; scoped lean-agent-harness:* 
+remain). -->
+
+- [x] Add CI (GitHub Actions) that runs run-tests.{ps1,sh} + fleet-queue-test.{ps1,sh} with jq on every push  ├óÔé¼ÔÇØ done 
+when: the bash --project-root path is exercised automatically (today it only runs when jq is installed by hand); closes the 
+review's "evidence cited CI that doesn't exist" finding
+      <!-- DONE 2026-07-15: activated the reviewed template ci/github-harness-selftest.yml ├óÔÇáÔÇÖ 
+.github/workflows/harness-selftest.yml (copy diff = header-only; corrected header so it no longer claims "lives in ci/ not 
+.github/workflows/"). Linux job installs jq + runs run-tests.sh (its tail runs migrate-test.sh ├óÔÇáÔÇÖ migrate.sh 
+--project-root) + fleet-queue-test.sh (drives fleet.sh wrapper ├óÔÇáÔÇÖ --project-root) ├óÔÇáÔÇÖ the bash --project-root 
+path now runs on every push, not just hand-jq. Windows jobs run run-tests.ps1 (pwsh + 5.1) + fleet-queue-test.ps1 (5.1). 
+HARNESS_ENGINE self-resolves (run-tests.sh defaults to $REPO_ROOT/plugin/engine; fleet-queue-test.sh sets it). Local proof 
+(jq 1.8.2): bash 103/0, fleet-queue 22/0, all .sh parse OK, both YAMLs valid. Fresh-ctx REVIEW = codex read-only via 
+Invoke-Phase (Ok=True Path=codex) ├óÔÇáÔÇÖ FIX-THEN-SHIP: removed the push branches:[main] filter so it runs on EVERY push 
+(criterion), kept pull_request for fork PRs ├óÔé¼ÔÇØ fixed in BOTH template+activated (kept in sync via ci/README note). 
+Evidence: state/evidence/2026-07-15-ci-activation/. HUMAN STEP REMAINING: push needs a token with the `workflow` scope (gh 
+auth refresh -s workflow) or the web UI; the green CI run is only observable after that push. -->
+      <!-- FOLLOW-UP: after the workflow-scope push, confirm the first CI run is green on GitHub (all 3 jobs) ├óÔé¼ÔÇØ that 
+is the final e2e proof this evidence could not capture locally. -->
+      <!-- NB: the commented per-project-gate job at the bottom of the workflow is a template stub (this repo has no 
+product gate); leave it commented. -->
+- [ ] Sandboxing for unattended runs (ROADMAP "Sandboxing")  ├óÔé¼ÔÇØ done when: a documented, tested WSL2/devcontainer 
+profile exists for `mode: auto` (specs/ read-only, secrets via env, no host FS), and the loop warns when full-auto runs 
+outside it
+- [ ] Run the evaluator at the loop's periodic review point (ROADMAP "Inferential safeguards")  ├óÔé¼ÔÇØ done when: 
+`verification.evaluator.enabled` also gates the unattended loop ├óÔé¼ÔÇØ rubric scored at each review point, any 
+below-threshold criterion stops the loop like a REJECT
+- [ ] Overnight Stage 1: local unattended run recipe  ├óÔé¼ÔÇØ done when: a documented config preset (auto mode, 
+meterTokens+tokenBudget, reviewEveryNIterations=3, skipPermissions=false + allowlisted gate, fleet only for independent 
+tasks) plus a Task Scheduler/cron recipe exists, and one real overnight run has been done supervised-after-the-fact 
+(morning ledger + /review)
+- [ ] Overnight Stage 2: GitHub Actions nightly runner + Issues intake  ├óÔé¼ÔÇØ done when: a nightly cron workflow runs 
+loop.sh in a container and ends by pushing a branch + opening a PR with the ledger; issues labeled `agent` sync into 
+tasks.json at run start (planner) and are closed with the PR link on ship; tasks.json stays authoritative mid-run (GitHub = 
+intake + audit trail only); CI auth decision (API key vs subscription token) recorded
+- [ ] Live-fire the codex invoke path once codex CLI is installed (flag placement, `exec -` stdin, --output-last-message 
+parse)  ├óÔé¼ÔÇØ done when: one real codex review run log parses to a verdict; adjust flags per installed version
+      <!-- PARTIAL 2026-07-14: codex-cli 0.144.3 IS installed + logged in. READ-ONLY path live-fired through Invoke-Phase 
+(Ok=True, Path=codex, final-message parsed) ├óÔé¼ÔÇØ evidence 
+state/evidence/2026-07-14-cross-vendor-s3/live-codex-readonly*. REMAINING: a real workspace-WRITE run + a full 
+periodic-review verdict parse from the loop; keep supervised. -->
+
+
+- [ ] Live-fire the fleet on a real project with ├óÔÇ░┬Ñ2 independent tasks  ├óÔé¼ÔÇØ done when: two tasks land through the 
+gated queue end-to-end
+- [ ] (hardening, low) Fleet record-amend failure leaves tasks.json/PROGRESS staged; a later queue entry's gate-red reset 
+silently discards them while the ledger says merged  ├óÔé¼ÔÇØ done when: pending record is stashed/written to the run dir 
+instead of left staged (re-review finding 2, non-blocking)
+<!--
+  Examples (note: deliberately NOT written as "- [ ]" so the loop's open-task counter doesn't
+  treat these sample lines as real work). Copy the shape, uncomment as real "- [ ]" items above:
+    Scaffold the project skeleton  ├óÔé¼ÔÇØ done when: app builds and the gate runs green on an empty app
+    Add health-check endpoint      ├óÔé¼ÔÇØ done when: GET /health returns 200 + {status:"ok"}, with a unit test + e2e curl 
+evidence
+-->
+
+## Done
+<!-- move completed items here (or just tick them to "- [x]") so the live stack stays readable -->
+
+
+ succeeded in 1511ms:
+diff --git a/docs/sandboxing.md b/docs/sandboxing.md
+new file mode 100644
+index 0000000..e31370a
+--- /dev/null
++++ b/docs/sandboxing.md
+@@ -0,0 +1,104 @@
++# Sandboxing for unattended runs
++
++`autonomy.mode: auto` runs the loop **unattended** ├óÔé¼ÔÇØ a fresh headless `claude` per iteration, no human at
++the keyboard to answer a permission prompt or veto a checkpoint. This doc explains why that wants a
++sandbox, how the harness recognizes one, and the two supported profiles for running `auto` safely.
++
++## Why a sandbox
++
++The harness has defense-in-depth, but **defense-in-depth is not a sandbox**:
++
++- The **destructive-command deny-list** (the `block-destructive` PreToolUse hook) matches both shell
++  tools and fails closed on a denylist hit. It is a denylist ├óÔé¼ÔÇØ it stops the *obvious* footguns
++  (`rm -rf`, `git push --force`, `DROP TABLE`, secret exfil), not everything an agent could do.
++- `--dangerously-skip-permissions` (set when `autonomy.skipPermissions: true`) **voids the permission
++  layer entirely** ├óÔé¼ÔÇØ deny/ask rules lose their teeth. Only run that inside real isolation.
++- On **Windows there is no native OS sandbox** for this. The supported answer is WSL2 or a devcontainer
++  (both are Linux) ├óÔé¼ÔÇØ see the two profiles below.
++
++So for unattended `auto` you want an environment where the *worst case* is bounded: no host filesystem to
++scribble on, secrets scoped to the run, an ephemeral workspace you can throw away.
++
++## How detection works
++
++The loop checks whether it is sandboxed at startup. If `mode: auto` and it is **not**, it prints a loud
++warning (it does **not** block ├óÔé¼ÔÇØ in `auto` there is no human to confirm, so a warning is the honest
++thing). The predicate is `is_sandboxed` (bash, `plugin/engine/lib/gate.sh`) / `Test-Sandboxed`
++(PowerShell, `plugin/engine/lib/gate.ps1`), which are capability-equivalent mirrors.
++
++**`HARNESS_SANDBOX` is the explicit, cross-platform contract and always wins when set:**
++
++| `HARNESS_SANDBOX` | Result |
++|-------------------|--------|
++| `1`, `true`, `yes` (any case) | **sandboxed** |
++| `0`, `false`, `no`, empty | **not sandboxed** (overrides any auto-detected marker) |
++| unset | fall through to auto-detection |
++
++When `HARNESS_SANDBOX` is **unset**, the predicate auto-detects common container markers ├óÔé¼ÔÇØ **any** present
++means sandboxed:
++
++- file `/.dockerenv` exists (Docker)
++- file `/run/.containerenv` exists (Podman)
++- `CODESPACES` is truthy (GitHub Codespaces)
++- `REMOTE_CONTAINERS` is set (VS Code Dev Containers)
++- `DEVCONTAINER` is set (devcontainer spec)
++- `container` is set (systemd-nspawn / Podman)
++- `/proc/1/cgroup` exists and contains `docker`, `containerd`, `lxc`, or `kubepods` (incl. Kubernetes)
++
++> **Bare WSL2 is NOT auto-detected.** WSL2 shares your Windows kernel and can reach `/mnt/c`, and it trips
++> none of the markers above. If you run `auto` in WSL2 you must **opt in** explicitly with
++> `export HARNESS_SANDBOX=1` (after cloning into the WSL-native FS ├óÔé¼ÔÇØ see Profile B). This is deliberate:
++> WSL2 is weaker isolation than a container, so you affirm it rather than get it for free.
++
++## Profile A ├óÔé¼ÔÇØ devcontainer (recommended, strong isolation)
++
++Copy `plugin/engine/templates/devcontainer.json` to your project's `.devcontainer/devcontainer.json`,
++then open the repo in the container (VS Code "Reopen in Container", or the `devcontainer` CLI). The
++template is strict JSON (no `//` comments ├óÔé¼ÔÇØ a harness self-test parses it) and is the **no-host-FS**
++variant. Security properties it gives you:
++
++- **`containerEnv.HARNESS_SANDBOX = "1"`** ├óÔé¼ÔÇØ the loop recognizes the container as a sandbox, so no warning.
++- **Volume workspace, no host bind** ├óÔé¼ÔÇØ `workspaceMount` uses a named Docker **volume**
++  (`source=harness-workspace,type=volume`) mounted at `/workspace`, so the agent never touches your host
++  filesystem. The workspace is ephemeral: delete the volume to reset.
++- **`specs/` read-only** ├óÔé¼ÔÇØ `postCreateCommand` runs `chmod -R a-w specs`, belt-and-braces with the loop's
++  `HARNESS_LOCK_SPECS` protect-specs hook. The contract can't be rewritten to make work "pass".
++- **Secrets via env, never baked** ├óÔé¼ÔÇØ `remoteEnv` pulls `ANTHROPIC_API_KEY` / `CODEX_API_KEY` from your
++  **host** env with `${localEnv:...}`. They are never written into the image or committed.
++- A minimal Ubuntu base plus the `github-cli` and `node` features (node is needed by the plugin's hook
++  dispatcher; `gh` for PR flows). Trim what you don't use.
++
++> **Network egress** is a property you configure at the **container/host** level (e.g. a locked-down
++> Docker network, an egress proxy, or `--network none` where the run doesn't need the internet). It is
++> **not** engine-enforced ├óÔé¼ÔÇØ the harness cannot police outbound traffic for you.
++
++## Profile B ├óÔé¼ÔÇØ raw WSL2 (weaker, opt-in)
++
++For Windows users without Docker, WSL2 is a workable fallback with **weaker** isolation (shared kernel;
++WSL can reach `/mnt/c`):
++
++1. Clone the repo into the **WSL-native filesystem** (e.g. `~/work/...`), **not** `/mnt/c/...` ├óÔé¼ÔÇØ running
++   from `/mnt/c` both defeats the isolation and is slow.
++2. Install the toolchain: `jq`, `node`, `git`, plus your project's gate tools and the `claude` CLI.
++3. Opt in to the sandbox contract: `export HARNESS_SANDBOX=1` (put it in your shell profile for the run).
++4. Run the loop: `bash harness/loop.sh --mode auto`.
++
++Because the kernel is shared and `/mnt/c` is reachable, keep secrets out of any env you don't want the
++agent to see, and don't point it at host paths you care about. A devcontainer (Profile A) is stronger;
++prefer it when you can run Docker.
++
++## The warning you'll see outside a profile
++
++Run `auto` on your bare host (no `HARNESS_SANDBOX`, no container markers) and the loop prints, before the
++first iteration:
++
++```
++├ó┼í┬á├»┬©┬Å  AUTO mode but NOT in a recognized SANDBOX. This run is full-auto and UNATTENDED.
++    Unattended auto should run inside the documented isolation profile (container/devcontainer or
++    WSL2-native FS), not directly on your host. The destructive-command deny-list is defense-in-
++    depth, NOT a sandbox ├óÔé¼ÔÇØ and --dangerously-skip-permissions voids it entirely.
++    See docs/sandboxing.md. Mark a sandbox explicitly with:  export HARNESS_SANDBOX=1
++```
++
++It warns but does not stop (in `auto` there is no human to confirm). Supervised mode and any run inside a
++recognized sandbox print nothing.
+diff --git a/harness/tests/run-tests.ps1 b/harness/tests/run-tests.ps1
+index 4e923b3..d7c7a40 100644
+--- a/harness/tests/run-tests.ps1
++++ b/harness/tests/run-tests.ps1
+@@ -125,6 +125,37 @@ ok "clean output => false"        (-not (Test-UsageLimitError 'review complete.
+ ok "stray 429 tokens => false"    (-not (Test-UsageLimitError 'processed 429 files successfully'))
+ ok "empty output => false"        (-not (Test-UsageLimitError ''))
+ 
++Write-Host "sandbox predicate: HARNESS_SANDBOX contract + auto-detect (Test-Sandboxed, gate.ps1)"
++# Save/restore HARNESS_SANDBOX around each case in a finally so no state leaks into the rest of the suite.
++$sbSaved = $env:HARNESS_SANDBOX
++try {
++  $env:HARNESS_SANDBOX = '1';     ok "HARNESS_SANDBOX=1 => sandboxed"        (Test-Sandboxed)
++  $env:HARNESS_SANDBOX = 'true';  ok "HARNESS_SANDBOX=true => sandboxed"     (Test-Sandboxed)
++  $env:HARNESS_SANDBOX = 'yes';   ok "HARNESS_SANDBOX=yes => sandboxed"      (Test-Sandboxed)
++  $env:HARNESS_SANDBOX = 'YES';   ok "HARNESS_SANDBOX=YES => sandboxed (case-insensitive)" (Test-Sandboxed)
++  $env:HARNESS_SANDBOX = '0';     ok "HARNESS_SANDBOX=0 => NOT sandboxed"    (-not (Test-Sandboxed))
++  $env:HARNESS_SANDBOX = 'false'; ok "HARNESS_SANDBOX=false => NOT sandboxed" (-not (Test-Sandboxed))
++  # Explicit falsy OVERRIDES an auto-detect marker: set a Codespaces-like marker, assert 0 still wins.
++  $csSaved = $env:CODESPACES
++  try {
++    $env:CODESPACES = 'true'; $env:HARNESS_SANDBOX = '0'
++    ok "explicit 0 beats markers" (-not (Test-Sandboxed))
++  } finally { if ($null -eq $csSaved) { Remove-Item Env:CODESPACES -ErrorAction SilentlyContinue } else { $env:CODESPACES 
+= $csSaved } }
++  # Unset + no container markers on this host => NOT sandboxed.
++  Remove-Item Env:HARNESS_SANDBOX -ErrorAction SilentlyContinue
++  ok "unset + no markers => NOT sandboxed" (-not (Test-Sandboxed))
++} finally {
++  if ($null -eq $sbSaved) { Remove-Item Env:HARNESS_SANDBOX -ErrorAction SilentlyContinue } else { $env:HARNESS_SANDBOX = 
+$sbSaved }
++}
++
++Write-Host "sandbox template: devcontainer.json parses and marks itself a sandbox"
++$dcFile = Join-Path $engineDir 'templates/devcontainer.json'
++$dcParsed = $null
++try { $dcParsed = Get-Content $dcFile -Raw | ConvertFrom-Json } catch { $dcParsed = $null }
++ok "devcontainer.json is valid JSON (ConvertFrom-Json)" ($null -ne $dcParsed)
++ok "devcontainer sets HARNESS_SANDBOX=1" ($null -ne $dcParsed -and $dcParsed.containerEnv.HARNESS_SANDBOX -eq '1')
++ok "devcontainer uses a volume workspace (no host FS bind)" ($null -ne $dcParsed -and $dcParsed.workspaceMount -eq 
+'source=harness-workspace,target=/workspace,type=volume')
++
+ Write-Host "model routing: Resolve-PhaseModel (config.models -> --model; '' = inherit)"
+ $mcfg = [pscustomobject]@{ models = [pscustomobject]@{ implement='opus'; reviewFallback='fable' } }
+ ok "resolves implement model"          ((Resolve-PhaseModel $mcfg 'implement') -eq 'opus')
+diff --git a/harness/tests/run-tests.sh b/harness/tests/run-tests.sh
+index a6b96e4..59fef45 100644
+--- a/harness/tests/run-tests.sh
++++ b/harness/tests/run-tests.sh
+@@ -66,6 +66,20 @@ usage_limit_error 'review complete VERDICT: SHIP' && ok 0 "clean output => false
+ usage_limit_error 'processed 429 files'           && ok 0 "stray 429 => false"       || ok 1 "stray 429 => false"
+ usage_limit_error ''                              && ok 0 "empty => false"           || ok 1 "empty => false"
+ 
++echo "sandbox predicate: HARNESS_SANDBOX contract + auto-detect (is_sandboxed, gate.sh)"
++# Each case runs in a SUBSHELL so the env var never leaks into the next case or the rest of the suite.
++( export HARNESS_SANDBOX=1;     is_sandboxed ) && ok 1 "HARNESS_SANDBOX=1 => sandboxed"        || ok 0 "HARNESS_SANDBOX=1 
+=> sandboxed"
++( export HARNESS_SANDBOX=true;  is_sandboxed ) && ok 1 "HARNESS_SANDBOX=true => sandboxed"     || ok 0 
+"HARNESS_SANDBOX=true => sandboxed"
++( export HARNESS_SANDBOX=yes;   is_sandboxed ) && ok 1 "HARNESS_SANDBOX=yes => sandboxed"      || ok 0 
+"HARNESS_SANDBOX=yes => sandboxed"
++( export HARNESS_SANDBOX=YES;   is_sandboxed ) && ok 1 "HARNESS_SANDBOX=YES => sandboxed (case-insensitive)" || ok 0 
+"HARNESS_SANDBOX=YES => sandboxed (case-insensitive)"
++( export HARNESS_SANDBOX=0;     is_sandboxed ) && ok 0 "HARNESS_SANDBOX=0 => NOT sandboxed"    || ok 1 "HARNESS_SANDBOX=0 
+=> NOT sandboxed"
++( export HARNESS_SANDBOX=false; is_sandboxed ) && ok 0 "HARNESS_SANDBOX=false => NOT sandboxed" || ok 1 
+"HARNESS_SANDBOX=false => NOT sandboxed"
++# Explicit falsy OVERRIDES any auto-detected marker: fake a docker-like cgroup env and assert 0 still wins.
++( export HARNESS_SANDBOX=0 CODESPACES=true REMOTE_CONTAINERS=1; is_sandboxed ) && ok 0 "explicit 0 beats markers" || ok 1 
+"explicit 0 beats markers"
++# Unset + no container markers on this dev/CI host => NOT sandboxed. Scrub every marker in the subshell so
++# the case is deterministic regardless of the host's ambient env.
++( unset HARNESS_SANDBOX CODESPACES REMOTE_CONTAINERS DEVCONTAINER container; is_sandboxed ) && ok 0 "unset + no markers => 
+NOT sandboxed" || ok 1 "unset + no markers => NOT sandboxed"
++
+ echo "block-destructive hook: blocks dangerous, allows safe"
+ hookrc() {  # $1 = command (no quotes/backslashes in our test inputs) ; echoes hook exit code
+   printf '{"tool_name":"Bash","tool_input":{"command":"%s"}}' "$1" \
+@@ -317,6 +331,13 @@ STUB
+   ok "$([ "$rid" = "run-005" ] && echo 1 || echo 0)" "allocation claims the dir (2nd call => run-005, got '$rid')"
+   rm -rf "$tmpruns"
+   rm -f "$passcfg" "$failcfg" "$stderrcfg" "$blog"
++
++  # devcontainer template: must be STRICT JSON (a project copies it to .devcontainer/devcontainer.json)
++  # and must mark itself a sandbox so the loop recognizes it (containerEnv.HARNESS_SANDBOX == "1").
++  dcfile="$ENGINE/templates/devcontainer.json"
++  ok "$([ -f "$dcfile" ] && jq empty "$dcfile" >/dev/null 2>&1 && echo 1 || echo 0)" "devcontainer.json is strict JSON (jq 
+parses, no comments)"
++  ok "$([ "$(jq -r '.containerEnv.HARNESS_SANDBOX' "$dcfile" 2>/dev/null)" = "1" ] && echo 1 || echo 0)" "devcontainer 
+sets HARNESS_SANDBOX=1"
++  ok "$([ "$(jq -r '.workspaceMount' "$dcfile" 2>/dev/null)" = "source=harness-workspace,target=/workspace,type=volume" ] 
+&& echo 1 || echo 0)" "devcontainer uses a volume workspace (no host FS bind)"
+ else
+   echo "  (skipping jq-dependent gate/budget tests ├óÔé¼ÔÇØ jq not installed)"
+ fi
+diff --git a/plugin/engine/lib/gate.ps1 b/plugin/engine/lib/gate.ps1
+index acc1d41..b994c7e 100644
+--- a/plugin/engine/lib/gate.ps1
++++ b/plugin/engine/lib/gate.ps1
+@@ -103,6 +103,34 @@ function Test-UsageLimitError {
+   return $false
+ }
+ 
++# Sandbox detection for unattended `auto` runs. Mirror of is_sandboxed in gate.sh; lives here (not in
++# loop.ps1) so the self-tests can exercise it. Contract: the env var HARNESS_SANDBOX is the EXPLICIT,
++# cross-platform signal and ALWAYS wins when it is SET ├óÔé¼ÔÇØ truthy (1/true/yes, case-insensitive) =>
++# sandboxed; anything else (0/false/no/empty) => NOT sandboxed, even inside a container. Only when
++# HARNESS_SANDBOX is UNSET do we auto-detect common container markers (ANY present => sandboxed).
++# Returns [bool]. On Windows the /proc and /.dockerenv probes simply won't match ├óÔé¼ÔÇØ the PS runner is the
++# host case and the env var is the portable contract.
++function Test-Sandboxed {
++  $explicit = [Environment]::GetEnvironmentVariable('HARNESS_SANDBOX')   # $null when unset, '' when set-empty
++  if ($null -ne $explicit) {
++    return (@('1','true','yes') -contains $explicit.Trim().ToLowerInvariant())
++  }
++  if (Test-Path '/.dockerenv') { return $true }                          # docker
++  if (Test-Path '/run/.containerenv') { return $true }                   # podman
++  $cs = [Environment]::GetEnvironmentVariable('CODESPACES')
++  if ($cs -and (@('1','true','yes') -contains $cs.Trim().ToLowerInvariant())) { return $true }
++  if ([Environment]::GetEnvironmentVariable('REMOTE_CONTAINERS')) { return $true }   # VS Code dev containers
++  if ([Environment]::GetEnvironmentVariable('DEVCONTAINER'))      { return $true }   # devcontainer spec
++  if ([Environment]::GetEnvironmentVariable('container'))         { return $true }   # systemd-nspawn / podman
++  if (Test-Path '/proc/1/cgroup') {
++    try {
++      $cg = Get-Content '/proc/1/cgroup' -Raw -ErrorAction SilentlyContinue
++      if ($cg -match 'docker|containerd|lxc|kubepods') { return $true }
++    } catch {}
++  }
++  return $false
++}
++
+ function Invoke-GateStep([string]$name, [string]$cmd, [string]$workDir) {
+   if ([string]::IsNullOrWhiteSpace([string]$cmd)) { return $true }   # null/absent = skip
+   Write-Host "  - $name : $cmd" -ForegroundColor DarkGray
+diff --git a/plugin/engine/lib/gate.sh b/plugin/engine/lib/gate.sh
+index 8a4a39d..fb51a32 100644
+--- a/plugin/engine/lib/gate.sh
++++ b/plugin/engine/lib/gate.sh
+@@ -71,6 +71,32 @@ usage_limit_error() {  # $1 output text  $2 exit code (reserved) ; return 0 if a
+   return 1
+ }
+ 
++# Sandbox detection for unattended `auto` runs. Mirror of Test-Sandboxed in gate.ps1; lives here so the
++# self-tests can exercise it. Contract: the env var HARNESS_SANDBOX is the EXPLICIT, cross-platform signal
++# and ALWAYS wins when it is SET ├óÔé¼ÔÇØ truthy (1/true/yes, case-insensitive) => sandboxed; anything else
++# (0/false/no/empty) => NOT sandboxed, even inside a container. Only when HARNESS_SANDBOX is UNSET do we
++# auto-detect common container markers (ANY present => sandboxed). Returns 0 (sandboxed) / 1 (not).
++# On Windows/pwsh the /proc and /.dockerenv probes simply won't match ├óÔé¼ÔÇØ the env var is the portable
++# contract there (the PS runner is the host case).
++is_sandboxed() {
++  if [ -n "${HARNESS_SANDBOX+x}" ]; then          # SET (even to empty) => the explicit signal wins
++    case "$(printf '%s' "${HARNESS_SANDBOX}" | tr '[:upper:]' '[:lower:]')" in
++      1|true|yes) return 0 ;;
++      *)          return 1 ;;
++    esac
++  fi
++  [ -f /.dockerenv ] && return 0                  # docker
++  [ -f /run/.containerenv ] && return 0           # podman
++  case "$(printf '%s' "${CODESPACES:-}" | tr '[:upper:]' '[:lower:]')" in 1|true|yes) return 0 ;; esac
++  [ -n "${REMOTE_CONTAINERS:-}" ] && return 0     # VS Code dev containers
++  [ -n "${DEVCONTAINER:-}" ] && return 0          # devcontainer spec
++  [ -n "${container:-}" ] && return 0             # systemd-nspawn / podman
++  if [ -f /proc/1/cgroup ] && grep -qE 'docker|containerd|lxc|kubepods' /proc/1/cgroup 2>/dev/null; then
++    return 0
++  fi
++  return 1
++}
++
+ _gate_step() {  # $1 name  $2 cmd  $3 workdir
+   local name="$1" cmd="$2" workdir="$3"
+   { [ "$cmd" = "null" ] || [ -z "$cmd" ]; } && return 0
+diff --git a/plugin/engine/loop.ps1 b/plugin/engine/loop.ps1
+index fdf971d..fcdeb1f 100644
+--- a/plugin/engine/loop.ps1
++++ b/plugin/engine/loop.ps1
+@@ -230,6 +230,19 @@ if ($cfg.autonomy.mode -eq 'auto' -and (Get-Prop $cfg.autonomy 'skipPermissions'
+   Write-Host "    are in .claude/settings.json permissions.allow (/harness-init adds them)." -ForegroundColor DarkGray
+ }
+ 
++# Sandbox guard: full-auto runs UNATTENDED. The destructive-command deny-list is defense-in-depth, not a
++# sandbox, so honestly warn (not block ├óÔé¼ÔÇØ Confirm-Checkpoint is a no-op in auto by design) when auto runs
++# outside a recognized isolation profile. Test-Sandboxed lives in lib/gate.ps1 (already dot-sourced above).
++if ($cfg.autonomy.mode -eq 'auto' -and -not (Test-Sandboxed)) {
++  Write-Host ""
++  Write-Host "├ó┼í┬á├»┬©┬Å  AUTO mode but NOT in a recognized SANDBOX. This run is full-auto and UNATTENDED." 
+-ForegroundColor Red
++  Write-Host "    Unattended auto should run inside the documented isolation profile (container/devcontainer or" 
+-ForegroundColor Red
++  Write-Host "    WSL2-native FS), not directly on your host. The destructive-command deny-list is defense-in-" 
+-ForegroundColor Red
++  Write-Host "    depth, NOT a sandbox ├óÔé¼ÔÇØ and --dangerously-skip-permissions voids it entirely." -ForegroundColor Red
++  Write-Host "    See docs/sandboxing.md. Mark a sandbox explicitly with:  `$env:HARNESS_SANDBOX = '1'" -ForegroundColor 
+Red
++  Write-Host ""
++}
++
+ # Lock specs/ for the duration of the run: the protect-specs PreToolUse hook (inherited by the headless
+ # claude child) blocks edits under specs/ while this is set. The loop must never rewrite the contract.
+ $env:HARNESS_LOCK_SPECS = '1'
+diff --git a/plugin/engine/loop.sh b/plugin/engine/loop.sh
+index 50307c6..3921bbf 100644
+--- a/plugin/engine/loop.sh
++++ b/plugin/engine/loop.sh
+@@ -210,6 +210,19 @@ else
+   echo "    are in .claude/settings.json permissions.allow (/harness-init adds them)."
+ fi
+ 
++# Sandbox guard: full-auto runs UNATTENDED. The destructive-command deny-list is defense-in-depth, not a
++# sandbox, so honestly warn (not block ├óÔé¼ÔÇØ confirm_checkpoint is a no-op in auto by design) when auto runs
++# outside a recognized isolation profile. is_sandboxed lives in lib/gate.sh (already sourced above).
++if [ "$MODE" = "auto" ] && ! is_sandboxed; then
++  echo ""
++  echo "├ó┼í┬á├»┬©┬Å  AUTO mode but NOT in a recognized SANDBOX. This run is full-auto and UNATTENDED."
++  echo "    Unattended auto should run inside the documented isolation profile (container/devcontainer or"
++  echo "    WSL2-native FS), not directly on your host. The destructive-command deny-list is defense-in-"
++  echo "    depth, NOT a sandbox ├óÔé¼ÔÇØ and --dangerously-skip-permissions voids it entirely."
++  echo "    See docs/sandboxing.md. Mark a sandbox explicitly with:  export HARNESS_SANDBOX=1"
++  echo ""
++fi
++
+ # Lock specs/ for the run: the protect-specs PreToolUse hook (inherited by the headless claude child)
+ # blocks edits under specs/ while this is exported. The loop must never rewrite the contract.
+ export HARNESS_LOCK_SPECS=1
+diff --git a/plugin/engine/templates/devcontainer.json b/plugin/engine/templates/devcontainer.json
+new file mode 100644
+index 0000000..37ca9cc
+--- /dev/null
++++ b/plugin/engine/templates/devcontainer.json
+@@ -0,0 +1,18 @@
++{
++  "name": "lean-agent-harness (unattended auto)",
++  "image": "mcr.microsoft.com/devcontainers/base:ubuntu",
++  "features": {
++    "ghcr.io/devcontainers/features/github-cli:1": {},
++    "ghcr.io/devcontainers/features/node:1": {}
++  },
++  "containerEnv": {
++    "HARNESS_SANDBOX": "1"
++  },
++  "remoteEnv": {
++    "ANTHROPIC_API_KEY": "${localEnv:ANTHROPIC_API_KEY}",
++    "CODEX_API_KEY": "${localEnv:CODEX_API_KEY}"
++  },
++  "workspaceMount": "source=harness-workspace,target=/workspace,type=volume",
++  "workspaceFolder": "/workspace",
++  "postCreateCommand": "chmod -R a-w specs 2>/dev/null || true"
++}
+
+
+ succeeded in 1531ms:
+<!--
+  This is the ROOT CONTEXT MAP. It is a navigation map, not a manual.
+  RULES FOR THIS FILE (the ratchet discipline):
+    ├óÔé¼┬ó Keep it under ~100 lines. It competes for the model's attention with the actual task.
+    ├óÔé¼┬ó Point to docs/ and nested CLAUDE.md files; do NOT inline full specs or style guides.
+    ├óÔé¼┬ó Every line in "Project rules" must trace to a real failure (added via /ratchet) or a hard
+      constraint. Delete rules that no longer earn their place.
+    ├óÔé¼┬ó `/harness-init` fills the {{PLACEHOLDERS}} below. Until then they are intentionally blank.
+-->
+
+# {{PROJECT_NAME}}
+
+{{ONE_LINE_DESCRIPTION}}
+
+## What this is
+- **Domain / market:** {{DOMAIN}}
+- **Type:** {{PROJECT_TYPE}}  <!-- greenfield (build from scratch) | brownfield (existing code ├óÔé¼ÔÇØ respect it; see 
+brownfield-safety skill) -->
+- **Shape:** {{PROJECT_SHAPE}}  <!-- e.g. "single Node app" or "headless: frontend/ (Next.js) + backend/ (FastAPI)" -->
+
+## Components (the buildable units)
+Each component has its own stack, gate, and (for non-trivial ones) its own nested `CLAUDE.md`. The
+harness runs each component's gate in its own directory; see `harness/harness.config.json` ├óÔÇáÔÇÖ `components`.
+
+| Component | Path | Stack | Run | Test |
+|-----------|------|-------|-----|------|
+| {{COMPONENT_NAME}} | `{{COMPONENT_PATH}}` | {{COMPONENT_STACK}} | `{{COMPONENT_RUN}}` | `{{COMPONENT_TEST}}` |
+<!-- one row per component; a single-root project has exactly one row with path `.` -->
+
+Cross-cutting (e.g. an e2e that exercises the components together): {{ROOT_E2E}}
+
+## Where things live (the map)
+- `specs/` ├óÔé¼ÔÇØ **immutable** requirements. Source of truth. Read first; never rewrite.
+- `docs/architecture/` ├óÔé¼ÔÇØ how the system fits together. Read before structural changes.
+- `docs/design-docs/` ├óÔé¼ÔÇØ decisions already made and *why*. Don't relitigate them.
+- `docs/execution-plans/` ├óÔé¼ÔÇØ versioned plans + progress logs for in-flight work.
+- `docs/technical-debt/` ├óÔé¼ÔÇØ known issues. Check before "discovering" one.
+- `docs/principles/` ├óÔé¼ÔÇØ engineering norms / golden principles for this repo.
+- `state/` ├óÔé¼ÔÇØ live work state: `tasks.json` (manifest), `fix_plan.md` (priority stack),
+  `PROGRESS.md` (session log), `handoff.md` (context-reset handoff), `evidence/` (e2e proof per task).
+- `AGENT_NOTES.md` ├óÔé¼ÔÇØ run/build gotchas and learnings. **Append here when you learn something.**
+
+## How to work here (the workflow: plan ├óÔÇáÔÇÖ execute ├óÔÇáÔÇÖ validate ├óÔÇáÔÇÖ review ├óÔÇáÔÇÖ record)
+Full contract: [`docs/principles/workflow.md`](docs/principles/workflow.md). `/work` drives one task
+through all phases; `/plan`, `/verify`, `/review` are the phases run individually (`/loop` is not a
+phase ├óÔé¼ÔÇØ it runs one full iteration end-to-end). In short:
+1. **Study first.** Read the relevant `specs/`, then the code, then `state/fix_plan.md`. Note which
+   **component** the task touches and work in that directory.
+   **Search the codebase before assuming something isn't implemented.** Think hard.
+2. **One task per iteration.** Pick the highest-priority unfinished item from `state/fix_plan.md`.
+3. **Implement fully.** No placeholders, no stubs, no "simple version for now."
+4. **Verify ├óÔé¼ÔÇØ this is the gate.** Run the changed component's gate (format ├óÔÇáÔÇÖ lint ├óÔÇáÔÇÖ typecheck ├óÔÇáÔÇÖ 
+build ├óÔÇáÔÇÖ
+   test) and the cross-cutting root gate.
+   Unit-green is not done: capture **end-to-end evidence** that it works as a user would see it.
+5. **Checkpoint.** Commit with a descriptive message when green (exception: in the headless loop the
+   RUNNER commits ├óÔé¼ÔÇØ PROMPT.md's no-commit rule wins there). Roll back a red tree, don't patch over it.
+6. **Record.** Tick the item in `state/fix_plan.md`; note *why* in code/docs for the next (amnesiac) loop.
+7. **Reset, don't compact.** At task boundaries: `/handoff` then `/clear` ├óÔé¼ÔÇØ state lives in files and
+   the SessionStart hook re-orients a fresh window. `/compact` is the mid-task emergency tool only.
+
+## Verification gate (must pass before "done")
+The gate is **per component** (its commands run in that component's directory), then a cross-cutting
+root gate. Exact commands live in `harness/harness.config.json`. For `{{COMPONENT_NAME}}`:
+```
+{{FORMAT_COMMAND}}
+{{LINT_COMMAND}}
+{{TYPECHECK_COMMAND}}
+{{BUILD_COMMAND}}
+{{TEST_COMMAND}}
+{{E2E_COMMAND}}
+```
+(Multi-component projects: one such block per component ├óÔé¼ÔÇØ the config is the source of truth.)
+The PostToolUse hook runs the fast subset (format/lint/typecheck) automatically on edit, **routed to
+the component that owns the changed file**. Failures come back with the fix in the message ├óÔé¼ÔÇØ read them.
+
+## Guardrails (hard constraints)
+- **Do not** weaken or delete tests to make a build pass. Fix the code or escalate.
+- **Do not** run destructive commands (`rm -rf`, `git push --force`, `DROP TABLE`, secrets exfil).
+  The PreToolUse hook blocks the obvious ones; don't try to route around it.
+- **Do not** edit anything under `specs/` ├óÔé¼ÔÇØ it is the contract. Propose changes to the human instead.
+  (One carve-out: `/plan`, `/onboard`, and `/harness-init` may **author new specs with the human's
+  approval**. Rewriting an existing spec to make work "pass" is never legitimate.)
+- **Escalate ambiguous product decisions** to the human rather than guessing. Ask for the *why*.
+- Review code in a **fresh context** (use `/review` or the `reviewer` subagent), never self-grade.
+
+## Project rules (the ratchet ├óÔé¼ÔÇØ grows only from real failures)
+<!-- Add entries via /ratchet. Format: "- [YYYY-MM-DD] <rule>  ├óÔé¼ÔÇØ because <the failure it prevents>" -->
+- [2026-07-14] Output-sniffing predicates (e.g. usage/limit detection) must be consulted ONLY on a FAILED
+  invocation (not-ok / nonzero exit), never to overturn a SUCCESS  ├óÔé¼ÔÇØ because the markers are substring-based,
+  so a successful write-phase build whose text merely mentions "overloaded"/"quota"/"429" would be reset to
+  base and retried on the fallback, silently discarding a good build (S2 review near-miss).
+- [2026-07-14] When a phase's resolved `Primary` model is '' (inherit ambient) but a per-phase `fallback`
+  IS configured, the fallback is reached ONLY on a failed invocation ├óÔé¼ÔÇØ it is NOT the happy-path model
+  ├óÔé¼ÔÇØ because `Invoke-Phase` runs the primary first; a config that pinned a reviewer purely via legacy
+  `reviewFallback` (with `review` unset) is therefore run on the ambient model on the happy path, not on
+  `reviewFallback` (S3 review ├óÔé¼ÔÇØ narrow, disclosed; the migrated `{model,fallback}` config avoids it).
+- [2026-07-14] Do not pin a fresh-context judge (`reviewer`/`evaluator` subagent) to a model tier that can
+  hit its own usage cap mid-review ├óÔé¼ÔÇØ when it dies with "reached your <model> limit", re-spawn the subagent
+  with a `model:` override to finish  ├óÔé¼ÔÇØ because the review actually failed to run this way (S3: the
+  Fable-pinned reviewer was knocked out by a Fable-5 usage limit). Broader fix (subagent-level fallback)
+  is a candidate for a later slice.
+- [2026-07-15] Engine code that runs a phase inside a PowerShell `Start-Job` must (a) re-source its libs
+  INSIDE the job ├óÔé¼ÔÇØ a Start-Job runs in a fresh runspace that does NOT inherit the parent's dot-sourced
+  functions (pass the lib dir via `-ArgumentList`; `$PSScriptRoot` differs inside), and (b) use a quiet
+  (`Out-Null`) output path, never `Out-Host` ├óÔé¼ÔÇØ because `Out-Host` produced inside a job is replayed to the
+  parent console at `Receive-Job` and CANNOT be suppressed by any stream redirect (`6>$null`/`*>$null` all
+  fail), so a worker's whole transcript would dump into the merge-queue console. Also assign the phase
+  result to a var so its object doesn't leak into the job output stream; emit only the `0/1` exit proxy the
+  caller reads (S4: the fleet worker's dispatcher wiring; de-risked with live experiments before building).
+
+## Nested context
+Larger subsystems may have their own `CLAUDE.md` next to their code (mirrors the one-map-per-package
+pattern). When working in a subsystem, read its local map too.
+
+
+ succeeded in 1648ms:
+C:\Users\james\Repos\harness\specs\000-overview.md
+C:\Users\james\Repos\harness\specs\README.md
+
+codex
+IÔÇÖve confirmed the sprint item in `state/fix_plan.md` is the sandboxing task. Next IÔÇÖm reading the actual staged files, 
+not just the pasted diff, so line references and surrounding behavior are accurate.
+exec
+"C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command 'Get-Content -Raw specs/000-overview.md' in 
+C:\Users\james\Repos\harness
+exec
+"C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command 'Get-Content -Raw plugin/engine/loop.ps1' in 
+C:\Users\james\Repos\harness
+exec
+"C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command 'Get-Content -Raw plugin/engine/lib/gate.sh' in 
+C:\Users\james\Repos\harness
+exec
+"C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command 'Get-Content -Raw plugin/engine/lib/gate.ps1' in 
+C:\Users\james\Repos\harness
+exec
+"C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command 'Get-Content -Raw specs/README.md' in 
+C:\Users\james\Repos\harness
+exec
+"C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command 'Get-Content -Raw plugin/engine/loop.sh' in 
+C:\Users\james\Repos\harness
+ succeeded in 1796ms:
+# 000 ├óÔé¼ÔÇØ Project overview (spec)
+
+> Template. `/harness-init` (or your first `/plan`) fills this in with the human. This is the immutable
+> source of truth ├óÔé¼ÔÇØ get it roughly right, then change it only deliberately. Delete these quote lines
+> once it's real.
+
+- Status: draft
+- Owner: {{OWNER}}
+- Last reviewed: {{DATE}}
+
+## Problem
+<What problem does this project solve, for whom? The one outcome that must be true for it to matter.>
+
+## Users & context
+<Who uses it, in what setting, with what constraints (offline? regulated? real-time?).>
+
+## Scope
+**In scope (v1):**
+- <core capability 1>
+
+**Out of scope (for now):**
+- <explicitly excluded ├óÔé¼ÔÇØ prevents scope creep>
+
+## Non-functional requirements
+<Performance, security, privacy, compliance, platforms, budgets ├óÔé¼ÔÇØ whatever is load-bearing.>
+
+## Acceptance criteria (the bar)
+Falsifiable and, where possible, executable. The gate and the evaluator hold work to these.
+- [ ] <criterion 1 ├óÔé¼ÔÇØ e.g. "a new user can sign up and reach the dashboard in < 3 steps">
+- [ ] <criterion 2 ├óÔé¼ÔÇØ e.g. "API rejects malformed input with 400 + error body, never 500">
+- [ ] <criterion 3>
+
+## Open questions
+<Anything genuinely undecided. Resolve with the human before building against an assumption.>
+
+
+ succeeded in 1830ms:
+# specs/
+
+The **immutable source of truth** for requirements. Agents read this first and **never rewrite it** ├óÔé¼ÔÇØ
+it's the contract. Changes to requirements come from the human (or a `/plan` session you approve), not
+from an autonomous loop deciding the spec was inconvenient.
+
+Why immutable matters: in a memory-less loop, the spec is the only fixed reference point. If the agent
+could edit it to match whatever it built, "done" would mean nothing. Keep it stable; keep it honest.
+
+## Conventions
+- One concern per file, numbered for order: `NNN-<slug>.md` (`000-overview.md` is the project overview).
+- Every spec ends with **executable, falsifiable acceptance criteria** ├óÔé¼ÔÇØ the bar the gate and the
+  evaluator hold work to. Prefer measurable ("returns 201 + Location header", "p95 < 200ms") over prose.
+- If a requirement genuinely changes, the human edits the spec deliberately and notes the change; the
+  plan and tasks then follow.
+
+See [`000-overview.md`](./000-overview.md) for the starting template.
+
+
+ succeeded in 1865ms:
+#!/usr/bin/env bash
+# The configurable autonomy loop (Ralph-style, with guardrails) ├óÔé¼ÔÇØ POSIX/bash mirror of loop.ps1.
+# Stateless loop, stateful files: each iteration pipes PROMPT.md into a fresh headless `claude`,
+# then runs the verification gate. Green => commit (+tag). Red (or gate error / config tampering) =>
+# roll back. Bounded by maxIterations, a per-iteration --max-turns, and a best-effort tokenBudget.
+# Supervised pauses at checkpoints; auto runs unattended.
+#
+# Usage: bash harness/loop.sh [--mode supervised|auto] [--max N] [--dry-run]
+# Requires: bash, git, jq, and the `claude` CLI.  Do NOT edit the tree while it runs (rollback is hard).
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"   # engine dir (this script + lib/)
+# PROJECT root (config, runtime, git) is DISTINCT from the engine dir once the engine ships from an
+# installed plugin. Peek "$@" for --project-root before the main parser (CONFIG is needed early); else
+# git top-level; else the current dir. In the in-repo layout these coincide, so paths are unchanged.
+PROJECT_ROOT=""
+_pr_prev=""
+for _pr_arg in "$@"; do
+  [ "$_pr_prev" = "--project-root" ] && PROJECT_ROOT="$_pr_arg"
+  case "$_pr_arg" in --project-root=*) PROJECT_ROOT="${_pr_arg#*=}";; esac
+  _pr_prev="$_pr_arg"
+done
+if [ -z "$PROJECT_ROOT" ]; then
+  PROJECT_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || true)"
+  [ -n "$PROJECT_ROOT" ] || PROJECT_ROOT="$(pwd)"
+fi
+REPO_ROOT="$PROJECT_ROOT"
+cd "$REPO_ROOT"
+HARNESS_DIR="$PROJECT_ROOT/harness"   # per-project config + gitignored runtime (.runs, etc.)
+CONFIG="$HARNESS_DIR/harness.config.json"
+[ -f "$CONFIG" ] || { echo "Missing $CONFIG. Run /harness-init first."; exit 1; }
+command -v jq >/dev/null || { echo "jq is required for the bash loop (brew/apt install jq)."; exit 1; }
+
+# shellcheck source=lib/gate.sh
+source "$SCRIPT_DIR/lib/gate.sh"
+source "$SCRIPT_DIR/lib/checkpoint.sh"
+source "$SCRIPT_DIR/lib/budget.sh"
+source "$SCRIPT_DIR/lib/invoke-codex.sh"   # codex invocation (codex_available, invoke_codex) ├óÔé¼ÔÇØ dispatch.sh builds 
+on it
+source "$SCRIPT_DIR/lib/dispatch.sh"       # invoke_phase: primary->fallback dispatcher (after gate + invoke-codex)
+
+cfg() { jq -r "$1" "$CONFIG"; }
+
+MODE="$(cfg '.autonomy.mode')"
+MAX_ITER="$(cfg '.autonomy.maxIterations')"
+TOKEN_BUDGET="$(cfg '.autonomy.tokenBudget')"
+SKIP_PERMS="$(cfg '.autonomy.skipPermissions')"
+EVERY_N="$(cfg '.autonomy.checkpoints.everyNIterations')"; [ "$EVERY_N" = "null" ] && EVERY_N=0
+MAX_TURNS="$(cfg '.autonomy.maxTurnsPerIteration')"; { [ "$MAX_TURNS" = "null" ] || [ -z "$MAX_TURNS" ]; } && MAX_TURNS=40
+REVIEW_EVERY_N="$(cfg '.verification.reviewEveryNIterations')"; { [ "$REVIEW_EVERY_N" = "null" ] || [ -z "$REVIEW_EVERY_N" 
+]; } && REVIEW_EVERY_N=0
+# Per-phase model routing (config.models, via phase_model in lib/gate.sh). "" = inherit the ambient
+# CLI default (the pre-routing behavior, and what a /harness-prune-trimmed config degrades to).
+IMPLEMENT_MODEL="$(phase_model "$CONFIG" implement)"
+IMPLEMENT_FALLBACK="$(phase_fallback "$CONFIG" implement)"        # cross-vendor fallback (e.g. "codex"); "" = none
+REVIEW_ROUTE="$(phase_model "$CONFIG" review)"                    # "codex" | claude alias/ID | ""
+REVIEW_FALLBACK="$(phase_fallback "$CONFIG" review)"             # S1b: symmetric with the reviewFallback pseudo-phase
+CODEX_AUTH="$(cfg '.models.codex.auth // "chatgpt"')"
+CODEX_MODEL="$(cfg '.models.codex.model // empty')"
+CODEX_EFFORT="$(cfg '.models.codex.reasoningEffort // empty')"
+CODEX_TIMEOUT="$(cfg '.models.codex.timeoutSeconds // 900')"
+# Defaults for optional loop keys, so a trimmed config (e.g. after /harness-prune) degrades to the same
+# defaults loop.ps1 uses instead of grepping a file literally named "null" / cat-ing it under set -e.
+PLAN_FILE="$(cfg '.loop.planFile')";   { [ "$PLAN_FILE" = "null" ]   || [ -z "$PLAN_FILE" ]; }   && 
+PLAN_FILE="state/fix_plan.md"
+PROMPT_FILE="$(cfg '.loop.promptFile')"; { [ "$PROMPT_FILE" = "null" ] || [ -z "$PROMPT_FILE" ]; } && 
+PROMPT_FILE="PROMPT.md"
+DRY_RUN=0
+
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --mode) MODE="$2"; shift 2;;
+    --max)  MAX_ITER="$2"; shift 2;;
+    --dry-run) DRY_RUN=1; shift;;
+    --project-root) shift 2;;    # already captured in the pre-scan above
+    --project-root=*) shift;;
+    *) echo "unknown arg: $1"; exit 1;;
+  esac
+done
+
+confirm_checkpoint() {  # $1 = label ; returns 0 to continue
+  [ "$MODE" = "auto" ] && return 0
+  printf '\n├ó┬Å┬©  Checkpoint: %s\n   Continue? [y/N] ' "$1"
+  read -r ans </dev/tty || ans=""
+  [[ "$ans" =~ ^[Yy]([Ee][Ss])?$ ]]
+}
+
+open_item_count() {
+  local plan n; plan="$PLAN_FILE"
+  [ -f "$plan" ] || { echo 0; return; }
+  # grep -c already prints 0 on no-match; `|| true` keeps set -e happy without a 2nd "0" line.
+  n="$(grep -cE '^[[:space:]]*[-*][[:space:]]+\[ \]' "$plan" || true)"
+  echo "${n:-0}"
+}
+
+any_e2e() {  # 0 if any component or root gate defines an e2e step
+  [ "$(jq -r '[(.components[]?.gate.e2e), .gate.e2e] | map(select(. != null and . != "")) | length' "$CONFIG")" != "0" ]
+}
+
+# Periodic inferential judge: spawn a fresh-context reviewer over every commit since $1 (the last review
+# watermark / run start). "doer != judge", wired into the unattended loop. Hardened: (1) reviewer runs
+# READ-ONLY (--disallowedTools + a hard reset afterward) so a judge can't mutate what it judges; (2) it
+# FAILS CLOSED ├óÔé¼ÔÇØ only an explicit VERDICT: SHIP continues; REJECT, truncation, crash, or empty all stop.
+# Honest limitation: DIFF-ONLY ├óÔé¼ÔÇØ not granted tools to run the app, so it can't gather fresh e2e evidence.
+# Returns 0 to continue; 1 to stop the loop for a human.
+periodic_review() {  # $1 base  $2 run_dir  $3 iter
+  local base="$1" run_dir="$2" iter="$3" head out reviewlog stamp prompt reason rc
+  head="$(git rev-parse HEAD)"
+  if [ "$base" = "$head" ]; then echo "  (periodic review: no new commits since last review)"; return 0; fi
+  echo "├░┼©┬ºÔÇÿ├óÔé¼┬ì├ó┼íÔÇô├»┬©┬Å  Periodic fresh-context review of commits ${base:0:8}..${head:0:8}..."
+  reviewlog="$run_dir/review-after-$iter.log"
+  read -r -d '' prompt <<EOF || true
+You are a FRESH-CONTEXT REVIEWER (the harness 'reviewer' role ├óÔé¼ÔÇØ see .claude/agents/reviewer.md). You
+have NO memory of how this code was written; judge only the artifact. You are READ-ONLY ├óÔé¼ÔÇØ do not edit,
+write, or commit anything.
+
+1. Inspect the batch:  git log --oneline $base..HEAD   and   git diff $base..HEAD
+2. Judge it against specs/ (acceptance criteria) and docs/principles/ (golden principles): correctness
+   vs spec, evidence quality, guardrails (no weakened/deleted tests, no edited specs, no destructive
+   ops/secrets), architectural drift, needless complexity.
+3. List findings as  file:line ├óÔé¼ÔÇØ problem ├óÔé¼ÔÇØ concrete fix. Report ONLY findings that affect correctness
+   vs the spec, evidence integrity, or the guardrails. Do NOT manufacture style/architecture
+   suggestions to justify the review ├óÔé¼ÔÇØ a reviewer told to find problems always will, and invented
+   findings cause over-engineering churn. "No findings" is a valid outcome: SHIP it.
+
+Finish with EXACTLY ONE final line and nothing after it:
+VERDICT: SHIP     (the batch is sound)
+VERDICT: REJECT   (anything is wrong ├óÔé¼ÔÇØ default to REJECT when unsure)
+EOF
+  # Route the judge through the cross-vendor dispatcher (invoke_phase, READ-ONLY): primary = the resolved
+  # review model (e.g. "codex" => codex read-only sandbox; a claude alias => that reviewer; "" => inherit),
+  # fallback = the S1b-symmetric claude reviewer model. Net effect: the review path now ALSO falls back to
+  # the claude reviewer on a codex USAGE-LIMIT (not just pre-invocation unavailability), while preserving
+  # the unavailable->claude path. Disallowed tools as SEPARATE args (a space-joined string is one
+  # never-matching pattern); Bash stays enabled ├óÔé¼ÔÇØ the reviewer needs `git log`/`git diff`; the hard reset
+  # below undoes any mutation. reset_ref="" and max_turns=20; read-only => no write-phase reset inside.
+  INVOKE_PHASE_CLAUDE_ARGS=(--disallowedTools Edit Write MultiEdit NotebookEdit)
+  # invoke_phase must run in THIS shell (not $(...)) so INVOKE_PHASE_* propagate; capture its stdout (the
+  # verdict text) via a redirect to a temp file, which does NOT spawn a subshell.
+  local review_out; review_out="$(mktemp)"
+  if invoke_phase read-only "$prompt" "$REPO_ROOT" "$reviewlog" "$REVIEW_ROUTE" "$REVIEW_FALLBACK" "" 20 "$CODEX_AUTH" 
+"$CODEX_MODEL" "$CODEX_EFFORT" "$CODEX_TIMEOUT" > "$review_out"; then rc=0; else rc=$?; fi
+  out="$(cat "$review_out")"; rm -f "$review_out"
+  local review_path="${INVOKE_PHASE_PATH:-claude}"
+  # A judge must not mutate the artifact: restore the tree to exactly the reviewed HEAD, no matter
+  # what. (Codex ran in a read-only sandbox, but belt + braces ├óÔé¼ÔÇØ identical to the claude path.)
+  git reset --hard "$head" >/dev/null 2>&1 || true; git clean -fd >/dev/null 2>&1 || true
+  if [ "$rc" -ne 0 ]; then
+    echo "  ! review invocation failed ($review_path) ├óÔé¼ÔÇØ failing closed (stopping for human)."
+    ledger "{\"iter\":$iter,\"result\":\"review\",\"path\":\"$review_path\",\"verdict\":\"ERROR\"}"
+    _reject_handoff "review could not run ($review_path)" "$base" "$head" "$iter" "$reviewlog"; return 1
+  fi
+  # Fail-closed verdict parse: only the LAST line starting with VERDICT: counts (review_verdict in
+  # lib/gate.sh). A preamble like "I cannot give VERDICT: SHIP" must never pass the batch.
+  local v; v="$(printf '%s\n' "$out" | review_verdict)"
+  ledger "{\"iter\":$iter,\"result\":\"review\",\"path\":\"$review_path\",\"verdict\":\"$v\"}"
+  case "$v" in
+    SHIP)
+      echo "  ├░┼©┼©┬ó Periodic review: SHIP."
+      git tag -f harness-reviewed "$head" >/dev/null 2>&1 || true   # watermark for a later /review
+      return 0;;
+    REJECT) reason="REJECT";;
+    *) reason="no clear SHIP verdict (fail-closed)";;
+  esac
+  echo "  ├░┼©ÔÇØ┬┤ Periodic review: $reason. Stopping for human attention."
+  _reject_handoff "$reason" "$base" "$head" "$iter" "$reviewlog"; return 1
+}
+
+_reject_handoff() {  # $1 reason  $2 base  $3 head  $4 iter  $5 log
+  printf '\n## Needs human decision ├óÔé¼ÔÇØ periodic review: %s (%s..%s, iter %s)\nThe fresh-context reviewer did not 
+return SHIP. Findings: %s. Inspect before continuing the loop.\n' \
+    "$1" "${2:0:8}" "${3:0:8}" "$4" "$5" >> "$REPO_ROOT/state/handoff.md"
+}
+
+RUN_ID="$(loop_run_id "$HARNESS_DIR/.runs")"   # atomically claims <project>/harness/.runs/<runId>/ (mkdir-as-mutex)
+RUN_DIR="$HARNESS_DIR/.runs/$RUN_ID"
+mkdir -p "$RUN_DIR"
+LEDGER="$RUN_DIR/ledger.jsonl"
+# Per-run state files: two concurrent runs must not share a rollback ref or a budget tally.
+set_checkpoint_file "$RUN_DIR/.checkpoint"
+set_budget_file "$RUN_DIR/.budget.json"
+reset_budget   # per-run cap, not a lifetime counter
+ledger() { printf '%s\n' "$1" >> "$LEDGER"; }
+config_hash() { git hash-object "$CONFIG"; }
+CONFIG_HASH0="$(config_hash)"
+
+assert_clean_git_tree
+PROJ_TYPE="$(cfg '.project.type')"; [ "$PROJ_TYPE" = "null" ] && PROJ_TYPE="greenfield"
+echo "├░┼©ÔÇØ┬º Harness loop | type=$PROJ_TYPE | mode=$MODE | maxIter=$MAX_ITER | maxTurns=$MAX_TURNS | 
+model=${IMPLEMENT_MODEL:-inherit} | budget=$TOKEN_BUDGET"
+
+if [ "$MODE" = "auto" ] && [ "$(cfg '.verification.requireE2EEvidence')" = "true" ] && ! any_e2e; then
+  echo "├ó┼í┬á├»┬©┬Å  auto mode + requireE2EEvidence, but no e2e gate step is configured. The loop will commit on"
+  echo "    unit-green only. Add an e2e command to a component/root gate, or run /review periodically."
+fi
+
+if [ "$PROJ_TYPE" = "brownfield" ]; then
+  if [ "$(cfg '.project.baseline.established')" != "true" ]; then
+    echo "├ó┼í┬á├»┬©┬Å  Brownfield project with NO established green baseline. Run /onboard first."
+    confirm_checkpoint "Continue without an established baseline?" || exit 0
+  fi
+  if [ "$MODE" = "auto" ]; then
+    echo "├ó┼í┬á├»┬©┬Å  AUTO mode on a BROWNFIELD codebase. The auto-loop is designed for greenfield; on existing"
+    echo "    code it risks wide, subtle regressions. Supervised + small isolated tasks is recommended."
+    confirm_checkpoint "Run full-auto on an existing codebase anyway?" || exit 0
+  fi
+fi
+if [ "$MODE" = "auto" ] && [ "$SKIP_PERMS" = "true" ]; then
+  echo "├ó┼í┬á├»┬©┬Å  AUTO + skipPermissions: model runs UNATTENDED with permission prompts disabled."
+  echo "    The deny-list (incl. secrets) is VOID in this mode ├óÔé¼ÔÇØ run inside a sandbox/container."
+  confirm_checkpoint "Proceed with unattended skip-permissions run?" || exit 0
+else
+  # Headless children can't answer permission prompts: any Bash command NOT in permissions.allow is
+  # auto-denied, so if the gate commands aren't allowlisted the agent can't run PROMPT.md Phase 3 and
+  # burns iterations editing blind. /harness-init appends them; remind here in case it didn't.
+  echo "├óÔÇ×┬╣├»┬©┬Å  Headless runs auto-deny non-allowlisted commands. Ensure the gate commands (test/build/lint)"
+  echo "    are in .claude/settings.json permissions.allow (/harness-init adds them)."
+fi
+
+# Sandbox guard: full-auto runs UNATTENDED. The destructive-command deny-list is defense-in-depth, not a
+# sandbox, so honestly warn (not block ├óÔé¼ÔÇØ confirm_checkpoint is a no-op in auto by design) when auto runs
+# outside a recognized isolation profile. is_sandboxed lives in lib/gate.sh (already sourced above).
+if [ "$MODE" = "auto" ] && ! is_sandboxed; then
+  echo ""
+  echo "├ó┼í┬á├»┬©┬Å  AUTO mode but NOT in a recognized SANDBOX. This run is full-auto and UNATTENDED."
+  echo "    Unattended auto should run inside the documented isolation profile (container/devcontainer or"
+  echo "    WSL2-native FS), not directly on your host. The destructive-command deny-list is defense-in-"
+  echo "    depth, NOT a sandbox ├óÔé¼ÔÇØ and --dangerously-skip-permissions voids it entirely."
+  echo "    See docs/sandboxing.md. Mark a sandbox explicitly with:  export HARNESS_SANDBOX=1"
+  echo ""
+fi
+
+# Lock specs/ for the run: the protect-specs PreToolUse hook (inherited by the headless claude child)
+# blocks edits under specs/ while this is exported. The loop must never rewrite the contract.
+export HARNESS_LOCK_SPECS=1
+
+PROMPT="$(cat "$PROMPT_FILE")"
+i=0
+GREEN_COUNT=0
+REVIEW_BASE="$(git rev-parse HEAD)"   # periodic-review watermark: commits after this are unreviewed
+while [ "$i" -lt "$MAX_ITER" ]; do
+  i=$((i+1))
+  if [ "$(cfg '.loop.stopWhenPlanEmpty')" = "true" ] && [ "$(open_item_count)" -eq 0 ]; then
+    echo "├ó┼ôÔÇª fix_plan.md has no open items ├óÔé¼ÔÇØ stopping."; break
+  fi
+  if [ "$TOKEN_BUDGET" != "null" ] && budget_exceeded "$TOKEN_BUDGET"; then
+    echo "├░┼©ÔÇÖ┬© Token budget (estimate) exhausted ├óÔé¼ÔÇØ stopping."; break
+  fi
+  if [ "$EVERY_N" -gt 0 ] && [ $((i % EVERY_N)) -eq 0 ]; then
+    confirm_checkpoint "Reached iteration $i" || break
+  fi
+
+  echo "├óÔÇØÔé¼├óÔÇØÔé¼├óÔÇØÔé¼├óÔÇØÔé¼├óÔÇØÔé¼├óÔÇØÔé¼├óÔÇØÔé¼├óÔÇØÔé¼ iteration $i / $MAX_ITER 
+├óÔÇØÔé¼├óÔÇØÔé¼├óÔÇØÔé¼├óÔÇØÔé¼├óÔÇØÔé¼├óÔÇØÔé¼├óÔÇØÔé¼├óÔÇØÔé¼"
+  ITER_LOG="$RUN_DIR/iter-$i.log"
+  if [ "$DRY_RUN" -eq 1 ]; then
+    echo "[dry-run] would pipe $PROMPT_FILE into: claude -p --max-turns $MAX_TURNS${IMPLEMENT_MODEL:+ --model 
+$IMPLEMENT_MODEL} ; then run the gate."; break
+  fi
+
+  new_checkpoint "pre-iter-$i"
+  # Invoke the implement phase through the cross-vendor dispatcher (invoke_phase). Prompt via STDIN (the
+  # documented `cat file | claude -p` pattern; parity with loop.ps1). Do NOT add --bare: the loop DEPENDS
+  # on hook/CLAUDE.md/skill discovery (CLI docs say --bare becomes the -p default later; pin/revisit then).
+  # Extra claude args mirror today's conditions: skip-permissions under auto+skipPermissions, JSON when
+  # metering. The dispatcher runs $IMPLEMENT_MODEL (primary) and, ONLY on codex-unavailability or a
+  # usage-limit failure, $IMPLEMENT_FALLBACK ├óÔé¼ÔÇØ hard-resetting to this iteration's base ($BASE_REF) before
+  # a write-phase fallback. A generic (non-usage) failure returns as failure: roll back + continue, as today.
+  # invoke_phase must run in THIS shell (not a $(...) subshell) so its INVOKE_PHASE_* globals propagate;
+  # its stdout (the buffered phase output, also tee'd to $ITER_LOG) streams to the console directly.
+  INVOKE_PHASE_CLAUDE_ARGS=()
+  if [ "$MODE" = "auto" ] && [ "$SKIP_PERMS" = "true" ]; then INVOKE_PHASE_CLAUDE_ARGS+=(--dangerously-skip-permissions); fi
+  if [ "$(cfg '.autonomy.meterTokens')" = "true" ]; then INVOKE_PHASE_CLAUDE_ARGS+=(--output-format json); fi   # exact 
+usage
+  BASE_REF="$(git rev-parse HEAD)"   # clean tree here (new_checkpoint asserts it): the fallback reset target
+  if invoke_phase workspace-write "$PROMPT" "$REPO_ROOT" "$ITER_LOG" "$IMPLEMENT_MODEL" "$IMPLEMENT_FALLBACK" "$BASE_REF" 
+"$MAX_TURNS" "$CODEX_AUTH" "$CODEX_MODEL" "$CODEX_EFFORT" "$CODEX_TIMEOUT"; then impl_rc=0; else impl_rc=$?; fi
+  echo   # newline after the buffered phase output
+  if [ "$impl_rc" -ne 0 ]; then
+    impl_uf=false; [ "${INVOKE_PHASE_USED_FALLBACK:-0}" = "1" ] && impl_uf=true
+    echo "├ó┬Ø┼Æ implement phase failed (path=${INVOKE_PHASE_PATH:-} reason=${INVOKE_PHASE_REASON:-invoke-failed})"
+    ledger "{\"iter\":$i,\"result\":\"invoke-error\",\"reason\":\"${INVOKE_PHASE_REASON:-invoke-failed}\",\"path\":\"${INVOK
+E_PHASE_PATH:-}\",\"usedFallback\":$impl_uf}"
+    restore_checkpoint; continue
+  fi
+  update_budget_from_log "$ITER_LOG"
+
+  if [ "$(config_hash)" != "$CONFIG_HASH0" ]; then
+    echo "├░┼©ÔÇ║ÔÇÿ harness.config.json changed during the iteration (gate/policy tampering?). Rolling back and stopping."
+    ledger "{\"iter\":$i,\"result\":\"config-tampered\"}"; restore_checkpoint; break
+  fi
+
+  echo "├░┼©ÔÇØ┬¼ Running verification gate..."
+  if run_gate "$CONFIG"; then
+    echo "├░┼©┼©┬ó Gate green."
+    [ "$(cfg '.loop.commitOnGreen')" = "true" ] && commit_iteration "$i"
+    [ "$(cfg '.loop.tagOnGreen')" = "true" ]    && tag_iteration "$i" "$RUN_ID"
+    clear_checkpoint
+    green_uf=false; [ "${INVOKE_PHASE_USED_FALLBACK:-0}" = "1" ] && green_uf=true
+    ledger "{\"iter\":$i,\"result\":\"green\",\"path\":\"${INVOKE_PHASE_PATH:-}\",\"usedFallback\":$green_uf}"
+    GREEN_COUNT=$((GREEN_COUNT+1))
+    # Inferential judge, wired in: every N green iterations a fresh-context reviewer audits the batch.
+    if [ "$REVIEW_EVERY_N" -gt 0 ] && [ "$(cfg '.loop.commitOnGreen')" = "true" ] && [ $((GREEN_COUNT % REVIEW_EVERY_N)) 
+-eq 0 ]; then
+      if periodic_review "$REVIEW_BASE" "$RUN_DIR" "$i"; then
+        REVIEW_BASE="$(git rev-parse HEAD)"   # advance the watermark past the reviewed batch
+      else
+        ledger "{\"iter\":$i,\"result\":\"review-stop\"}"; break
+      fi
+    fi
+  else
+    echo "├░┼©ÔÇØ┬┤ Gate red: $GATE_FAILED_STEP"
+    red_uf=false; [ "${INVOKE_PHASE_USED_FALLBACK:-0}" = "1" ] && red_uf=true
+    ledger "{\"iter\":$i,\"result\":\"red\",\"failedStep\":\"$GATE_FAILED_STEP\",\"path\":\"${INVOKE_PHASE_PATH:-}\",\"usedF
+allback\":$red_uf}"
+    if [ "$(cfg '.loop.autoRollbackOnRed')" = "true" ]; then
+      echo "├óÔÇá┬®  Rolling back to keep the tree green."; restore_checkpoint
+    else
+      echo "   autoRollbackOnRed=false ├óÔé¼ÔÇØ leaving tree for inspection. Stopping."; break
+    fi
+  fi
+done
+
+echo "├░┼©┬Å┬ü Loop finished after $i iteration(s). Logs + ledger: $RUN_DIR"
+echo "   Next: run /review for a fresh-context QA pass before you trust this."
+
+
+ succeeded in 1948ms:
+#!/usr/bin/env pwsh
+#requires -Version 5.1
+<#
+.SYNOPSIS
+  The configurable autonomy loop (Ralph-style, with guardrails).
+
+.DESCRIPTION
+  Stateless loop, stateful files. Each iteration pipes PROMPT.md into a fresh `claude` headless
+  session, then runs the verification gate. Green => commit (+tag). Red (or a gate error, or config
+  tampering) => roll back so the tree is never left broken. Bounded by maxIterations, a per-iteration
+  --max-turns, and a best-effort tokenBudget. Supervised pauses at checkpoints; auto runs unattended.
+
+  Config: harness/harness.config.json  (see harness.schema.json for fields)
+
+  Runs commands through cmd on Windows and bash elsewhere, so this works under pwsh on Unix too.
+  Do NOT edit the working tree while the loop runs ÔÇö rollback uses `git reset --hard`/`git clean -fd`.
+
+.EXAMPLE
+  powershell harness/loop.ps1                            # Windows PowerShell 5.1
+  powershell harness/loop.ps1 -Mode auto -MaxIterations 50
+  powershell harness/loop.ps1 -DryRun   # show what it would do; never invokes the model
+  # On PowerShell 7 or Unix, use `pwsh harness/loop.ps1` instead.
+#>
+[CmdletBinding()]
+param(
+  [ValidateSet('supervised', 'auto')] [string] $Mode,
+  [int] $MaxIterations,
+  [string] $ProjectRoot,
+  [switch] $DryRun
+)
+
+$ErrorActionPreference = 'Stop'
+Set-StrictMode -Version Latest
+# Prompts are piped to `claude` via STDIN (see the invocation notes below). Under Windows PowerShell 5.1
+# the default $OutputEncoding for native pipes is ASCII ÔÇö pin UTF-8 so PROMPT.md's non-ASCII survives.
+$OutputEncoding = New-Object System.Text.UTF8Encoding($false)
+
+# --- locate engine, project root & config -------------------------------------
+# Engine files (this script + lib/) resolve off $PSScriptRoot. PROJECT files (config, runtime, git)
+# resolve off $ProjectRoot ÔÇö a DISTINCT location once this engine ships from an installed plugin dir.
+# Discovery: -ProjectRoot wins; else the git top-level of the current dir; else the current dir. In the
+# in-repo layout the two roots coincide (harness/ sits one level under the repo), so paths are unchanged.
+if (-not $ProjectRoot) {
+  $prevEAP = $ErrorActionPreference; $ErrorActionPreference = 'Continue'
+  try { $top = (& git rev-parse --show-toplevel 2>$null | Select-Object -First 1) } catch { $top = $null }
+  finally { $ErrorActionPreference = $prevEAP }
+  if ($top) { $ProjectRoot = "$top".Trim() } else { $ProjectRoot = (Get-Location).Path }
+}
+$ProjectRoot = (Resolve-Path $ProjectRoot).Path
+$RepoRoot = $ProjectRoot
+Set-Location $RepoRoot
+$HarnessDir = Join-Path $ProjectRoot 'harness'   # per-project config + gitignored runtime (.runs, etc.)
+$ConfigPath = Join-Path $HarnessDir 'harness.config.json'
+if (-not (Test-Path $ConfigPath)) { throw "Missing $ConfigPath. Run /harness-init first." }
+$cfg = Get-Content $ConfigPath -Raw | ConvertFrom-Json
+
+# CLI overrides win over config file
+if ($Mode)          { $cfg.autonomy.mode = $Mode }
+if ($PSBoundParameters.ContainsKey('MaxIterations')) { $cfg.autonomy.maxIterations = $MaxIterations }
+
+. (Join-Path $PSScriptRoot 'lib/gate.ps1')        # also provides Get-Prop (StrictMode-safe accessor)
+. (Join-Path $PSScriptRoot 'lib/checkpoint.ps1')
+. (Join-Path $PSScriptRoot 'lib/budget.ps1')
+. (Join-Path $PSScriptRoot 'lib/invoke-codex.ps1')   # codex invocation (Test-CodexAvailable, Invoke-Codex) ÔÇö 
+dispatch.ps1 builds on it
+. (Join-Path $PSScriptRoot 'lib/dispatch.ps1')       # Invoke-Phase: primary->fallback dispatcher (after gate + 
+invoke-codex)
+
+$runId  = Get-LoopRunId -RunsDir (Join-Path $HarnessDir '.runs')   # atomically claims <project>/harness/.runs/<runId>/ 
+(mkdir-as-mutex)
+$runDir = Join-Path $HarnessDir ('.runs/' + $runId)
+New-Item -ItemType Directory -Force -Path $runDir | Out-Null
+$ledgerPath = Join-Path $runDir 'ledger.jsonl'
+# Per-run state files: two concurrent runs must not share a rollback ref or a budget tally.
+Set-CheckpointFile (Join-Path $runDir '.checkpoint')
+Set-BudgetFile     (Join-Path $runDir '.budget.json')
+Reset-Budget   # tokenBudget is a per-run cap, not a lifetime counter
+
+# Tamper-pin: the agent must not rewrite its own gate/policy. We hash the config at start and abort an
+# iteration whose run changed it (settings.json also denies writes to it; this is the belt to that braces).
+function Get-ConfigHash { (Get-FileHash $ConfigPath -Algorithm SHA256).Hash }
+$configHash0 = Get-ConfigHash
+
+function Write-Ledger($obj) { ($obj | ConvertTo-Json -Compress) | Add-Content -Path $ledgerPath -Encoding utf8 }
+
+function Confirm-Checkpoint([string]$label) {
+  if ($cfg.autonomy.mode -eq 'auto') { return $true }   # auto never blocks
+  Write-Host "`nÔÅ©  Checkpoint: $label" -ForegroundColor Yellow
+  # Read-Host throws under -NonInteractive / closed stdin ÔÇö treat that as "no" (stop cleanly), matching
+  # loop.sh's /dev/tty-EOF fallback, instead of dying mid-run with an unhandled exception.
+  $ans = ''
+  try { $ans = Read-Host "   Continue? [y/N]" } catch { Write-Host "   (non-interactive: treating as No)" -ForegroundColor 
+DarkGray; return $false }
+  return ($ans -match '^(y|yes)$')
+}
+
+function Get-OpenItemCount {
+  $planFile = Get-Prop (Get-Prop $cfg 'loop') 'planFile'; if (-not $planFile) { $planFile = 'state/fix_plan.md' }
+  $plan = Join-Path $RepoRoot $planFile
+  if (-not (Test-Path $plan)) { return 0 }
+  return @(Select-String -Path $plan -Pattern '^\s*[-*]\s+\[ \]' -ErrorAction SilentlyContinue).Count
+}
+
+# Periodic inferential judge: spawn a fresh-context reviewer over every commit since $Base (the last
+# review watermark, or the run's starting HEAD). "doer != judge", wired into the unattended loop.
+# Hardened: (1) the reviewer runs READ-ONLY (--disallowedTools + a hard reset afterward) so a judge can
+# never mutate the artifact it's judging and slip past the gate; (2) it FAILS CLOSED ÔÇö only an explicit
+# VERDICT: SHIP continues the loop; REJECT, a truncated run, a crash, or an empty result all stop for a
+# human. NOTE (honest limitation): this review is DIFF-ONLY ÔÇö it can read code + git but is not granted
+# the tools to run the app, so it can't gather fresh e2e evidence itself (see ROADMAP).
+# Returns $true to continue; $false to stop the loop for human attention.
+function Invoke-PeriodicReview {
+  param([string]$Base, [string]$RunDir, [int]$Iter, [string]$Fallback, [string]$Route, $CodexCfg)
+  $head = "$(& git rev-parse HEAD)".Trim()
+  if ($Base -eq $head) { Write-Host "  (periodic review: no new commits since last review)" -ForegroundColor DarkGray; 
+return $true }
+  Write-Host "ƒºæÔÇìÔÜû´©Å  Periodic fresh-context review of commits $(_Short $Base)..$(_Short $head)..." -ForegroundColor 
+Cyan
+  $reviewPrompt = @"
+You are a FRESH-CONTEXT REVIEWER (the harness 'reviewer' role ÔÇö see .claude/agents/reviewer.md). You
+have NO memory of how this code was written; judge only the artifact. You are READ-ONLY ÔÇö do not edit,
+write, or commit anything.
+
+1. Inspect the batch:  git log --oneline $Base..HEAD   and   git diff $Base..HEAD
+2. Judge it against specs/ (acceptance criteria) and docs/principles/ (golden principles): correctness
+   vs spec, evidence quality, guardrails (no weakened/deleted tests, no edited specs, no destructive
+   ops/secrets), architectural drift, needless complexity.
+3. List findings as  file:line ÔÇö problem ÔÇö concrete fix. Report ONLY findings that affect correctness
+   vs the spec, evidence integrity, or the guardrails. Do NOT manufacture style/architecture
+   suggestions to justify the review ÔÇö a reviewer told to find problems always will, and invented
+   findings cause over-engineering churn. "No findings" is a valid outcome: SHIP it.
+
+Finish with EXACTLY ONE final line and nothing after it:
+VERDICT: SHIP     (the batch is sound)
+VERDICT: REJECT   (anything is wrong ÔÇö default to REJECT when unsure)
+"@
+  $reviewLog = Join-Path $RunDir ("review-after-$Iter.log")
+  # Route the judge through the cross-vendor dispatcher (Invoke-Phase, READ-ONLY): -Primary is the
+  # resolved review model (e.g. 'codex' => codex read-only sandbox; a claude alias => that reviewer; '' =>
+  # inherit), -Fallback the S1b-symmetric claude reviewer model. Net effect: the review path now ALSO
+  # falls back to the claude reviewer on a codex USAGE-LIMIT (not just pre-invocation unavailability),
+  # while preserving the unavailable->claude path. Disallowed tools as SEPARATE args (a space-joined
+  # string is one never-matching pattern); Bash stays enabled ÔÇö the reviewer needs `git log`/`git diff`;
+  # the hard reset below undoes any mutation. Prompt via STDIN (PS 5.1 mangles embedded quotes).
+  $phase = Invoke-Phase -Mode 'read-only' -Prompt $reviewPrompt -RepoRoot $RepoRoot -LogPath $reviewLog `
+                        -Primary $Route -Fallback $Fallback -CodexCfg $CodexCfg -MaxTurns 20 `
+                        -ClaudeExtraArgs @('--disallowedTools', 'Edit', 'Write', 'MultiEdit', 'NotebookEdit')
+  $reviewPath = if ($phase.Path) { $phase.Path } else { 'claude' }
+  $invokeOk = [bool]$phase.Ok; $out = "$($phase.Output)"
+  # A judge must not mutate the artifact: restore the tree to exactly the reviewed HEAD, no matter what.
+  # (Codex ran in a read-only sandbox, but belt + braces ÔÇö identical to the claude path.)
+  & git reset --hard $head *> $null
+  & git clean -fd *> $null
+  if (-not $invokeOk) {
+    Write-Host "  ! review invocation failed ($reviewPath) ÔÇö failing closed (stopping for human)." -ForegroundColor Red
+    Write-Ledger @{ iter = $Iter; result = 'review'; path = $reviewPath; verdict = 'ERROR' }
+    Write-Reject-Handoff -Reason "review could not run ($reviewPath)" -Base $Base -Head $head -Iter $Iter -Log $reviewLog
+    return $false
+  }
+  # Fail-closed verdict parse: only the LAST line starting with VERDICT: counts (Get-ReviewVerdict in
+  # lib/gate.ps1). A preamble like "I cannot give VERDICT: SHIP" must never pass the batch.
+  $verdict = Get-ReviewVerdict $out
+  Write-Ledger @{ iter = $Iter; result = 'review'; path = $reviewPath; verdict = "$verdict" }
+  if ($verdict -eq 'SHIP') {
+    Write-Host "  ­ƒƒó Periodic review: SHIP." -ForegroundColor Green
+    & git tag -f harness-reviewed $head *> $null   # watermark for a later /review: everything up to here is reviewed
+    return $true
+  }
+  $reason = if ($verdict -eq 'REJECT') { 'REJECT' } else { 'no clear SHIP verdict (fail-closed)' }
+  Write-Host "  ­ƒö┤ Periodic review: $reason. Stopping for human attention." -ForegroundColor Red
+  Write-Reject-Handoff -Reason $reason -Base $Base -Head $head -Iter $Iter -Log $reviewLog
+  return $false
+}
+
+function Write-Reject-Handoff {
+  param([string]$Reason, [string]$Base, [string]$Head, [int]$Iter, [string]$Log)
+  $note = "`n## Needs human decision ÔÇö periodic review: $Reason ($(_Short $Base)..$(_Short $Head), iter $Iter)`n" +
+          "The fresh-context reviewer did not return SHIP. Findings: $Log. Inspect before continuing the loop.`n"
+  Add-Content -Path (Join-Path $RepoRoot 'state/handoff.md') -Value $note -Encoding utf8
+}
+
+# Does any gate (component or root) define an e2e step? Used to warn honestly about unit-green commits.
+function Test-AnyE2E {
+  $comps = @(Get-Prop $cfg 'components')
+  foreach ($c in $comps) { if (Get-Prop (Get-Prop $c 'gate') 'e2e') { return $true } }
+  if (Get-Prop (Get-Prop $cfg 'gate') 'e2e') { return $true }
+  return $false
+}
+
+# --- preflight -----------------------------------------------------------------
+Assert-CleanGitTree   # refuse to start on a dirty tree / no-HEAD repo
+# Get-Prop throughout: a trimmed config (project without type, verification pruned) must degrade to
+# defaults under StrictMode, not throw PropertyNotFoundException at preflight.
+$projType = Get-Prop (Get-Prop $cfg 'project') 'type'; if (-not $projType) { $projType = 'greenfield' }
+$maxTurns = Get-Prop $cfg.autonomy 'maxTurnsPerIteration'; if (-not $maxTurns) { $maxTurns = 40 }
+$reviewEveryN = Get-Prop (Get-Prop $cfg 'verification') 'reviewEveryNIterations'; if (-not $reviewEveryN) { $reviewEveryN = 
+0 }
+# Per-phase model routing (config.models). '' = inherit the ambient CLI default (pre-routing behavior).
+$implementModel      = Resolve-PhaseModel $cfg 'implement'
+$implementFallback   = Resolve-PhaseFallback $cfg 'implement'     # cross-vendor fallback (e.g. 'codex'); '' = none
+$reviewRoute         = Resolve-PhaseModel $cfg 'review'            # 'codex' | claude alias/ID | ''
+$reviewFallback      = Resolve-PhaseFallback $cfg 'review'         # S1b: symmetric with the reviewFallback pseudo-phase
+$codexCfg            = Get-Prop (Get-Prop $cfg 'models') 'codex'
+$modelLabel = if ($implementModel) { $implementModel } else { 'inherit' }
+Write-Host "ƒöº Harness loop | type=$projType | mode=$($cfg.autonomy.mode) | maxIter=$($cfg.autonomy.maxIterations) | 
+maxTurns=$maxTurns | model=$modelLabel | budget=$($cfg.autonomy.tokenBudget)" -ForegroundColor Cyan
+
+if ($cfg.autonomy.mode -eq 'auto' -and (Get-Prop (Get-Prop $cfg 'verification') 'requireE2EEvidence') -and -not 
+(Test-AnyE2E)) {
+  Write-Host "ÔÜá´©Å  auto mode + requireE2EEvidence, but no e2e gate step is configured. The loop will commit on" 
+-ForegroundColor Yellow
+  Write-Host "    unit-green only. Add an e2e command to a component/root gate, or run /review periodically." 
+-ForegroundColor Yellow
+}
+
+if ($projType -eq 'brownfield') {
+  $baselineOk = $false
+  if ($cfg.project -and ($cfg.project.PSObject.Properties.Name -contains 'baseline') -and $cfg.project.baseline) {
+    $baselineOk = [bool]$cfg.project.baseline.established
+  }
+  if (-not $baselineOk) {
+    Write-Host "ÔÜá´©Å  Brownfield project with NO established green baseline. Run /onboard first." -ForegroundColor Yellow
+    if (-not (Confirm-Checkpoint "Continue without an established baseline?")) { return }
+  }
+  if ($cfg.autonomy.mode -eq 'auto') {
+    Write-Host "ÔÜá´©Å  AUTO mode on a BROWNFIELD codebase. The auto-loop is designed for greenfield; on existing" 
+-ForegroundColor Red
+    Write-Host "    code it risks wide, subtle regressions. Supervised + small isolated tasks is recommended." 
+-ForegroundColor Red
+    if (-not (Confirm-Checkpoint "Run full-auto on an existing codebase anyway?")) { return }
+  }
+}
+
+if ($cfg.autonomy.mode -eq 'auto' -and (Get-Prop $cfg.autonomy 'skipPermissions')) {
+  Write-Host "ÔÜá´©Å  AUTO + skipPermissions: the model runs UNATTENDED with permission prompts disabled." -ForegroundColor 
+Red
+  Write-Host "    The deny-list (incl. secrets) is VOID in this mode ÔÇö run inside a sandbox/container." -ForegroundColor 
+Red
+  if (-not (Confirm-Checkpoint "Proceed with unattended skip-permissions run?")) { return }
+} else {
+  # Headless children can't answer permission prompts: any Bash command NOT in permissions.allow is
+  # auto-denied, so if the gate commands aren't allowlisted the agent can't run Phase 3 of PROMPT.md
+  # and burns iterations editing blind. /harness-init appends them; remind here in case it didn't.
+  Write-Host "Ôä╣´©Å  Headless runs auto-deny non-allowlisted commands. Ensure the gate commands (test/build/lint)" 
+-ForegroundColor DarkGray
+  Write-Host "    are in .claude/settings.json permissions.allow (/harness-init adds them)." -ForegroundColor DarkGray
+}
+
+# Sandbox guard: full-auto runs UNATTENDED. The destructive-command deny-list is defense-in-depth, not a
+# sandbox, so honestly warn (not block ÔÇö Confirm-Checkpoint is a no-op in auto by design) when auto runs
+# outside a recognized isolation profile. Test-Sandboxed lives in lib/gate.ps1 (already dot-sourced above).
+if ($cfg.autonomy.mode -eq 'auto' -and -not (Test-Sandboxed)) {
+  Write-Host ""
+  Write-Host "ÔÜá´©Å  AUTO mode but NOT in a recognized SANDBOX. This run is full-auto and UNATTENDED." -ForegroundColor Red
+  Write-Host "    Unattended auto should run inside the documented isolation profile (container/devcontainer or" 
+-ForegroundColor Red
+  Write-Host "    WSL2-native FS), not directly on your host. The destructive-command deny-list is defense-in-" 
+-ForegroundColor Red
+  Write-Host "    depth, NOT a sandbox ÔÇö and --dangerously-skip-permissions voids it entirely." -ForegroundColor Red
+  Write-Host "    See docs/sandboxing.md. Mark a sandbox explicitly with:  `$env:HARNESS_SANDBOX = '1'" -ForegroundColor Red
+  Write-Host ""
+}
+
+# Lock specs/ for the duration of the run: the protect-specs PreToolUse hook (inherited by the headless
+# claude child) blocks edits under specs/ while this is set. The loop must never rewrite the contract.
+$env:HARNESS_LOCK_SPECS = '1'
+
+# Resolve optional loop/autonomy keys via Get-Prop so a trimmed config (e.g. after /harness-prune) can't
+# crash the loop under StrictMode ÔÇö it degrades to the same defaults loop.sh uses.
+$loopCfg          = Get-Prop $cfg 'loop'
+$promptFile       = Get-Prop $loopCfg 'promptFile'; if (-not $promptFile) { $promptFile = 'PROMPT.md' }
+$stopWhenEmpty    = [bool](Get-Prop $loopCfg 'stopWhenPlanEmpty')
+$commitOnGreen    = [bool](Get-Prop $loopCfg 'commitOnGreen')
+$tagOnGreen       = [bool](Get-Prop $loopCfg 'tagOnGreen')
+$autoRollback     = [bool](Get-Prop $loopCfg 'autoRollbackOnRed')
+$tokenBudget      = Get-Prop $cfg.autonomy 'tokenBudget'
+$everyNIterations = Get-Prop (Get-Prop $cfg.autonomy 'checkpoints') 'everyNIterations'; if (-not $everyNIterations) { 
+$everyNIterations = 0 }
+
+$prompt = Get-Content (Join-Path $RepoRoot $promptFile) -Raw
+$i = 0
+$greenCount = 0
+$reviewBaseRef = "$(& git rev-parse HEAD)".Trim()   # periodic-review watermark: commits after this are unreviewed
+while ($i -lt $cfg.autonomy.maxIterations) {
+  $i++
+  if ($stopWhenEmpty -and (Get-OpenItemCount) -eq 0) {
+    Write-Host "Ô£à fix_plan.md has no open items. Nothing to do ÔÇö stopping." -ForegroundColor Green
+    break
+  }
+  if ($null -ne $tokenBudget -and (Test-BudgetExceeded $tokenBudget)) {
+    Write-Host "­ƒÆ© Token budget (estimate) exhausted ÔÇö stopping." -ForegroundColor Yellow
+    break
+  }
+  $nEvery = $everyNIterations
+  if ($nEvery -gt 0 -and ($i % $nEvery) -eq 0) {
+    if (-not (Confirm-Checkpoint "Reached iteration $i")) { break }
+  }
+
+  Write-Host "`nÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ iteration $i / $($cfg.autonomy.maxIterations) ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ" 
+-ForegroundColor Cyan
+  $iterLog = Join-Path $runDir ("iter-$i.log")
+
+  if ($DryRun) {
+    $dryModel = if ($implementModel) { " --model $implementModel" } else { '' }
+    Write-Host "[dry-run] would pipe PROMPT.md into: claude -p --max-turns $maxTurns$dryModel ; then run the gate." 
+-ForegroundColor DarkGray
+    break
+  }
+
+  New-Checkpoint -Label "pre-iter-$i"
+
+  # --- invoke the implement phase through the cross-vendor dispatcher (Invoke-Phase) ---
+  # The prompt goes via STDIN (Windows PowerShell 5.1 corrupts embedded quotes in native args); the
+  # dispatcher's claude arm pipes it in (the documented `cat file | claude -p` pattern) and Tee's the
+  # transcript to $iterLog. Extra args mirror today's conditions: skip-permissions under auto+
+  # skipPermissions, JSON output when metering. Do NOT add --bare ÔÇö the loop DEPENDS on hook/CLAUDE.md/
+  # skill discovery (CLI docs say --bare becomes the -p default later; pin/revisit then, see ROADMAP).
+  # The dispatcher runs $implementModel (primary) and, ONLY on codex-unavailability or a usage-limit
+  # failure, the $implementFallback ÔÇö hard-resetting the tree to this iteration's base ($baseRef) before
+  # a write-phase fallback (a usage-limited primary may have left a partial tree). A generic (non-usage)
+  # failure returns as failure and is handled exactly as today: roll back + continue.
+  $extra = @()
+  if ($cfg.autonomy.mode -eq 'auto' -and (Get-Prop $cfg.autonomy 'skipPermissions')) { $extra += 
+'--dangerously-skip-permissions' }
+  if (Get-Prop $cfg.autonomy 'meterTokens') { $extra += @('--output-format', 'json') }   # exact usage
+  $baseRef = "$(& git rev-parse HEAD)".Trim()   # clean tree here (New-Checkpoint asserts it): the fallback reset target
+  $phase = Invoke-Phase -Mode 'workspace-write' -Prompt $prompt -RepoRoot $RepoRoot -LogPath $iterLog `
+                        -Primary $implementModel -Fallback $implementFallback -CodexCfg $codexCfg `
+                        -ResetRef $baseRef -MaxTurns $maxTurns -ClaudeExtraArgs $extra
+  if (-not $phase.Ok) {
+    $reason = if ($phase.Reason) { $phase.Reason } else { 'invoke-failed' }
+    Write-Host "ÔØî implement phase failed (path=$($phase.Path); reason=$reason) ÔÇö treating the iteration as failed." 
+-ForegroundColor Red
+    Write-Ledger @{ iter = $i; result = 'invoke-error'; reason = "$reason"; path = "$($phase.Path)"; usedFallback = 
+[bool]$phase.UsedFallback }
+    Restore-Checkpoint; continue
+  }
+  Update-BudgetFromLog -LogPath $iterLog   # the dispatcher wrote the transcript to $iterLog
+
+  # --- tamper check: the agent must not have rewritten its own gate/policy ---
+  if ((Get-ConfigHash) -ne $configHash0) {
+    Write-Host "ƒøæ harness.config.json changed during the iteration (gate/policy tampering?). Rolling back and stopping." 
+-ForegroundColor Red
+    Write-Ledger @{ iter = $i; result = 'config-tampered' }
+    Restore-Checkpoint; break
+  }
+
+  # --- the gate (each component in its dir, then the cross-cutting root gate) ---
+  Write-Host "­ƒö¼ Running verification gate..." -ForegroundColor Cyan
+  try {
+    $gateResult = Invoke-ProjectGate -Config $cfg -RepoRoot $RepoRoot
+  } catch {
+    Write-Host "ÔØî Gate errored: $_  ÔÇö rolling back (never leave a broken tree)." -ForegroundColor Red
+    Write-Ledger @{ iter = $i; result = 'gate-error'; error = "$_" }
+    Restore-Checkpoint; continue
+  }
+
+  if ($gateResult.Passed) {
+    Write-Host "­ƒƒó Gate green." -ForegroundColor Green
+    if ($commitOnGreen) { Commit-Iteration -Index $i }
+    if ($tagOnGreen)    { Tag-Iteration -Index $i -RunId $runId }
+    Clear-Checkpoint
+    Write-Ledger @{ iter = $i; result = 'green'; committed = $commitOnGreen; path = "$($phase.Path)"; usedFallback = 
+[bool]$phase.UsedFallback }
+    $greenCount++
+    # Inferential judge, wired in: every N green iterations a fresh-context reviewer audits the batch.
+    if ($reviewEveryN -gt 0 -and $commitOnGreen -and ($greenCount % $reviewEveryN) -eq 0) {
+      if (Invoke-PeriodicReview -Base $reviewBaseRef -RunDir $runDir -Iter $i -Fallback $reviewFallback -Route $reviewRoute 
+-CodexCfg $codexCfg) {
+        $reviewBaseRef = "$(& git rev-parse HEAD)".Trim()   # advance the watermark past the reviewed batch
+      } else {
+        Write-Ledger @{ iter = $i; result = 'review-stop' }
+        break
+      }
+    }
+  } else {
+    Write-Host "­ƒö┤ Gate red: [$($gateResult.Component)] $($gateResult.FailedStep)." -ForegroundColor Red
+    Write-Ledger @{ iter = $i; result = 'red'; component = "$($gateResult.Component)"; failedStep = 
+"$($gateResult.FailedStep)"; path = "$($phase.Path)"; usedFallback = [bool]$phase.UsedFallback }
+    if ($autoRollback) {
+      Write-Host "Ôå®  Rolling back to keep the tree green." -ForegroundColor Yellow
+      Restore-Checkpoint
+    } else {
+      Write-Host "   autoRollbackOnRed=false ÔÇö leaving the tree as-is for inspection. Stopping." -ForegroundColor Yellow
+      break
+    }
+  }
+}
+
+Remove-Item Env:HARNESS_LOCK_SPECS -ErrorAction SilentlyContinue   # don't leak the spec-lock if dot-sourced
+Write-Host "`n­ƒÅü Loop finished after $i iteration(s). Logs + ledger: $runDir" -ForegroundColor Cyan
+Write-Host "   Next: run /review for a fresh-context QA pass before you trust this." -ForegroundColor DarkGray
+
+
+ succeeded in 1945ms:
+<#
+  gate.ps1 ÔÇö the verification gate.
+  The harness defines WHEN the gate runs; the stack profile (merged into each component's gate) defines
+  WHAT each step is. A null/absent step is skipped. "Silent success, verbose failure": we only surface
+  output on failure so the loop's context isn't flooded with green noise.
+
+  Multi-component aware: each component's gate runs in that component's own directory; a cross-cutting
+  root gate (config.gate) then runs from the repo root. Any failure short-circuits and is reported with
+  the component + step that failed.
+
+  Robustness notes:
+   - StrictMode-safe property access (a gate object may legitimately omit keys ÔÇö the schema allows it,
+     and /harness-prune may trim config). Missing key => treated as null => skipped, never a crash.
+   - Cross-platform: gate commands run through cmd on Windows and bash elsewhere, so loop.ps1 works
+     under pwsh on Unix too (not just Windows PowerShell).
+#>
+
+# StrictMode-safe: return a property's value or $null if the property is absent.
+function Get-Prop($obj, [string]$name) {
+  if ($null -eq $obj) { return $null }
+  $p = $obj.PSObject.Properties[$name]
+  if ($p) { return $p.Value } else { return $null }
+}
+
+# Parse a fresh-context reviewer's verdict from its output: SHIP | REJECT | NONE. FAIL-CLOSED on
+# purpose: only the LAST line that STARTS with VERDICT: counts ÔÇö a preamble mentioning "VERDICT: SHIP"
+# mid-reasoning ("I cannot give VERDICT: SHIP") must never pass a batch. Lives here (not in loop.ps1)
+# so the self-tests can exercise it.
+function Get-ReviewVerdict([string]$Text) {
+  if (-not $Text) { return 'NONE' }
+  $line = @($Text -split "`r?`n" | Where-Object { $_ -match '^\s*VERDICT:' }) | Select-Object -Last 1
+  if (-not $line) { return 'NONE' }
+  if ($line -match '^\s*VERDICT:\s*SHIP(\s|$)')   { return 'SHIP' }
+  if ($line -match '^\s*VERDICT:\s*REJECT(\s|$)') { return 'REJECT' }
+  return 'NONE'
+}
+
+# Per-phase model routing: resolve config.models.<phase> to its PRIMARY model string (trimmed), or ''
+# when null/absent (= inherit the CLI's ambient default ÔÇö the pre-routing behavior, and what a config
+# trimmed by /harness-prune degrades to). Tolerant of BOTH shapes: the new nested {model, fallback}
+# object AND the legacy flat 'phase':'alias' string (so deployed configs keep working). Callers in
+# loop/fleet still read the PRIMARY through this, so their behavior is unchanged by the migration.
+# SPECIAL CASE: the pseudo-phase 'reviewFallback' (still asked for by the review path) resolves to
+# review.fallback (nested) or the legacy top-level models.reviewFallback. Lives here (not in loop.ps1)
+# so the self-tests exercise it; mirror of phase_model in gate.sh.
+function Resolve-PhaseModel($Config, [string]$Phase) {
+  $models = Get-Prop $Config 'models'
+  if ($Phase -eq 'reviewFallback') {
+    $review = Get-Prop $models 'review'
+    if ($null -ne $review -and $review -isnot [string]) {
+      $rf = Get-Prop $review 'fallback'
+      if ($null -ne $rf) { return ("$rf").Trim() }
+    }
+    $legacy = Get-Prop $models 'reviewFallback'
+    if ($null -ne $legacy) { return ("$legacy").Trim() }
+    return ''
+  }
+  $m = Get-Prop $models $Phase
+  if ($null -eq $m) { return '' }
+  if ($m -is [string]) { return $m.Trim() }        # legacy flat form
+  $primary = Get-Prop $m 'model'                    # nested {model, fallback}
+  if ($null -eq $primary) { return '' }
+  return ("$primary").Trim()
+}
+
+# Per-phase FALLBACK model: resolve config.models.<phase>.fallback to a model string (trimmed), or ''
+# when there is none. Tolerant of both shapes: the nested {model, fallback} object returns its .fallback;
+# a legacy flat string has no per-phase fallback. Mirror of phase_fallback in gate.sh.
+# SPECIAL CASE review (S1b): must be SYMMETRIC with Resolve-PhaseModel('reviewFallback') ÔÇö resolve to
+# review.fallback if non-null, ELSE the legacy top-level models.reviewFallback if non-null, ELSE '' ÔÇö for
+# the nested-null, flat-string, AND absent-review shapes alike. Without this, a mixed config (nested
+# review:{model,fallback:null} + legacy top-level reviewFallback) had the two accessors disagree.
+function Resolve-PhaseFallback($Config, [string]$Phase) {
+  $models = Get-Prop $Config 'models'
+  $m = Get-Prop $models $Phase
+  if ($Phase -eq 'review') {
+    if ($null -ne $m -and $m -isnot [string]) {      # nested review.fallback wins when non-null
+      $fb = Get-Prop $m 'fallback'
+      if ($null -ne $fb) { return ("$fb").Trim() }
+    }
+    $legacy = Get-Prop $models 'reviewFallback'      # else the legacy top-level (symmetry with reviewFallback pseudo-phase)
+    if ($null -ne $legacy) { return ("$legacy").Trim() }
+    return ''
+  }
+  if ($null -eq $m) { return '' }
+  if ($m -is [string]) { return '' }                 # legacy flat form has no per-phase fallback
+  $fb = Get-Prop $m 'fallback'                        # nested {model, fallback}
+  if ($null -eq $fb) { return '' }
+  return ("$fb").Trim()
+}
+
+# Vendor-neutral usage/limit detector for the fallback dispatcher (S3 wires it; here it is a
+# standalone, unit-tested predicate). Detection is OUTPUT-based today: no vendor publishes a stable
+# rate-limit *exit code* we can trust, so $ExitCode is accepted for forward-compat (S3's dispatcher
+# passes it) but not yet decisive. Markers are matched case-insensitively. The bare "429" marker is
+# scoped to an http/status/error/code context so a stray "429 tokens" in normal output can't trigger
+# a false fallback (which, once wired to a WRITE phase, would discard a good build).
+function Test-UsageLimitError {
+  param([string]$Output, $ExitCode = $null)
+  if ([string]::IsNullOrEmpty($Output)) { return $false }
+  if ($Output -imatch 'usage[ _-]?limit|rate[ _-]?limit|quota|overloaded|too many requests') { return $true }
+  if ($Output -imatch '(http|status|error|code)[^\r\n0-9]{0,6}429') { return $true }
+  return $false
+}
+
+# Sandbox detection for unattended `auto` runs. Mirror of is_sandboxed in gate.sh; lives here (not in
+# loop.ps1) so the self-tests can exercise it. Contract: the env var HARNESS_SANDBOX is the EXPLICIT,
+# cross-platform signal and ALWAYS wins when it is SET ÔÇö truthy (1/true/yes, case-insensitive) =>
+# sandboxed; anything else (0/false/no/empty) => NOT sandboxed, even inside a container. Only when
+# HARNESS_SANDBOX is UNSET do we auto-detect common container markers (ANY present => sandboxed).
+# Returns [bool]. On Windows the /proc and /.dockerenv probes simply won't match ÔÇö the PS runner is the
+# host case and the env var is the portable contract.
+function Test-Sandboxed {
+  $explicit = [Environment]::GetEnvironmentVariable('HARNESS_SANDBOX')   # $null when unset, '' when set-empty
+  if ($null -ne $explicit) {
+    return (@('1','true','yes') -contains $explicit.Trim().ToLowerInvariant())
+  }
+  if (Test-Path '/.dockerenv') { return $true }                          # docker
+  if (Test-Path '/run/.containerenv') { return $true }                   # podman
+  $cs = [Environment]::GetEnvironmentVariable('CODESPACES')
+  if ($cs -and (@('1','true','yes') -contains $cs.Trim().ToLowerInvariant())) { return $true }
+  if ([Environment]::GetEnvironmentVariable('REMOTE_CONTAINERS')) { return $true }   # VS Code dev containers
+  if ([Environment]::GetEnvironmentVariable('DEVCONTAINER'))      { return $true }   # devcontainer spec
+  if ([Environment]::GetEnvironmentVariable('container'))         { return $true }   # systemd-nspawn / podman
+  if (Test-Path '/proc/1/cgroup') {
+    try {
+      $cg = Get-Content '/proc/1/cgroup' -Raw -ErrorAction SilentlyContinue
+      if ($cg -match 'docker|containerd|lxc|kubepods') { return $true }
+    } catch {}
+  }
+  return $false
+}
+
+function Invoke-GateStep([string]$name, [string]$cmd, [string]$workDir) {
+  if ([string]::IsNullOrWhiteSpace([string]$cmd)) { return $true }   # null/absent = skip
+  Write-Host "  - $name : $cmd" -ForegroundColor DarkGray
+  Push-Location $workDir
+  # CRITICAL: drop $ErrorActionPreference to 'Continue' around the native call. The caller runs under
+  # 'Stop', where a native command that writes to STDERR ÔÇö even on exit 0 (pytest/eslint/pnpm progress
+  # and deprecation lines are routine) ÔÇö gets wrapped in a NativeCommandError and raised as terminating
+  # BEFORE $LASTEXITCODE is read. That would misclassify a green step as a gate error and roll it back.
+  $prevEAP = $ErrorActionPreference; $ErrorActionPreference = 'Continue'
+  try {
+    if ($env:OS -eq 'Windows_NT') { $out = & cmd /c $cmd 2>&1 }       # Windows shell
+    else                          { $out = & bash -lc $cmd 2>&1 }     # pwsh on Unix/macOS/CI
+    $code = $LASTEXITCODE
+  } finally { $ErrorActionPreference = $prevEAP; Pop-Location }
+  if ($code -ne 0) {
+    Write-Host "    x $name failed (exit $code) in $workDir :" -ForegroundColor Red
+    $out | Select-Object -Last 40 | ForEach-Object { Write-Host "      $_" -ForegroundColor Red }
+    return $false
+  }
+  return $true
+}
+
+# Run one gate object (format->lint->typecheck->build->test->e2e) in $WorkingDir, labelled $Label.
+function Invoke-Gate {
+  param([Parameter(Mandatory)] $Gate, [string]$WorkingDir = (Get-Location).Path, [string]$Label = '')
+  $steps = [ordered]@{
+    format    = (Get-Prop $Gate 'format')
+    lint      = (Get-Prop $Gate 'lint')
+    typecheck = (Get-Prop $Gate 'typecheck')
+    build     = (Get-Prop $Gate 'build')
+    test      = (Get-Prop $Gate 'test')
+    e2e       = (Get-Prop $Gate 'e2e')
+  }
+  foreach ($name in $steps.Keys) {
+    if (-not (Invoke-GateStep $name $steps[$name] $WorkingDir)) {
+      return [pscustomobject]@{ Passed = $false; FailedStep = $name; Component = $Label }
+    }
+  }
+  return [pscustomobject]@{ Passed = $true; FailedStep = $null; Component = $Label }
+}
+
+# Run the WHOLE project gate: every component (in its own dir) then the root cross-cutting gate.
+function Invoke-ProjectGate {
+  param([Parameter(Mandatory)] $Config, [string]$RepoRoot = (Get-Location).Path)
+  $components = @(Get-Prop $Config 'components')
+  $rootGate = Get-Prop $Config 'gate'
+  if (-not $components -or $components.Count -eq 0) {
+    # Back-compat: no components defined ÔÇö treat top-level gate as a single root component.
+    return (Invoke-Gate -Gate $rootGate -WorkingDir $RepoRoot -Label 'root')
+  }
+  foreach ($c in $components) {
+    $cPath = [string](Get-Prop $c 'path'); if (-not $cPath) { $cPath = '.' }
+    $cName = [string](Get-Prop $c 'name'); if (-not $cName) { $cName = $cPath }
+    $dir = Join-Path $RepoRoot $cPath
+    if (-not (Test-Path $dir)) {
+      # FAIL, don't skip: a configured component whose directory is missing is config drift, and a
+      # skipped gate would report green without running anything (fail-open).
+      Write-Host "  x component '$cName' path missing: $dir" -ForegroundColor Red
+      return [pscustomobject]@{ Passed = $false; FailedStep = 'path-missing'; Component = $cName }
+    }
+    Write-Host "  [$cName] gate ($cPath)" -ForegroundColor Cyan
+    $r = Invoke-Gate -Gate (Get-Prop $c 'gate') -WorkingDir $dir -Label $cName
+    if (-not $r.Passed) { return $r }
+  }
+  # Cross-cutting root gate (usually just e2e for multi-component projects).
+  if ($rootGate) {
+    $hasAny = @($rootGate.PSObject.Properties | Where-Object { $_.Name -ne '_comment' -and $_.Value }).Count -gt 0
+    if ($hasAny) {
+      Write-Host "  [root] cross-cutting gate" -ForegroundColor Cyan
+      $r = Invoke-Gate -Gate $rootGate -WorkingDir $RepoRoot -Label 'root(cross-cutting)'
+      if (-not $r.Passed) { return $r }
+    }
+  }
+  return [pscustomobject]@{ Passed = $true; FailedStep = $null; Component = $null }
+}
+
+
+ succeeded in 1964ms:
+#!/usr/bin/env bash
+# gate.sh ├óÔé¼ÔÇØ the verification gate (bash mirror of gate.ps1).
+# Harness defines WHEN; each component's gate (+ a cross-cutting root gate) defines WHAT. null => skip.
+# Multi-component aware: each component runs in its own dir; root gate runs from repo root last.
+# Silent success, verbose failure. Sets GATE_FAILED_STEP="<component>:<step>" on failure.
+GATE_FAILED_STEP=""
+
+# Parse a fresh-context reviewer's verdict from stdin: echoes SHIP | REJECT | NONE. FAIL-CLOSED on
+# purpose: only the LAST line that STARTS with VERDICT: counts ├óÔé¼ÔÇØ a preamble mentioning "VERDICT: SHIP"
+# mid-reasoning must never pass a batch. Mirror of Get-ReviewVerdict in gate.ps1; lives here so the
+# self-tests can exercise it.
+review_verdict() {
+  local line
+  line="$(grep -E '^[[:space:]]*VERDICT:' | tail -1 || true)"
+  if printf '%s' "$line" | grep -qE '^[[:space:]]*VERDICT:[[:space:]]*SHIP([[:space:]]|$)'; then echo SHIP
+  elif printf '%s' "$line" | grep -qE '^[[:space:]]*VERDICT:[[:space:]]*REJECT([[:space:]]|$)'; then echo REJECT
+  else echo NONE; fi
+}
+
+# Per-phase model routing: echo config.models.<phase>'s PRIMARY model, or "" when null/absent (= inherit
+# the CLI's ambient default ├óÔé¼ÔÇØ the pre-routing behavior, and what a config trimmed by /harness-prune
+# degrades to). Tolerant of BOTH shapes: the new nested {model, fallback} object AND the legacy flat
+# 'phase':'alias' string. SPECIAL CASE 'reviewFallback' (a pseudo-phase the review path still asks for):
+# resolves to review.fallback (nested) or the legacy top-level models.reviewFallback.
+# Mirror of Resolve-PhaseModel in gate.ps1; lives here so the self-tests can exercise it.
+phase_model() {  # $1 config path  $2 phase
+  local config="$1" p="$2"
+  if [ "$p" = "reviewFallback" ]; then
+    jq -r '
+      (.models.review) as $r
+      | if ($r|type) == "object" and $r.fallback != null then $r.fallback
+        elif .models.reviewFallback != null then .models.reviewFallback
+        else "" end' "$config"
+    return
+  fi
+  jq -r --arg p "$p" '
+    (.models[$p]) as $m
+    | if ($m|type) == "object" then ($m.model // "")
+      elif ($m|type) == "string" then $m
+      else "" end' "$config"
+}
+
+# Per-phase FALLBACK model: echo config.models.<phase>.fallback, or "" when there is none. Nested
+# {model, fallback} returns its .fallback; a legacy flat string has no per-phase fallback.
+# Mirror of Resolve-PhaseFallback in gate.ps1.
+# SPECIAL CASE review (S1b): must be SYMMETRIC with phase_model reviewFallback ├óÔé¼ÔÇØ review.fallback if
+# non-null, else the legacy top-level models.reviewFallback if non-null, else "" ├óÔé¼ÔÇØ for the nested-null,
+# flat-string, AND absent-review shapes alike (a mixed config had the two accessors disagree otherwise).
+phase_fallback() {  # $1 config path  $2 phase
+  local config="$1" p="$2"
+  if [ "$p" = "review" ]; then
+    jq -r '
+      (.models.review) as $r
+      | if ($r|type) == "object" and $r.fallback != null then $r.fallback
+        elif .models.reviewFallback != null then .models.reviewFallback
+        else "" end' "$config"
+    return
+  fi
+  jq -r --arg p "$p" '
+    (.models[$p]) as $m
+    | if ($m|type) == "object" then ($m.fallback // "")
+      else "" end' "$config"
+}
+
+# Vendor-neutral usage/limit detector (mirror of Test-UsageLimitError). Output-based; $2 exit code is
+# reserved for forward-compat (S3 passes it) and not yet decisive. bash 3.2 / BSD-grep safe (no \b).
+usage_limit_error() {  # $1 output text  $2 exit code (reserved) ; return 0 if a usage/limit marker present
+  local out="$1"
+  printf '%s' "$out" | grep -qiE 'usage[ _-]?limit|rate[ _-]?limit|quota|overloaded|too many requests' && return 0
+  printf '%s' "$out" | grep -qiE '(http|status|error|code)[^0-9]{0,6}429' && return 0
+  return 1
+}
+
+# Sandbox detection for unattended `auto` runs. Mirror of Test-Sandboxed in gate.ps1; lives here so the
+# self-tests can exercise it. Contract: the env var HARNESS_SANDBOX is the EXPLICIT, cross-platform signal
+# and ALWAYS wins when it is SET ├óÔé¼ÔÇØ truthy (1/true/yes, case-insensitive) => sandboxed; anything else
+# (0/false/no/empty) => NOT sandboxed, even inside a container. Only when HARNESS_SANDBOX is UNSET do we
+# auto-detect common container markers (ANY present => sandboxed). Returns 0 (sandboxed) / 1 (not).
+# On Windows/pwsh the /proc and /.dockerenv probes simply won't match ├óÔé¼ÔÇØ the env var is the portable
+# contract there (the PS runner is the host case).
+is_sandboxed() {
+  if [ -n "${HARNESS_SANDBOX+x}" ]; then          # SET (even to empty) => the explicit signal wins
+    case "$(printf '%s' "${HARNESS_SANDBOX}" | tr '[:upper:]' '[:lower:]')" in
+      1|true|yes) return 0 ;;
+      *)          return 1 ;;
+    esac
+  fi
+  [ -f /.dockerenv ] && return 0                  # docker
+  [ -f /run/.containerenv ] && return 0           # podman
+  case "$(printf '%s' "${CODESPACES:-}" | tr '[:upper:]' '[:lower:]')" in 1|true|yes) return 0 ;; esac
+  [ -n "${REMOTE_CONTAINERS:-}" ] && return 0     # VS Code dev containers
+  [ -n "${DEVCONTAINER:-}" ] && return 0          # devcontainer spec
+  [ -n "${container:-}" ] && return 0             # systemd-nspawn / podman
+  if [ -f /proc/1/cgroup ] && grep -qE 'docker|containerd|lxc|kubepods' /proc/1/cgroup 2>/dev/null; then
+    return 0
+  fi
+  return 1
+}
+
+_gate_step() {  # $1 name  $2 cmd  $3 workdir
+  local name="$1" cmd="$2" workdir="$3"
+  { [ "$cmd" = "null" ] || [ -z "$cmd" ]; } && return 0
+  echo "  - $name : $cmd"
+  local out; out="$(cd "$workdir" && bash -lc "$cmd" 2>&1)" && return 0
+  echo "    x $name failed in $workdir:"
+  echo "$out" | tail -n 40 | sed 's/^/      /'
+  return 1
+}
+
+# Run one gate object given a jq path prefix (e.g. '.components[0].gate' or '.gate') in $2 workdir, label $3.
+_gate_set() {  # $1 config  $2 jqpath  $3 workdir  $4 label
+  local config="$1" jqpath="$2" workdir="$3" label="$4" name cmd
+  for name in format lint typecheck build test e2e; do
+    cmd="$(jq -r "${jqpath}.${name} // empty" "$config")"
+    if ! _gate_step "$name" "$cmd" "$workdir"; then GATE_FAILED_STEP="${label}:${name}"; return 1; fi
+  done
+  return 0
+}
+
+run_gate() {  # $1 = config path ; $REPO_ROOT must be set ; sets GATE_FAILED_STEP on failure
+  local config="$1" n i name path label
+  n="$(jq -r '.components | length' "$config" 2>/dev/null || echo 0)"
+  if [ "$n" = "0" ] || [ "$n" = "null" ]; then
+    _gate_set "$config" ".gate" "$REPO_ROOT" "root" || return 1
+    return 0
+  fi
+  i=0
+  while [ "$i" -lt "$n" ]; do
+    # Default a null/absent path to "." (parity with gate.ps1) instead of testing a dir literally
+    # named "null" and silently skipping the component's gate (fail-open green on a malformed config).
+    name="$(jq -r ".components[$i].name // .components[$i].path // \".\"" "$config")"
+    path="$(jq -r ".components[$i].path // \".\"" "$config")"
+    echo "  [$name] gate ($path)"
+    if [ ! -d "$REPO_ROOT/$path" ]; then
+      # FAIL, don't skip: a configured component whose directory is missing is config drift, and a
+      # skipped gate would report green without running anything (fail-open).
+      echo "  x component '$name' path missing: $path"
+      GATE_FAILED_STEP="${name}:path-missing"; return 1
+    fi
+    _gate_set "$config" ".components[$i].gate" "$REPO_ROOT/$path" "$name" || return 1
+    i=$((i+1))
+  done
+  # cross-cutting root gate, if any non-null step ((.gate // {}) guards a null/absent gate)
+  if [ "$(jq -r '[(.gate // {}) | to_entries[] | select(.key != "_comment") | .value] | map(select(. != null and . != "")) 
+| length' "$config")" != "0" ]; then
+    echo "  [root] cross-cutting gate"
+    _gate_set "$config" ".gate" "$REPO_ROOT" "root(cross-cutting)" || return 1
+  fi
+  return 0
+}
+
+
+codex
+The core predicates mostly follow the intended shape. IÔÇÖm checking the edge cases now: set-vs-unset env handling, marker 
+semantics, and whether the templateÔÇÖs claimed security properties are actually delivered by Dev Container behavior.
+exec
+"C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command '$env:HARNESS_SANDBOX='"''; 
+"'$v=[Environment]::GetEnvironmentVariable('"'HARNESS_SANDBOX'); if ("'$null -eq $v) { '"'NULL' } else { 'VALUE:[' + "'$v + 
+'"'] Length=' + "'$v.Length }; Remove-Item Env:HARNESS_SANDBOX -ErrorAction SilentlyContinue' in 
+C:\Users\james\Repos\harness
+exec
+"C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command '$i=1; Get-Content 
+plugin/engine/templates/devcontainer.json | ForEach-Object { '"'{0,4}: {1}' -f "'$i++, $_ }' in C:\Users\james\Repos\harness
+exec
+"C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command '$i=1; Get-Content docs/sandboxing.md | 
+ForEach-Object { '"'{0,4}: {1}' -f "'$i++, $_ } | Select-String -Pattern 
+'"'CODESPACES|REMOTE_CONTAINERS|postCreateCommand|workspaceMount|localEnv|read-only|warning|HARNESS_SANDBOX'" in 
+C:\Users\james\Repos\harness
+exec
+"C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command '$i=1; Get-Content plugin/engine/lib/gate.sh | 
+ForEach-Object { '"'{0,4}: {1}' -f "'$i++, $_ } | Select-String -Pattern 
+'"'is_sandboxed|CODESPACES|REMOTE_CONTAINERS|DEVCONTAINER|container|HARNESS_SANDBOX|dockerenv|cgroup' -Context 0,0" in 
+C:\Users\james\Repos\harness
+exec
+"C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command '$i=1; Get-Content plugin/engine/lib/gate.ps1 | 
+ForEach-Object { '"'{0,4}: {1}' -f "'$i++, $_ } | Select-String -Pattern '"'function 
+Test-Sandboxed|CODESPACES|REMOTE_CONTAINERS|DEVCONTAINER|container|Test-Path|Get-Content' -Context 0,0" in 
+C:\Users\james\Repos\harness
+2026-07-15T16:52:29.492405Z ERROR codex_core::tools::router: error=Exit code: 1
+Wall time: 0.4 seconds
+Output:
+NULL
+
+ exited 1 in 383ms:
+NULL
+
+ succeeded in 381ms:
+   1: {
+   2:   "name": "lean-agent-harness (unattended auto)",
+   3:   "image": "mcr.microsoft.com/devcontainers/base:ubuntu",
+   4:   "features": {
+   5:     "ghcr.io/devcontainers/features/github-cli:1": {},
+   6:     "ghcr.io/devcontainers/features/node:1": {}
+   7:   },
+   8:   "containerEnv": {
+   9:     "HARNESS_SANDBOX": "1"
+  10:   },
+  11:   "remoteEnv": {
+  12:     "ANTHROPIC_API_KEY": "${localEnv:ANTHROPIC_API_KEY}",
+  13:     "CODEX_API_KEY": "${localEnv:CODEX_API_KEY}"
+  14:   },
+  15:   "workspaceMount": "source=harness-workspace,target=/workspace,type=volume",
+  16:   "workspaceFolder": "/workspace",
+  17:   "postCreateCommand": "chmod -R a-w specs 2>/dev/null || true"
+  18: }
+
+ succeeded in 488ms:
+
+  75: # self-tests can exercise it. Contract: the env var HARNESS_SANDBOX is the EXPLICIT, cross-platform signal
+  77: # (0/false/no/empty) => NOT sandboxed, even inside a container. Only when HARNESS_SANDBOX is UNSET do we
+  78: # auto-detect common container markers (ANY present => sandboxed). Returns 0 (sandboxed) / 1 (not).
+  79: # On Windows/pwsh the /proc and /.dockerenv probes simply won't match ├óÔé¼ÔÇØ the env var is the portable
+  81: is_sandboxed() {
+  82:   if [ -n "${HARNESS_SANDBOX+x}" ]; then          # SET (even to empty) => the explicit signal wins
+  83:     case "$(printf '%s' "${HARNESS_SANDBOX}" | tr '[:upper:]' '[:lower:]')" in
+  88:   [ -f /.dockerenv ] && return 0                  # docker
+  89:   [ -f /run/.containerenv ] && return 0           # podman
+  90:   case "$(printf '%s' "${CODESPACES:-}" | tr '[:upper:]' '[:lower:]')" in 1|true|yes) return 0 ;; esac
+  91:   [ -n "${REMOTE_CONTAINERS:-}" ] && return 0     # VS Code dev containers
+  92:   [ -n "${DEVCONTAINER:-}" ] && return 0          # devcontainer spec
+  93:   [ -n "${container:-}" ] && return 0             # systemd-nspawn / podman
+  94:   if [ -f /proc/1/cgroup ] && grep -qE 'docker|containerd|lxc|kubepods' /proc/1/cgroup 2>/dev/null; then
+
+
+
+ succeeded in 497ms:
+
+  25: warning (it does **not** block ├óÔé¼ÔÇØ in `auto` there is no human to confirm, so a warning is the honest
+  29: **`HARNESS_SANDBOX` is the explicit, cross-platform contract and always wins when set:**
+  31: | `HARNESS_SANDBOX` | Result |
+  37: When `HARNESS_SANDBOX` is **unset**, the predicate auto-detects common container markers ├óÔé¼ÔÇØ **any** present
+  42: - `CODESPACES` is truthy (GitHub Codespaces)
+  43: - `REMOTE_CONTAINERS` is set (VS Code Dev Containers)
+  50: > `export HARNESS_SANDBOX=1` (after cloning into the WSL-native FS ├óÔé¼ÔÇØ see Profile B). This is deliberate:
+  60: - **`containerEnv.HARNESS_SANDBOX = "1"`** ├óÔé¼ÔÇØ the loop recognizes the container as a sandbox, so no warning.
+  61: - **Volume workspace, no host bind** ├óÔé¼ÔÇØ `workspaceMount` uses a named Docker **volume**
+  64: - **`specs/` read-only** ├óÔé¼ÔÇØ `postCreateCommand` runs `chmod -R a-w specs`, belt-and-braces with the loop's
+  67:   **host** env with `${localEnv:...}`. They are never written into the image or committed.
+  83: 3. Opt in to the sandbox contract: `export HARNESS_SANDBOX=1` (put it in your shell profile for the run).
+  90: ## The warning you'll see outside a profile
+  92: Run `auto` on your bare host (no `HARNESS_SANDBOX`, no container markers) and the loop prints, before the
+ 100:     See docs/sandboxing.md. Mark a sandbox explicitly with:  export HARNESS_SANDBOX=1
+
+
+
+ succeeded in 495ms:
+
+ 109: # sandboxed; anything else (0/false/no/empty) => NOT sandboxed, even inside a container. Only when
+ 110: # HARNESS_SANDBOX is UNSET do we auto-detect common container markers (ANY present => sandboxed).
+ 113: function Test-Sandboxed {
+ 118:   if (Test-Path '/.dockerenv') { return $true }                          # docker
+ 119:   if (Test-Path '/run/.containerenv') { return $true }                   # podman
+ 120:   $cs = [Environment]::GetEnvironmentVariable('CODESPACES')
+ 122:   if ([Environment]::GetEnvironmentVariable('REMOTE_CONTAINERS')) { return $true }   # VS Code dev containers
+ 123:   if ([Environment]::GetEnvironmentVariable('DEVCONTAINER'))      { return $true }   # devcontainer spec
+ 124:   if ([Environment]::GetEnvironmentVariable('container'))         { return $true }   # systemd-nspawn / podman
+ 125:   if (Test-Path '/proc/1/cgroup') {
+ 127:       $cg = Get-Content '/proc/1/cgroup' -Raw -ErrorAction SilentlyContinue
+ 128:       if ($cg -match 'docker|containerd|lxc|kubepods') { return $true }
+ 188:     if (-not (Test-Path $dir)) {
+
+
+
+codex
+IÔÇÖve found one contract-level mismatch in marker detection. IÔÇÖm doing one last pass over the tests and template so the 
+verdict reflects only requirement bugs, not incidental style.
+exec
+"C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command '$i=1; Get-Content harness/tests/run-tests.sh | 
+ForEach-Object { '"'{0,4}: {1}' -f "'$i++, $_ } | Select-String -Pattern '"'sandbox predicate|HARNESS_SANDBOX|unset \\+ no 
+container|devcontainer' -Context 0,0" in C:\Users\james\Repos\harness
+exec
+"C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command '$i=1; Get-Content plugin/engine/loop.ps1 | 
+ForEach-Object { '"'{0,4}: {1}' -f "'$i++, $_ } | Select-String -Pattern '"'Sandbox 
+guard|autonomy.mode.*auto|Test-Sandboxed|docs/sandboxing' -Context 0,0" in C:\Users\james\Repos\harness
+exec
+"C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command '$i=1; Get-Content plugin/engine/loop.sh | 
+ForEach-Object { '"'{0,4}: {1}' -f "'$i++, $_ } | Select-String -Pattern '"'Sandbox 
+guard|MODE.*auto|is_sandboxed|docs/sandboxing' -Context 0,0" in C:\Users\james\Repos\harness
+exec
+"C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command '$i=1; Get-Content harness/tests/run-tests.ps1 | 
+ForEach-Object { '"'{0,4}: {1}' -f "'$i++, $_ } | Select-String -Pattern '"'sandbox predicate|HARNESS_SANDBOX|unset \\+ no 
+markers|devcontainer' -Context 0,0" in C:\Users\james\Repos\harness
+ succeeded in 417ms:
+
+  84:   if ($cfg.autonomy.mode -eq 'auto') { return $true }   # auto never blocks
+ 198: Write-Host "­ƒöº Harness loop | type=$projType | mode=$($cfg.autonomy.mode) | 
+maxIter=$($cfg.autonomy.maxIterations) | maxTurns=$maxTurns | model=$modelLabel | budget=$($cfg.autonomy.tokenBudget)" 
+-ForegroundColor Cyan
+ 200: if ($cfg.autonomy.mode -eq 'auto' -and (Get-Prop (Get-Prop $cfg 'verification') 'requireE2EEvidence') -and -not 
+(Test-AnyE2E)) {
+ 214:   if ($cfg.autonomy.mode -eq 'auto') {
+ 221: if ($cfg.autonomy.mode -eq 'auto' -and (Get-Prop $cfg.autonomy 'skipPermissions')) {
+ 233: # Sandbox guard: full-auto runs UNATTENDED. The destructive-command deny-list is defense-in-depth, not a
+ 235: # outside a recognized isolation profile. Test-Sandboxed lives in lib/gate.ps1 (already dot-sourced above).
+ 236: if ($cfg.autonomy.mode -eq 'auto' -and -not (Test-Sandboxed)) {
+ 242:   Write-Host "    See docs/sandboxing.md. Mark a sandbox explicitly with:  `$env:HARNESS_SANDBOX = '1'" 
+-ForegroundColor Red
+ 302:   if ($cfg.autonomy.mode -eq 'auto' -and (Get-Prop $cfg.autonomy 'skipPermissions')) { $extra += 
+'--dangerously-skip-permissions' }
+
+
+
+ succeeded in 419ms:
+
+  69: echo "sandbox predicate: HARNESS_SANDBOX contract + auto-detect (is_sandboxed, gate.sh)"
+  71: ( export HARNESS_SANDBOX=1;     is_sandboxed ) && ok 1 "HARNESS_SANDBOX=1 => sandboxed"        || ok 0 
+"HARNESS_SANDBOX=1 => sandboxed"
+  72: ( export HARNESS_SANDBOX=true;  is_sandboxed ) && ok 1 "HARNESS_SANDBOX=true => sandboxed"     || ok 0 
+"HARNESS_SANDBOX=true => sandboxed"
+  73: ( export HARNESS_SANDBOX=yes;   is_sandboxed ) && ok 1 "HARNESS_SANDBOX=yes => sandboxed"      || ok 0 
+"HARNESS_SANDBOX=yes => sandboxed"
+  74: ( export HARNESS_SANDBOX=YES;   is_sandboxed ) && ok 1 "HARNESS_SANDBOX=YES => sandboxed (case-insensitive)" || 
+ok 0 "HARNESS_SANDBOX=YES => sandboxed (case-insensitive)"
+  75: ( export HARNESS_SANDBOX=0;     is_sandboxed ) && ok 0 "HARNESS_SANDBOX=0 => NOT sandboxed"    || ok 1 
+"HARNESS_SANDBOX=0 => NOT sandboxed"
+  76: ( export HARNESS_SANDBOX=false; is_sandboxed ) && ok 0 "HARNESS_SANDBOX=false => NOT sandboxed" || ok 1 
+"HARNESS_SANDBOX=false => NOT sandboxed"
+  78: ( export HARNESS_SANDBOX=0 CODESPACES=true REMOTE_CONTAINERS=1; is_sandboxed ) && ok 0 "explicit 0 beats 
+markers" || ok 1 "explicit 0 beats markers"
+  79: # Unset + no container markers on this dev/CI host => NOT sandboxed. Scrub every marker in the subshell so
+  81: ( unset HARNESS_SANDBOX CODESPACES REMOTE_CONTAINERS DEVCONTAINER container; is_sandboxed ) && ok 0 "unset + no 
+markers => NOT sandboxed" || ok 1 "unset + no markers => NOT sandboxed"
+ 335:   # devcontainer template: must be STRICT JSON (a project copies it to .devcontainer/devcontainer.json)
+ 336:   # and must mark itself a sandbox so the loop recognizes it (containerEnv.HARNESS_SANDBOX == "1").
+ 337:   dcfile="$ENGINE/templates/devcontainer.json"
+ 338:   ok "$([ -f "$dcfile" ] && jq empty "$dcfile" >/dev/null 2>&1 && echo 1 || echo 0)" "devcontainer.json is 
+strict JSON (jq parses, no comments)"
+ 339:   ok "$([ "$(jq -r '.containerEnv.HARNESS_SANDBOX' "$dcfile" 2>/dev/null)" = "1" ] && echo 1 || echo 0)" 
+"devcontainer sets HARNESS_SANDBOX=1"
+ 340:   ok "$([ "$(jq -r '.workspaceMount' "$dcfile" 2>/dev/null)" = 
+"source=harness-workspace,target=/workspace,type=volume" ] && echo 1 || echo 0)" "devcontainer uses a volume workspace 
+(no host FS bind)"
+
+
+
+ succeeded in 435ms:
+
+   8: # Usage: bash harness/loop.sh [--mode supervised|auto] [--max N] [--dry-run]
+  43: MODE="$(cfg '.autonomy.mode')"
+  78:   [ "$MODE" = "auto" ] && return 0
+ 185: if [ "$MODE" = "auto" ] && [ "$(cfg '.verification.requireE2EEvidence')" = "true" ] && ! any_e2e; then
+ 195:   if [ "$MODE" = "auto" ]; then
+ 196:     echo "├ó┼í┬á├»┬©┬Å  AUTO mode on a BROWNFIELD codebase. The auto-loop is designed for greenfield; on existing"
+ 201: if [ "$MODE" = "auto" ] && [ "$SKIP_PERMS" = "true" ]; then
+ 213: # Sandbox guard: full-auto runs UNATTENDED. The destructive-command deny-list is defense-in-depth, not a
+ 215: # outside a recognized isolation profile. is_sandboxed lives in lib/gate.sh (already sourced above).
+ 216: if [ "$MODE" = "auto" ] && ! is_sandboxed; then
+ 218:   echo "├ó┼í┬á├»┬©┬Å  AUTO mode but NOT in a recognized SANDBOX. This run is full-auto and UNATTENDED."
+ 222:   echo "    See docs/sandboxing.md. Mark a sandbox explicitly with:  export HARNESS_SANDBOX=1"
+ 263:   if [ "$MODE" = "auto" ] && [ "$SKIP_PERMS" = "true" ]; then 
+INVOKE_PHASE_CLAUDE_ARGS+=(--dangerously-skip-permissions); fi
+
+
+
+ succeeded in 445ms:
+
+ 128: Write-Host "sandbox predicate: HARNESS_SANDBOX contract + auto-detect (Test-Sandboxed, gate.ps1)"
+ 129: # Save/restore HARNESS_SANDBOX around each case in a finally so no state leaks into the rest of the suite.
+ 130: $sbSaved = $env:HARNESS_SANDBOX
+ 132:   $env:HARNESS_SANDBOX = '1';     ok "HARNESS_SANDBOX=1 => sandboxed"        (Test-Sandboxed)
+ 133:   $env:HARNESS_SANDBOX = 'true';  ok "HARNESS_SANDBOX=true => sandboxed"     (Test-Sandboxed)
+ 134:   $env:HARNESS_SANDBOX = 'yes';   ok "HARNESS_SANDBOX=yes => sandboxed"      (Test-Sandboxed)
+ 135:   $env:HARNESS_SANDBOX = 'YES';   ok "HARNESS_SANDBOX=YES => sandboxed (case-insensitive)" (Test-Sandboxed)
+ 136:   $env:HARNESS_SANDBOX = '0';     ok "HARNESS_SANDBOX=0 => NOT sandboxed"    (-not (Test-Sandboxed))
+ 137:   $env:HARNESS_SANDBOX = 'false'; ok "HARNESS_SANDBOX=false => NOT sandboxed" (-not (Test-Sandboxed))
+ 141:     $env:CODESPACES = 'true'; $env:HARNESS_SANDBOX = '0'
+ 145:   Remove-Item Env:HARNESS_SANDBOX -ErrorAction SilentlyContinue
+ 146:   ok "unset + no markers => NOT sandboxed" (-not (Test-Sandboxed))
+ 148:   if ($null -eq $sbSaved) { Remove-Item Env:HARNESS_SANDBOX -ErrorAction SilentlyContinue } else { 
+$env:HARNESS_SANDBOX = $sbSaved }
+ 151: Write-Host "sandbox template: devcontainer.json parses and marks itself a sandbox"
+ 152: $dcFile = Join-Path $engineDir 'templates/devcontainer.json'
+ 155: ok "devcontainer.json is valid JSON (ConvertFrom-Json)" ($null -ne $dcParsed)
+ 156: ok "devcontainer sets HARNESS_SANDBOX=1" ($null -ne $dcParsed -and $dcParsed.containerEnv.HARNESS_SANDBOX -eq 
+'1')
+ 157: ok "devcontainer uses a volume workspace (no host FS bind)" ($null -ne $dcParsed -and $dcParsed.workspaceMount 
+-eq 'source=harness-workspace,target=/workspace,type=volume')
+
+
+
+exec
+"C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command "Set-StrictMode -Version Latest; try { 'dock=' + 
+(Test-Path '/.dockerenv') } catch { 'dock threw: ' + "'$_.Exception.Message }; try { '"'run=' + (Test-Path 
+'/run/.containerenv') } catch { 'run threw: ' + "'$_.Exception.Message }; try { '"'proc=' + (Test-Path '/proc/1/cgroup') } 
+catch { 'proc threw: ' + "'$_.Exception.Message }' in C:\Users\james\Repos\harness
+exec
+"C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command "bash -lc 'set -u; HARNESS_SANDBOX= 
+CODESPACES=true; source plugin/engine/lib/gate.sh; if is_sandboxed; then echo sandboxed; else echo not; fi; unset 
+HARNESS_SANDBOX; CODESPACES=0; if is_sandboxed; then echo sandboxed-codespaces0; else echo not-codespaces0; fi'" in 
+C:\Users\james\Repos\harness
+ succeeded in 703ms:
+dock=False
+run=False
+proc=False
+
+2026-07-15T16:53:38.204642Z ERROR codex_core::tools::router: error=Exit code: 1
+Wall time: 1 seconds
+Output:
+W i n d o w s   S u b s y s t e m   f o r   L i n u x   h a s   n o   i n s t a l l e d   d i s t r i b u t i o n s . 
+ 
+ Y o u   c a n   r e s o l v e   t h i s   b y   i n s t a l l i n g   a   d i s t r i b u t i o n   w i t h   t h e  
+ i n s t r u c t i o n s   b e l o w : 
+ 
+ 
+ 
+ U s e   ' w s l . e x e   - - l i s t   - - o n l i n e '   t o   l i s t   a v a i l a b l e   d i s t r i b u t i o n s 
+ 
+ a n d   ' w s l . e x e   - - i n s t a l l   < D i s t r o > '   t o   i n s t a l l . 
+ 
+ 
+ exited 1 in 1005ms:
+W i n d o w s   S u b s y s t e m   f o r   L i n u x   h a s   n o   i n s t a l l e d   d i s t r i b u t i o n s . 
+ 
+ Y o u   c a n   r e s o l v e   t h i s   b y   i n s t a l l i n g   a   d i s t r i b u t i o n   w i t h   t h e  
+ i n s t r u c t i o n s   b e l o w : 
+ 
+ 
+ 
+ U s e   ' w s l . e x e   - - l i s t   - - o n l i n e '   t o   l i s t   a v a i l a b l e   d i s t r i b u t i o n s 
+ 
+ a n d   ' w s l . e x e   - - i n s t a l l   < D i s t r o > '   t o   i n s t a l l . 
+ 
+ 
+codex
+**Findings**
+
+- [plugin/engine/lib/gate.sh:90](C:/Users/james/Repos/harness/plugin/engine/lib/gate.sh:90) and 
+[plugin/engine/lib/gate.ps1:120](C:/Users/james/Repos/harness/plugin/engine/lib/gate.ps1:120): auto-detect env markers do 
+not implement ÔÇ£any present => sandboxed.ÔÇØ `CODESPACES` is treated as truthy-only, and `REMOTE_CONTAINERS` / 
+`DEVCONTAINER` / `container` require non-empty values. The sprint contract says these marker env vars are presence markers 
+when `HARNESS_SANDBOX` is unset. Fix by testing set-ness/presence for all marker env vars, e.g. bash `${CODESPACES+x}` 
+etc., and PowerShell `$null -ne [Environment]::GetEnvironmentVariable(...)`.
+
+- [docs/sandboxing.md:42](C:/Users/james/Repos/harness/docs/sandboxing.md:42): the doc bakes in the same contract drift by 
+saying `CODESPACES` is ÔÇ£truthy.ÔÇØ It should match the sprint contract: when `HARNESS_SANDBOX` is unset, any listed 
+marker env var being present means sandboxed.
+
+Notes: the bash explicit override uses `${HARNESS_SANDBOX+x}`, which is the right way to distinguish unset from set-empty. 
+The loop guard is gated as `auto && !sandboxed` and is warn-only. The devcontainer file is strict JSON and uses a volume 
+workspace plus env-sourced secrets.
+
+VERDICT: REJECT
+tokens used
+65,166
+**Findings**
+
+- [plugin/engine/lib/gate.sh:90](C:/Users/james/Repos/harness/plugin/engine/lib/gate.sh:90) and [plugin/engine/lib/gate.ps1:120](C:/Users/james/Repos/harness/plugin/engine/lib/gate.ps1:120): auto-detect env markers do not implement ÔÇ£any present => sandboxed.ÔÇØ `CODESPACES` is treated as truthy-only, and `REMOTE_CONTAINERS` / `DEVCONTAINER` / `container` require non-empty values. The sprint contract says these marker env vars are presence markers when `HARNESS_SANDBOX` is unset. Fix by testing set-ness/presence for all marker env vars, e.g. bash `${CODESPACES+x}` etc., and PowerShell `$null -ne [Environment]::GetEnvironmentVariable(...)`.
+
+- [docs/sandboxing.md:42](C:/Users/james/Repos/harness/docs/sandboxing.md:42): the doc bakes in the same contract drift by saying `CODESPACES` is ÔÇ£truthy.ÔÇØ It should match the sprint contract: when `HARNESS_SANDBOX` is unset, any listed marker env var being present means sandboxed.
+
+Notes: the bash explicit override uses `${HARNESS_SANDBOX+x}`, which is the right way to distinguish unset from set-empty. The loop guard is gated as `auto && !sandboxed` and is warn-only. The devcontainer file is strict JSON and uses a volume workspace plus env-sourced secrets.
+
+VERDICT: REJECT
+

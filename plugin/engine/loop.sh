@@ -210,6 +210,19 @@ else
   echo "    are in .claude/settings.json permissions.allow (/harness-init adds them)."
 fi
 
+# Sandbox guard: full-auto runs UNATTENDED. The destructive-command deny-list is defense-in-depth, not a
+# sandbox, so honestly warn (not block — confirm_checkpoint is a no-op in auto by design) when auto runs
+# outside a recognized isolation profile. is_sandboxed lives in lib/gate.sh (already sourced above).
+if [ "$MODE" = "auto" ] && ! is_sandboxed; then
+  echo ""
+  echo "⚠️  AUTO mode but NOT in a recognized SANDBOX. This run is full-auto and UNATTENDED."
+  echo "    Unattended auto should run inside the documented isolation profile (container/devcontainer or"
+  echo "    WSL2-native FS), not directly on your host. The destructive-command deny-list is defense-in-"
+  echo "    depth, NOT a sandbox — and --dangerously-skip-permissions voids it entirely."
+  echo "    See docs/sandboxing.md. Mark a sandbox explicitly with:  export HARNESS_SANDBOX=1"
+  echo ""
+fi
+
 # Lock specs/ for the run: the protect-specs PreToolUse hook (inherited by the headless claude child)
 # blocks edits under specs/ while this is exported. The loop must never rewrite the contract.
 export HARNESS_LOCK_SPECS=1

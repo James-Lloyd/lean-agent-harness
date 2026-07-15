@@ -103,6 +103,38 @@ function Test-UsageLimitError {
   return $false
 }
 
+# Sandbox detection for unattended `auto` runs. Mirror of is_sandboxed in gate.sh; lives here (not in
+# loop.ps1) so the self-tests can exercise it. Contract: the env var HARNESS_SANDBOX is the EXPLICIT,
+# cross-platform signal and ALWAYS wins when it is SET — truthy (1/true/yes, case-insensitive) =>
+# sandboxed; anything else (0/false/no/empty) => NOT sandboxed, even inside a container. Only when
+# HARNESS_SANDBOX is UNSET do we auto-detect common container markers (ANY present => sandboxed).
+# Returns [bool]. On Windows the /proc and /.dockerenv probes simply won't match — the PS runner is the
+# host case and the env var is the portable contract.
+function Test-Sandboxed {
+  $explicit = [Environment]::GetEnvironmentVariable('HARNESS_SANDBOX')   # $null when unset, '' when set-empty
+  if ($null -ne $explicit) {
+    # Exact case-insensitive match, NO trimming — parity with bash (which does not trim), so a stray
+    # " true " resolves identically on both runners. Contract blesses only exact 1/true/yes.
+    return (@('1','true','yes') -contains $explicit.ToLowerInvariant())
+  }
+  if (Test-Path '/.dockerenv') { return $true }                          # docker
+  if (Test-Path '/run/.containerenv') { return $true }                   # podman
+  # Marker env vars are PRESENCE markers: a runtime SETS them to signal itself, so any one being set
+  # (even to empty) => sandboxed. GetEnvironmentVariable returns $null only when UNSET ('' when set-empty),
+  # so `$null -ne` is the set-ness test — matches bash ${VAR+x}. `container` holds a runtime NAME, not a bool.
+  if ($null -ne [Environment]::GetEnvironmentVariable('CODESPACES'))        { return $true }   # GitHub Codespaces
+  if ($null -ne [Environment]::GetEnvironmentVariable('REMOTE_CONTAINERS')) { return $true }   # VS Code dev containers
+  if ($null -ne [Environment]::GetEnvironmentVariable('DEVCONTAINER'))      { return $true }   # devcontainer spec
+  if ($null -ne [Environment]::GetEnvironmentVariable('container'))         { return $true }   # systemd-nspawn / podman
+  if (Test-Path '/proc/1/cgroup') {
+    try {
+      $cg = Get-Content '/proc/1/cgroup' -Raw -ErrorAction SilentlyContinue
+      if ($cg -match 'docker|containerd|lxc|kubepods') { return $true }
+    } catch {}
+  }
+  return $false
+}
+
 function Invoke-GateStep([string]$name, [string]$cmd, [string]$workDir) {
   if ([string]::IsNullOrWhiteSpace([string]$cmd)) { return $true }   # null/absent = skip
   Write-Host "  - $name : $cmd" -ForegroundColor DarkGray

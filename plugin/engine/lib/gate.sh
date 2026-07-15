@@ -71,6 +71,35 @@ usage_limit_error() {  # $1 output text  $2 exit code (reserved) ; return 0 if a
   return 1
 }
 
+# Sandbox detection for unattended `auto` runs. Mirror of Test-Sandboxed in gate.ps1; lives here so the
+# self-tests can exercise it. Contract: the env var HARNESS_SANDBOX is the EXPLICIT, cross-platform signal
+# and ALWAYS wins when it is SET — truthy (1/true/yes, case-insensitive) => sandboxed; anything else
+# (0/false/no/empty) => NOT sandboxed, even inside a container. Only when HARNESS_SANDBOX is UNSET do we
+# auto-detect common container markers (ANY present => sandboxed). Returns 0 (sandboxed) / 1 (not).
+# On Windows/pwsh the /proc and /.dockerenv probes simply won't match — the env var is the portable
+# contract there (the PS runner is the host case).
+is_sandboxed() {
+  if [ -n "${HARNESS_SANDBOX+x}" ]; then          # SET (even to empty) => the explicit signal wins
+    case "$(printf '%s' "${HARNESS_SANDBOX}" | tr '[:upper:]' '[:lower:]')" in
+      1|true|yes) return 0 ;;
+      *)          return 1 ;;
+    esac
+  fi
+  [ -f /.dockerenv ] && return 0                  # docker
+  [ -f /run/.containerenv ] && return 0           # podman
+  # Marker env vars are PRESENCE markers: a runtime SETS them to signal itself, so any one being set
+  # (even to empty) => sandboxed. Use ${VAR+x} (set-ness), NOT ${VAR:-} (non-empty) or a truthy test —
+  # `container` in particular holds a runtime NAME (e.g. "lxc"/"podman"), not a boolean.
+  [ -n "${CODESPACES+x}" ] && return 0            # GitHub Codespaces
+  [ -n "${REMOTE_CONTAINERS+x}" ] && return 0     # VS Code dev containers
+  [ -n "${DEVCONTAINER+x}" ] && return 0          # devcontainer spec
+  [ -n "${container+x}" ] && return 0             # systemd-nspawn / podman (value = runtime name)
+  if [ -f /proc/1/cgroup ] && grep -qE 'docker|containerd|lxc|kubepods' /proc/1/cgroup 2>/dev/null; then
+    return 0
+  fi
+  return 1
+}
+
 _gate_step() {  # $1 name  $2 cmd  $3 workdir
   local name="$1" cmd="$2" workdir="$3"
   { [ "$cmd" = "null" ] || [ -z "$cmd" ]; } && return 0

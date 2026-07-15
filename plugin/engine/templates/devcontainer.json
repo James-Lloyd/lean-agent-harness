@@ -1,0 +1,18 @@
+{
+  "name": "lean-agent-harness (unattended auto)",
+  "image": "mcr.microsoft.com/devcontainers/base:ubuntu",
+  "features": {
+    "ghcr.io/devcontainers/features/github-cli:1": {},
+    "ghcr.io/devcontainers/features/node:1": {}
+  },
+  "containerEnv": {
+    "HARNESS_SANDBOX": "1"
+  },
+  "remoteEnv": {
+    "ANTHROPIC_API_KEY": "${localEnv:ANTHROPIC_API_KEY}",
+    "CODEX_API_KEY": "${localEnv:CODEX_API_KEY}"
+  },
+  "workspaceMount": "source=harness-workspace,target=/workspace,type=volume",
+  "workspaceFolder": "/workspace",
+  "postCreateCommand": "chmod -R a-w specs 2>/dev/null || true"
+}

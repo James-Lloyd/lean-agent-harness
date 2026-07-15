@@ -66,6 +66,31 @@ usage_limit_error 'review complete VERDICT: SHIP' && ok 0 "clean output => false
 usage_limit_error 'processed 429 files'           && ok 0 "stray 429 => false"       || ok 1 "stray 429 => false"
 usage_limit_error ''                              && ok 0 "empty => false"           || ok 1 "empty => false"
 
+echo "sandbox predicate: HARNESS_SANDBOX contract + auto-detect (is_sandboxed, gate.sh)"
+# Each case runs in a SUBSHELL so the env var never leaks into the next case or the rest of the suite.
+( export HARNESS_SANDBOX=1;     is_sandboxed ) && ok 1 "HARNESS_SANDBOX=1 => sandboxed"        || ok 0 "HARNESS_SANDBOX=1 => sandboxed"
+( export HARNESS_SANDBOX=true;  is_sandboxed ) && ok 1 "HARNESS_SANDBOX=true => sandboxed"     || ok 0 "HARNESS_SANDBOX=true => sandboxed"
+( export HARNESS_SANDBOX=yes;   is_sandboxed ) && ok 1 "HARNESS_SANDBOX=yes => sandboxed"      || ok 0 "HARNESS_SANDBOX=yes => sandboxed"
+( export HARNESS_SANDBOX=YES;   is_sandboxed ) && ok 1 "HARNESS_SANDBOX=YES => sandboxed (case-insensitive)" || ok 0 "HARNESS_SANDBOX=YES => sandboxed (case-insensitive)"
+( export HARNESS_SANDBOX=0;     is_sandboxed ) && ok 0 "HARNESS_SANDBOX=0 => NOT sandboxed"    || ok 1 "HARNESS_SANDBOX=0 => NOT sandboxed"
+( export HARNESS_SANDBOX=false; is_sandboxed ) && ok 0 "HARNESS_SANDBOX=false => NOT sandboxed" || ok 1 "HARNESS_SANDBOX=false => NOT sandboxed"
+# Explicit falsy OVERRIDES any auto-detected marker: fake a docker-like cgroup env and assert 0 still wins.
+( export HARNESS_SANDBOX=0 CODESPACES=true REMOTE_CONTAINERS=1; is_sandboxed ) && ok 0 "explicit 0 beats markers" || ok 1 "explicit 0 beats markers"
+# Unset explicit signal + scrub env markers. The RESULT depends on the host: on a bare host => NOT
+# sandboxed; INSIDE a container (this task's own sandbox profile!) the filesystem markers (/.dockerenv,
+# cgroup) remain and CANNOT be unset, so the correct answer there is sandboxed. Branch on host bareness so
+# the suite passes both on a normal host AND inside the devcontainer/CI-container it ships.
+if [ ! -f /.dockerenv ] && [ ! -f /run/.containerenv ] \
+   && ! { [ -f /proc/1/cgroup ] && grep -qE 'docker|containerd|lxc|kubepods' /proc/1/cgroup 2>/dev/null; }; then
+  ( unset HARNESS_SANDBOX CODESPACES REMOTE_CONTAINERS DEVCONTAINER container; is_sandboxed ) && ok 0 "unset + no markers (bare host) => NOT sandboxed" || ok 1 "unset + no markers (bare host) => NOT sandboxed"
+else
+  ( unset HARNESS_SANDBOX CODESPACES REMOTE_CONTAINERS DEVCONTAINER container; is_sandboxed ) && ok 1 "unset env markers but host is a container => sandboxed (fs marker)" || ok 0 "unset env markers but host is a container => sandboxed (fs marker)"
+fi
+# Marker env vars are PRESENCE markers (any set => sandboxed), NOT truthy: CODESPACES=false is still present,
+# and `container` holds a runtime NAME. Scrub the other markers so each case isolates the one under test.
+( unset HARNESS_SANDBOX REMOTE_CONTAINERS DEVCONTAINER container; export CODESPACES=false; is_sandboxed ) && ok 1 "CODESPACES=false (present, not truthy) => sandboxed" || ok 0 "CODESPACES=false (present, not truthy) => sandboxed"
+( unset HARNESS_SANDBOX CODESPACES REMOTE_CONTAINERS DEVCONTAINER; export container=lxc; is_sandboxed ) && ok 1 "container=lxc (name value, present) => sandboxed" || ok 0 "container=lxc (name value, present) => sandboxed"
+
 echo "block-destructive hook: blocks dangerous, allows safe"
 hookrc() {  # $1 = command (no quotes/backslashes in our test inputs) ; echoes hook exit code
   printf '{"tool_name":"Bash","tool_input":{"command":"%s"}}' "$1" \
@@ -317,6 +342,13 @@ STUB
   ok "$([ "$rid" = "run-005" ] && echo 1 || echo 0)" "allocation claims the dir (2nd call => run-005, got '$rid')"
   rm -rf "$tmpruns"
   rm -f "$passcfg" "$failcfg" "$stderrcfg" "$blog"
+
+  # devcontainer template: must be STRICT JSON (a project copies it to .devcontainer/devcontainer.json)
+  # and must mark itself a sandbox so the loop recognizes it (containerEnv.HARNESS_SANDBOX == "1").
+  dcfile="$ENGINE/templates/devcontainer.json"
+  ok "$([ -f "$dcfile" ] && jq empty "$dcfile" >/dev/null 2>&1 && echo 1 || echo 0)" "devcontainer.json is strict JSON (jq parses, no comments)"
+  ok "$([ "$(jq -r '.containerEnv.HARNESS_SANDBOX' "$dcfile" 2>/dev/null)" = "1" ] && echo 1 || echo 0)" "devcontainer sets HARNESS_SANDBOX=1"
+  ok "$([ "$(jq -r '.workspaceMount' "$dcfile" 2>/dev/null)" = "source=harness-workspace,target=/workspace,type=volume" ] && echo 1 || echo 0)" "devcontainer uses a volume workspace (no host FS bind)"
 else
   echo "  (skipping jq-dependent gate/budget tests — jq not installed)"
 fi

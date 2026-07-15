@@ -157,3 +157,22 @@ hard-won operational facts (exact commands, environment quirks, "X looks broken 
   (fully-mapped mechanical change; the independent codex REVIEW still preserved the build/judge split).
   Watch for this — when a delegated worktree's HEAD doesn't match `main`, don't fight the tooling; either
   confirm the base is intentional or build inline. **Ratchet candidate** (see /work output).
+- [2026-07-15] **Sandbox detection for unattended `auto` runs** (`Test-Sandboxed`/`is_sandboxed` in
+  `plugin/engine/lib/gate.*`, loop guard in `loop.*`). Two lessons worth keeping: (a) **container-marker
+  env vars are PRESENCE markers, not truthy** — a runtime SETS `$container`/`$REMOTE_CONTAINERS`/etc. to
+  signal itself, and `$container` in particular holds a runtime NAME (`lxc`/`podman`), so test set-ness
+  (bash `${VAR+x}`, PS `$null -ne [Environment]::GetEnvironmentVariable(...)`), NOT `${VAR:-}`-non-empty
+  and NOT a `1/true/yes` truthy match. Only the explicit `HARNESS_SANDBOX` contract var uses truthy/falsy
+  (and it must match EXACTLY across runners — no `.Trim()` on one side only, or `" true "` diverges).
+  (b) **A "no container markers ⇒ NOT sandboxed" negative test is host-dependent and will FAIL inside a
+  container** (the fs markers `/.dockerenv` + `/proc/1/cgroup` can't be unset in a subshell) — i.e. it
+  breaks inside the very devcontainer/CI-container profile this feature ships. Branch the assertion on
+  host bareness: bare host ⇒ assert NOT sandboxed; container host ⇒ assert sandboxed. Caught by the
+  fresh-context codex review, not by running on this (bare) Windows host.
+- [2026-07-15] **Verify a delegated worktree's base before merging back.** The sandboxing generator's
+  `isolation: worktree` came up on `ef9bda0` (an ancestor, not tip `2b14209`) — same stale-base class as
+  S7. Here it was benign, but I confirmed that RATHER THAN assuming: `git diff --quiet <base> <tip> -- <each
+  touched file>` showed all six touched files byte-identical between the two commits, and the two newer
+  commits only touched `.github/`+`ci/`+`state/` (files the generator never edited), so `git merge
+  --squash` (merge-base = ef9bda0) applied exactly the generator's diff with no reversion. The orchestrator
+  must run this check when a worktree base ≠ main, not trust "looks post-flip".

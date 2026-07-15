@@ -125,6 +125,54 @@ ok "clean output => false"        (-not (Test-UsageLimitError 'review complete. 
 ok "stray 429 tokens => false"    (-not (Test-UsageLimitError 'processed 429 files successfully'))
 ok "empty output => false"        (-not (Test-UsageLimitError ''))
 
+Write-Host "sandbox predicate: HARNESS_SANDBOX contract + auto-detect (Test-Sandboxed, gate.ps1)"
+# Save/restore HARNESS_SANDBOX around each case in a finally so no state leaks into the rest of the suite.
+$sbSaved = $env:HARNESS_SANDBOX
+try {
+  $env:HARNESS_SANDBOX = '1';     ok "HARNESS_SANDBOX=1 => sandboxed"        (Test-Sandboxed)
+  $env:HARNESS_SANDBOX = 'true';  ok "HARNESS_SANDBOX=true => sandboxed"     (Test-Sandboxed)
+  $env:HARNESS_SANDBOX = 'yes';   ok "HARNESS_SANDBOX=yes => sandboxed"      (Test-Sandboxed)
+  $env:HARNESS_SANDBOX = 'YES';   ok "HARNESS_SANDBOX=YES => sandboxed (case-insensitive)" (Test-Sandboxed)
+  $env:HARNESS_SANDBOX = '0';     ok "HARNESS_SANDBOX=0 => NOT sandboxed"    (-not (Test-Sandboxed))
+  $env:HARNESS_SANDBOX = 'false'; ok "HARNESS_SANDBOX=false => NOT sandboxed" (-not (Test-Sandboxed))
+  # Explicit falsy OVERRIDES an auto-detect marker: set a Codespaces-like marker, assert 0 still wins.
+  $csSaved = $env:CODESPACES
+  try {
+    $env:CODESPACES = 'true'; $env:HARNESS_SANDBOX = '0'
+    ok "explicit 0 beats markers" (-not (Test-Sandboxed))
+  } finally { if ($null -eq $csSaved) { Remove-Item Env:CODESPACES -ErrorAction SilentlyContinue } else { $env:CODESPACES = $csSaved } }
+  # Marker env vars are PRESENCE markers (any set => sandboxed), NOT truthy: CODESPACES=false is still
+  # present, and `container` holds a runtime NAME. Save/restore each marker so cases stay isolated.
+  Remove-Item Env:HARNESS_SANDBOX -ErrorAction SilentlyContinue   # unset the explicit signal for marker cases
+  $markSaved = @{}; foreach ($m in 'CODESPACES','REMOTE_CONTAINERS','DEVCONTAINER','container') { $markSaved[$m] = [Environment]::GetEnvironmentVariable($m) }
+  $restoreMarks = { foreach ($m in $markSaved.Keys) { if ($null -eq $markSaved[$m]) { Remove-Item "Env:$m" -ErrorAction SilentlyContinue } else { Set-Item "Env:$m" $markSaved[$m] } } }
+  try {
+    foreach ($m in $markSaved.Keys) { Remove-Item "Env:$m" -ErrorAction SilentlyContinue }
+    # Result depends on the host: bare host => NOT sandboxed; inside a container the fs markers (/.dockerenv,
+    # cgroup) remain and can't be unset, so sandboxed is correct there. On Windows these paths never exist
+    # (always the bare-host branch); the branch keeps the suite honest if pwsh runs inside a Linux container.
+    $hostCg = if (Test-Path '/proc/1/cgroup') { (Get-Content '/proc/1/cgroup' -Raw -ErrorAction SilentlyContinue) -match 'docker|containerd|lxc|kubepods' } else { $false }
+    $hostIsContainer = (Test-Path '/.dockerenv') -or (Test-Path '/run/.containerenv') -or $hostCg
+    if (-not $hostIsContainer) {
+      ok "unset + no markers (bare host) => NOT sandboxed" (-not (Test-Sandboxed))
+    } else {
+      ok "unset env markers but host is a container => sandboxed (fs marker)" (Test-Sandboxed)
+    }
+    $env:CODESPACES = 'false'; ok "CODESPACES=false (present, not truthy) => sandboxed" (Test-Sandboxed); Remove-Item Env:CODESPACES -ErrorAction SilentlyContinue
+    $env:container = 'lxc';    ok "container=lxc (name value, present) => sandboxed" (Test-Sandboxed);    Remove-Item Env:container -ErrorAction SilentlyContinue
+  } finally { & $restoreMarks }
+} finally {
+  if ($null -eq $sbSaved) { Remove-Item Env:HARNESS_SANDBOX -ErrorAction SilentlyContinue } else { $env:HARNESS_SANDBOX = $sbSaved }
+}
+
+Write-Host "sandbox template: devcontainer.json parses and marks itself a sandbox"
+$dcFile = Join-Path $engineDir 'templates/devcontainer.json'
+$dcParsed = $null
+try { $dcParsed = Get-Content $dcFile -Raw | ConvertFrom-Json } catch { $dcParsed = $null }
+ok "devcontainer.json is valid JSON (ConvertFrom-Json)" ($null -ne $dcParsed)
+ok "devcontainer sets HARNESS_SANDBOX=1" ($null -ne $dcParsed -and $dcParsed.containerEnv.HARNESS_SANDBOX -eq '1')
+ok "devcontainer uses a volume workspace (no host FS bind)" ($null -ne $dcParsed -and $dcParsed.workspaceMount -eq 'source=harness-workspace,target=/workspace,type=volume')
+
 Write-Host "model routing: Resolve-PhaseModel (config.models -> --model; '' = inherit)"
 $mcfg = [pscustomobject]@{ models = [pscustomobject]@{ implement='opus'; reviewFallback='fable' } }
 ok "resolves implement model"          ((Resolve-PhaseModel $mcfg 'implement') -eq 'opus')
