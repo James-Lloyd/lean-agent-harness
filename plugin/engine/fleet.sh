@@ -270,7 +270,23 @@ Co-Authored-By: Claude <noreply@anthropic.com>"; then
   printf -- "- %s fleet %s: merged %s (gate green on combined state)\n" "$(date +%Y-%m-%d)" "$RUN_ID" "$id" >> "$REPO_ROOT/state/PROGRESS.md"
   git add state/tasks.json state/PROGRESS.md
   if ! git commit -q --amend --no-edit; then
-    echo "  ! record amend failed — merge commit stands; state files left staged for you"
+    # Amend failed: the merge commit stands, but the state record isn't in it. Leaving the files merely
+    # STAGED is unsafe — a LATER queue entry's merge-conflict/gate-red `reset --hard` (+ `clean -fd`) would
+    # silently discard them while the ledger already says 'merged'. Persist the intended record to the run
+    # dir (under harness/.runs — gitignored, so BOTH reset --hard and clean -fd skip it), restore the tracked
+    # files so nothing is left staged for a later reset to eat, and ledger it so the morning routine can
+    # reconcile pending-record-* against the 'merged' lines.
+    pend_rel="harness/.runs/$RUN_ID/pending-record-$id"
+    pend="$RUN_DIR/pending-record-$id"
+    mkdir -p "$pend"
+    cp "$REPO_ROOT/state/tasks.json"  "$pend/tasks.json"
+    cp "$REPO_ROOT/state/PROGRESS.md" "$pend/PROGRESS.md"
+    # || true: this is the graceful-degradation branch — under `set -e` a nonzero checkout (e.g. a state
+    # file not yet in HEAD on a first-ever run) must NOT abort the whole queue. Parity with the ps1 twin,
+    # whose `_Git` swallows the exit code. The pending copy is already written, so a failed restore is safe.
+    git checkout HEAD -- state/tasks.json state/PROGRESS.md >/dev/null 2>&1 || true
+    fledger "{\"task\":\"$id\",\"result\":\"record-deferred\",\"pending\":\"$pend_rel\"}"
+    echo "  ! record amend failed — merge commit stands; pending record saved to $pend_rel (reconcile by hand)"
   fi
   # Cleanup only what merged; parked branches/worktrees stay for a human.
   git worktree remove --force "$wt" >/dev/null 2>&1 || true

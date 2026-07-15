@@ -279,7 +279,20 @@ foreach ($w in $workers) {
   Add-Content -Path (Join-Path $RepoRoot 'state/PROGRESS.md') -Value ("- {0} fleet {1}: merged {2} (gate green on combined state)" -f (Get-Date -Format 'yyyy-MM-dd'), $runId, $w.Id) -Encoding utf8
   $null = _Git @('add', 'state/tasks.json', 'state/PROGRESS.md')
   if ((_Git @('commit', '--amend', '--no-edit')) -ne 0) {
-    Write-Host "  ! record amend failed — merge commit stands; state files left staged for you" -ForegroundColor Yellow
+    # Amend failed: the merge commit stands, but the state record isn't in it. Leaving the files merely
+    # STAGED is unsafe — a LATER queue entry's merge-conflict/gate-red `reset --hard` (+ `clean -fd`) would
+    # silently discard them while the ledger already says 'merged'. Persist the intended record to the run
+    # dir (under harness/.runs — gitignored, so BOTH reset --hard and clean -fd skip it), restore the tracked
+    # files so nothing is left staged for a later reset to eat, and ledger it so the morning routine can
+    # reconcile pending-record-* against the 'merged' lines.
+    $pendRel = "harness/.runs/$runId/pending-record-$($w.Id)"
+    $pend    = Join-Path $runDir "pending-record-$($w.Id)"
+    New-Item -ItemType Directory -Force -Path $pend | Out-Null
+    Copy-Item (Join-Path $RepoRoot 'state/tasks.json')  (Join-Path $pend 'tasks.json')  -Force
+    Copy-Item (Join-Path $RepoRoot 'state/PROGRESS.md') (Join-Path $pend 'PROGRESS.md') -Force
+    $null = _Git @('checkout', 'HEAD', '--', 'state/tasks.json', 'state/PROGRESS.md')
+    Write-FleetLedger @{ task = $w.Id; result = 'record-deferred'; pending = $pendRel }
+    Write-Host "  ! record amend failed — merge commit stands; pending record saved to $pendRel (reconcile by hand)" -ForegroundColor Yellow
   }
   # Cleanup only what merged; parked branches/worktrees stay for a human.
   $null = _Git @('worktree', 'remove', '--force', $w.Path)

@@ -136,6 +136,81 @@ exit 0
   ok "dry-run left no new fleet branches" (@(git branch --list 'fleet/*').Count -eq $branchesBefore)
   ok "dry-run left no new worktrees"      (@(git worktree list).Count -eq $wtBefore)
 
+  # ── Scenario 2: a record-amend failure preserves the pending record in the run dir ─────────────
+  # Finding (fix_plan): when `git commit --amend` (folding tasks.json/PROGRESS into the merge commit)
+  # FAILS, leaving the files merely STAGED lets a LATER queue entry's reset --hard + clean -fd silently
+  # discard them while the ledger already said 'merged'. The fix persists the record to the gitignored
+  # run dir (reset-proof) and restores the tree. A pre-commit hook fails the runner's MAIN-tree commits:
+  # T-OK's amend (state/ staged) is deferred to the run dir; T-BOOM's merge commit (boom/ staged) fails
+  # → triggering the very reset --hard + clean -fd that used to eat T-OK's record.
+  $T2 = Join-Path $work 'repo2'
+  New-Item -ItemType Directory -Force -Path $T2 | Out-Null
+  Set-Location $T2
+  git init -q -b main
+  git config core.autocrlf false
+  git config user.email fleet-test@example.com
+  git config user.name "Fleet Test"
+  Copy-Item (Join-Path $src 'harness') . -Recurse
+  Remove-Item (Join-Path $T2 'harness\.runs'), (Join-Path $T2 'harness\.worktrees') -Recurse -Force -ErrorAction SilentlyContinue
+  New-Item -ItemType Directory -Path (Join-Path $T2 'state') | Out-Null
+  @'
+{
+  "project": { "type": "greenfield", "baseline": { "established": false, "ref": null } },
+  "models": { "implement": { "model": "primary-x", "fallback": "fallback-x" } },
+  "autonomy": { "mode": "supervised", "maxIterations": 5, "maxTurnsPerIteration": 10, "tokenBudget": null, "meterTokens": false, "skipPermissions": false },
+  "parallel": { "maxWorkers": 5, "workerMaxTurns": 10, "workerTimeoutSeconds": 180 },
+  "components": [ { "name": "root", "path": ".", "gate": { "format": null, "lint": null, "typecheck": null, "build": null, "test": "exit 0", "e2e": null } } ],
+  "gate": { "format": null, "lint": null, "typecheck": null, "build": null, "test": null, "e2e": null }
+}
+'@ | Set-Content 'harness\harness.config.json' -Encoding utf8
+  @'
+{ "version": 2, "tasks": [
+  { "id": "T-OK", "category": "functional", "component": "root", "description": "build ok module", "steps": ["write ok/out.txt"], "acceptance": "ok/out.txt exists", "files": ["ok/"], "status": "todo", "evidence": "", "passes": false },
+  { "id": "T-BOOM", "category": "functional", "component": "root", "description": "merge commit blocked by a hook", "steps": ["write boom/out.txt"], "acceptance": "boom/out.txt exists", "files": ["boom/"], "status": "todo", "evidence": "", "passes": false }
+] }
+'@ | Set-Content 'state\tasks.json' -Encoding utf8
+  "- init" | Set-Content 'state\PROGRESS.md' -Encoding utf8
+  "harness/.runs/`nharness/.worktrees/`nFLEET_NOTES.md`nstate/handoff.md" | Set-Content '.gitignore' -Encoding ascii
+  git add -A; git commit -q -m "init"
+  # Only the runner's MAIN-tree commits are blocked (a worker's own worktree commit has a toplevel under
+  # .worktrees → always passes): a `state/` staged set is T-OK's record amend; a `boom/` staged set is
+  # T-BOOM's merge commit. Both fail → the deferral + reset paths fire deterministically. Write LF-only,
+  # no BOM — git-for-windows runs the hook through its bundled sh, which chokes on CR.
+  $hook = "#!/bin/sh`ntop=`"`$(git rev-parse --show-toplevel)`"`ncase `"`$top`" in *.worktrees*) exit 0;; esac`ngit diff --cached --name-only | grep -qE '^(state/|boom/)' && exit 1`nexit 0`n"
+  [System.IO.File]::WriteAllText((Join-Path $T2 '.git\hooks\pre-commit'), $hook)
+  $stubOk = Join-Path $work 'stub-ok.ps1'
+  @'
+$prompt = ($input | Out-String)
+$dir = ''
+if ($prompt -match '(?m)^  - ([a-z]+/)\s*$') { $dir = $Matches[1] }
+if ($dir) {
+  New-Item -ItemType Directory -Force -Path $dir | Out-Null
+  'built by worker' | Set-Content (Join-Path $dir 'out.txt')
+}
+exit 0
+'@ | Set-Content $stubOk -Encoding ascii
+
+  Write-Host "fleet queue: record-amend failure preserves the pending record in the run dir"
+  $env:HARNESS_CLAUDE_CMD = $stubOk
+  try { & (Join-Path $T2 'harness\fleet.ps1') *> $null } catch { } finally { Remove-Item Env:HARNESS_CLAUDE_CMD -ErrorAction SilentlyContinue }
+
+  $pend2   = 'harness\.runs\run-001\pending-record-T-OK'
+  $ledger2 = ''
+  $ledger2Path = 'harness\.runs\run-001\fleet-ledger.jsonl'
+  if (Test-Path $ledger2Path) { $ledger2 = Get-Content $ledger2Path -Raw }
+  $l2 = $ledger2 -split "`n"
+  $pendStatus = if (Test-Path (Join-Path $pend2 'tasks.json')) { ((Get-Content (Join-Path $pend2 'tasks.json') -Raw | ConvertFrom-Json).tasks | Where-Object id -eq 'T-OK').status } else { '' }
+  $wtStatus   = ((Get-Content 'state\tasks.json' -Raw | ConvertFrom-Json).tasks | Where-Object id -eq 'T-OK').status
+  ok "amend-fail: pending record saved to the run dir"          (Test-Path (Join-Path $pend2 'tasks.json'))
+  ok "pending tasks.json holds the intended (validated) record" ($pendStatus -eq 'validated')
+  ok "pending PROGRESS.md holds the intended line"              ((Test-Path (Join-Path $pend2 'PROGRESS.md')) -and ((Get-Content (Join-Path $pend2 'PROGRESS.md') -Raw) -match 'merged T-OK'))
+  ok "ledger says T-OK merged (the finding's premise)"         (($l2 | Where-Object { $_ -match '"task":"T-OK"' }) -match '"result":"merged"')
+  ok "ledger records the deferral for reconciliation"          (($l2 | Where-Object { $_ -match '"task":"T-OK"' }) -match 'record-deferred')
+  ok "T-OK merge commit still stands"                          ((git log --oneline | Out-String) -match 'fleet\(T-OK\)')
+  ok "working tree NOT left staged (record restored to HEAD)"  ($wtStatus -eq 'todo')
+  ok "T-BOOM parked — its merge-commit reset --hard fired"     (($l2 | Where-Object { $_ -match '"task":"T-BOOM"' }) -match 'parked')
+  ok "pending record SURVIVED T-BOOM's reset --hard + clean -fd" (Test-Path (Join-Path $pend2 'tasks.json'))
+
   Write-Host ("FLEET QUEUE RESULT: {0} passed, {1} failed" -f $script:pass, $script:fail)
   if ($script:fail -gt 0) { exit 1 }
   exit 0

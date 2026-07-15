@@ -224,3 +224,17 @@ hard-won operational facts (exact commands, environment quirks, "X looks broken 
   fail-OPEN PASS; PS rounds → FAIL. Fixed by constraining the schema to `"type":"integer","minimum":0,"maximum":10`
   (the contract layer) rather than adding float math to both shells. Lesson: when two twins compare a config value,
   pin the value's TYPE in the schema so the shells can't disagree — don't rely on each shell coercing identically.
+- [2026-07-15] **Fleet record-amend failure now defers the record to the run dir, not the index** (hardening).
+  The merge queue folds state/tasks.json+PROGRESS into the merge commit via `git commit --amend`. On amend
+  FAILURE the old code left the two files STAGED — and a LATER queue entry's merge-conflict/gate-red
+  `reset --hard $preMerge` + `clean -fd` then silently discarded them while the ledger already said `merged`.
+  Fix (fleet.{ps1,sh}): copy the intended record to `harness/.runs/<runId>/pending-record-<id>/`, then
+  `git checkout HEAD -- state/tasks.json state/PROGRESS.md` to restore the tree, then ledger a `record-deferred`
+  line for the morning reconciliation. Why the run dir is the right home: `harness/.runs/` is gitignored, so
+  BOTH `reset --hard` (touches only tracked files) AND `clean -fd` (no `-x` → skips ignored) leave it alone —
+  the copy is reset-proof by construction. Parity lesson (caught in review): the sh twin's restore runs under
+  `set -euo pipefail`, so its `git checkout … || true` guard is REQUIRED — the ps1 twin routes git through
+  `_Git`, which swallows the exit code, but a raw sh git call in a graceful-degradation branch would abort the
+  whole queue on a nonzero (e.g. a state file not yet in HEAD on a first-ever run). General rule: when the sh
+  twin makes a raw git call in an error/degradation branch that ps1 routes through the exit-swallowing `_Git`,
+  the sh call needs `|| true` or the twins diverge under `set -e`.

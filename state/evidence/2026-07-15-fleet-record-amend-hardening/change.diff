@@ -1,0 +1,266 @@
+diff --git a/AGENT_NOTES.md b/AGENT_NOTES.md
+index c02d5ed..e34be7a 100644
+--- a/AGENT_NOTES.md
++++ b/AGENT_NOTES.md
+@@ -224,3 +224,17 @@ hard-won operational facts (exact commands, environment quirks, "X looks broken
+   fail-OPEN PASS; PS rounds → FAIL. Fixed by constraining the schema to `"type":"integer","minimum":0,"maximum":10`
+   (the contract layer) rather than adding float math to both shells. Lesson: when two twins compare a config value,
+   pin the value's TYPE in the schema so the shells can't disagree — don't rely on each shell coercing identically.
++- [2026-07-15] **Fleet record-amend failure now defers the record to the run dir, not the index** (hardening).
++  The merge queue folds state/tasks.json+PROGRESS into the merge commit via `git commit --amend`. On amend
++  FAILURE the old code left the two files STAGED — and a LATER queue entry's merge-conflict/gate-red
++  `reset --hard $preMerge` + `clean -fd` then silently discarded them while the ledger already said `merged`.
++  Fix (fleet.{ps1,sh}): copy the intended record to `harness/.runs/<runId>/pending-record-<id>/`, then
++  `git checkout HEAD -- state/tasks.json state/PROGRESS.md` to restore the tree, then ledger a `record-deferred`
++  line for the morning reconciliation. Why the run dir is the right home: `harness/.runs/` is gitignored, so
++  BOTH `reset --hard` (touches only tracked files) AND `clean -fd` (no `-x` → skips ignored) leave it alone —
++  the copy is reset-proof by construction. Parity lesson (caught in review): the sh twin's restore runs under
++  `set -euo pipefail`, so its `git checkout … || true` guard is REQUIRED — the ps1 twin routes git through
++  `_Git`, which swallows the exit code, but a raw sh git call in a graceful-degradation branch would abort the
++  whole queue on a nonzero (e.g. a state file not yet in HEAD on a first-ever run). General rule: when the sh
++  twin makes a raw git call in an error/degradation branch that ps1 routes through the exit-swallowing `_Git`,
++  the sh call needs `|| true` or the twins diverge under `set -e`.
+diff --git a/harness/tests/fleet-queue-test.ps1 b/harness/tests/fleet-queue-test.ps1
+index f590886..58ba963 100644
+--- a/harness/tests/fleet-queue-test.ps1
++++ b/harness/tests/fleet-queue-test.ps1
+@@ -136,6 +136,81 @@ exit 0
+   ok "dry-run left no new fleet branches" (@(git branch --list 'fleet/*').Count -eq $branchesBefore)
+   ok "dry-run left no new worktrees"      (@(git worktree list).Count -eq $wtBefore)
+ 
++  # ── Scenario 2: a record-amend failure preserves the pending record in the run dir ─────────────
++  # Finding (fix_plan): when `git commit --amend` (folding tasks.json/PROGRESS into the merge commit)
++  # FAILS, leaving the files merely STAGED lets a LATER queue entry's reset --hard + clean -fd silently
++  # discard them while the ledger already said 'merged'. The fix persists the record to the gitignored
++  # run dir (reset-proof) and restores the tree. A pre-commit hook fails the runner's MAIN-tree commits:
++  # T-OK's amend (state/ staged) is deferred to the run dir; T-BOOM's merge commit (boom/ staged) fails
++  # → triggering the very reset --hard + clean -fd that used to eat T-OK's record.
++  $T2 = Join-Path $work 'repo2'
++  New-Item -ItemType Directory -Force -Path $T2 | Out-Null
++  Set-Location $T2
++  git init -q -b main
++  git config core.autocrlf false
++  git config user.email fleet-test@example.com
++  git config user.name "Fleet Test"
++  Copy-Item (Join-Path $src 'harness') . -Recurse
++  Remove-Item (Join-Path $T2 'harness\.runs'), (Join-Path $T2 'harness\.worktrees') -Recurse -Force -ErrorAction SilentlyContinue
++  New-Item -ItemType Directory -Path (Join-Path $T2 'state') | Out-Null
++  @'
++{
++  "project": { "type": "greenfield", "baseline": { "established": false, "ref": null } },
++  "models": { "implement": { "model": "primary-x", "fallback": "fallback-x" } },
++  "autonomy": { "mode": "supervised", "maxIterations": 5, "maxTurnsPerIteration": 10, "tokenBudget": null, "meterTokens": false, "skipPermissions": false },
++  "parallel": { "maxWorkers": 5, "workerMaxTurns": 10, "workerTimeoutSeconds": 180 },
++  "components": [ { "name": "root", "path": ".", "gate": { "format": null, "lint": null, "typecheck": null, "build": null, "test": "exit 0", "e2e": null } } ],
++  "gate": { "format": null, "lint": null, "typecheck": null, "build": null, "test": null, "e2e": null }
++}
++'@ | Set-Content 'harness\harness.config.json' -Encoding utf8
++  @'
++{ "version": 2, "tasks": [
++  { "id": "T-OK", "category": "functional", "component": "root", "description": "build ok module", "steps": ["write ok/out.txt"], "acceptance": "ok/out.txt exists", "files": ["ok/"], "status": "todo", "evidence": "", "passes": false },
++  { "id": "T-BOOM", "category": "functional", "component": "root", "description": "merge commit blocked by a hook", "steps": ["write boom/out.txt"], "acceptance": "boom/out.txt exists", "files": ["boom/"], "status": "todo", "evidence": "", "passes": false }
++] }
++'@ | Set-Content 'state\tasks.json' -Encoding utf8
++  "- init" | Set-Content 'state\PROGRESS.md' -Encoding utf8
++  "harness/.runs/`nharness/.worktrees/`nFLEET_NOTES.md`nstate/handoff.md" | Set-Content '.gitignore' -Encoding ascii
++  git add -A; git commit -q -m "init"
++  # Only the runner's MAIN-tree commits are blocked (a worker's own worktree commit has a toplevel under
++  # .worktrees → always passes): a `state/` staged set is T-OK's record amend; a `boom/` staged set is
++  # T-BOOM's merge commit. Both fail → the deferral + reset paths fire deterministically. Write LF-only,
++  # no BOM — git-for-windows runs the hook through its bundled sh, which chokes on CR.
++  $hook = "#!/bin/sh`ntop=`"`$(git rev-parse --show-toplevel)`"`ncase `"`$top`" in *.worktrees*) exit 0;; esac`ngit diff --cached --name-only | grep -qE '^(state/|boom/)' && exit 1`nexit 0`n"
++  [System.IO.File]::WriteAllText((Join-Path $T2 '.git\hooks\pre-commit'), $hook)
++  $stubOk = Join-Path $work 'stub-ok.ps1'
++  @'
++$prompt = ($input | Out-String)
++$dir = ''
++if ($prompt -match '(?m)^  - ([a-z]+/)\s*$') { $dir = $Matches[1] }
++if ($dir) {
++  New-Item -ItemType Directory -Force -Path $dir | Out-Null
++  'built by worker' | Set-Content (Join-Path $dir 'out.txt')
++}
++exit 0
++'@ | Set-Content $stubOk -Encoding ascii
++
++  Write-Host "fleet queue: record-amend failure preserves the pending record in the run dir"
++  $env:HARNESS_CLAUDE_CMD = $stubOk
++  try { & (Join-Path $T2 'harness\fleet.ps1') *> $null } catch { } finally { Remove-Item Env:HARNESS_CLAUDE_CMD -ErrorAction SilentlyContinue }
++
++  $pend2   = 'harness\.runs\run-001\pending-record-T-OK'
++  $ledger2 = ''
++  $ledger2Path = 'harness\.runs\run-001\fleet-ledger.jsonl'
++  if (Test-Path $ledger2Path) { $ledger2 = Get-Content $ledger2Path -Raw }
++  $l2 = $ledger2 -split "`n"
++  $pendStatus = if (Test-Path (Join-Path $pend2 'tasks.json')) { ((Get-Content (Join-Path $pend2 'tasks.json') -Raw | ConvertFrom-Json).tasks | Where-Object id -eq 'T-OK').status } else { '' }
++  $wtStatus   = ((Get-Content 'state\tasks.json' -Raw | ConvertFrom-Json).tasks | Where-Object id -eq 'T-OK').status
++  ok "amend-fail: pending record saved to the run dir"          (Test-Path (Join-Path $pend2 'tasks.json'))
++  ok "pending tasks.json holds the intended (validated) record" ($pendStatus -eq 'validated')
++  ok "pending PROGRESS.md holds the intended line"              ((Test-Path (Join-Path $pend2 'PROGRESS.md')) -and ((Get-Content (Join-Path $pend2 'PROGRESS.md') -Raw) -match 'merged T-OK'))
++  ok "ledger says T-OK merged (the finding's premise)"         (($l2 | Where-Object { $_ -match '"task":"T-OK"' }) -match '"result":"merged"')
++  ok "ledger records the deferral for reconciliation"          (($l2 | Where-Object { $_ -match '"task":"T-OK"' }) -match 'record-deferred')
++  ok "T-OK merge commit still stands"                          ((git log --oneline | Out-String) -match 'fleet\(T-OK\)')
++  ok "working tree NOT left staged (record restored to HEAD)"  ($wtStatus -eq 'todo')
++  ok "T-BOOM parked — its merge-commit reset --hard fired"     (($l2 | Where-Object { $_ -match '"task":"T-BOOM"' }) -match 'parked')
++  ok "pending record SURVIVED T-BOOM's reset --hard + clean -fd" (Test-Path (Join-Path $pend2 'tasks.json'))
++
+   Write-Host ("FLEET QUEUE RESULT: {0} passed, {1} failed" -f $script:pass, $script:fail)
+   if ($script:fail -gt 0) { exit 1 }
+   exit 0
+diff --git a/harness/tests/fleet-queue-test.sh b/harness/tests/fleet-queue-test.sh
+index 5c80fd0..8f5c729 100644
+--- a/harness/tests/fleet-queue-test.sh
++++ b/harness/tests/fleet-queue-test.sh
+@@ -124,5 +124,74 @@ ok "$([ ! -f "$sentinel" ] && echo 1 || echo 0)" "dry-run invoked no model"
+ ok "$([ "$branches_before" = "$(git branch --list 'fleet/*' | wc -l)" ] && echo 1 || echo 0)" "dry-run left no new fleet branches"
+ ok "$([ "$wt_before" = "$(git worktree list | wc -l)" ] && echo 1 || echo 0)" "dry-run left no new worktrees"
+ 
++# ── Scenario 2: a record-amend failure preserves the pending record in the run dir ─────────────
++# Finding (fix_plan): when `git commit --amend` (folding tasks.json/PROGRESS into the merge commit)
++# FAILS, leaving the files merely STAGED lets a LATER queue entry's reset --hard + clean -fd silently
++# discard them while the ledger already said 'merged'. The fix persists the record to the gitignored
++# run dir (reset-proof) and restores the tree. Here a pre-commit hook fails the runner's MAIN-tree
++# commits: T-OK's amend (state/ staged) is deferred to the run dir; T-BOOM's merge commit (boom/ staged)
++# fails → triggering the very reset --hard + clean -fd that used to eat T-OK's record.
++T2="$WORK/repo2"; mkdir -p "$T2"; cd "$T2"
++git init -q -b main
++git config core.autocrlf false
++git config user.email fleet-test@example.com
++git config user.name "Fleet Test"
++cp -r "$HARNESS_SRC/harness" .
++rm -rf harness/.runs harness/.worktrees
++mkdir -p state
++cat > harness/harness.config.json <<'JSON'
++{
++  "project": { "type": "greenfield", "baseline": { "established": false, "ref": null } },
++  "models": { "implement": { "model": "primary-x", "fallback": "fallback-x" } },
++  "autonomy": { "mode": "supervised", "maxIterations": 5, "maxTurnsPerIteration": 10, "tokenBudget": null, "meterTokens": false, "skipPermissions": false },
++  "parallel": { "maxWorkers": 5, "workerMaxTurns": 10, "workerTimeoutSeconds": 120 },
++  "components": [ { "name": "root", "path": ".", "gate": { "format": null, "lint": null, "typecheck": null, "build": null, "test": "exit 0", "e2e": null } } ],
++  "gate": { "format": null, "lint": null, "typecheck": null, "build": null, "test": null, "e2e": null }
++}
++JSON
++cat > state/tasks.json <<'JSON'
++{ "version": 2, "tasks": [
++  { "id": "T-OK", "category": "functional", "component": "root", "description": "build ok module", "steps": ["write ok/out.txt"], "acceptance": "ok/out.txt exists", "files": ["ok/"], "status": "todo", "evidence": "", "passes": false },
++  { "id": "T-BOOM", "category": "functional", "component": "root", "description": "merge commit blocked by a hook", "steps": ["write boom/out.txt"], "acceptance": "boom/out.txt exists", "files": ["boom/"], "status": "todo", "evidence": "", "passes": false }
++] }
++JSON
++echo "- init" > state/PROGRESS.md
++printf 'harness/.runs/\nharness/.worktrees/\nFLEET_NOTES.md\nstate/handoff.md\n' > .gitignore
++git add -A && git commit -q -m "init"
++# Only the runner's MAIN-tree commits are blocked (a worker's own worktree commit has a toplevel under
++# .worktrees → always passes): a `state/` staged set is T-OK's record amend; a `boom/` staged set is
++# T-BOOM's merge commit. Both fail → the deferral + reset paths fire deterministically.
++cat > .git/hooks/pre-commit <<'HOOK'
++#!/bin/sh
++top="$(git rev-parse --show-toplevel)"
++case "$top" in *.worktrees*) exit 0;; esac
++git diff --cached --name-only | grep -qE '^(state/|boom/)' && exit 1
++exit 0
++HOOK
++chmod +x .git/hooks/pre-commit
++cat > "$WORK/stub-ok" <<'STUB'
++#!/usr/bin/env bash
++prompt="$(cat)"
++dir="$(printf '%s' "$prompt" | sed -n 's/^  - \([a-z]*\/\)$/\1/p' | head -1)"
++[ -n "$dir" ] && { mkdir -p "$dir" && echo "built by worker" > "${dir}out.txt"; }
++exit 0
++STUB
++chmod +x "$WORK/stub-ok"
++
++echo "fleet queue: record-amend failure preserves the pending record in the run dir"
++HARNESS_CLAUDE_CMD="$WORK/stub-ok" bash harness/fleet.sh --max 5 >/dev/null 2>&1 || true
++
++led2="harness/.runs/run-001/fleet-ledger.jsonl"
++pend2="harness/.runs/run-001/pending-record-T-OK"
++ok "$([ -f "$pend2/tasks.json" ] && echo 1 || echo 0)" "amend-fail: pending record saved to the run dir"
++ok "$([ "$(jq -r '.tasks[] | select(.id=="T-OK") | .status' "$pend2/tasks.json" 2>/dev/null)" = "validated" ] && echo 1 || echo 0)" "pending tasks.json holds the intended (validated) record"
++ok "$(grep -q 'merged T-OK' "$pend2/PROGRESS.md" 2>/dev/null && echo 1 || echo 0)" "pending PROGRESS.md holds the intended line"
++ok "$(grep -q '"task":"T-OK","result":"merged"' "$led2" 2>/dev/null && echo 1 || echo 0)" "ledger says T-OK merged (the finding's premise)"
++ok "$(grep -q '"task":"T-OK","result":"record-deferred"' "$led2" 2>/dev/null && echo 1 || echo 0)" "ledger records the deferral for morning reconciliation"
++ok "$(git log --oneline | grep -q 'fleet(T-OK)' && echo 1 || echo 0)" "T-OK merge commit still stands"
++ok "$([ "$(jq -r '.tasks[] | select(.id=="T-OK") | .status' state/tasks.json)" = "todo" ] && echo 1 || echo 0)" "working tree NOT left staged (record restored to HEAD)"
++ok "$(grep '"task":"T-BOOM"' "$led2" 2>/dev/null | grep -q 'parked' && echo 1 || echo 0)" "T-BOOM parked — its merge-commit reset --hard fired"
++ok "$([ -f "$pend2/tasks.json" ] && echo 1 || echo 0)" "pending record SURVIVED T-BOOM's reset --hard + clean -fd"
++
+ echo "FLEET QUEUE RESULT: $pass passed, $fail failed"
+ [ "$fail" -eq 0 ]
+diff --git a/plugin/engine/fleet.ps1 b/plugin/engine/fleet.ps1
+index 3bd64bd..fb5c10e 100644
+--- a/plugin/engine/fleet.ps1
++++ b/plugin/engine/fleet.ps1
+@@ -279,7 +279,20 @@ foreach ($w in $workers) {
+   Add-Content -Path (Join-Path $RepoRoot 'state/PROGRESS.md') -Value ("- {0} fleet {1}: merged {2} (gate green on combined state)" -f (Get-Date -Format 'yyyy-MM-dd'), $runId, $w.Id) -Encoding utf8
+   $null = _Git @('add', 'state/tasks.json', 'state/PROGRESS.md')
+   if ((_Git @('commit', '--amend', '--no-edit')) -ne 0) {
+-    Write-Host "  ! record amend failed — merge commit stands; state files left staged for you" -ForegroundColor Yellow
++    # Amend failed: the merge commit stands, but the state record isn't in it. Leaving the files merely
++    # STAGED is unsafe — a LATER queue entry's merge-conflict/gate-red `reset --hard` (+ `clean -fd`) would
++    # silently discard them while the ledger already says 'merged'. Persist the intended record to the run
++    # dir (under harness/.runs — gitignored, so BOTH reset --hard and clean -fd skip it), restore the tracked
++    # files so nothing is left staged for a later reset to eat, and ledger it so the morning routine can
++    # reconcile pending-record-* against the 'merged' lines.
++    $pendRel = "harness/.runs/$runId/pending-record-$($w.Id)"
++    $pend    = Join-Path $runDir "pending-record-$($w.Id)"
++    New-Item -ItemType Directory -Force -Path $pend | Out-Null
++    Copy-Item (Join-Path $RepoRoot 'state/tasks.json')  (Join-Path $pend 'tasks.json')  -Force
++    Copy-Item (Join-Path $RepoRoot 'state/PROGRESS.md') (Join-Path $pend 'PROGRESS.md') -Force
++    $null = _Git @('checkout', 'HEAD', '--', 'state/tasks.json', 'state/PROGRESS.md')
++    Write-FleetLedger @{ task = $w.Id; result = 'record-deferred'; pending = $pendRel }
++    Write-Host "  ! record amend failed — merge commit stands; pending record saved to $pendRel (reconcile by hand)" -ForegroundColor Yellow
+   }
+   # Cleanup only what merged; parked branches/worktrees stay for a human.
+   $null = _Git @('worktree', 'remove', '--force', $w.Path)
+diff --git a/plugin/engine/fleet.sh b/plugin/engine/fleet.sh
+index 6493441..d341397 100644
+--- a/plugin/engine/fleet.sh
++++ b/plugin/engine/fleet.sh
+@@ -270,7 +270,23 @@ Co-Authored-By: Claude <noreply@anthropic.com>"; then
+   printf -- "- %s fleet %s: merged %s (gate green on combined state)\n" "$(date +%Y-%m-%d)" "$RUN_ID" "$id" >> "$REPO_ROOT/state/PROGRESS.md"
+   git add state/tasks.json state/PROGRESS.md
+   if ! git commit -q --amend --no-edit; then
+-    echo "  ! record amend failed — merge commit stands; state files left staged for you"
++    # Amend failed: the merge commit stands, but the state record isn't in it. Leaving the files merely
++    # STAGED is unsafe — a LATER queue entry's merge-conflict/gate-red `reset --hard` (+ `clean -fd`) would
++    # silently discard them while the ledger already says 'merged'. Persist the intended record to the run
++    # dir (under harness/.runs — gitignored, so BOTH reset --hard and clean -fd skip it), restore the tracked
++    # files so nothing is left staged for a later reset to eat, and ledger it so the morning routine can
++    # reconcile pending-record-* against the 'merged' lines.
++    pend_rel="harness/.runs/$RUN_ID/pending-record-$id"
++    pend="$RUN_DIR/pending-record-$id"
++    mkdir -p "$pend"
++    cp "$REPO_ROOT/state/tasks.json"  "$pend/tasks.json"
++    cp "$REPO_ROOT/state/PROGRESS.md" "$pend/PROGRESS.md"
++    # || true: this is the graceful-degradation branch — under `set -e` a nonzero checkout (e.g. a state
++    # file not yet in HEAD on a first-ever run) must NOT abort the whole queue. Parity with the ps1 twin,
++    # whose `_Git` swallows the exit code. The pending copy is already written, so a failed restore is safe.
++    git checkout HEAD -- state/tasks.json state/PROGRESS.md >/dev/null 2>&1 || true
++    fledger "{\"task\":\"$id\",\"result\":\"record-deferred\",\"pending\":\"$pend_rel\"}"
++    echo "  ! record amend failed — merge commit stands; pending record saved to $pend_rel (reconcile by hand)"
+   fi
+   # Cleanup only what merged; parked branches/worktrees stay for a human.
+   git worktree remove --force "$wt" >/dev/null 2>&1 || true
+diff --git a/state/PROGRESS.md b/state/PROGRESS.md
+index 09ebb48..3475e47 100644
+--- a/state/PROGRESS.md
++++ b/state/PROGRESS.md
+@@ -44,3 +44,4 @@ Format: `- YYYY-MM-DD <what happened> (<commit/evidence ref>)`
+ - 2026-07-15 /handoff written after evaluator-at-review-point shipped (8a3a032, UNPUSHED — James deferred the push). Next task = Overnight Stage 1 (local unattended run recipe) — needs a PLAN phase to expand the one-line intent into a spec. Safe to /clear.
+ - 2026-07-15 Overnight Stage 1a DONE — shipped `docs/overnight.md`, the local unattended-run operator recipe: a `mode:auto` config **preset** (WHY per knob + the allowlist requirement + fleet note), the sandbox tie-in, a Windows **schtasks** + Linux/WSL2 **cron** scheduling recipe (with the non-interactive-env gotchas), and the **morning routine** (read `harness/.runs/<runId>/ledger.jsonl` — every `result` value + judge `verdict` incl. `NONE`/`ERROR` enumerated against loop.{ps1,sh} — then `/review`) + a preflight checklist. Cross-linked from README.md + ROADMAP.md ("Unattended overnight runs"). Split the original Stage 1 → **1a** (this, done) + **1b** (one real overnight run, supervise-first — the wall-clock human tail + live-fire of the codex-write & real-evaluate paths) per PROMPT.md's split rule + the handoff's pre-authorization. **Prerequisite bug found+fixed during VALIDATE** (the whole point of drive-it-e2e): `plugin/engine/loop.ps1` FAILED TO PARSE under Windows PowerShell 5.1 — a here-string `$FailBelow:` read as a scope-var, so the loop couldn't run at all (shipped in the unpushed 8a3a032; invisible because the suite never parsed the entry scripts) → fixed to `${FailBelow}:` + added an "engine hygiene" parse-check to BOTH suites (`[Parser]::ParseFile` / `bash -n`; +11 each: **PS 132→143, bash 123→134**, fleet-queue 22/0 ×2). Fresh-ctx REVIEW = **codex read-only** via Invoke-Phase (Ok=True Path=codex UsedFallback=False), 4 rounds → REJECT(3: schtasks redirect dir, ledger `Join-Path`, DOCS-ONLY framing) → REJECT(2: residual DOCS-ONLY in AGENT_NOTES, evidence forward-ref) → REJECT(1: ledger table omitted the `NONE` verdict) → **SHIP** no findings. Ratchet: CLAUDE.md `$Var:` parse-hazard + parse-check-the-entry-scripts rule. Evidence: state/evidence/2026-07-15-overnight-stage-1/. (f6fad24)
+ - 2026-07-15 /handoff written after Overnight Stage 1a shipped (f6fad24, UNPUSHED — with 8a3a032, origin behind by 2; f6fad24 fixes a bug inside 8a3a032). Next = Overnight Stage 1b (a real overnight run, supervise-first) or Stage 2. Safe to /clear.
++- 2026-07-15 fleet record-amend hardening: on a failed record --amend, defer the pending state record to harness/.runs/<runId>/pending-record-<id>/ (gitignored, reset-proof) + restore tree + ledger 'record-deferred', instead of leaving it staged for a later reset to silently discard. New live-fire scenario 2 (fleet-queue 31/0 both). Fresh-ctx review SHIP (opus re-spawn after fable cap) + 1 Low parity fix (sh checkout || true under set -e). PS 143/0 bash 134/0.
+diff --git a/state/fix_plan.md b/state/fix_plan.md
+index 77b4fca..22b12bb 100644
+--- a/state/fix_plan.md
++++ b/state/fix_plan.md
+@@ -86,7 +86,9 @@ Format: `- [ ] <imperative task>  — done when: <verifiable condition>`
+ 
+ 
+ - [ ] Live-fire the fleet on a real project with ≥2 independent tasks  — done when: two tasks land through the gated queue end-to-end
+-- [ ] (hardening, low) Fleet record-amend failure leaves tasks.json/PROGRESS staged; a later queue entry's gate-red reset silently discards them while the ledger says merged  — done when: pending record is stashed/written to the run dir instead of left staged (re-review finding 2, non-blocking)
++- [x] (hardening, low) Fleet record-amend failure leaves tasks.json/PROGRESS staged; a later queue entry's gate-red reset silently discards them while the ledger says merged  — done when: pending record is stashed/written to the run dir instead of left staged (re-review finding 2, non-blocking)
++      <!-- DONE 2026-07-15: fleet.{ps1,sh} — on a failed record `git commit --amend`, copy the intended state/tasks.json+PROGRESS.md to harness/.runs/<runId>/pending-record-<id>/ (gitignored → reset --hard AND clean -fd both skip it, so it's reset-proof), then `git checkout HEAD --` the two files so nothing is left staged for a later reset to eat, then ledger a `record-deferred` line for the morning reconciliation. New live-fire scenario 2 in fleet-queue-test.{ps1,sh} drives the REAL fleet through the exact path (a pre-commit hook fails the runner's main-tree commits: T-OK's amend deferred, T-BOOM's merge commit fails → its reset --hard+clean -fd fires) and asserts the record survives — fleet-queue 31/0 both (was 22). Fresh-ctx REVIEW (reviewer subagent; the fable-pinned one hit a Fable-5 cap → re-spawned model:opus per the CLAUDE.md ratchet) = SHIP + 1 Low parity finding fixed (sh twin's `git checkout` needed `|| true` under set -e, else a nonzero restore aborts the whole queue where ps1's `_Git` tolerates it). Gate PS 143/0, bash 134/0. Evidence: state/evidence/2026-07-15-fleet-record-amend-hardening/. -->
++      <!-- Ratchet candidate (offered, non-blocking): when the sh twin makes a raw git call in an error/degradation branch that the ps1 twin routes through the exit-swallowing `_Git`, the sh call needs `|| true` or the twins diverge under `set -euo pipefail`. Left in AGENT_NOTES; James to promote/drop. -->
+ <!--
+   Examples (note: deliberately NOT written as "- [ ]" so the loop's open-task counter doesn't
+   treat these sample lines as real work). Copy the shape, uncomment as real "- [ ]" items above:

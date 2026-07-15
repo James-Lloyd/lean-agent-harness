@@ -124,5 +124,74 @@ ok "$([ ! -f "$sentinel" ] && echo 1 || echo 0)" "dry-run invoked no model"
 ok "$([ "$branches_before" = "$(git branch --list 'fleet/*' | wc -l)" ] && echo 1 || echo 0)" "dry-run left no new fleet branches"
 ok "$([ "$wt_before" = "$(git worktree list | wc -l)" ] && echo 1 || echo 0)" "dry-run left no new worktrees"
 
+# ── Scenario 2: a record-amend failure preserves the pending record in the run dir ─────────────
+# Finding (fix_plan): when `git commit --amend` (folding tasks.json/PROGRESS into the merge commit)
+# FAILS, leaving the files merely STAGED lets a LATER queue entry's reset --hard + clean -fd silently
+# discard them while the ledger already said 'merged'. The fix persists the record to the gitignored
+# run dir (reset-proof) and restores the tree. Here a pre-commit hook fails the runner's MAIN-tree
+# commits: T-OK's amend (state/ staged) is deferred to the run dir; T-BOOM's merge commit (boom/ staged)
+# fails → triggering the very reset --hard + clean -fd that used to eat T-OK's record.
+T2="$WORK/repo2"; mkdir -p "$T2"; cd "$T2"
+git init -q -b main
+git config core.autocrlf false
+git config user.email fleet-test@example.com
+git config user.name "Fleet Test"
+cp -r "$HARNESS_SRC/harness" .
+rm -rf harness/.runs harness/.worktrees
+mkdir -p state
+cat > harness/harness.config.json <<'JSON'
+{
+  "project": { "type": "greenfield", "baseline": { "established": false, "ref": null } },
+  "models": { "implement": { "model": "primary-x", "fallback": "fallback-x" } },
+  "autonomy": { "mode": "supervised", "maxIterations": 5, "maxTurnsPerIteration": 10, "tokenBudget": null, "meterTokens": false, "skipPermissions": false },
+  "parallel": { "maxWorkers": 5, "workerMaxTurns": 10, "workerTimeoutSeconds": 120 },
+  "components": [ { "name": "root", "path": ".", "gate": { "format": null, "lint": null, "typecheck": null, "build": null, "test": "exit 0", "e2e": null } } ],
+  "gate": { "format": null, "lint": null, "typecheck": null, "build": null, "test": null, "e2e": null }
+}
+JSON
+cat > state/tasks.json <<'JSON'
+{ "version": 2, "tasks": [
+  { "id": "T-OK", "category": "functional", "component": "root", "description": "build ok module", "steps": ["write ok/out.txt"], "acceptance": "ok/out.txt exists", "files": ["ok/"], "status": "todo", "evidence": "", "passes": false },
+  { "id": "T-BOOM", "category": "functional", "component": "root", "description": "merge commit blocked by a hook", "steps": ["write boom/out.txt"], "acceptance": "boom/out.txt exists", "files": ["boom/"], "status": "todo", "evidence": "", "passes": false }
+] }
+JSON
+echo "- init" > state/PROGRESS.md
+printf 'harness/.runs/\nharness/.worktrees/\nFLEET_NOTES.md\nstate/handoff.md\n' > .gitignore
+git add -A && git commit -q -m "init"
+# Only the runner's MAIN-tree commits are blocked (a worker's own worktree commit has a toplevel under
+# .worktrees → always passes): a `state/` staged set is T-OK's record amend; a `boom/` staged set is
+# T-BOOM's merge commit. Both fail → the deferral + reset paths fire deterministically.
+cat > .git/hooks/pre-commit <<'HOOK'
+#!/bin/sh
+top="$(git rev-parse --show-toplevel)"
+case "$top" in *.worktrees*) exit 0;; esac
+git diff --cached --name-only | grep -qE '^(state/|boom/)' && exit 1
+exit 0
+HOOK
+chmod +x .git/hooks/pre-commit
+cat > "$WORK/stub-ok" <<'STUB'
+#!/usr/bin/env bash
+prompt="$(cat)"
+dir="$(printf '%s' "$prompt" | sed -n 's/^  - \([a-z]*\/\)$/\1/p' | head -1)"
+[ -n "$dir" ] && { mkdir -p "$dir" && echo "built by worker" > "${dir}out.txt"; }
+exit 0
+STUB
+chmod +x "$WORK/stub-ok"
+
+echo "fleet queue: record-amend failure preserves the pending record in the run dir"
+HARNESS_CLAUDE_CMD="$WORK/stub-ok" bash harness/fleet.sh --max 5 >/dev/null 2>&1 || true
+
+led2="harness/.runs/run-001/fleet-ledger.jsonl"
+pend2="harness/.runs/run-001/pending-record-T-OK"
+ok "$([ -f "$pend2/tasks.json" ] && echo 1 || echo 0)" "amend-fail: pending record saved to the run dir"
+ok "$([ "$(jq -r '.tasks[] | select(.id=="T-OK") | .status' "$pend2/tasks.json" 2>/dev/null)" = "validated" ] && echo 1 || echo 0)" "pending tasks.json holds the intended (validated) record"
+ok "$(grep -q 'merged T-OK' "$pend2/PROGRESS.md" 2>/dev/null && echo 1 || echo 0)" "pending PROGRESS.md holds the intended line"
+ok "$(grep -q '"task":"T-OK","result":"merged"' "$led2" 2>/dev/null && echo 1 || echo 0)" "ledger says T-OK merged (the finding's premise)"
+ok "$(grep -q '"task":"T-OK","result":"record-deferred"' "$led2" 2>/dev/null && echo 1 || echo 0)" "ledger records the deferral for morning reconciliation"
+ok "$(git log --oneline | grep -q 'fleet(T-OK)' && echo 1 || echo 0)" "T-OK merge commit still stands"
+ok "$([ "$(jq -r '.tasks[] | select(.id=="T-OK") | .status' state/tasks.json)" = "todo" ] && echo 1 || echo 0)" "working tree NOT left staged (record restored to HEAD)"
+ok "$(grep '"task":"T-BOOM"' "$led2" 2>/dev/null | grep -q 'parked' && echo 1 || echo 0)" "T-BOOM parked — its merge-commit reset --hard fired"
+ok "$([ -f "$pend2/tasks.json" ] && echo 1 || echo 0)" "pending record SURVIVED T-BOOM's reset --hard + clean -fd"
+
 echo "FLEET QUEUE RESULT: $pass passed, $fail failed"
 [ "$fail" -eq 0 ]
