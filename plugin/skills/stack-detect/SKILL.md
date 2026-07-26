@@ -56,15 +56,16 @@ For a **brownfield** project, the gate already exists — **discover it, don't i
 mirror those commands. Then confirm the existing tests are green (the baseline) before any work.
 
 ## 3. Pick or create a profile
-- If `harness/profiles/<stack>.json` matches, use it (adjust commands to the repo's reality).
-- Otherwise copy `harness/profiles/_template.json` to `harness/profiles/<stack>.json`, fill it, and
-  reference it from config. Record the LSP server(s) so the agent prefers real diagnostics over guesses.
+Profiles live in the plugin engine's `profiles/` dir (in the harness source repo: `plugin/engine/profiles/`).
+- If a `<stack>.json` there matches, use it (adjust commands to the repo's reality).
+- Otherwise copy its `_template.json`, fill it, and reference it from config. Record the LSP
+  server(s) so the agent prefers real diagnostics over guesses.
 
 ## 4. Write through
 For each component, add an entry to `harness/harness.config.json` → `components[]` with its `path`,
 `profile`, `languages`, `packageManager`, `commands`, and merged `gate`. Put any cross-cutting e2e in
 the top-level `gate`. Fill the Components table in `CLAUDE.md` and the run/build/test commands in
 `AGENT_NOTES.md`. For each non-trivial component, drop a nested `CLAUDE.md` in its directory (copy
-`harness/templates/component-CLAUDE.md`). Then **prove each gate command runs** (exit 0 from that
+the engine's `templates/component-CLAUDE.md`). Then **prove each gate command runs** (exit 0 from that
 component's directory on a clean tree) before declaring detection complete — a gate that doesn't
 execute is worse than none.

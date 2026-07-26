@@ -21,7 +21,7 @@ reasoning that produced the code. Route it per `harness.config.json` → `models
   piping in a prompt of: the step-3 checklist + the relevant `specs/` criteria + the BASE ref (codex
   runs `git diff` itself) + the ship/fix-then-ship/reject output contract. If unavailable, say which
   probe failed and **fall back to the `reviewer` subagent** (its frontmatter pins
-  `models.reviewFallback`). Codex ran read-only, but still `git status` afterward and revert anything
+  `models.review.fallback`). Codex ran read-only, but still `git status` afterward and revert anything
   unexpected — a judge must not mutate what it judges.
 - **any Claude model / unset**: delegate to a fresh `reviewer` subagent (via `Agent`) so it reasons
   from the diff, not from this conversation's history.

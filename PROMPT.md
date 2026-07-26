@@ -22,21 +22,21 @@ iterations. Everything you need is on disk. Work the phases in order. Do exactly
 5. Read recent `git log` and `state/PROGRESS.md` to see what just happened.
 
 ## Phase 1 — Select (one item only)
-6. Pick the **single** highest-priority unchecked item from `state/fix_plan.md`.
-   > One item per loop. I need to repeat myself here — **one item per loop.** It is the only way to
-   > keep the work coherent and the context clean. If the item is too big, split it in the plan and
-   > take only the first slice.
+6. Pick the **single** highest-priority unchecked item from `state/fix_plan.md` — one item per loop
+   keeps the work coherent and the context clean. If the item is too big, split it in the plan and
+   take only the first slice.
    Note which **component** it belongs to (see `harness/harness.config.json` → `components`): a
    frontend/ + backend/ project has separate stacks and gates. Work within that component's directory.
-7. **Search the codebase before assuming the item isn't already done.** Fan out read-only `explorer`
-   subagents (cheap model, defined in `.claude/agents/explorer.md`) to search; do not conclude
-   "not implemented" without looking. Think hard.
+7. **Search the codebase before assuming the item isn't already done.** For a wide sweep, fan out
+   read-only `explorer` subagents (the harness's cheap scout role); do small targeted reads yourself.
+   Do not conclude "not implemented" without looking.
 
 ## Phase 2 — Implement (fully)
 8. Implement the item completely. **No placeholders. No stubs. No "simple version for now."**
    Full, production-grade implementation or nothing.
-9. Use parallel `explorer` subagents for reads/searches/analysis — file dumps stay out of your working
-   context. **Serialize build and test to a single runner** to avoid backpressure — never run two
+9. Use parallel `explorer` subagents for wide reads/searches/analysis — file dumps stay out of your
+   working context. Don't delegate what you can finish yourself in a handful of tool calls.
+   **Serialize build and test to a single runner** to avoid backpressure — never run two
    builds/tests concurrently.
 
 ## Phase 3 — Verify (the gate — this is non-negotiable)
@@ -70,5 +70,5 @@ iterations. Everything you need is on disk. Work the phases in order. Do exactly
 - If `state/fix_plan.md` has no unchecked items → say so and stop (the loop will exit or re-plan).
 - If you hit an **ambiguous product decision**, do not guess. Write the question to
   `state/handoff.md` under "Needs human decision" and stop.
-- If you have attempted the same item and failed twice, narrow its scope in `fix_plan.md`, add a
-  "Think hard / search first" note, and stop rather than thrash.
+- If you have attempted the same item and failed twice, narrow its scope in `fix_plan.md`, note what
+  you tried and where it broke, and stop rather than thrash.

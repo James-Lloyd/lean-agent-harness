@@ -64,11 +64,13 @@ With answers in hand:
   (default `supervised` for brownfield), `workflow.*`, `verification.*`, and build the **`components[]`**
   array (one entry per component: `name`, `path`, `profile`, `languages`, `packageManager`, `commands`,
   and its `gate` with real commands). Put any cross-cutting e2e in the top-level `gate`. For each
-  component's stack, reference a matching `harness/profiles/<stack>.json` or copy `_template.json`.
+  component's stack, reference a matching profile from the plugin engine's `profiles/` dir
+  (`${CLAUDE_PLUGIN_ROOT}/engine/profiles/<stack>.json`) or copy its `_template.json`.
 - **`CLAUDE.md`** — replace every `{{PLACEHOLDER}}`: name, description, domain, project shape, the
   **Components table** (one row per component), and the gate block. Leave the ratchet
   section empty (it grows from failures). Keep the file ≤ ~100 lines — trim, don't pad.
-- **Nested `CLAUDE.md`** — for each non-trivial component, copy `harness/templates/component-CLAUDE.md`
+- **Nested `CLAUDE.md`** — for each non-trivial component, copy the engine's template
+  (`${CLAUDE_PLUGIN_ROOT}/engine/templates/component-CLAUDE.md`)
   into that component's directory (e.g. `frontend/CLAUDE.md`) and fill it — entry points live here, not
   in the root map. Skip for a single-root project.
 - **`AGENT_NOTES.md`** — fill the run/build/test commands and any known environment quirks.
@@ -78,8 +80,8 @@ With answers in hand:
   project hooks, so a duplicate declaration fires everything twice; the plugin's node dispatcher already
   handles Windows vs Unix). Leave `settings.json` to `model`, `permissions`, and any *project-specific*
   hooks. See `docs/plugin-migration.md`. **Only** for a copied-in (non-plugin) engine: the shipped hook
-  commands use `powershell …<hook>.ps1` (Windows); if OS is **not** Windows, rewrite all four
-  (`block-destructive`, `protect-specs`, `format-and-check`, `session-start`) to
+  commands use `powershell …<hook>.ps1` (Windows); if OS is **not** Windows, rewrite all five
+  (`block-destructive`, `protect-specs`, `format-and-check`, `session-start`, `lock-config`) to
   `bash "${CLAUDE_PROJECT_DIR}/.claude/hooks/<hook>.sh"` (or `pwsh …` for PowerShell 7). Either way,
   tighten `permissions.ask`/`deny` for any project-specific guardrails from Step 2.7.
 - **Runner wrappers (plugin installs only).** The loop/fleet engine ships in the plugin. Copy the four
@@ -106,7 +108,7 @@ With answers in hand:
   Constraints to honor as you pick: `session.model` **must be Claude** (never `codex`); a `fallback` must
   not equal a `codex` primary (no `codex→codex`). Then write all surfaces **together**: `config.models`
   (nested `{model,fallback}` per phase), `.claude/settings.json` `model` (= `session.model`), and the
-  `model:` frontmatter of each `.claude/agents/*.md` — frontmatter tracks the phase's **primary** when
+  `model:` frontmatter of each harness agent (the plugin's `agents/*.md`) — frontmatter tracks the phase's **primary** when
   that's Claude, else (primary `codex`) the phase's **Claude `fallback`** (so `reviewer` frontmatter is
   `review`'s fallback = `fable` under the defaults). `/harness-doctor` check 10 enforces exactly this. For
   any phase routed to `codex`, confirm the codex CLI is installed and signed in (`codex login`) — the

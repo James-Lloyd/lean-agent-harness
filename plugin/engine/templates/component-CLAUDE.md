@@ -9,7 +9,7 @@
 {{COMPONENT_ONE_LINER}}  ·  part of the project mapped in [`../CLAUDE.md`](../CLAUDE.md).
 
 ## Stack & commands
-- **Stack:** {{COMPONENT_STACK}}  (profile: `harness/profiles/{{COMPONENT_PROFILE}}.json`)
+- **Stack:** {{COMPONENT_STACK}}  (profile: `{{COMPONENT_PROFILE}}`)
 - **Run:** `{{COMPONENT_RUN}}`  ·  **Build:** `{{COMPONENT_BUILD}}`  ·  **Test:** `{{COMPONENT_TEST}}`
 - All commands run **from this directory** (`{{COMPONENT_PATH}}`).
 

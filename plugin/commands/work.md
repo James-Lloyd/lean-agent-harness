@@ -25,12 +25,12 @@ is the interactive twin of the headless `Invoke-Phase` dispatcher the loop/fleet
 
 1. **Resolve** the phase's `{primary, fallback}` from `config.models.<phase>` (tolerant of the legacy flat
    `"phase":"alias"` form). Either read `config.models.<phase>.model`/`.fallback` directly, or source the
-   resolver — in this repo the engine libs live under `harness/lib/` (a deployed project sources them from
-   its installed plugin engine dir):
+   resolver from the plugin engine's lib dir — `${CLAUDE_PLUGIN_ROOT}/engine/lib/` (in the harness
+   source repo itself: `plugin/engine/lib/`); `$LIB` below stands for that dir:
    ```bash
-   . harness/lib/gate.sh   # bash resolvers take the config FILE PATH ($1) — jq opens it:
+   . "$LIB/gate.sh"   # bash resolvers take the config FILE PATH ($1) — jq opens it:
    #   phase_model harness/harness.config.json review ; phase_fallback harness/harness.config.json review
-   # PowerShell resolvers take a PARSED object: . harness/lib/gate.ps1
+   # PowerShell resolvers take a PARSED object: . "$LIB/gate.ps1"
    #   $cfg = Get-Content harness/harness.config.json -Raw | ConvertFrom-Json
    #   Resolve-PhaseModel $cfg 'review' ; Resolve-PhaseFallback $cfg 'review'
    ```
@@ -47,7 +47,8 @@ is the interactive twin of the headless `Invoke-Phase` dispatcher the loop/fleet
    headless `claude -p`, not the rich subagent; acceptable for a fallback). Use `Invoke-Codex`/`invoke_codex
    -Mode <mode>` for the codex arm alone.
    ```powershell
-   . harness/lib/gate.ps1; . harness/lib/invoke-codex.ps1; . harness/lib/dispatch.ps1
+   $LIB = "$env:CLAUDE_PLUGIN_ROOT/engine/lib"   # 'plugin/engine/lib' in the harness source repo
+   . "$LIB/gate.ps1"; . "$LIB/invoke-codex.ps1"; . "$LIB/dispatch.ps1"
    $cfg = Get-Content harness/harness.config.json -Raw | ConvertFrom-Json
    $r = Invoke-Phase -Mode read-only -Prompt $reviewPrompt -RepoRoot (Get-Location).Path `
                      -LogPath state/evidence/<id>/review.log `

@@ -111,7 +111,7 @@ function Invoke-PeriodicReview {
   if ($Base -eq $head) { Write-Host "  (periodic review: no new commits since last review)" -ForegroundColor DarkGray; return $true }
   Write-Host "🧑‍⚖️  Periodic fresh-context review of commits $(_Short $Base)..$(_Short $head)..." -ForegroundColor Cyan
   $reviewPrompt = @"
-You are a FRESH-CONTEXT REVIEWER (the harness 'reviewer' role — see .claude/agents/reviewer.md). You
+You are a FRESH-CONTEXT REVIEWER (the harness 'reviewer' role). You
 have NO memory of how this code was written; judge only the artifact. You are READ-ONLY — do not edit,
 write, or commit anything.
 
@@ -189,7 +189,7 @@ function Invoke-PeriodicEvaluation {
   if ($Base -eq $head) { Write-Host "  (periodic evaluation: no new commits since last review)" -ForegroundColor DarkGray; return $true }
   Write-Host "🧮  Periodic evaluator scoring commits $(_Short $Base)..$(_Short $head) against $Rubric..." -ForegroundColor Cyan
   $evalPrompt = @"
-You are a SKEPTICAL EVALUATOR (the harness 'evaluator' role — see .claude/agents/evaluator.md). You have
+You are a SKEPTICAL EVALUATOR (the harness 'evaluator' role). You have
 NO memory of how this code was written; judge only the artifact. You are READ-ONLY — do not edit, write,
 or commit anything.
 

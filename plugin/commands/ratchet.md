@@ -18,10 +18,12 @@ A rule should live at the cheapest layer that reliably prevents recurrence:
 1. **A deterministic sensor (best).** Can a linter, type, test, or hook catch this automatically? If
    so, prefer that — encode it as a check and put the *repair instruction in the failure message*.
    - Add/extend a gate command in `harness/harness.config.json`, or
-   - Add a pattern to `.claude/hooks/block-destructive.*`, or
+   - Add a pattern to the harness hook `block-destructive.*` (in the plugin's `hooks/` dir —
+     `plugin/hooks/` in the harness source repo), or
    - Add a structural/architecture test.
 2. **A skill** — if it's a recurring *how-to* (a procedure the agent keeps getting wrong), capture it
-   as a skill under `.claude/skills/` so it's loaded only when relevant (progressive disclosure).
+   as a project skill under `.claude/skills/` (or `plugin/skills/` when developing the harness itself)
+   so it's loaded only when relevant (progressive disclosure).
 3. **`CLAUDE.md` "Project rules"** — only if it's a judgment/constraint that can't be mechanized. Add
    one line: `- [YYYY-MM-DD] <rule> — because <the failure>`. Keep CLAUDE.md ≤ ~100 lines; if adding
    this pushes it over, something older has stopped earning its place — remove that.
@@ -29,7 +31,7 @@ A rule should live at the cheapest layer that reliably prevents recurrence:
 ## Procedure
 1. Restate the failure in one sentence and identify the *class* of mistake (not just this instance).
 2. Choose the layer above and implement the rule there.
-3. If you added or altered a denylist pattern in `.claude/hooks/block-destructive.*` or a gate command,
+3. If you added or altered a denylist pattern in `block-destructive.*` or a gate command,
    run the harness self-tests (`harness/tests/run-tests.ps1` / `run-tests.sh`) to prove the new sensor
    actually fires and nothing regressed — an untested sensor is a speculative rule.
 4. If you added a CLAUDE.md line, double-check it's specific and falsifiable, not vague advice.

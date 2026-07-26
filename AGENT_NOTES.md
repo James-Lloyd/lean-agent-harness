@@ -238,3 +238,12 @@ hard-won operational facts (exact commands, environment quirks, "X looks broken 
   whole queue on a nonzero (e.g. a state file not yet in HEAD on a first-ever run). General rule: when the sh
   twin makes a raw git call in an error/degradation branch that ps1 routes through the exit-swallowing `_Git`,
   the sh call needs `|| true` or the twins diverge under `set -e`.
+
+## 2026-07-26 — Claude-5 context refresh (prompt-surface rules)
+- Prompt surfaces must not carry thinking-trigger phrases ("Think hard"), instruction self-repetition,
+  or blanket "fan out subagents" encouragement: Claude-5-generation models control depth via effort,
+  follow an instruction stated once, and over-delegate when encouraged — calibrate delegation to
+  "wide sweeps only; do small targeted reads yourself". Structural judges (fresh-context
+  reviewer/evaluator, fail-closed verdicts, the gate) are NOT the "over-verification" the Opus 5 docs
+  warn about — that guidance targets telling an agent to re-check its own work. Keep the judges.
+  Details: docs/execution-plans/2026-07-26-claude5-context-refresh.md; sources.md row 8.

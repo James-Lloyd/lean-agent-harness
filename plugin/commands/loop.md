@@ -22,7 +22,8 @@ shell loop instead: `powershell harness/loop.ps1` (or `pwsh` on PS7) / `bash har
    intend a different one than the top of the stack, say which and why.
    - **Checkpoint (if config `autonomy.checkpoints.planApproval`):** state the item and your approach
      in 2–3 lines and get a 👍 before writing code.
-3. **Search before implementing** — fan out read-only `Agent` searches; don't assume it's missing.
+3. **Search before implementing** — don't assume it's missing. For a wide sweep, fan out read-only
+   `Agent` searches; do small targeted reads yourself.
 4. **Implement fully** — no placeholders. Serialize any build/test runs (one at a time).
 5. **Verify — the gate** — run format → lint → typecheck → tests for what you changed. Then capture
    **end-to-end evidence** (use the `e2e-evidence` skill). Unit-green is not done.

@@ -4,7 +4,7 @@ The Next.js + TypeScript web client for Acme Dashboard. Part of the project mapp
 [`../CLAUDE.md`](../CLAUDE.md).
 
 ## Stack & commands
-- **Stack:** Next.js (App Router) + TypeScript, pnpm  (profile: `harness/profiles/node.json`)
+- **Stack:** Next.js (App Router) + TypeScript, pnpm  (profile: `node`)
 - **Run:** `pnpm run dev`  ·  **Build:** `pnpm run build`  ·  **Test:** `pnpm test -- --run`
 - All commands run **from this directory** (`frontend/`).
 

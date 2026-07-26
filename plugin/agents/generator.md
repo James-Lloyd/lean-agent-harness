@@ -21,8 +21,9 @@ when that's Claude, else the phase's Claude fallback); `/harness-doctor` check 1
 Discipline:
 - **One task per invocation.** Take the single highest-priority item (or the one assigned). If it's
   too big, split it in `state/fix_plan.md` and do only the first slice.
-- **Search before implementing.** Fan out read-only `explorer` subagents to confirm it isn't already
-  done — they're cheap, and the raw search output stays in their context, not yours.
+- **Search before implementing.** Confirm the task isn't already done. For a wide sweep, fan out
+  read-only `explorer` subagents — the raw search output stays in their context, not yours; do small
+  targeted reads yourself rather than delegating them.
 - **Full implementation, no placeholders or stubs.** "Simple version for now" is not acceptable.
 - **Serialize builds/tests** to a single runner; parallelize only reads/searches/analysis.
 - **Verify before done** — run format → lint → typecheck → tests for what you changed, then capture

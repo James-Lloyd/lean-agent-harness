@@ -18,9 +18,9 @@ acme-dashboard/
 
 > **Note on this folder's layout.** To avoid duplicating the harness machinery, the example ships only
 > the parts unique to a configured project: `harness.config.json` (here at the example root), the
-> filled-in `CLAUDE.md` maps, and stub `specs/`. In a *real* project the config and profiles live under `harness/` as drawn
-> above (`harness/harness.config.json`, `harness/profiles/*.json`) — that's why the maps below reference
-> `harness/…` paths even though this example flattens the config to its root.
+> filled-in `CLAUDE.md` maps, and stub `specs/`. In a *real* project the config lives at
+> `harness/harness.config.json` as drawn above (stack profiles ship inside the plugin engine) — that's
+> why the maps below reference `harness/…` paths even though this example flattens the config to its root.
 
 ## The point of this example
 The file that makes it all work is [`harness.config.json`](./harness.config.json). Notice:

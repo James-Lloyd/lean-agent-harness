@@ -33,10 +33,12 @@ behaves oddly.
    harness; a broken gate is worse than none. (This is the same check `/harness-init` step 5 does, made
    repeatable.) Skip `e2e` if it needs a running service the doctor can't stand up — say so explicitly.
 
-5. **Hooks exist and match the OS.** There are exactly **four** hook scripts (`block-destructive`,
-   `protect-specs`, `format-and-check`, `session-start`); each must exist in **both** `.ps1` and `.sh`
-   form and be wired in `.claude/settings.json`, with the wired command flavor matching the platform
-   (`powershell …ps1` on Windows; `bash …sh`/`pwsh` elsewhere).
+5. **Hooks exist and are wired once.** There are exactly **five** hook scripts (`block-destructive`,
+   `protect-specs`, `format-and-check`, `session-start`, `lock-config`); each must exist in **both**
+   `.ps1` and `.sh` form in the plugin's `hooks/` dir and be wired in the plugin's `hooks/hooks.json`
+   through the `run.mjs` dispatcher (which picks the platform flavor at runtime). A duplicate wiring in
+   `.claude/settings.json` fires every hook twice — flag it. (Pre-plugin copied-in layouts instead wire
+   `.claude/hooks/*` in `.claude/settings.json`, with the command flavor matching the platform.)
 
 6. **Loop dry-run is clean.** Run `powershell harness/loop.ps1 -DryRun` (Windows) or
    `bash harness/loop.sh --dry-run` (Unix) and confirm it reaches "would invoke" without erroring.

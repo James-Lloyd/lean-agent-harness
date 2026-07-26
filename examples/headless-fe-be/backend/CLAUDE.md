@@ -4,7 +4,7 @@ The FastAPI + Python service for Acme Dashboard. Part of the project mapped in
 [`../CLAUDE.md`](../CLAUDE.md).
 
 ## Stack & commands
-- **Stack:** FastAPI + Python, uv  (profile: `harness/profiles/python.json`)
+- **Stack:** FastAPI + Python, uv  (profile: `python`)
 - **Run:** `uv run uvicorn app.main:app --reload`  ·  **Test:** `uv run pytest -q`
 - All commands run **from this directory** (`backend/`).
 

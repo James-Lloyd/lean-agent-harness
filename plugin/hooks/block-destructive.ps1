@@ -29,7 +29,7 @@ $scanEnv = $scan -replace '\.env\.(example|sample|template)', 'ENV_TEMPLATE'
 function Deny([string]$why, [string]$shown) {
   [Console]::Error.WriteLine("BLOCKED by harness guardrail: $why.")
   [Console]::Error.WriteLine("Command: $($shown.Substring(0, [Math]::Min(200, $shown.Length)))")
-  [Console]::Error.WriteLine("If genuinely intended, ask the human to run it or adjust .claude/hooks/block-destructive.ps1.")
+  [Console]::Error.WriteLine("If genuinely intended, ask the human to run it or adjust the harness plugin's hooks/block-destructive.ps1.")
   exit 2
 }
 

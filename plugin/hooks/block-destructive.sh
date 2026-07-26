@@ -41,7 +41,7 @@ scan_env="${scan_env//.env.template/ENV_TEMPLATE}"
 deny() {  # $1 = why
   echo "BLOCKED by harness guardrail: $1." >&2
   echo "Command: ${cmd:0:200}" >&2
-  echo "If genuinely intended, ask the human to run it or adjust .claude/hooks/block-destructive.sh." >&2
+  echo "If genuinely intended, ask the human to run it or adjust the harness plugin's hooks/block-destructive.sh." >&2
   exit 2
 }
 

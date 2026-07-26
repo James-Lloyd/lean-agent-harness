@@ -27,7 +27,7 @@
         "explore": { "$ref": "#/definitions/phaseRouting", "description": "Model for the read-only explorer agent that other phases fan searches out to. Exploration is a fan-out pattern, not a pipeline phase — see the 2026-07-13 execution plan." },
         "plan": { "$ref": "#/definitions/phaseRouting", "description": "Model for the planner agent." },
         "implement": { "$ref": "#/definitions/phaseRouting", "description": "Model for the generator agent AND the headless loop's main iteration (`claude -p --model`)." },
-        "review": { "$ref": "#/definitions/phaseRouting", "description": "Reviewer routing. A `model` of the literal string 'codex' routes review through the OpenAI Codex CLI (cross-vendor judge; see harness/lib/invoke-codex.*); any Claude alias/ID uses the internal fresh-context reviewer on that model. `fallback` (replacing the deprecated top-level reviewFallback) is the Claude model used when a codex primary is missing/unauthenticated or hits a usage/limit error." },
+        "review": { "$ref": "#/definitions/phaseRouting", "description": "Reviewer routing. A `model` of the literal string 'codex' routes review through the OpenAI Codex CLI (cross-vendor judge; see the engine's lib/invoke-codex.*); any Claude alias/ID uses the internal fresh-context reviewer on that model. `fallback` (replacing the deprecated top-level reviewFallback) is the Claude model used when a codex primary is missing/unauthenticated or hits a usage/limit error." },
         "reviewFallback": { "type": ["string", "null"], "description": "DEPRECATED — use `review.fallback`; still read for back-compat. Claude model for the internal reviewer agent, used as the automatic fallback when `review` is 'codex' but codex is missing/unauthenticated." },
         "evaluate": { "$ref": "#/definitions/phaseRouting", "description": "Model for the evaluator agent (judges deserve the strongest model)." },
         "docs": { "$ref": "#/definitions/phaseRouting", "description": "Model for the doc-gardener agent." },
@@ -108,7 +108,7 @@
         "properties": {
           "name": { "type": "string", "description": "Short label, e.g. 'frontend', 'backend', 'root'." },
           "path": { "type": "string", "description": "Directory of this component relative to the repo root ('.' for a single-root project). Gate commands run with this as the working directory, and the edit-hook routes a changed file to the component whose path is its deepest prefix." },
-          "profile": { "type": ["string", "null"], "description": "Name of the stack profile in harness/profiles/ used to derive this component's gate." },
+          "profile": { "type": ["string", "null"], "description": "Name of the stack profile in the plugin engine's profiles/ dir used to derive this component's gate." },
           "languages": { "type": "array", "items": { "type": "string" } },
           "packageManager": { "type": ["string", "null"] },
           "runtime": { "type": ["string", "null"] },

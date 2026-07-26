@@ -32,16 +32,17 @@ These reduce *per-session* context cost (the always-loaded files) and obvious cl
      instructions and learnings.
    - `state/fix_plan.md`, `state/tasks.json`: remove the example/template comment blocks.
 2. **Remove `examples/`** — the worked example is reference material, not part of a real project.
-3. **Remove unused stack profiles** — delete `harness/profiles/*.json` whose `name` is not referenced by
-   any `config.components[].profile`. **Keep** `_template.json` (needed to add components later) and the
-   profiles actually in use.
+3. **Remove unused stack profiles** *(pre-plugin copied-in layouts only)* — delete
+   `harness/profiles/*.json` whose `name` is not referenced by any `config.components[].profile`.
+   **Keep** `_template.json` and the profiles in use. (Plugin installs keep profiles inside the plugin,
+   not the project — nothing to prune.)
 4. **Strip the long `_comment` fields** in `harness/harness.config.json` for sections the human now
    understands — but keep the schema reference. (Optional; skip if unsure.)
 
 ## Aggressive tier (only if $ARGUMENTS contains "aggressive")
 Also remove things you *can* regenerate or rarely need:
-- `.claude/commands/harness-init.md` — one-time; re-cloneable from the upstream repo if you re-init.
-- `harness/templates/` and `harness/profiles/_template.json` — only if you won't add components.
+- `.claude/commands/harness-init.md`, `harness/templates/`, `harness/profiles/_template.json`
+  *(pre-plugin copied-in layouts only — plugin installs don't carry these in the project)*.
 - `docs/principles/sources.md` — provenance/bibliography, not operational.
 - `ROADMAP.md` — the harness maintainer's backlog (platform watches, packaging plans, review notes).
   It's about developing the harness itself, not your project — dead weight in a project that merely
@@ -50,7 +51,8 @@ Also remove things you *can* regenerate or rarely need:
 Warn that these make a future `/harness-init` or "add a component" harder, and require explicit consent.
 
 ## Never remove
-The operative core: `harness/loop.*`, `harness/lib/*`, `.claude/hooks/*`, `.claude/settings.json`, the
+The operative core: the `harness/loop.*` + `harness/fleet.*` wrappers, `harness/harness.config.json`,
+`.claude/settings.json`, any copied-in engine on pre-plugin layouts (`harness/lib/*`, `.claude/hooks/*`), the
 other commands/agents/skills, `specs/`, `state/` (your live work), `docs/principles/harness-philosophy.md`,
 `workflow.md`, and `golden-principles.md` (the taste invariants reviewer/evaluator/skills enforce — no
 config field points to it, so it isn't covered by the "referenced by `config`" rule below), and anything

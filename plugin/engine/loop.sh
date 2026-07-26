@@ -113,7 +113,7 @@ periodic_review() {  # $1 base  $2 run_dir  $3 iter
   echo "🧑‍⚖️  Periodic fresh-context review of commits ${base:0:8}..${head:0:8}..."
   reviewlog="$run_dir/review-after-$iter.log"
   read -r -d '' prompt <<EOF || true
-You are a FRESH-CONTEXT REVIEWER (the harness 'reviewer' role — see .claude/agents/reviewer.md). You
+You are a FRESH-CONTEXT REVIEWER (the harness 'reviewer' role). You
 have NO memory of how this code was written; judge only the artifact. You are READ-ONLY — do not edit,
 write, or commit anything.
 
@@ -188,7 +188,7 @@ periodic_evaluation() {  # $1 base  $2 run_dir  $3 iter
   echo "🧮  Periodic evaluator scoring commits ${base:0:8}..${head:0:8} against $EVAL_RUBRIC..."
   evallog="$run_dir/evaluate-after-$iter.log"
   read -r -d '' prompt <<EOF || true
-You are a SKEPTICAL EVALUATOR (the harness 'evaluator' role — see .claude/agents/evaluator.md). You have
+You are a SKEPTICAL EVALUATOR (the harness 'evaluator' role). You have
 NO memory of how this code was written; judge only the artifact. You are READ-ONLY — do not edit, write,
 or commit anything.
 
