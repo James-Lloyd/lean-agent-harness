@@ -281,7 +281,7 @@ if [ "$MODE" = "auto" ] && [ "$SKIP_PERMS" = "true" ]; then
   confirm_checkpoint "Proceed with unattended skip-permissions run?" || exit 0
 else
   # Headless children can't answer permission prompts: any Bash command NOT in permissions.allow is
-  # auto-denied, so if the gate commands aren't allowlisted the agent can't run PROMPT.md Phase 3 and
+  # auto-denied, so if the gate commands aren't allowlisted the agent can't run PROMPT.md's gate and
   # burns iterations editing blind. /harness-init appends them; remind here in case it didn't.
   echo "ℹ️  Headless runs auto-deny non-allowlisted commands. Ensure the gate commands (test/build/lint)"
   echo "    are in .claude/settings.json permissions.allow (/harness-init adds them)."

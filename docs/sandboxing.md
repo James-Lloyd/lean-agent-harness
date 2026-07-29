@@ -106,3 +106,24 @@ first iteration:
 
 It warns but does not stop (in `auto` there is no human to confirm). Supervised mode and any run inside a
 recognized sandbox print nothing.
+
+## Why there are no deny rules on config/specs writes (referenced from `.claude/settings.json`)
+
+`.claude/settings.json` deliberately does **not** deny Edit/Write of `harness.config.json`,
+`.claude/**`, or `specs/**`:
+
+- **Deny rules can't be lifted per-command**, and `/harness-init`, `/harness-prune`, and `/plan`
+  legitimately write those files — a blanket deny would break them.
+- Instead, the **autonomous loop** protects its gate config with a **config-hash pin** (it rolls back
+  and stops if the config changes mid-iteration), and a **ConfigChange hook** freezes the settings
+  surface for the same window.
+- **During a loop run** (`loop.ps1`/`loop.sh` set `HARNESS_LOCK_SPECS` before invoking the model),
+  `specs/` is made immutable on both surfaces: the `protect-specs` PreToolUse hook covers
+  Edit/Write/MultiEdit/NotebookEdit, and `block-destructive` covers shell-mediated writes
+  (redirects/mv/rm into `specs/`) while still allowing reads.
+- **`git reset --hard` is an unconditional exit-2 block**, not an "ask" rule — an ask would be dead
+  code under an unconditional block. If you genuinely need it, run it yourself in a terminal, where
+  hooks don't apply.
+
+Spec/test integrity in supervised use rests on the fresh-context `/review` plus the guardrails in
+`CLAUDE.md`/`PROMPT.md`; for unattended runs, add the isolation profiles above.

@@ -1,74 +1,36 @@
 <!--
-  PROMPT.md — the phased instruction piped into EVERY autonomous loop iteration.
-  This is the heart of the Ralph-style loop: each iteration is (or may be) a fresh context window,
-  so this file must re-establish everything the agent needs from scratch, every time.
-
-  It is STABLE. You rarely edit it. The work that changes each loop lives in state/fix_plan.md.
-  Read it top to bottom and obey the phase order.
+  PROMPT.md — piped into every headless loop iteration. Each iteration is a fresh context window;
+  this file plus the files it points to are everything the agent gets. It is STABLE — the work that
+  changes lives in state/fix_plan.md.
 -->
 
-You are operating one iteration of an autonomous engineering loop. You have **no memory** of previous
-iterations. Everything you need is on disk. Work the phases in order. Do exactly **one** task.
+You are running one iteration of an autonomous engineering loop, with no memory of previous
+iterations. Everything you need is on disk: `CLAUDE.md` (the map), `specs/` (immutable requirements),
+`AGENT_NOTES.md` (operational gotchas), `state/fix_plan.md` (the prioritized work stack), and
+`state/PROGRESS.md` + recent `git log` (what just happened). If `project.type` in
+`harness/harness.config.json` is **brownfield**, read the `brownfield-safety` skill before touching code.
 
-## Phase 0 — Study (read before you touch anything)
-0. Check the project type in `harness/harness.config.json` → `project.type`. If **brownfield**: you are
-   editing an existing, working system — read the `brownfield-safety` skill. Respect existing
-   conventions, keep the change small and on a branch, ensure the baseline is green first, and write a
-   characterization test before modifying any untested behaviour. Never weaken existing tests to pass.
-1. Read `CLAUDE.md` (the map) to orient.
-2. Read the relevant file(s) in `specs/`. **Specs are the immutable source of truth.** Do not edit them.
-3. Read `AGENT_NOTES.md` for run/build commands and learnings from past loops.
-4. Read `state/fix_plan.md`. This is the prioritized stack of remaining work.
-5. Read recent `git log` and `state/PROGRESS.md` to see what just happened.
+Do exactly **one** task: the highest-priority unchecked item in `state/fix_plan.md`. If it's too big,
+split it in the plan and take only the first slice. Work in the owning component's directory
+(`harness/harness.config.json` → `components`), and check the item isn't already implemented before
+building it.
 
-## Phase 1 — Select (one item only)
-6. Pick the **single** highest-priority unchecked item from `state/fix_plan.md` — one item per loop
-   keeps the work coherent and the context clean. If the item is too big, split it in the plan and
-   take only the first slice.
-   Note which **component** it belongs to (see `harness/harness.config.json` → `components`): a
-   frontend/ + backend/ project has separate stacks and gates. Work within that component's directory.
-7. **Search the codebase before assuming the item isn't already done.** For a wide sweep, fan out
-   read-only `explorer` subagents (the harness's cheap scout role); do small targeted reads yourself.
-   Do not conclude "not implemented" without looking.
+The iteration is done when:
+- The changed component's gate, then the cross-cutting root gate, all pass:
+  format → lint → typecheck → build → test. Serialize builds/tests — never two at once.
+- End-to-end evidence exists that the change works as a user experiences it (`e2e-evidence` skill) —
+  passing unit tests alone are not done.
+- The *why* is written down (code comments / docs), new gotchas are appended to `AGENT_NOTES.md`, the
+  item is ticked in `state/fix_plan.md`, and a line is added to `state/PROGRESS.md`.
+- The task in `state/tasks.json` is set to `status: "validated"`, `passes: true`, and its `evidence`
+  path — edit only those three fields. Not `reviewed`/`done`: advancing past `validated` requires a
+  fresh-context review.
+- **You have NOT run `git commit`.** The loop runner re-runs the gate and commits/tags on green;
+  leave the working tree complete and gate-passing. (The in-session `/loop` and `/work` commands DO
+  commit — this rule is headless-only.)
 
-## Phase 2 — Implement (fully)
-8. Implement the item completely. **No placeholders. No stubs. No "simple version for now."**
-   Full, production-grade implementation or nothing.
-9. Use parallel `explorer` subagents for wide reads/searches/analysis — file dumps stay out of your
-   working context. Don't delegate what you can finish yourself in a handful of tool calls.
-   **Serialize build and test to a single runner** to avoid backpressure — never run two
-   builds/tests concurrently.
-
-## Phase 3 — Verify (the gate — this is non-negotiable)
-10. Run the verification gate for the **component** you changed (its entry in
-    `harness/harness.config.json` → `components`), then the cross-cutting root `gate`:
-    format → lint → typecheck → build → tests. All must pass.
-11. **Unit-green is not done.** Produce end-to-end evidence the change works as a user experiences it
-    (a real invocation, a screenshot, a recorded run, a log excerpt). See the `e2e-evidence` skill.
-12. If the gate is red: fix the code. **Never** weaken or delete a test to go green. If you cannot fix
-    it this iteration, revert your changes (leave the tree green) and note the blocker in `fix_plan.md`.
-
-## Phase 4 — Record (leave breadcrumbs for the next amnesiac you)
-13. Capture the **why**: in code comments and/or `docs/`, explain why this implementation and its tests
-    matter. The next loop has none of your reasoning — write it down.
-14. Append any new run/build gotcha or learning to `AGENT_NOTES.md`.
-15. Tick the completed item in `state/fix_plan.md`, and mirror it into `state/tasks.json`: set the
-    matching task's `status` to **`validated`**, `passes: true`, and the `evidence` path (edit ONLY
-    those three fields — never `description`/`acceptance`). Leave it at `validated`, not `reviewed`/`done`:
-    the loop's own gate is deterministic-only; advancing past `validated` needs a fresh-context review
-    (the periodic reviewer, or a later `/review`). Add a one-line entry to `state/PROGRESS.md`.
-
-## Phase 5 — Hand off (do NOT commit — the loop runner does)
-16. Leave your changes **staged or unstaged but complete** — do not run `git commit` yourself. The loop
-    runner runs the gate and, only if it's green, makes the commit (and tag) for this iteration. If you
-    commit here too you'll create a redundant/empty commit and muddle the gate↔commit ordering.
-    Just leave the working tree in a complete, gate-passing state.
-    (Note: the in-session `/loop` and `/work` commands DO commit — there's no separate runner there.
-    This no-commit rule is specific to PROMPT.md, which is driven by the headless loop.)
-
-## Stop / escalate conditions
-- If `state/fix_plan.md` has no unchecked items → say so and stop (the loop will exit or re-plan).
-- If you hit an **ambiguous product decision**, do not guess. Write the question to
-  `state/handoff.md` under "Needs human decision" and stop.
-- If you have attempted the same item and failed twice, narrow its scope in `fix_plan.md`, note what
-  you tried and where it broke, and stop rather than thrash.
+If the gate is red and you can't fix it this iteration, revert to a green tree and record the blocker
+in `fix_plan.md` — never weaken or delete a test to go green. On any ambiguous product decision, write
+the question to `state/handoff.md` under "Needs human decision" and stop rather than guess. If
+`fix_plan.md` has no unchecked items, say so and stop. If you've failed the same item twice, narrow
+its scope in the plan, note what broke, and stop rather than thrash.

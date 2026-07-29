@@ -74,7 +74,7 @@ behaves oddly.
       phase's **primary** when the primary is a Claude model; when the primary is `"codex"`, frontmatter
       must == the phase's **Claude `fallback`** (so a spawned subagent still lands on the right model) and
       you note "phase is codex-routed — frontmatter tracks its Claude fallback." With the shipped config
-      this is the `reviewer` branch (`review = {codex, fable}` → `reviewer` frontmatter must be `fable`).
+      this is the `reviewer` branch (`review = {codex, opus}` → `reviewer` frontmatter must be `opus`).
     - **(d) No `codex → codex` fallback.** A `fallback` equal to a `codex` primary is ❌ — there is no
       cross-vendor escape hatch beyond one hop, so both candidates being codex leaves a usage-limit stop
       nowhere to go.

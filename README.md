@@ -113,7 +113,7 @@ the config preset, a Task Scheduler / cron recipe, and the morning audit routine
 | `docs/` | `architecture/`, `design-docs/`, `execution-plans/`, `technical-debt/`, `principles/`. The agent's long-term knowledge, version-controlled. |
 | `specs/` | **Immutable** source of truth for requirements. The agent reads, never rewrites. |
 | `state/` | Mutable runtime state: `tasks.json`, `fix_plan.md`, `PROGRESS.md` (committed — they *are* the memory); `handoff.md` is gitignored: a transient, per-working-copy note regenerated at each context reset. |
-| `PROMPT.md` | The phased prompt piped into each loop iteration (study → select → implement → verify → record → hand off). |
+| `PROMPT.md` | The prompt piped into each loop iteration: one task, the full gate, e2e evidence, record — and no commit (the loop runner commits on green). |
 | `AGENT_NOTES.md` | The amnesiac's notebook — run/build commands and hard-won learnings, appended by the loop. |
 
 ---

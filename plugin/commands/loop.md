@@ -8,39 +8,27 @@ allowed-tools: Read, Write, Edit, Bash, Glob, Grep, Agent, AskUserQuestion, Skil
 
 Optional focus: $ARGUMENTS
 
-This is the **in-session, supervised** form of the loop. It does exactly one iteration of `PROMPT.md`
-with checkpoints, so you (the human) stay in the driver's seat. For unattended/full-auto runs, use the
-shell loop instead: `powershell harness/loop.ps1` (or `pwsh` on PS7) / `bash harness/loop.sh`.
+One iteration of `PROMPT.md`, in-session with checkpoints. For unattended runs use the shell loop:
+`powershell harness/loop.ps1` / `bash harness/loop.sh`.
 
-## Procedure (follow PROMPT.md's phases, with these checkpoints)
-0. **Project type** — check `harness/harness.config.json` → `project.type`. If **brownfield**: load the
-   `brownfield-safety` skill, confirm the baseline is green (`project.baseline.established`) before you
-   touch anything, work on a branch, and write a characterization test before changing any untested
-   behaviour. Never weaken an existing test to pass.
-1. **Study** — read `CLAUDE.md`, the relevant `specs/`, `AGENT_NOTES.md`, and `state/fix_plan.md`.
-2. **Select ONE item** — the highest-priority unchecked item (or the one in $ARGUMENTS). If you
-   intend a different one than the top of the stack, say which and why.
-   - **Checkpoint (if config `autonomy.checkpoints.planApproval`):** state the item and your approach
-     in 2–3 lines and get a 👍 before writing code.
-3. **Search before implementing** — don't assume it's missing. For a wide sweep, fan out read-only
-   `Agent` searches; do small targeted reads yourself.
-4. **Implement fully** — no placeholders. Serialize any build/test runs (one at a time).
-5. **Verify — the gate** — run format → lint → typecheck → tests for what you changed. Then capture
-   **end-to-end evidence** (use the `e2e-evidence` skill). Unit-green is not done.
-   - If red: fix the code; never weaken a test. If you can't fix it this turn, revert and note the
-     blocker in `state/fix_plan.md`.
-   - **Checkpoint (if `autonomy.checkpoints.beforeRiskyOps`):** pause before any push/migration/deploy.
-6. **Record** — capture *why* in code/docs; append learnings to `AGENT_NOTES.md`; tick the item in
-   `state/fix_plan.md`; in `state/tasks.json` advance the task's `status` to **`validated`** (NOT
-   `reviewed`/`done` — `/loop` stops at verify; only a fresh-context `/review` may advance it past
-   `validated`, per `workflow.requireReviewBefore`) **and** set `passes: true` and the `evidence` path —
-   don't leave `status` at `todo` while flipping `passes` (the workflow keys off `status`); add a line to
-   `state/PROGRESS.md`.
-7. **Commit** — descriptive conventional message. Leave the tree green.
+## Procedure
+0. **Project type** — `config.project.type` = brownfield → load `brownfield-safety`, confirm the
+   baseline is green, branch, characterization-test before changing untested behaviour.
+1. **Study** — `CLAUDE.md`, the relevant `specs/`, `AGENT_NOTES.md`, `state/fix_plan.md`.
+2. **Select ONE item** — the top unchecked item (or $ARGUMENTS; say why if you deviate).
+   - **Checkpoint (`autonomy.checkpoints.planApproval`):** state item + approach in 2–3 lines, get a 👍.
+3. **Implement** — check it isn't already done first; work in the owning component's directory;
+   serialize builds/tests.
+4. **Verify — the gate** — format → lint → typecheck → tests for what changed, then **end-to-end
+   evidence** (`e2e-evidence` skill); unit-green is not done. Red → fix (never weaken a test) or
+   revert and note the blocker in `fix_plan.md`.
+   - **Checkpoint (`beforeRiskyOps`):** pause before any push/migration/deploy.
+5. **Record** — the *why* in code/docs; learnings → `AGENT_NOTES.md`; tick `fix_plan.md`; in
+   `state/tasks.json` set `status: "validated"` + `passes: true` + `evidence` (NOT `reviewed`/`done` —
+   advancing past `validated` needs a fresh-context `/review`); add a `state/PROGRESS.md` line.
+6. **Commit** — descriptive conventional message, tree green.
 
 ## After the iteration
-Report: what shipped, the evidence, what's next. Ask whether to run another iteration. Recommend a
-`/review` (fresh-context QA) before trusting a batch of iterations — you wrote this code, so you're a
-biased judge of it. On a SHIP verdict that `/review` also advances the reviewed tasks in
-`state/tasks.json` (`validated → reviewed → done`) and moves the `harness-reviewed` watermark tag, so
-the manifest doesn't rest at `validated` forever.
+Report what shipped, the evidence, what's next; ask whether to run another. Recommend `/review`
+before trusting a batch — the doer is a biased judge. On SHIP, `/review` advances the reviewed tasks
+and moves the `harness-reviewed` watermark.

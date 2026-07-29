@@ -1,21 +1,20 @@
 {
   "$schema": "../plugin/engine/harness.schema.json",
-  "_comment": "The one file you tune per project. /harness-init writes the stack-specific bits. A project is one-or-more COMPONENTS (each a buildable sub-repo with its own stack + gate) plus a cross-cutting root gate for integration/e2e. A single-root project is just one component with path '.'. See harness.schema.json for the full field reference.",
+  "_comment": "The one file you tune per project (/harness-init writes the stack bits; harness.schema.json is the field reference). A project = one-or-more components, each with its own gate, plus a cross-cutting root gate.",
 
   "project": {
-    "_comment": "greenfield = building from scratch (establish stack/specs, higher autonomy OK). brownfield = an existing codebase (understand & respect it first, supervised by default, baseline must be green before changes). /harness-init detects and sets this.",
     "type": "greenfield",
     "baseline": { "established": false, "ref": null }
   },
 
   "models": {
-    "_comment": "Per-phase model routing (declared here; enforced via settings.json `model`, agent frontmatter, and loop --model flags — /harness-doctor checks they agree). Each phase is {model, fallback}: model/fallback are a Claude alias|full ID or the literal 'codex' (cross-vendor OpenAI Codex CLI); null = inherit session / no fallback. fallback fires when the primary is unavailable or hits a usage/limit error (never codex->codex). codex{} configures the Codex CLI for ANY phase routed to it. The legacy flat 'phase': 'alias' form is still accepted by the resolver for back-compat.",
+    "_comment": "Per-phase {model, fallback}: a Claude alias/ID or the literal 'codex'; null = inherit session / no fallback. Fallback fires only on a FAILED invocation (unavailable or usage-limited). Enforced via settings.json `model`, agent frontmatter, and the loop dispatcher — /harness-doctor check 10 validates agreement. Claude reasoning effort: session and headless phases run the model default (high); agents pin theirs in frontmatter (scouts low, judges high).",
     "session":   { "model": "opus",  "fallback": null },
     "explore":   { "model": "haiku", "fallback": null },
     "plan":      { "model": "fable", "fallback": null },
     "implement": { "model": "opus",  "fallback": "codex" },
-    "review":    { "model": "codex", "fallback": "fable" },
-    "evaluate":  { "model": "fable", "fallback": null },
+    "review":    { "model": "codex", "fallback": "opus" },
+    "evaluate":  { "model": "fable", "fallback": "opus" },
     "docs":      { "model": "haiku", "fallback": null },
     "codex":     { "model": null, "reasoningEffort": "high", "auth": "chatgpt", "timeoutSeconds": 900 }
   },
@@ -53,7 +52,7 @@
   },
 
   "parallel": {
-    "_comment": "Fleet runner (harness/fleet.ps1|.sh): opt-in parallel workers over independent tasks (declared 'files' ownership in tasks.json), serialized merge queue. 3 = the productive default; review bandwidth binds before compute.",
+    "_comment": "Fleet runner: opt-in parallel workers over independent tasks (declared 'files' ownership), serialized merge queue. Review bandwidth binds before compute.",
     "maxWorkers": 3,
     "workerMaxTurns": null,
     "workerTimeoutSeconds": 3600
@@ -80,7 +79,7 @@
   ],
 
   "gate": {
-    "_comment": "Cross-cutting / integration gate, run from the repo ROOT after every component gate passes. For a multi-component project this usually holds only the e2e that exercises the components together; leave the rest null. For a single-component project, leave this entirely null (the component gate covers it).",
+    "_comment": "Cross-cutting gate, run from the repo ROOT after every component gate passes (usually just the e2e; all-null for a single-component project).",
     "format": null,
     "lint": null,
     "typecheck": null,

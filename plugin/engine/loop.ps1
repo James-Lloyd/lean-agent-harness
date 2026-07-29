@@ -310,8 +310,8 @@ if ($cfg.autonomy.mode -eq 'auto' -and (Get-Prop $cfg.autonomy 'skipPermissions'
   if (-not (Confirm-Checkpoint "Proceed with unattended skip-permissions run?")) { return }
 } else {
   # Headless children can't answer permission prompts: any Bash command NOT in permissions.allow is
-  # auto-denied, so if the gate commands aren't allowlisted the agent can't run Phase 3 of PROMPT.md
-  # and burns iterations editing blind. /harness-init appends them; remind here in case it didn't.
+  # auto-denied, so if the gate commands aren't allowlisted the agent can't run PROMPT.md's gate and
+  # burns iterations editing blind. /harness-init appends them; remind here in case it didn't.
   Write-Host "ℹ️  Headless runs auto-deny non-allowlisted commands. Ensure the gate commands (test/build/lint)" -ForegroundColor DarkGray
   Write-Host "    are in .claude/settings.json permissions.allow (/harness-init adds them)." -ForegroundColor DarkGray
 }

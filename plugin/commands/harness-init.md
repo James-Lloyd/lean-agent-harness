@@ -66,9 +66,10 @@ With answers in hand:
   and its `gate` with real commands). Put any cross-cutting e2e in the top-level `gate`. For each
   component's stack, reference a matching profile from the plugin engine's `profiles/` dir
   (`${CLAUDE_PLUGIN_ROOT}/engine/profiles/<stack>.json`) or copy its `_template.json`.
-- **`CLAUDE.md`** — replace every `{{PLACEHOLDER}}`: name, description, domain, project shape, the
-  **Components table** (one row per component), and the gate block. Leave the ratchet
-  section empty (it grows from failures). Keep the file ≤ ~100 lines — trim, don't pad.
+- **`CLAUDE.md`** — replace every `{{PLACEHOLDER}}`: name, description, domain, project shape, and the
+  **Components table** (one row per component). The gate commands go in `AGENT_NOTES.md`'s run/build
+  block and `harness/harness.config.json`, not the root map. Leave the ratchet section empty (it
+  grows from failures). Keep the file ≤ ~100 lines — trim, don't pad.
 - **Nested `CLAUDE.md`** — for each non-trivial component, copy the engine's template
   (`${CLAUDE_PLUGIN_ROOT}/engine/templates/component-CLAUDE.md`)
   into that component's directory (e.g. `frontend/CLAUDE.md`) and fill it — entry points live here, not
@@ -99,10 +100,10 @@ With answers in hand:
   |-------|-------|----------|-----|
   | `session` | `opus` | (n/a) | the main window — **must be Claude**, never codex |
   | `explore` | `haiku` | `null` | cheap read-only scout |
-  | `plan` | `fable` | `null` | fast planner |
+  | `plan` | `fable` | `null` | deepest reasoner for design; interactive, so a usage cap is recoverable |
   | `implement` | `opus` | `codex` | strongest builder + cross-vendor safety net on a usage cap |
-  | `review` | `codex` | `fable` | independent cross-vendor judge, Claude fallback |
-  | `evaluate` | `fable` | `null` | rubric scorer |
+  | `review` | `codex` | `opus` | independent cross-vendor judge; cap-proof Claude fallback |
+  | `evaluate` | `fable` | `opus` | premium rubric scorer; cap-proof fallback for headless runs |
   | `docs` | `haiku` | `null` | doc gardener |
 
   Constraints to honor as you pick: `session.model` **must be Claude** (never `codex`); a `fallback` must
@@ -110,7 +111,7 @@ With answers in hand:
   (nested `{model,fallback}` per phase), `.claude/settings.json` `model` (= `session.model`), and the
   `model:` frontmatter of each harness agent (the plugin's `agents/*.md`) — frontmatter tracks the phase's **primary** when
   that's Claude, else (primary `codex`) the phase's **Claude `fallback`** (so `reviewer` frontmatter is
-  `review`'s fallback = `fable` under the defaults). `/harness-doctor` check 10 enforces exactly this. For
+  `review`'s fallback = `opus` under the defaults). `/harness-doctor` check 10 enforces exactly this. For
   any phase routed to `codex`, confirm the codex CLI is installed and signed in (`codex login`) — the
   effect of it being unavailable depends on where codex sits: a **codex-primary** phase (e.g. `review`)
   silently runs on its Claude `fallback`; a **Claude-primary phase with a codex `fallback`** (e.g.
