@@ -55,6 +55,15 @@ PROMPT.md wins there); roll back a red tree rather than patching over it. At tas
   grep the sibling for the exact phrase (loop.sh got de-phased wording; loop.ps1 kept "Phase 3").
 - [2026-07-29] Before deleting a doc/comment block, grep for inbound pointers and rehome the content or
   fix the pointer in the same change — a pointer into deleted content is worse than the verbosity.
+- [2026-07-30] A committed config pointer ($schema, profile, path) is repo-relative or plugin-resolved,
+  never an absolute local path — it dies on the next device (a consumer repo's $schema pointed at this
+  machine's harness checkout).
+- [2026-07-30] Compression may not swap a concrete fact for a pointer unless the pointed-at
+  file/skill/command is verified to exist — resolve it before closing (a consumer map lost its model
+  names to an unverified skill pointer).
+- [2026-07-30] When /harness-migrate deletes engine files from a consumer, grep the plugin's own
+  commands for checks against those paths in the same change (harness-doctor checks 1+7 failed on every
+  correctly-migrated repo).
 
 ## Nested context
 Subsystems carry their own `CLAUDE.md` next to their code (in this repo: `plugin/engine/` holds the

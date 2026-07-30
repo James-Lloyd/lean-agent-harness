@@ -15,9 +15,13 @@ behaves oddly.
 ## Checks (report each as ✅ / ⚠️ / ❌, with the specific finding and fix)
 
 1. **Config parses & matches the schema.** `harness/harness.config.json` is valid JSON and conforms to
-   `harness/harness.schema.json` (required fields present; enums valid; types right). Flag unknown keys.
-   Use a **BOM-tolerant** parser (`jq`/PowerShell `ConvertFrom-Json` are fine; `node`'s `JSON.parse`
-   chokes on the UTF-8 BOM the config may carry — don't report a false "invalid JSON").
+   the schema (required fields present; enums valid; types right). The schema lives at
+   `harness/harness.schema.json` in pre-plugin copied-in layouts, else in the plugin engine
+   (`${CLAUDE_PLUGIN_ROOT}/engine/harness.schema.json`, or the installed cache under
+   `~/.claude/plugins/cache/lean-agent-harness/**/engine/`) — a migrated repo carrying no local schema
+   copy is correct, not a finding. Flag unknown keys. Use a **BOM-tolerant** parser (`jq`/PowerShell
+   `ConvertFrom-Json` are fine; `node`'s `JSON.parse` chokes on the UTF-8 BOM the config may carry —
+   don't report a false "invalid JSON").
 
 2. **No un-filled placeholders.** Grep the always-loaded files (`CLAUDE.md`, any nested component
    `CLAUDE.md`, `AGENT_NOTES.md`, `PROMPT.md`, `harness.config.json`) **and `specs/`** (the shipped
@@ -43,8 +47,10 @@ behaves oddly.
 6. **Loop dry-run is clean.** Run `powershell harness/loop.ps1 -DryRun` (Windows) or
    `bash harness/loop.sh --dry-run` (Unix) and confirm it reaches "would invoke" without erroring.
 
-7. **Self-tests pass.** Run `harness/tests/run-tests.{ps1,sh}` for the current platform. These guard the
-   harness's own logic (gate routing, denylist, budget, spec-lock).
+7. **Self-tests pass** *(harness dev repo / pre-plugin layouts only)*. If `harness/tests/` exists, run
+   `harness/tests/run-tests.{ps1,sh}` for the current platform — these guard the engine's own logic
+   (gate routing, denylist, budget, spec-lock). Plugin-consumer repos don't carry the self-tests
+   (they live with the engine source); absence there is ✅ N/A, not a failure.
 
 8. **Baseline integrity (brownfield).** If `project.type == brownfield`: `project.baseline.established`
    is true and `baseline.ref` resolves to a real commit. Warn if `HEAD` has drifted far from it (the
