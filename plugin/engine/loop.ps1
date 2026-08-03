@@ -119,14 +119,16 @@ write, or commit anything.
 2. Judge it against specs/ (acceptance criteria) and docs/principles/ (golden principles): correctness
    vs spec, evidence quality, guardrails (no weakened/deleted tests, no edited specs, no destructive
    ops/secrets), architectural drift, needless complexity.
-3. List findings as  file:line — problem — concrete fix. Report ONLY findings that affect correctness
-   vs the spec, evidence integrity, or the guardrails. Do NOT manufacture style/architecture
-   suggestions to justify the review — a reviewer told to find problems always will, and invented
-   findings cause over-engineering churn. "No findings" is a valid outcome: SHIP it.
+3. Classify every finding blocker / should-fix / nit. A BLOCKER violates a stated spec requirement,
+   breaks an interface contract, loses data, opens a security hole, or fails a test. List findings as
+   file:line — severity — problem — concrete fix. Do NOT raise issues that are not traceable to a
+   spec requirement or a correctness, security, or data-integrity failure — a reviewer told to find
+   problems always will, and invented findings cause over-engineering churn. "No findings" is a
+   valid outcome: SHIP it.
 
 Finish with EXACTLY ONE final line and nothing after it:
-VERDICT: SHIP     (the batch is sound)
-VERDICT: REJECT   (anything is wrong — default to REJECT when unsure)
+VERDICT: SHIP     (zero blockers — should-fix/nit findings are logged above and do not gate)
+VERDICT: REJECT   (any blocker — when unsure whether a finding is blocker-grade, treat it as one)
 "@
   $reviewLog = Join-Path $RunDir ("review-after-$Iter.log")
   # Route the judge through the cross-vendor dispatcher (Invoke-Phase, READ-ONLY): -Primary is the

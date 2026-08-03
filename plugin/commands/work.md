@@ -76,8 +76,19 @@ subagents. Subagent frontmatter carries each phase's Claude model (generator's =
 ## Phase 4 — REVIEW (fresh context)
 - Run `/review`, routed per the table above. Optionally run the `evaluator` (read-only) against the
   rubric if `verification.evaluator.enabled`.
-- Verdict must be **ship** with guardrails intact (`workflow.requireReviewBefore`). *Reject* /
-  *fix-then-ship* → back to EXECUTE with the findings. On ship: `status: "reviewed"`. **Checkpoint.**
+- Verdict must be **ship** with guardrails intact (`workflow.requireReviewBefore`). The verdict gates
+  on **blockers only** — spec violation, broken interface contract, data loss, security hole, failing
+  test (`/review` classifies every finding blocker/should-fix/nit). Should-fixes and nits are logged
+  with the task record; they never trigger another cycle.
+- *Reject* / *fix-then-ship* (open blockers) → back to EXECUTE with the findings. Each later round
+  hands the reviewer the prior findings **and their resolutions**, scoped to the fix delta plus a
+  regression check — a fresh judge re-litigating settled points is what makes round 4 exist.
+- **Cap: 3 rounds** — a circuit breaker, not a quality target. Hitting it is an escalation signal,
+  not a ship signal: have the reviewer write up what is still contested to `state/handoff.md`
+  (Needs human decision) and stop — the write-up usually reveals the spec was ambiguous, which is
+  the real fix. Exception: high-blast-radius changes (payments, auth, migrations, irreversible data
+  ops) are uncapped — let the rounds run.
+- On ship: `status: "reviewed"`. **Checkpoint.**
 
 ## Phase 5 — RECORD
 - Capture the *why* in code/docs; append learnings to `AGENT_NOTES.md`; tick `state/fix_plan.md`; set
