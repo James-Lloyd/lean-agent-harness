@@ -98,11 +98,11 @@ With answers in hand:
   override per phase:
   | Phase | model | fallback | why |
   |-------|-------|----------|-----|
-  | `session` | `opus` | (n/a) | the main window — **must be Claude**, never codex |
+  | `session` | `fable` | (n/a) | the main window — **must be Claude**, never codex |
   | `explore` | `haiku` | `null` | cheap read-only scout |
   | `plan` | `fable` | `null` | deepest reasoner for design; interactive, so a usage cap is recoverable |
-  | `implement` | `opus` | `codex` | strongest builder + cross-vendor safety net on a usage cap |
-  | `review` | `codex` | `opus` | independent cross-vendor judge; cap-proof Claude fallback |
+  | `implement` | `codex` | `opus` | cross-vendor builder (GPT 5.6 sol) + cap-proof Claude fallback |
+  | `review` | `fable` | `opus` | deepest fresh-context judge; cap-proof Claude fallback |
   | `evaluate` | `fable` | `opus` | premium rubric scorer; cap-proof fallback for headless runs |
   | `docs` | `haiku` | `null` | doc gardener |
 
@@ -110,13 +110,13 @@ With answers in hand:
   not equal a `codex` primary (no `codex→codex`). Then write all surfaces **together**: `config.models`
   (nested `{model,fallback}` per phase), `.claude/settings.json` `model` (= `session.model`), and the
   `model:` frontmatter of each harness agent (the plugin's `agents/*.md`) — frontmatter tracks the phase's **primary** when
-  that's Claude, else (primary `codex`) the phase's **Claude `fallback`** (so `reviewer` frontmatter is
-  `review`'s fallback = `opus` under the defaults). `/harness-doctor` check 10 enforces exactly this. For
+  that's Claude, else (primary `codex`) the phase's **Claude `fallback`** (so `generator` frontmatter is
+  `implement`'s fallback = `opus` under the defaults). `/harness-doctor` check 10 enforces exactly this. For
   any phase routed to `codex`, confirm the codex CLI is installed and signed in (`codex login`) — the
-  effect of it being unavailable depends on where codex sits: a **codex-primary** phase (e.g. `review`)
-  silently runs on its Claude `fallback`; a **Claude-primary phase with a codex `fallback`** (e.g.
-  `implement`) still runs its Claude primary on the happy path but loses the safety net, so a usage cap
-  on the primary then has nowhere to fall back and the run fails closed.
+  effect of it being unavailable depends on where codex sits: a **codex-primary** phase (e.g. `implement`)
+  silently runs on its Claude `fallback`; a **Claude-primary phase with a codex `fallback`** still runs
+  its Claude primary on the happy path but loses the safety net, so a usage cap on the primary then has
+  nowhere to fall back and the run fails closed.
 - **Allowlist the gate** — append the project's gate commands discovered in the interview (the test/
   build/lint runners, e.g. `Bash(pnpm test:*)`, `Bash(uv run pytest:*)`) to `permissions.allow` in
   `.claude/settings.json`. Why: in headless `-p` runs nobody answers permission prompts — non-allowlisted
