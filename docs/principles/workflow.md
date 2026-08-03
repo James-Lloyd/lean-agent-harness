@@ -34,10 +34,16 @@ the acceptance criteria; red sends the task back to EXECUTE. **Status:** `in_pro
 
 ## REVIEW (`/review` / the `reviewer`, fresh context)
 An independent judge reviews the diff against the spec. The `reviewer` runs **always** (cheap,
-diff-scoped: ship / fix-then-ship / reject vs specs + guardrails + principles). The `evaluator` is
+diff-scoped: ship / fix-then-ship / reject vs specs + guardrails + principles). Every finding is
+classified **blocker / should-fix / nit**; only blockers (spec violation, broken interface contract,
+data loss, security hole, failing test) gate the verdict — should-fixes and nits are logged, never
+re-cycled. Fix→re-review rounds carry the prior findings + resolutions forward and scope to the fix
+delta + a regression check; they are **capped at 3** as a circuit breaker — hitting the cap escalates
+the still-contested points to a human (`state/handoff.md`) instead of shipping. High-blast-radius
+work (payments, auth, migrations, irreversible data ops) is uncapped. The `evaluator` is
 **opt-in** (`verification.evaluator.enabled`) for quality-sensitive sprints: it scores each criterion
 against `evaluator-rubric.md` with a hard `failBelow` threshold — any miss fails the sprint.
-**Exit gate** (`workflow.requireReviewBefore`): verdict *ship*, guardrails intact.
+**Exit gate** (`workflow.requireReviewBefore`): verdict *ship* (zero blockers), guardrails intact.
 **Status:** `validated → reviewed`.
 
 ## RECORD (commit + state)

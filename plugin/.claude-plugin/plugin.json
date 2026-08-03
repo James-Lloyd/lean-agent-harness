@@ -1,6 +1,6 @@
 {
   "name": "lean-agent-harness",
-  "version": "0.2.4",
+  "version": "0.2.5",
   "description": "A lean, opinionated engineering harness for Claude Code: the plan→execute→validate→review→record workflow, its specialist subagents, guardrail hooks, and the unattended loop/fleet runners. Install this to get the reusable engine; the per-repo scaffold (CLAUDE.md, specs/, state/) stays in your project and is wired up by /harness-init.",
   "author": {
     "name": "James Lloyd",
