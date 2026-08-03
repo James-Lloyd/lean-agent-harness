@@ -9,14 +9,14 @@
 
   "models": {
     "_comment": "Per-phase {model, fallback}: a Claude alias/ID or the literal 'codex'; null = inherit session / no fallback. Fallback fires only on a FAILED invocation (unavailable or usage-limited). Enforced via settings.json `model`, agent frontmatter, and the loop dispatcher — /harness-doctor check 10 validates agreement. Claude reasoning effort: session and headless phases run the model default (high); agents pin theirs in frontmatter (scouts low, judges high).",
-    "session":   { "model": "opus",  "fallback": null },
+    "session":   { "model": "fable", "fallback": null },
     "explore":   { "model": "haiku", "fallback": null },
     "plan":      { "model": "fable", "fallback": null },
-    "implement": { "model": "opus",  "fallback": "codex" },
-    "review":    { "model": "codex", "fallback": "opus" },
+    "implement": { "model": "codex", "fallback": "opus" },
+    "review":    { "model": "fable", "fallback": "opus" },
     "evaluate":  { "model": "fable", "fallback": "opus" },
     "docs":      { "model": "haiku", "fallback": null },
-    "codex":     { "model": null, "reasoningEffort": "high", "auth": "chatgpt", "timeoutSeconds": 900 }
+    "codex":     { "model": "gpt-5.6-sol", "reasoningEffort": "high", "auth": "chatgpt", "timeoutSeconds": 900 }
   },
 
   "autonomy": {

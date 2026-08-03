@@ -31,9 +31,9 @@ the config (readable directly, or via the engine lib resolvers — bash `phase_m
   fallback for free. bash: call `invoke_phase` directly, never in `$(...)` (subshell drops its return
   globals). No subagent ever wraps codex.
 
-With the default config only **review** has a codex primary: REVIEW dispatches the codex lib
-read-only and spawns `reviewer` only on the Claude fallback; PLAN and EXECUTE spawn their Claude
-subagents. Subagent frontmatter carries each phase's Claude model (reviewer's = review's Claude
+With the default config only **implement** has a codex primary: EXECUTE dispatches the codex lib
+workspace-write and spawns `generator` only on the Claude fallback; PLAN and REVIEW spawn their Claude
+subagents. Subagent frontmatter carries each phase's Claude model (generator's = implement's Claude
 *fallback*); `/harness-doctor` check 10 validates that.
 
 ## Phase 0 — PROJECT TYPE
