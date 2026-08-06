@@ -1,0 +1,8 @@
+session: model ok effort ok fallback ok
+explore: model ok effort ok fallback ok
+plan: model ok effort ok fallback ok
+implement: model ok effort ok fallback ok
+review: model ok effort ok fallback ok
+evaluate: model ok effort ok fallback ok
+docs: model ok effort ok fallback ok
+skill table matches shipped config

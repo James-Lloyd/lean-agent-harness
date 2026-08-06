@@ -57,6 +57,10 @@ Ask only what you couldn't confidently detect. Cover:
    unattended skip-permissions runs are ever allowed.
 7. **Hard constraints / guardrails** — anything destructive or off-limits specific to this project
    (prod data, money movement, deploy targets, compliance).
+8. **Model + effort per phase** — which model and reasoning effort runs the orchestrator, planner,
+   implementer, reviewer, evaluator, scout and doc gardener. Run the **`model-routing`** skill for this
+   one; it carries the recommended defaults and the question to offer them with. Ask it here, in the
+   interview, rather than deciding silently on the human's behalf later.
 
 ## Step 3 — Write the configuration
 With answers in hand:
@@ -90,35 +94,16 @@ With answers in hand:
   `fleet.sh`) so `powershell harness/loop.ps1 …` and cron keep working; they locate the installed engine
   and dispatch `--project-root <repo>`. `harness/` then holds only `harness.config.json` + these wrappers
   + gitignored runtime — no engine code.
-- **Model routing (per phase, `{model, fallback, effort, fallbackEffort}`).** Walk the human through each
-  phase (batched via AskUserQuestion) and pick a **primary `model`** and a **`fallback`** — the model to
-  use when the primary is unavailable or hits a usage/limit error. Each may be a **Claude alias**
-  (`opus`/`sonnet`/`haiku`/`fable`) or the literal **`codex`** (cross-vendor OpenAI Codex CLI);
-  `fallback: null` = no fallback. `effort`/`fallbackEffort` declare reasoning depth
-  (`minimal|low|medium|high|xhigh`). Lead with the shipped **recommended defaults** and let them accept or
-  override per phase:
-  | Phase | model | effort | fallback | why |
-  |-------|-------|--------|----------|-----|
-  | `session` | `opus` | `medium` | (n/a) | the orchestrator — **must be Claude**, never codex; medium keeps dispatch cheap |
-  | `explore` | `haiku` | `low` | `null` | cheap read-only scout |
-  | `plan` | `fable` | `high` | `null` | deepest reasoner for design; interactive, so a usage cap is recoverable |
-  | `implement` | `codex` | `high` | `opus` (high) | cross-vendor builder (GPT 5.6 sol) + cap-proof Claude fallback |
-  | `review` | `fable` | `high` | `opus` (medium) | deepest fresh-context judge; cap-proof Claude fallback |
-  | `evaluate` | `fable` | `high` | `opus` (medium) | premium rubric scorer; cap-proof fallback for headless runs |
-  | `docs` | `haiku` | `low` | `null` | doc gardener |
-
-  Constraints to honor as you pick: `session.model` **must be Claude** (never `codex`); a `fallback` must
-  not equal a `codex` primary (no `codex→codex`). Then write all surfaces **together**: `config.models`
-  (nested `{model,fallback,effort,fallbackEffort}` per phase), `.claude/settings.json` `model`
-  (= `session.model`) and `effortLevel` (= `session.effort`), and the
-  `model:`/`effort:` frontmatter of each harness agent (the plugin's `agents/*.md`) — frontmatter tracks the phase's **primary** when
-  that's Claude, else (primary `codex`) the phase's **Claude `fallback`** (so `generator` frontmatter is
-  `implement`'s fallback = `opus` under the defaults). `/harness-doctor` check 10 enforces exactly this. For
-  any phase routed to `codex`, confirm the codex CLI is installed and signed in (`codex login`) — the
-  effect of it being unavailable depends on where codex sits: a **codex-primary** phase (e.g. `implement`)
-  silently runs on its Claude `fallback`; a **Claude-primary phase with a codex `fallback`** still runs
-  its Claude primary on the happy path but loses the safety net, so a usage cap on the primary then has
-  nowhere to fall back and the run fails closed.
+- **Model routing + reasoning effort (per phase).** Apply the answers you already collected in Step 2.8
+  using the **`model-routing` skill**'s write-all-surfaces contract — don't re-run the interview here.
+  (If Step 2.8 was skipped, run it now.) The skill owns the recommended defaults, the interview, the
+  constraints, and the write contract; do not restate the table here or invent your own defaults. It is
+  the single source of truth, and `/harness-doctor` check 10 validates the result. For any phase routed to `codex`, the skill has you
+  confirm the CLI is installed and signed in (`codex login`) first — the effect of it being unavailable
+  depends on where codex sits: a **codex-primary** phase (e.g. `implement`) silently runs on its Claude
+  `fallback`; a **Claude-primary phase with a codex `fallback`** still runs its Claude primary on the
+  happy path but loses the safety net, so a usage cap on the primary then has nowhere to fall back and
+  the run fails closed.
 - **Allowlist the gate** — append the project's gate commands discovered in the interview (the test/
   build/lint runners, e.g. `Bash(pnpm test:*)`, `Bash(uv run pytest:*)`) to `permissions.allow` in
   `.claude/settings.json`. Why: in headless `-p` runs nobody answers permission prompts — non-allowlisted

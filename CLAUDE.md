@@ -64,6 +64,12 @@ PROMPT.md wins there); roll back a red tree rather than patching over it. At tas
 - [2026-07-30] When /harness-migrate deletes engine files from a consumer, grep the plugin's own
   commands for checks against those paths in the same change (harness-doctor checks 1+7 failed on every
   correctly-migrated repo).
+- [2026-08-06] A doc that names a plugin-owned file as a WRITE target must say what a *consumer* repo
+  writes instead — the installed cache is outside the project, shared machine-wide, and reverted by
+  `/plugin update` (the routing skill told migrate to edit agent frontmatter that consumers can't own).
+- [2026-08-06] A test pinning a doc table to a config asserts the value in its own COLUMN (split the
+  row) and reads config keys via `PSObject.Properties[...]` — a row-wide match false-passes off a
+  neighbouring cell, and a bare `$obj.$key` aborts the whole suite under StrictMode instead of failing.
 
 ## Nested context
 Subsystems carry their own `CLAUDE.md` next to their code (in this repo: `plugin/engine/` holds the

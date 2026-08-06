@@ -68,7 +68,10 @@ behaves oddly.
     the literal **`"codex"`** (cross-vendor OpenAI Codex CLI). Be **tolerant of the legacy flat shape**:
     a bare `"phase": "alias"` normalizes to `{model:"alias", fallback:null}`, and a legacy top-level
     `reviewFallback` to `review.fallback` — treat both as valid, not drift (the resolver normalizes
-    them). A missing `models` block is ✅ (routing is optional — everything inherits the session model);
+    them). A missing `models` block is ✅ (routing is optional — everything inherits the session model), but add
+    an ℹ️ that every phase then runs one model, judge included, and name the command that fixes it
+    (`/harness-init`'s routing step, or `/harness-migrate` step 5 on an already-migrated repo — this
+    check is read-only and runs no interview itself);
     a *partial* mismatch is ❌ (silent drift is exactly what this check exists to catch). Verify, in order:
     - **(a) Value legality.** Every `model`/`fallback` is a known Claude alias/ID or `"codex"`; anything
       else (typo, retired alias) is ❌.
@@ -82,6 +85,11 @@ behaves oddly.
       must == the phase's **Claude `fallback`** (so a spawned subagent still lands on the right model) and
       you note "phase is codex-routed — frontmatter tracks its Claude fallback." With the shipped config
       this is the `generator` branch (`implement = {codex, opus}` → `generator` frontmatter must be `opus`).
+      **Consumer repos:** this is ❌ only where the frontmatter is *writable in-repo* — i.e. the harness
+      dev repo. If the agents come from the installed plugin cache (no in-repo `plugin/`), a divergence is
+      ℹ️, not drift: nobody may edit that cache from a project (`/plugin update` reverts it, and it's
+      shared machine-wide), and `/work` pins each subagent from `config.models` per spawn anyway. Say
+      which case you're in before you grade this sub-check.
     - **(d) No `codex → codex` fallback.** A `fallback` equal to a `codex` primary is ❌ — there is no
       cross-vendor escape hatch beyond one hop, so both candidates being codex leaves a usage-limit stop
       nowhere to go.

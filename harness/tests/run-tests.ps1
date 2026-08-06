@@ -459,6 +459,42 @@ if (Get-Command node -ErrorAction SilentlyContinue) {
   Write-Host "  (skipping dispatcher test - node not on PATH)" -ForegroundColor Yellow
 }
 
+Write-Host "docs: model-routing skill documents the shipped default routing"
+# The skill is the single source of truth the setup interview reads from, and harness.config.json ships
+# the same defaults - two copies of one fact. Pin them together so a retune can't update one and leave
+# the other recommending a retired model.
+$repoRoot = (Resolve-Path (Join-Path $here '../..')).Path
+$skillMd  = Join-Path $repoRoot 'plugin/skills/model-routing/SKILL.md'
+$cfgPath  = Join-Path $repoRoot 'harness/harness.config.json'
+$skillTxt = Get-Content -LiteralPath $skillMd -Raw
+$cfgModels = (Get-Content -LiteralPath $cfgPath -Raw | ConvertFrom-Json).models
+# NB: match with .Contains(), not -like. In a wildcard pattern the backtick is the ESCAPE character, so
+# a pattern like '*`opus`*' reads as a literal "opus" with the backticks consumed and never matches the
+# skill's markdown code spans (bash's grep -F has no such rule - the twins diverge here by design).
+# Assert per COLUMN, never "appears anywhere in the row": the fallback cell repeats the effort values,
+# so a row-wide match false-passes when only the effort cell is wrong. Columns: 4=model 5=effort
+# 6=fallback. Property lookups go through PSObject.Properties so a missing key FAILS the assertion
+# instead of throwing under StrictMode and aborting the rest of the suite.
+$bt = [char]96
+function Prop($o, $n) { if ($null -ne $o -and $o.PSObject.Properties[$n]) { $o.PSObject.Properties[$n].Value } else { $null } }
+foreach ($ph in @('session','explore','plan','implement','review','evaluate','docs')) {
+  $entry = Prop $cfgModels $ph
+  $cm = Prop $entry 'model'; $ce = Prop $entry 'effort'
+  $cf = Prop $entry 'fallback'; $cfe = Prop $entry 'fallbackEffort'
+  $row = ($skillTxt -split "`n" | Where-Object { $_.TrimStart().StartsWith('|') -and $_.Contains("$bt$ph$bt") } | Select-Object -First 1)
+  $cols = if ($null -ne $row) { $row -split '\|' } else { @() }
+  $colM = if ($cols.Count -gt 3) { $cols[3] } else { '' }
+  $colE = if ($cols.Count -gt 4) { $cols[4] } else { '' }
+  $colF = if ($cols.Count -gt 5) { $cols[5] } else { '' }
+  $hit = ($null -ne $row) -and $cm -and $ce -and $colM.Contains("$bt$cm$bt") -and $colE.Contains("$bt$ce$bt")
+  if ($hit -and $cf) {
+    if (-not $colF.Contains("$bt$cf$bt")) { $hit = $false }
+    if ($hit -and $cfe -and -not $colF.Contains("$bt$cfe$bt")) { $hit = $false }
+  }
+  $fbTxt = if ($cf) { if ($cfe) { "$cf @ $cfe" } else { $cf } } else { 'none' }
+  ok ("skill row for {0} documents {1} @ {2} (fallback {3})" -f $ph, $cm, $ce, $fbTxt) $hit
+}
+
 Write-Host "migrate: end-to-end classify + apply on a synthetic repo"
 # engine/migrate.ps1 has its own e2e self-test (build a synthetic copied-in harness, report, --apply);
 # fold its exit code into this suite the same way as the node dispatcher above.

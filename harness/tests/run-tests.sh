@@ -378,6 +378,38 @@ else
   echo "  (skipping jq-dependent gate/budget tests — jq not installed)"
 fi
 
+echo "docs: model-routing skill documents the shipped default routing"
+# The skill is the single source of truth the setup interview reads from, and harness.config.json ships
+# the same defaults — two copies of one fact. Pin them together so a retune can't update one and leave
+# the other recommending a retired model.
+RR="$(cd "$HERE/../.." && pwd)"
+SKILL_MD="$RR/plugin/skills/model-routing/SKILL.md"
+CFG_MD="$RR/harness/harness.config.json"
+# Assert per COLUMN, never "appears anywhere in the row": the fallback cell repeats the effort values,
+# so a row-wide grep false-passes when only the effort cell is wrong. Columns (1-indexed after the
+# leading empty field): 2=Phase 3=Agent 4=model 5=effort 6=fallback.
+for ph in session explore plan implement review evaluate docs; do
+  cline="$(grep -E "\"$ph\":" "$CFG_MD" | head -1)"
+  cm="$(printf '%s' "$cline" | sed -n 's/.*"model": *"\([^"]*\)".*/\1/p')"
+  ce="$(printf '%s' "$cline" | sed -n 's/.*"effort": *"\([^"]*\)".*/\1/p')"
+  cf="$(printf '%s' "$cline" | sed -n 's/.*"fallback": *"\([^"]*\)".*/\1/p')"
+  cfe="$(printf '%s' "$cline" | sed -n 's/.*"fallbackEffort": *"\([^"]*\)".*/\1/p')"
+  srow="$(grep -F "\`$ph\`" "$SKILL_MD" | grep '^|' | head -1)"
+  col_m="$(printf '%s' "$srow" | awk -F'|' '{print $4}')"
+  col_e="$(printf '%s' "$srow" | awk -F'|' '{print $5}')"
+  col_f="$(printf '%s' "$srow" | awk -F'|' '{print $6}')"
+  hit=0
+  if [ -n "$srow" ] && [ -n "$cm" ] && [ -n "$ce" ] \
+     && printf '%s' "$col_m" | grep -qF "\`$cm\`" \
+     && printf '%s' "$col_e" | grep -qF "\`$ce\`"; then hit=1; fi
+  # fallback column must name the fallback model and, when declared, its effort
+  if [ "$hit" = "1" ] && [ -n "$cf" ]; then
+    printf '%s' "$col_f" | grep -qF "\`$cf\`" || hit=0
+    if [ -n "$cfe" ]; then printf '%s' "$col_f" | grep -qF "\`$cfe\`" || hit=0; fi
+  fi
+  ok "$hit" "skill row for $ph documents $cm @ $ce (fallback ${cf:-none}${cfe:+ @ $cfe})"
+done
+
 echo "plugin: cross-platform hook dispatcher (node)"
 # The plugin ships hooks through plugin/hooks/run.mjs (static hooks.json can't branch on OS). Its own
 # node self-test covers both OS branches + a real dispatch; fold its exit code into this suite.
