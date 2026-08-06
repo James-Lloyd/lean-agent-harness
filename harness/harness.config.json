@@ -8,14 +8,14 @@
   },
 
   "models": {
-    "_comment": "Per-phase {model, fallback}: a Claude alias/ID or the literal 'codex'; null = inherit session / no fallback. Fallback fires only on a FAILED invocation (unavailable or usage-limited). Enforced via settings.json `model`, agent frontmatter, and the loop dispatcher — /harness-doctor check 10 validates agreement. Claude reasoning effort: session and headless phases run the model default (high); agents pin theirs in frontmatter (scouts low, judges high).",
-    "session":   { "model": "fable", "fallback": null },
-    "explore":   { "model": "haiku", "fallback": null },
-    "plan":      { "model": "fable", "fallback": null },
-    "implement": { "model": "codex", "fallback": "opus" },
-    "review":    { "model": "fable", "fallback": "opus" },
-    "evaluate":  { "model": "fable", "fallback": "opus" },
-    "docs":      { "model": "haiku", "fallback": null },
+    "_comment": "Per-phase {model, fallback, effort, fallbackEffort}: a Claude alias/ID or the literal 'codex'; null = inherit session / no fallback. Fallback fires only on a FAILED invocation (unavailable or usage-limited). Enforced via settings.json `model`, agent frontmatter, and the loop dispatcher — /harness-doctor check 10 validates agreement. `effort` is DECLARED here and ENFORCED by settings.json `effortLevel` (session) + the phase agent's `effort:` frontmatter (subagents) — doctor check 10e validates both. Advisory by design: implement.effort (the codex arm reads models.codex.reasoningEffort) and review/evaluate fallbackEffort (a usage-cap re-spawn pins the model, not the depth). The headless dispatcher passes --model only.",
+    "session":   { "model": "opus",  "fallback": null,   "effort": "medium" },
+    "explore":   { "model": "haiku", "fallback": null,   "effort": "low" },
+    "plan":      { "model": "fable", "fallback": null,   "effort": "high" },
+    "implement": { "model": "codex", "fallback": "opus", "effort": "high", "fallbackEffort": "high" },
+    "review":    { "model": "fable", "fallback": "opus", "effort": "high", "fallbackEffort": "medium" },
+    "evaluate":  { "model": "fable", "fallback": "opus", "effort": "high", "fallbackEffort": "medium" },
+    "docs":      { "model": "haiku", "fallback": null,   "effort": "low" },
     "codex":     { "model": "gpt-5.6-sol", "reasoningEffort": "high", "auth": "chatgpt", "timeoutSeconds": 900 }
   },
 

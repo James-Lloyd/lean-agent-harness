@@ -61,8 +61,9 @@ behaves oddly.
    `reviewEveryNIterations == 0` (the unattended loop will run the deterministic gate with no inferential
    judge — fine, but say so).
 
-10. **Model routing agrees across its surfaces (per-phase `{model, fallback}`).** `config.models` is the
-    declared table — each phase is `{ "model": <primary>, "fallback": <secondary|null> }`, where every
+10. **Model routing agrees across its surfaces (per-phase `{model, fallback, effort, fallbackEffort}`).**
+    `config.models` is the declared table — each phase is `{ "model": <primary>, "fallback": <secondary|null>
+    }` plus the optional declared efforts of (e), where every
     value is a **known Claude alias** (`opus`/`sonnet`/`haiku`/`fable`) or a full `claude-*` ID, **or**
     the literal **`"codex"`** (cross-vendor OpenAI Codex CLI). Be **tolerant of the legacy flat shape**:
     a bare `"phase": "alias"` normalizes to `{model:"alias", fallback:null}`, and a legacy top-level
@@ -84,7 +85,23 @@ behaves oddly.
     - **(d) No `codex → codex` fallback.** A `fallback` equal to a `codex` primary is ❌ — there is no
       cross-vendor escape hatch beyond one hop, so both candidates being codex leaves a usage-limit stop
       nowhere to go.
-    - **(e) Codex reachability (⚠️ not ❌), for every codex-routed phase.** For **each** phase whose
+    - **(e) Declared effort tracks frontmatter — where anything enforces it.** `effort`/`fallbackEffort`
+      are optional (`minimal|low|medium|high|xhigh`); absent = the model default, and absent everywhere
+      is ✅. Two enforced cases, both ❌ on mismatch:
+      **(i) Session** — `.claude/settings.json` `effortLevel` == `models.session.effort` (the settings key
+      accepts `low|medium|high|xhigh`; `minimal` has no settings equivalent, so declaring it for `session`
+      is ⚠️. `CLAUDE_CODE_EFFORT_LEVEL` and `claude --effort` override the file at launch — note if the
+      env var is set to something else, don't fail on it).
+      **(ii) Subagents** — the agent whose `model:` lands on a phase (same mapping as (c)) must carry the
+      matching `effort:`: the phase's `effort` when frontmatter tracks the primary, its `fallbackEffort`
+      when frontmatter tracks the Claude fallback (`generator` → `implement`; an absent `fallbackEffort`
+      inherits `effort`).
+      Everything else declared here has **no enforcing file** — report ℹ️, never ❌: a `fallbackEffort` on
+      a **Claude-primary** phase (the usage-cap re-spawn pins `model:` only, so `review`/`evaluate`
+      fallback depth is advisory) and the `effort` of a **codex-primary** phase (codex reads
+      `models.codex.reasoningEffort`; that phase's Claude arm is its *fallback*, governed by
+      `fallbackEffort`).
+    - **(f) Codex reachability (⚠️ not ❌), for every codex-routed phase.** For **each** phase whose
       `model` OR `fallback` is `"codex"`, probe `codex --version` and (auth `chatgpt`) `codex login
       status` exit 0, or (auth `api-key`) `CODEX_API_KEY` set. Unavailable is ⚠️ not ❌ — that phase runs
       on (or falls back to) its Claude arm by design; say which path each codex-routed phase would take
