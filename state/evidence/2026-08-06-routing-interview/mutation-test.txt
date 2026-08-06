@@ -1,0 +1,21 @@
+Mutation tests — every guard proven to actually fail on drift (config restored after each).
+
+1. config session model opus -> sonnet
+   bash: FAIL skill row for session ...  (140 passed, 1 failed)
+   PS  : FAIL skill row for session ...  (149 passed, 1 failed)
+
+2. skill `implement` EFFORT cell high -> medium   [reviewer S1, false-passed before the column fix:
+   the neighbouring fallback cell `opus` @ `high` masked it under a row-wide match]
+   bash: FAIL skill row for implement ... (140 passed, 1 failed)
+   PS  : FAIL skill row for implement ... (149 passed, 1 failed)
+
+3. skill `review` FALLBACK cell `opus` @ `medium` -> `sonnet` @ `low`   [reviewer S1, not asserted at
+   all before the fix]
+   bash: FAIL skill row for review ...   (140 passed, 1 failed)
+
+4. config `docs` phase deleted entirely   [reviewer S2, StrictMode: a bare $cfgModels.$ph threw and
+   aborted the suite before the PSObject.Properties fix]
+   PS  : FAIL skill row for docs documents  @  (fallback none)  — then CONTINUES:
+         "ok  harness-migrate self-test passes"   (149 passed, 1 failed)
+
+Clean state after restore: bash 141/0, PS 150/0.

@@ -1,0 +1,5 @@
+brownfield-safety: name=brownfield-safety desc=244 chars OK
+e2e-evidence: name=e2e-evidence desc=174 chars OK
+model-routing: name=model-routing desc=336 chars OK
+sprint-contract: name=sprint-contract desc=186 chars OK
+stack-detect: name=stack-detect desc=193 chars OK
