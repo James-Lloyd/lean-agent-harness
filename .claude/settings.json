@@ -1,8 +1,9 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-settings.json",
-  "_comment": "Harness defaults; personal overrides go in settings.local.json (gitignored). `model` mirrors config models.session (/harness-doctor checks agreement). /harness-init appends the project's gate commands to permissions.allow (headless -p runs auto-deny anything non-allowlisted). The five guard hooks come from the installed lean-agent-harness plugin, not this repo. Why there are no deny rules on config/specs writes, and why hooks are a denylist not a sandbox: docs/sandboxing.md.",
+  "_comment": "Harness defaults; personal overrides go in settings.local.json (gitignored). `model` + `effortLevel` mirror config models.session {model, effort} (/harness-doctor check 10 checks agreement); CLAUDE_CODE_EFFORT_LEVEL and `claude --effort` override effortLevel at launch. /harness-init appends the project's gate commands to permissions.allow (headless -p runs auto-deny anything non-allowlisted). The five guard hooks come from the installed lean-agent-harness plugin, not this repo. Why there are no deny rules on config/specs writes, and why hooks are a denylist not a sandbox: docs/sandboxing.md.",
 
-  "model": "fable",
+  "model": "opus",
+  "effortLevel": "medium",
 
   "permissions": {
     "allow": [

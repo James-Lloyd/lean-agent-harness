@@ -1,0 +1,7 @@
+planner: frontmatter fable/high vs plan wants fable/high -> OK
+generator: frontmatter opus/high vs implement wants opus/high -> OK
+reviewer: frontmatter fable/high vs review wants fable/high -> OK
+evaluator: frontmatter fable/high vs evaluate wants fable/high -> OK
+explorer: frontmatter haiku/low vs explore wants haiku/low -> OK
+doc-gardener: frontmatter haiku/low vs docs wants haiku/low -> OK
+session: settings opus/medium vs config opus/medium -> OK

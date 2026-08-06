@@ -90,26 +90,28 @@ With answers in hand:
   `fleet.sh`) so `powershell harness/loop.ps1 …` and cron keep working; they locate the installed engine
   and dispatch `--project-root <repo>`. `harness/` then holds only `harness.config.json` + these wrappers
   + gitignored runtime — no engine code.
-- **Model routing (per phase, `{model, fallback}`).** Walk the human through each phase (batched via
-  AskUserQuestion) and pick a **primary `model`** and a **`fallback`** — the model to use when the
-  primary is unavailable or hits a usage/limit error. Each may be a **Claude alias**
+- **Model routing (per phase, `{model, fallback, effort, fallbackEffort}`).** Walk the human through each
+  phase (batched via AskUserQuestion) and pick a **primary `model`** and a **`fallback`** — the model to
+  use when the primary is unavailable or hits a usage/limit error. Each may be a **Claude alias**
   (`opus`/`sonnet`/`haiku`/`fable`) or the literal **`codex`** (cross-vendor OpenAI Codex CLI);
-  `fallback: null` = no fallback. Lead with the shipped **recommended defaults** and let them accept or
+  `fallback: null` = no fallback. `effort`/`fallbackEffort` declare reasoning depth
+  (`minimal|low|medium|high|xhigh`). Lead with the shipped **recommended defaults** and let them accept or
   override per phase:
-  | Phase | model | fallback | why |
-  |-------|-------|----------|-----|
-  | `session` | `fable` | (n/a) | the main window — **must be Claude**, never codex |
-  | `explore` | `haiku` | `null` | cheap read-only scout |
-  | `plan` | `fable` | `null` | deepest reasoner for design; interactive, so a usage cap is recoverable |
-  | `implement` | `codex` | `opus` | cross-vendor builder (GPT 5.6 sol) + cap-proof Claude fallback |
-  | `review` | `fable` | `opus` | deepest fresh-context judge; cap-proof Claude fallback |
-  | `evaluate` | `fable` | `opus` | premium rubric scorer; cap-proof fallback for headless runs |
-  | `docs` | `haiku` | `null` | doc gardener |
+  | Phase | model | effort | fallback | why |
+  |-------|-------|--------|----------|-----|
+  | `session` | `opus` | `medium` | (n/a) | the orchestrator — **must be Claude**, never codex; medium keeps dispatch cheap |
+  | `explore` | `haiku` | `low` | `null` | cheap read-only scout |
+  | `plan` | `fable` | `high` | `null` | deepest reasoner for design; interactive, so a usage cap is recoverable |
+  | `implement` | `codex` | `high` | `opus` (high) | cross-vendor builder (GPT 5.6 sol) + cap-proof Claude fallback |
+  | `review` | `fable` | `high` | `opus` (medium) | deepest fresh-context judge; cap-proof Claude fallback |
+  | `evaluate` | `fable` | `high` | `opus` (medium) | premium rubric scorer; cap-proof fallback for headless runs |
+  | `docs` | `haiku` | `low` | `null` | doc gardener |
 
   Constraints to honor as you pick: `session.model` **must be Claude** (never `codex`); a `fallback` must
   not equal a `codex` primary (no `codex→codex`). Then write all surfaces **together**: `config.models`
-  (nested `{model,fallback}` per phase), `.claude/settings.json` `model` (= `session.model`), and the
-  `model:` frontmatter of each harness agent (the plugin's `agents/*.md`) — frontmatter tracks the phase's **primary** when
+  (nested `{model,fallback,effort,fallbackEffort}` per phase), `.claude/settings.json` `model`
+  (= `session.model`) and `effortLevel` (= `session.effort`), and the
+  `model:`/`effort:` frontmatter of each harness agent (the plugin's `agents/*.md`) — frontmatter tracks the phase's **primary** when
   that's Claude, else (primary `codex`) the phase's **Claude `fallback`** (so `generator` frontmatter is
   `implement`'s fallback = `opus` under the defaults). `/harness-doctor` check 10 enforces exactly this. For
   any phase routed to `codex`, confirm the codex CLI is installed and signed in (`codex login`) — the

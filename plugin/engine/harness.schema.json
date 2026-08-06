@@ -21,7 +21,7 @@
     },
     "models": {
       "type": "object",
-      "description": "Per-phase model routing — the single DECLARED routing table. The enforcing mechanisms are: .claude/settings.json `model` (session), `model:` frontmatter in .claude/agents/*.md (subagents), and `--model` flags in loop.ps1/loop.sh (headless). /harness-init writes the mechanisms from this block; /harness-doctor fails on drift between them. Each phase is either a bare Claude alias/ID (or 'codex') — the legacy FLAT form, still accepted — OR an object {model, fallback} where `model` is the phase's primary and `fallback` is used when the primary is unavailable or hits a usage/limit error. Values are Claude aliases (haiku|sonnet|opus|fable), full model IDs, or the literal 'codex' (cross-vendor OpenAI Codex CLI); null/absent = inherit the ambient session model (pre-routing behavior).",
+      "description": "Per-phase model routing — the single DECLARED routing table. The enforcing mechanisms are: .claude/settings.json `model` (session), `model:` frontmatter in .claude/agents/*.md (subagents), and `--model` flags in loop.ps1/loop.sh (headless). /harness-init writes the mechanisms from this block; /harness-doctor fails on drift between them. Each phase is either a bare Claude alias/ID (or 'codex') — the legacy FLAT form, still accepted — OR an object {model, fallback, effort, fallbackEffort} where `model` is the phase's primary, `fallback` is used when the primary is unavailable or hits a usage/limit error, and the two efforts DECLARE reasoning depth (see phaseRouting for what actually enforces each). Values are Claude aliases (haiku|sonnet|opus|fable), full model IDs, or the literal 'codex' (cross-vendor OpenAI Codex CLI); null/absent = inherit the ambient session model (pre-routing behavior).",
       "properties": {
         "session": { "$ref": "#/definitions/phaseRouting", "description": "Model for the main interactive window (written to .claude/settings.json `model`). Must resolve to a Claude model — the main window is Claude and cannot be swapped mid-session; a codex primary here is a doctor error. /model still overrides live." },
         "explore": { "$ref": "#/definitions/phaseRouting", "description": "Model for the read-only explorer agent that other phases fan searches out to. Exploration is a fan-out pattern, not a pipeline phase — see the 2026-07-13 execution plan." },
@@ -146,13 +146,15 @@
   },
   "definitions": {
     "phaseRouting": {
-      "description": "Per-phase routing: either a Claude alias/ID or 'codex' as a bare string (legacy flat form, still accepted), OR an object {model, fallback} where each is a Claude alias/ID or the literal 'codex'. null/absent = inherit the ambient session model.",
+      "description": "Per-phase routing: either a Claude alias/ID or 'codex' as a bare string (legacy flat form, still accepted), OR an object {model, fallback, effort, fallbackEffort} where model/fallback are a Claude alias/ID or the literal 'codex'. null/absent = inherit the ambient session model.",
       "oneOf": [
         { "type": ["string", "null"] },
         { "type": "object",
           "properties": {
             "model":    { "type": ["string", "null"], "description": "Primary model for this phase: a Claude alias (haiku|sonnet|opus|fable), a full ID, or the literal 'codex' (cross-vendor OpenAI Codex CLI)." },
-            "fallback": { "type": ["string", "null"], "description": "Model used when the primary is unavailable or hits a usage/limit error: a Claude alias/ID or 'codex'. null = no fallback. Must not be 'codex' when model is already 'codex'." }
+            "fallback": { "type": ["string", "null"], "description": "Model used when the primary is unavailable or hits a usage/limit error: a Claude alias/ID or 'codex'. null = no fallback. Must not be 'codex' when model is already 'codex'." },
+            "effort":   { "type": ["string", "null"], "enum": ["minimal", "low", "medium", "high", "xhigh", null], "description": "DECLARED reasoning effort for the phase's primary. Enforced where a file carries it — the `effort:` frontmatter of the phase's agent (the plugin's agents/*.md), and for `session` the `effortLevel` key in .claude/settings.json; doctor check 10(e) validates both. Advisory elsewhere: a `codex` primary takes its depth from models.codex.reasoningEffort. Not passed by the headless dispatcher, which routes `--model` only (the CLI does accept `claude --effort <level>`). null/absent = the model default." },
+            "fallbackEffort": { "type": ["string", "null"], "enum": ["minimal", "low", "medium", "high", "xhigh", null], "description": "Declared reasoning effort for the phase's `fallback` model, when the fallback should run at a different depth than the primary (e.g. review = fable@high with an opus@medium cap-proof fallback). Enforced by frontmatter only for a codex-primary phase, whose Claude arm IS the fallback (generator tracks implement.fallbackEffort); on a Claude-primary phase it is advisory, since the usage-cap re-spawn pins the model alone. null/absent = same as `effort`." }
           },
           "additionalProperties": false }
       ]

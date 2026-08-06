@@ -1,0 +1,7 @@
+session -> model=opus fallback=
+explore -> model=haiku fallback=
+plan -> model=fable fallback=
+implement -> model=codex fallback=opus
+review -> model=fable fallback=opus
+evaluate -> model=fable fallback=opus
+docs -> model=haiku fallback=

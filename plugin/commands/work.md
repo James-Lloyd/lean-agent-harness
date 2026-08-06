@@ -33,8 +33,10 @@ the config (readable directly, or via the engine lib resolvers — bash `phase_m
 
 With the default config only **implement** has a codex primary: EXECUTE dispatches the codex lib
 workspace-write and spawns `generator` only on the Claude fallback; PLAN and REVIEW spawn their Claude
-subagents. Subagent frontmatter carries each phase's Claude model (generator's = implement's Claude
-*fallback*); `/harness-doctor` check 10 validates that.
+subagents. Subagent frontmatter carries each phase's Claude model *and* its declared `effort`
+(generator's tracks implement's Claude *fallback*); `/harness-doctor` check 10 validates that. You —
+the orchestrator — run `models.session` (opus at medium effort by default): dispatch and sequencing,
+with the deep reasoning pushed into the phase agents.
 
 ## Phase 0 — PROJECT TYPE
 - `config.project.type` = **brownfield** → load the `brownfield-safety` skill, confirm the baseline is
