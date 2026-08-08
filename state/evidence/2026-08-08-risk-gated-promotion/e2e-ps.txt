@@ -1,0 +1,28 @@
+﻿=== e2e: risk-gated promotion, shipped engine, real invocations (PowerShell twin) ===
+
+--- PART 1: classifying THIS change
+changed files: 38   changed lines: 1304
+deterministic tier: MEDIUM
+    1304 changed lines (limit 1000)
+  classifier returns its LOWEST possible answer (RISK: LOW) -> parsed 'LOW'
+  final = max(MEDIUM, LOW) = MEDIUM   <- the agent CANNOT lower it
+  prod  : HUMAN|prod promotion is always a human action
+
+--- PART 2: the decision matrix against a promotion-ENABLED config
+  A low-risk docs+util diff, all green -> staging: AUTO|LOW risk, all preconditions met, target staging
+    ...same diff -> prod:                        HUMAN|prod promotion is always a human action
+    ...no fresh-context review SHIP:             HUMAN|precondition unmet: no fresh-context review SHIP for this range
+    ...red gate:                                 HUMAN|precondition unmet: project gate is not green
+    ...no e2e evidence:                          HUMAN|precondition unmet: no end-to-end evidence for this range
+  A migration (tier MEDIUM) -> staging:          HUMAN|risk tier MEDIUM exceeds the staging auto-merge threshold
+  Money in a path NO glob covers (tier HIGH):    HUMAN|risk tier HIGH exceeds the staging auto-merge threshold
+      why: money signal 'tax' in added lines
+  Classifier did not run (verdict 'HIGH'):       HUMAN|risk tier HIGH exceeds the staging auto-merge threshold
+
+Exactly one row reaches AUTO: LOW + staging + every precondition met.
+This output must match e2e-bash.txt PART 2 line for line - that is the twin-parity evidence.
+
+NOTE on PART 1: the PS script classifies BASE..HEAD (committed only, 38 files -> MEDIUM on size)
+while the bash script classifies BASE..$(git stash create) (committed + working tree, 58 files ->
+HIGH on self-governance). Different RANGES, not a twin divergence. PART 2 drives both twins with
+identical inputs and matches line for line - that is the parity evidence.

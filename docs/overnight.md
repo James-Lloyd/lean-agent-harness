@@ -143,11 +143,13 @@ Every `result` value the engine emits, and what it means:
 | `invoke-error` | The model invocation itself failed (`reason`); the iteration was rolled back. |
 | `config-tampered` | `harness.config.json` changed mid-iteration (gate/policy tamper pin) — rolled back and **stopped**. |
 | `gate-error` | *(PowerShell runner)* the gate threw rather than returning red — rolled back. |
+| `risk` | `/promote` classified a range: `tier` = `LOW`/`MEDIUM`/`HIGH`, `decision` = `AUTO`/`HUMAN`, `env` = the target. `AUTO` means it approved + auto-merged to staging; `HUMAN` means it escalated and merged nothing. The signals behind it are in `state/evidence/<task-id>/risk.json` — see `docs/promotion.md`. |
 
 A clean night ends with `green` rows and a `stopWhenPlanEmpty` exit or a `review`/`evaluate` `SHIP`/`PASS`.
 Any `review-stop`, `config-tampered`, `invoke-error`, `gate-error`, or a `REJECT` / `FAIL` / `NONE` / `ERROR`
 verdict is your triage signal (`NONE`/`ERROR` mean the judge couldn't render a clean verdict and the loop
-stopped fail-closed — treat them exactly like a `REJECT`).
+stopped fail-closed — treat them exactly like a `REJECT`). A `risk` row with `decision":"HUMAN"` is not a
+failure — it is the policy working; it queues a promotion for you rather than stopping the loop.
 
 **2. Check the handoff.** A stopped loop appends a `## Needs human decision — periodic review: …` section
 to `state/handoff.md` naming the batch range and the findings log

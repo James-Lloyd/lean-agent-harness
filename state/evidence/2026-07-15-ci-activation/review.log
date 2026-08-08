@@ -1,12 +1,12 @@
 ﻿node.exe : OpenAI Codex v0.144.3
-At C:\Users\james\AppData\Roaming\npm\codex.ps1:22 char:14
+At <home>\AppData\Roaming\npm\codex.ps1:22 char:14
 + ...    $input | & "node$exe"  "$basedir/node_modules/@openai/codex/bin/co ...
 +                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     + CategoryInfo          : NotSpecified: (OpenAI Codex v0.144.3:String) [], RemoteException
     + FullyQualifiedErrorId : NativeCommandError
  
 --------
-workdir: C:\Users\james\Repos\harness
+workdir: <repo>
 model: gpt-5.5
 provider: openai
 approval: never
@@ -45,13 +45,13 @@ IÔÇÖll review this as a diff-only code review. IÔÇÖm going to read the pro
 requested git state and workflow comparison.
 exec
 "C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command 'Get-Content -Raw state/fix_plan.md' in 
-C:\Users\james\Repos\harness
+<repo>
 exec
 "C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command 'Get-Content -Raw CLAUDE.md' in 
-C:\Users\james\Repos\harness
+<repo>
 exec
 "C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command 'Get-ChildItem -Path specs -Recurse -File | 
-Select-Object -ExpandProperty FullName' in C:\Users\james\Repos\harness
+Select-Object -ExpandProperty FullName' in <repo>
  succeeded in 2056ms:
 # Fix plan
 
@@ -433,33 +433,33 @@ pattern). When working in a subsystem, read its local map too.
 
 
  succeeded in 2125ms:
-C:\Users\james\Repos\harness\specs\000-overview.md
-C:\Users\james\Repos\harness\specs\README.md
+<repo>\specs\000-overview.md
+<repo>\specs\README.md
 
 codex
 The repo instructions confirm this is a review-only task and the CI item is the active plan entry. IÔÇÖm now checking the 
 actual diff and the workflow/template comparison the way you requested.
 exec
 "C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command 'git --no-pager status --short' in 
-C:\Users\james\Repos\harness
+<repo>
 exec
 "C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command "Get-Content -Raw specs\\README.md" in 
-C:\Users\james\Repos\harness
+<repo>
 exec
 "C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command 'git --no-pager diff' in 
-C:\Users\james\Repos\harness
+<repo>
 exec
 "C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command 'git --no-pager diff --stat' in 
-C:\Users\james\Repos\harness
+<repo>
 exec
 "C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command "Get-Content -Raw specs\\000-overview.md" in 
-C:\Users\james\Repos\harness
+<repo>
  succeeded in 1099ms:
  M ci/README.md
 ?? .github/
 ?? state/evidence/2026-07-15-ci-activation/
-warning: unable to access 'C:\Users\james/.config/git/ignore': Permission denied
-warning: unable to access 'C:\Users\james/.config/git/ignore': Permission denied
+warning: unable to access '<home>/.config/git/ignore': Permission denied
+warning: unable to access '<home>/.config/git/ignore': Permission denied
 
  succeeded in 1131ms:
  ci/README.md | 4 ++++
@@ -541,23 +541,23 @@ See [`000-overview.md`](./000-overview.md) for the starting template.
 
 exec
 "C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command "Get-Content -Raw 
-ci\\github-harness-selftest.yml" in C:\Users\james\Repos\harness
+ci\\github-harness-selftest.yml" in <repo>
 exec
 "C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command 'git --no-pager diff --no-index -- 
-ci/github-harness-selftest.yml .github/workflows/harness-selftest.yml' in C:\Users\james\Repos\harness
+ci/github-harness-selftest.yml .github/workflows/harness-selftest.yml' in <repo>
 exec
 "C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command "Get-Content -Raw 
-.github\\workflows\\harness-selftest.yml" in C:\Users\james\Repos\harness
+.github\\workflows\\harness-selftest.yml" in <repo>
 exec
 "C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command "Get-ChildItem -Recurse -File 
-.github,state\\evidence\\2026-07-15-ci-activation | Select-Object FullName,Length" in C:\Users\james\Repos\harness
+.github,state\\evidence\\2026-07-15-ci-activation | Select-Object FullName,Length" in <repo>
  succeeded in 712ms:
 
 FullName                                                                               Length
 --------                                                                               ------
-C:\Users\james\Repos\harness\.github\workflows\harness-selftest.yml                      3180
-C:\Users\james\Repos\harness\state\evidence\2026-07-15-ci-activation\EVIDENCE.md         2925
-C:\Users\james\Repos\harness\state\evidence\2026-07-15-ci-activation\review-prompt.txt   1406
+<repo>\.github\workflows\harness-selftest.yml                      3180
+<repo>\state\evidence\2026-07-15-ci-activation\EVIDENCE.md         2925
+<repo>\state\evidence\2026-07-15-ci-activation\review-prompt.txt   1406
 
 
 
@@ -780,19 +780,19 @@ any hidden requirement mismatch in the triggers.
 exec
 "C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command "rg -n 
 \"HARNESS_ENGINE|project-root|jq|fleet-queue-test|run-tests\" harness\\tests plugin\\engine ci .github" in 
-C:\Users\james\Repos\harness
+<repo>
 exec
 "C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command "Get-Content -Raw 
-harness\\tests\\fleet-queue-test.ps1" in C:\Users\james\Repos\harness
+harness\\tests\\fleet-queue-test.ps1" in <repo>
 exec
 "C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command "Get-Content -Raw harness\\tests\\run-tests.ps1" 
-in C:\Users\james\Repos\harness
+in <repo>
 exec
 "C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command "Get-Content -Raw harness\\tests\\run-tests.sh" 
-in C:\Users\james\Repos\harness
+in <repo>
 exec
 "C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command "Get-Content -Raw 
-harness\\tests\\fleet-queue-test.sh" in C:\Users\james\Repos\harness
+harness\\tests\\fleet-queue-test.sh" in <repo>
  succeeded in 1430ms:
 #!/usr/bin/env pwsh
 #requires -Version 5.1
@@ -1937,17 +1937,17 @@ exec
 "C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command "Select-String -Path 
 harness\\tests\\migrate-test.sh,plugin\\engine\\*.sh,harness\\*.sh -Pattern 
 '--project-root|HARNESS_ENGINE|plugin/engine|jq' | ForEach-Object { \"{0}:{1}: {2}\" -f 
-"'$_.Path,$_.LineNumber,$_.Line.Trim() }' in C:\Users\james\Repos\harness
+"'$_.Path,$_.LineNumber,$_.Line.Trim() }' in <repo>
 exec
 "C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command '$i=0; Get-Content 
-ci'"\\github-harness-selftest.yml | ForEach-Object { "'$i++; '"'{0,4}: {1}' -f "'$i, $_ }' in C:\Users\james\Repos\harness
+ci'"\\github-harness-selftest.yml | ForEach-Object { "'$i++; '"'{0,4}: {1}' -f "'$i, $_ }' in <repo>
 exec
 "C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command '$i=0; Get-Content ci'"\\README.md | 
-ForEach-Object { "'$i++; '"'{0,4}: {1}' -f "'$i, $_ }' in C:\Users\james\Repos\harness
+ForEach-Object { "'$i++; '"'{0,4}: {1}' -f "'$i, $_ }' in <repo>
 exec
 "C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command '$i=0; Get-Content 
 .github'"\\workflows\\harness-selftest.yml | ForEach-Object { "'$i++; '"'{0,4}: {1}' -f "'$i, $_ }' in 
-C:\Users\james\Repos\harness
+<repo>
  succeeded in 388ms:
    1: # Harness self-test CI ├óÔé¼ÔÇØ ACTIVATE-ME TEMPLATE.
    2: #
@@ -2118,97 +2118,97 @@ C:\Users\james\Repos\harness
   71:   #         echo "wire your component gates here (see harness/harness.config.json)"
 
  succeeded in 445ms:
-C:\Users\james\Repos\harness\harness\tests\migrate-test.sh:6: # The --apply half is jq-dependent (settings surgery) and 
+<repo>\harness\tests\migrate-test.sh:6: # The --apply half is jq-dependent (settings surgery) and 
 skipped when jq is absent, like run-tests.sh.
-C:\Users\james\Repos\harness\harness\tests\migrate-test.sh:12: ENGINE="$PLUGIN/engine"
-C:\Users\james\Repos\harness\harness\tests\migrate-test.sh:31: cp "$PLUGIN/engine/lib/gate.sh"           
+<repo>\harness\tests\migrate-test.sh:12: ENGINE="$PLUGIN/engine"
+<repo>\harness\tests\migrate-test.sh:31: cp "$PLUGIN/engine/lib/gate.sh"           
 "$TMP/harness/lib/gate.sh"
-C:\Users\james\Repos\harness\harness\tests\migrate-test.sh:32: cp "$PLUGIN/engine/harness.schema.json"   
+<repo>\harness\tests\migrate-test.sh:32: cp "$PLUGIN/engine/harness.schema.json"   
 "$TMP/harness/harness.schema.json"
-C:\Users\james\Repos\harness\harness\tests\migrate-test.sh:95: out="$(bash "$MIGRATE" --project-root "$TMP" 2>&1)"; rc=$?
-C:\Users\james\Repos\harness\harness\tests\migrate-test.sh:105: if ! command -v jq >/dev/null 2>&1; then
-C:\Users\james\Repos\harness\harness\tests\migrate-test.sh:106: echo "  (skipping --apply asserts ÔÇö jq not installed)"
-C:\Users\james\Repos\harness\harness\tests\migrate-test.sh:115: bash "$MIGRATE" --project-root "$TMP" --apply >/dev/null 
+<repo>\harness\tests\migrate-test.sh:95: out="$(bash "$MIGRATE" --project-root "$TMP" 2>&1)"; rc=$?
+<repo>\harness\tests\migrate-test.sh:105: if ! command -v jq >/dev/null 2>&1; then
+<repo>\harness\tests\migrate-test.sh:106: echo "  (skipping --apply asserts ÔÇö jq not installed)"
+<repo>\harness\tests\migrate-test.sh:115: bash "$MIGRATE" --project-root "$TMP" --apply >/dev/null 
 2>&1; rc_nf=$?
-C:\Users\james\Repos\harness\harness\tests\migrate-test.sh:121: out2="$(bash "$MIGRATE" --project-root "$TMP" --apply 
+<repo>\harness\tests\migrate-test.sh:121: out2="$(bash "$MIGRATE" --project-root "$TMP" --apply 
 --replace-runners --force 2>&1)"; rc2=$?
-C:\Users\james\Repos\harness\harness\tests\migrate-test.sh:138: ok "$(jq -e . "$SETTINGS" >/dev/null 2>&1 && echo 1 || echo 
+<repo>\harness\tests\migrate-test.sh:138: ok "$(jq -e . "$SETTINGS" >/dev/null 2>&1 && echo 1 || echo 
 0)" "settings.json still valid JSON"
-C:\Users\james\Repos\harness\harness\tests\migrate-test.sh:148: ok "$([ "$(jq -r '.model' "$SETTINGS")" = "opus" ] && echo 
+<repo>\harness\tests\migrate-test.sh:148: ok "$([ "$(jq -r '.model' "$SETTINGS")" = "opus" ] && echo 
 1 || echo 0)" "settings KEEPS model=opus"
-C:\Users\james\Repos\harness\harness\tests\migrate-test.sh:149: ok "$(jq -e '.permissions.allow | index("Read")' 
+<repo>\harness\tests\migrate-test.sh:149: ok "$(jq -e '.permissions.allow | index("Read")' 
 "$SETTINGS" >/dev/null 2>&1 && echo 1 || echo 0)" "settings KEEPS permissions.allow"
-C:\Users\james\Repos\harness\harness\tests\migrate-test.sh:150: ok "$(jq -e '.hooks | has("PostToolUse") | not' "$SETTINGS" 
+<repo>\harness\tests\migrate-test.sh:150: ok "$(jq -e '.hooks | has("PostToolUse") | not' "$SETTINGS" 
 >/dev/null 2>&1 && echo 1 || echo 0)" "emptied hook events pruned (no PostToolUse)"
-C:\Users\james\Repos\harness\harness\tests\migrate-test.sh:151: ok "$(jq -e '.hooks | has("PreToolUse")' "$SETTINGS" 
+<repo>\harness\tests\migrate-test.sh:151: ok "$(jq -e '.hooks | has("PreToolUse")' "$SETTINGS" 
 >/dev/null 2>&1 && echo 1 || echo 0)" "PreToolUse survives (project hook)"
-C:\Users\james\Repos\harness\harness\tests\migrate-test.sh:157: { [ -f "$rp" ] && grep -q 'HARNESS_ENGINE' "$rp"; } || 
+<repo>\harness\tests\migrate-test.sh:157: { [ -f "$rp" ] && grep -q 'HARNESS_ENGINE' "$rp"; } || 
 wrap_ok=0
-C:\Users\james\Repos\harness\plugin\engine\fleet.sh:17: # Requires: bash, git, jq, and the `claude` CLI.
-C:\Users\james\Repos\harness\plugin\engine\fleet.sh:22: # from an installed plugin. Peek "$@" for --project-root before the 
+<repo>\plugin\engine\fleet.sh:17: # Requires: bash, git, jq, and the `claude` CLI.
+<repo>\plugin\engine\fleet.sh:22: # from an installed plugin. Peek "$@" for --project-root before the 
 main parser; else git top-level;
-C:\Users\james\Repos\harness\plugin\engine\fleet.sh:27: [ "$_pr_prev" = "--project-root" ] && PROJECT_ROOT="$_pr_arg"
-C:\Users\james\Repos\harness\plugin\engine\fleet.sh:28: case "$_pr_arg" in --project-root=*) PROJECT_ROOT="${_pr_arg#*=}";; 
+<repo>\plugin\engine\fleet.sh:27: [ "$_pr_prev" = "--project-root" ] && PROJECT_ROOT="$_pr_arg"
+<repo>\plugin\engine\fleet.sh:28: case "$_pr_arg" in --project-root=*) PROJECT_ROOT="${_pr_arg#*=}";; 
 esac
-C:\Users\james\Repos\harness\plugin\engine\fleet.sh:40: command -v jq >/dev/null || { echo "jq is required for the bash 
+<repo>\plugin\engine\fleet.sh:40: command -v jq >/dev/null || { echo "jq is required for the bash 
 fleet (brew/apt install jq)."; exit 1; }
-C:\Users\james\Repos\harness\plugin\engine\fleet.sh:49: cfg() { jq -r "$1" "$CONFIG"; }
-C:\Users\james\Repos\harness\plugin\engine\fleet.sh:69: --project-root) shift 2;;    # already captured in the pre-scan 
+<repo>\plugin\engine\fleet.sh:49: cfg() { jq -r "$1" "$CONFIG"; }
+<repo>\plugin\engine\fleet.sh:69: --project-root) shift 2;;    # already captured in the pre-scan 
 above
-C:\Users\james\Repos\harness\plugin\engine\fleet.sh:70: --project-root=*) shift;;
-C:\Users\james\Repos\harness\plugin\engine\fleet.sh:102: task_field() {  # $1 id  $2 jq expr relative to the task object
-C:\Users\james\Repos\harness\plugin\engine\fleet.sh:103: jq -r --arg id "$1" ".tasks[] | select(.id == \$id) | $2" 
+<repo>\plugin\engine\fleet.sh:70: --project-root=*) shift;;
+<repo>\plugin\engine\fleet.sh:102: task_field() {  # $1 id  $2 jq expr relative to the task object
+<repo>\plugin\engine\fleet.sh:103: jq -r --arg id "$1" ".tasks[] | select(.id == \$id) | $2" 
 "$MANIFEST"
-C:\Users\james\Repos\harness\plugin\engine\fleet.sh:267: jq --arg id "$id" --arg ev "harness/.runs/$RUN_ID/fleet-$id.log" \
-C:\Users\james\Repos\harness\plugin\engine\loop.sh:9: # Requires: bash, git, jq, and the `claude` CLI.  Do NOT edit the 
+<repo>\plugin\engine\fleet.sh:267: jq --arg id "$id" --arg ev "harness/.runs/$RUN_ID/fleet-$id.log" \
+<repo>\plugin\engine\loop.sh:9: # Requires: bash, git, jq, and the `claude` CLI.  Do NOT edit the 
 tree while it runs (rollback is hard).
-C:\Users\james\Repos\harness\plugin\engine\loop.sh:14: # installed plugin. Peek "$@" for --project-root before the main 
+<repo>\plugin\engine\loop.sh:14: # installed plugin. Peek "$@" for --project-root before the main 
 parser (CONFIG is needed early); else
-C:\Users\james\Repos\harness\plugin\engine\loop.sh:19: [ "$_pr_prev" = "--project-root" ] && PROJECT_ROOT="$_pr_arg"
-C:\Users\james\Repos\harness\plugin\engine\loop.sh:20: case "$_pr_arg" in --project-root=*) PROJECT_ROOT="${_pr_arg#*=}";; 
+<repo>\plugin\engine\loop.sh:19: [ "$_pr_prev" = "--project-root" ] && PROJECT_ROOT="$_pr_arg"
+<repo>\plugin\engine\loop.sh:20: case "$_pr_arg" in --project-root=*) PROJECT_ROOT="${_pr_arg#*=}";; 
 esac
-C:\Users\james\Repos\harness\plugin\engine\loop.sh:32: command -v jq >/dev/null || { echo "jq is required for the bash loop 
+<repo>\plugin\engine\loop.sh:32: command -v jq >/dev/null || { echo "jq is required for the bash loop 
 (brew/apt install jq)."; exit 1; }
-C:\Users\james\Repos\harness\plugin\engine\loop.sh:41: cfg() { jq -r "$1" "$CONFIG"; }
-C:\Users\james\Repos\harness\plugin\engine\loop.sh:71: --project-root) shift 2;;    # already captured in the pre-scan above
-C:\Users\james\Repos\harness\plugin\engine\loop.sh:72: --project-root=*) shift;;
-C:\Users\james\Repos\harness\plugin\engine\loop.sh:93: [ "$(jq -r '[(.components[]?.gate.e2e), .gate.e2e] | map(select(. != 
+<repo>\plugin\engine\loop.sh:41: cfg() { jq -r "$1" "$CONFIG"; }
+<repo>\plugin\engine\loop.sh:71: --project-root) shift 2;;    # already captured in the pre-scan above
+<repo>\plugin\engine\loop.sh:72: --project-root=*) shift;;
+<repo>\plugin\engine\loop.sh:93: [ "$(jq -r '[(.components[]?.gate.e2e), .gate.e2e] | map(select(. != 
 null and . != "")) | length' "$CONFIG")" != "0" ]
-C:\Users\james\Repos\harness\plugin\engine\migrate.sh:9: # Usage: bash engine/migrate.sh [--project-root <dir>] [--apply] 
+<repo>\plugin\engine\migrate.sh:9: # Usage: bash engine/migrate.sh [--project-root <dir>] [--apply] 
 [--replace-runners] [--force]
-C:\Users\james\Repos\harness\plugin\engine\migrate.sh:10: # Requires: bash, git (for the dirty-tree guard), jq 
+<repo>\plugin\engine\migrate.sh:10: # Requires: bash, git (for the dirty-tree guard), jq 
 (settings.json surgery).
-C:\Users\james\Repos\harness\plugin\engine\migrate.sh:23: --project-root) PROJECT_ROOT="$2"; shift 2;;
-C:\Users\james\Repos\harness\plugin\engine\migrate.sh:24: --project-root=*) PROJECT_ROOT="${1#*=}"; shift;;
-C:\Users\james\Repos\harness\plugin\engine\migrate.sh:33: # Project root discovery mirrors loop.sh: --project-root wins; 
+<repo>\plugin\engine\migrate.sh:23: --project-root) PROJECT_ROOT="$2"; shift 2;;
+<repo>\plugin\engine\migrate.sh:24: --project-root=*) PROJECT_ROOT="${1#*=}"; shift;;
+<repo>\plugin\engine\migrate.sh:33: # Project root discovery mirrors loop.sh: --project-root wins; 
 else the git top-level; else the CWD.
-C:\Users\james\Repos\harness\plugin\engine\migrate.sh:41: command -v jq >/dev/null 2>&1 || { echo "migrate.sh --apply needs 
+<repo>\plugin\engine\migrate.sh:41: command -v jq >/dev/null 2>&1 || { echo "migrate.sh --apply needs 
 jq for settings.json surgery (brew/apt install jq)." >&2; exit 1; }
-C:\Users\james\Repos\harness\plugin\engine\migrate.sh:204: done < <(jq -r '(.hooks // {}) | .[]? | .[]? | (.hooks // [])[]? 
+<repo>\plugin\engine\migrate.sh:204: done < <(jq -r '(.hooks // {}) | .[]? | .[]? | (.hooks // [])[]? 
 | (.command // "")' "$settings" 2>/dev/null || true)
-C:\Users\james\Repos\harness\plugin\engine\migrate.sh:216: jq --arg re "$RE" '
-C:\Users\james\Repos\harness\harness\fleet.sh:3: # --project-root. Generated into <project>/harness/fleet.sh by 
+<repo>\plugin\engine\migrate.sh:216: jq --arg re "$RE" '
+<repo>\harness\fleet.sh:3: # --project-root. Generated into <project>/harness/fleet.sh by 
 /harness-init. See harness/loop.sh in this
-C:\Users\james\Repos\harness\harness\fleet.sh:9: if [ -n "${HARNESS_ENGINE:-}" ] && [ -f "$HARNESS_ENGINE/fleet.sh" ]; then 
+<repo>\harness\fleet.sh:9: if [ -n "${HARNESS_ENGINE:-}" ] && [ -f "$HARNESS_ENGINE/fleet.sh" ]; then 
 echo "$HARNESS_ENGINE"; return; fi
-C:\Users\james\Repos\harness\harness\fleet.sh:19: echo "lean-agent-harness engine not found. Install the plugin (/plugin 
+<repo>\harness\fleet.sh:19: echo "lean-agent-harness engine not found. Install the plugin (/plugin 
 install lean-agent-harness) or set \$HARNESS_ENGINE to its engine/ dir." >&2
-C:\Users\james\Repos\harness\harness\fleet.sh:24: exec bash "$ENGINE/fleet.sh" --project-root "$PROJECT_ROOT" "$@"
-C:\Users\james\Repos\harness\harness\loop.sh:2: # Thin wrapper ÔÇö dispatches to the lean-agent-harness plugin ENGINE, 
+<repo>\harness\fleet.sh:24: exec bash "$ENGINE/fleet.sh" --project-root "$PROJECT_ROOT" "$@"
+<repo>\harness\loop.sh:2: # Thin wrapper ÔÇö dispatches to the lean-agent-harness plugin ENGINE, 
 passing THIS repo as --project-root.
-C:\Users\james\Repos\harness\harness\loop.sh:5: # $CLAUDE_PLUGIN_ROOT is unset). Override with $HARNESS_ENGINE. Upgrade: 
+<repo>\harness\loop.sh:5: # $CLAUDE_PLUGIN_ROOT is unset). Override with $HARNESS_ENGINE. Upgrade: 
 /plugin update lean-agent-harness.
-C:\Users\james\Repos\harness\harness\loop.sh:10: if [ -n "${HARNESS_ENGINE:-}" ] && [ -f "$HARNESS_ENGINE/loop.sh" ]; then 
+<repo>\harness\loop.sh:10: if [ -n "${HARNESS_ENGINE:-}" ] && [ -f "$HARNESS_ENGINE/loop.sh" ]; then 
 echo "$HARNESS_ENGINE"; return; fi
-C:\Users\james\Repos\harness\harness\loop.sh:21: echo "lean-agent-harness engine not found. Install the plugin (/plugin 
+<repo>\harness\loop.sh:21: echo "lean-agent-harness engine not found. Install the plugin (/plugin 
 install lean-agent-harness) or set \$HARNESS_ENGINE to its engine/ dir." >&2
-C:\Users\james\Repos\harness\harness\loop.sh:26: exec bash "$ENGINE/loop.sh" --project-root "$PROJECT_ROOT" "$@"
+<repo>\harness\loop.sh:26: exec bash "$ENGINE/loop.sh" --project-root "$PROJECT_ROOT" "$@"
 
 codex
 VERDICT: FIX-THEN-SHIP
 
 Finding:
-- [.github/workflows/harness-selftest.yml](C:\Users\james\Repos\harness\.github\workflows\harness-selftest.yml:17) only 
+- [.github/workflows/harness-selftest.yml](<repo>\.github\workflows\harness-selftest.yml:17) only 
 runs `push` on `main` via `branches: [main]`, but the acceptance criterion says every push/PR. Remove the branch filter if 
 all branch pushes must run CI.
 
@@ -2220,7 +2220,7 @@ tokens used
 VERDICT: FIX-THEN-SHIP
 
 Finding:
-- [.github/workflows/harness-selftest.yml](C:\Users\james\Repos\harness\.github\workflows\harness-selftest.yml:17) only runs `push` on `main` via `branches: [main]`, but the acceptance criterion says every push/PR. Remove the branch filter if all branch pushes must run CI.
+- [.github/workflows/harness-selftest.yml](<repo>\.github\workflows\harness-selftest.yml:17) only runs `push` on `main` via `branches: [main]`, but the acceptance criterion says every push/PR. Remove the branch filter if all branch pushes must run CI.
 
 Everything else checks out: Linux installs `jq` and runs both bash suites, Windows runs `run-tests.ps1` under `pwsh` and both PowerShell suites under 5.1, `HARNESS_ENGINE` resolves correctly through the scripts, and the activated header/`ci/README.md` note are accurate enough.
 

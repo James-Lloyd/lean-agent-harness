@@ -30,7 +30,7 @@ wrappers, and `tests/`.
 
 ## e2e — wrapper → engine dispatch proven both ways (`wrapper-dispatch.txt`)
 `powershell harness/loop.ps1 -DryRun` resolves and boots the engine via:
-1. **HYBRID** (`HARNESS_ENGINE` set) → `C:\Users\james\Repos\harness\plugin\engine\lib\checkpoint.ps1`
+1. **HYBRID** (`HARNESS_ENGINE` set) → `<repo>\plugin\engine\lib\checkpoint.ps1`
 2. **Discovery** (no override) → `…\.claude\plugins\cache\lean-agent-harness\…\0.2.0\engine\lib\checkpoint.ps1`
 
 Both reach the engine's clean-tree preflight (expected "working tree is dirty" — the flip changes were

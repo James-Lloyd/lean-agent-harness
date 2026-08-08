@@ -1,12 +1,12 @@
 ﻿node.exe : OpenAI Codex v0.144.3
-At C:\Users\james\AppData\Roaming\npm\codex.ps1:22 char:14
+At <home>\AppData\Roaming\npm\codex.ps1:22 char:14
 + ...    $input | & "node$exe"  "$basedir/node_modules/@openai/codex/bin/co ...
 +                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     + CategoryInfo          : NotSpecified: (OpenAI Codex v0.144.3:String) [], RemoteException
     + FullyQualifiedErrorId : NativeCommandError
  
 --------
-workdir: C:\Users\james\Repos\harness
+workdir: <repo>
 model: gpt-5.5
 provider: openai
 approval: never
@@ -81,16 +81,16 @@ IÔÇÖll review the staged docs diff against the local spec and current config/
 referenced spec sections, the staged diff, and the shipped files needed to verify the factual branches.
 exec
 "C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command "Get-Content -Raw 
-state\\evidence\\2026-07-15-cross-vendor-s6\\staged.diff" in C:\Users\james\Repos\harness
+state\\evidence\\2026-07-15-cross-vendor-s6\\staged.diff" in <repo>
 exec
 "C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command "Get-Content -Raw state\\fix_plan.md" in 
-C:\Users\james\Repos\harness
+<repo>
 exec
 "C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command 'Get-Content -Raw CLAUDE.md' in 
-C:\Users\james\Repos\harness
+<repo>
 exec
 "C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command "Get-Content -Raw 
-docs\\execution-plans\\2026-07-14-cross-vendor-per-phase-model-routing.md" in C:\Users\james\Repos\harness
+docs\\execution-plans\\2026-07-14-cross-vendor-per-phase-model-routing.md" in <repo>
 2026-07-15T08:47:18.257023Z ERROR codex_core::exec: exec error: windows sandbox: CreateProcessWithLogonW failed: 5
 2026-07-15T08:47:18.265441Z ERROR codex_core::tools::router: error=execution error: Io(Custom { kind: Other, error: 
 "windows sandbox: CreateProcessWithLogonW failed: 5" })
@@ -507,17 +507,17 @@ The diff clearly rewrites only the two command docs. IÔÇÖve got the spec and 
 shipped config and agent frontmatter so any finding is tied to facts in the repo, not just the prompt.
 exec
 "C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command "Get-Content -Raw state\\fix_plan.md" in 
-C:\Users\james\Repos\harness
+<repo>
 exec
 "C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command "Get-Content -Raw harness\\harness.config.json" 
-in C:\Users\james\Repos\harness
+in <repo>
 exec
 "C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command "Get-Content -Raw .claude\\settings.json" in 
-C:\Users\james\Repos\harness
+<repo>
 exec
 "C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command "Get-ChildItem .claude\\agents\\*.md | 
 ForEach-Object { "'$_.Name; Select-String -Path $_.FullName -Pattern '"'"'^model:'"' | ForEach-Object { "'$_.Line } }' in 
-C:\Users\james\Repos\harness
+<repo>
  succeeded in 708ms:
 doc-gardener.md
 model: haiku
@@ -968,15 +968,15 @@ pinned to `fable`. IÔÇÖm doing one more pass for legacy-tolerance and reachab
 exec
 "C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command "rg -n \"reviewFallback|three 
 surfaces|flat|codex-routed|reviewer|codex login|silently\" .claude\\commands\\harness-doctor.md 
-.claude\\commands\\harness-init.md" in C:\Users\james\Repos\harness
+.claude\\commands\\harness-init.md" in <repo>
 exec
 "C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command '$i=0; Get-Content 
 .claude'"\\commands\\harness-init.md | ForEach-Object { "'$i++; if($i -ge 87 -and $i -le 120){ '"'{0,4}: {1}' -f "'$i, $_ } 
-}' in C:\Users\james\Repos\harness
+}' in <repo>
 exec
 "C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command '$i=0; Get-Content 
 .claude'"\\commands\\harness-doctor.md | ForEach-Object { "'$i++; if($i -ge 53 -and $i -le 88){ '"'{0,4}: {1}' -f "'$i, $_ 
-} }' in C:\Users\james\Repos\harness
+} }' in <repo>
  succeeded in 581ms:
   87:   `fleet.sh`) so `powershell harness/loop.ps1 ├óÔé¼┬ª` and cron keep working; they locate the installed engine
   88:   and dispatch `--project-root <repo>`. `harness/` then holds only `harness.config.json` + these wrappers
@@ -1083,11 +1083,11 @@ primary. IÔÇÖm checking the dispatcher semantics so I donÔÇÖt overstate th
 exec
 "C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command "Select-String -Path harness\\lib\\dispatch.ps1 
 -Pattern 'function Invoke-Phase|Test-CodexAvailable|fallback|UsageLimit|candidate|codex' -Context 2,3" in 
-C:\Users\james\Repos\harness
+<repo>
 exec
 "C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command "Select-String -Path harness\\lib\\dispatch.sh 
 -Pattern 'invoke_phase\\(|codex_available|fallback|usage_limit|candidate|codex' -Context 2,3" in 
-C:\Users\james\Repos\harness
+<repo>
  succeeded in 355ms:
 
   harness\lib\dispatch.sh:1:#!/usr/bin/env bash
@@ -1295,12 +1295,12 @@ sentence may misdescribe what happens when Codex is configured as a fallback rat
 that should affect the ship verdict.
 exec
 "C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command "Select-String -Path harness\\harness.schema.json 
--Pattern 'opus|sonnet|haiku|fable|claude-|codex|modelAliases' -Context 1,2" in C:\Users\james\Repos\harness
+-Pattern 'opus|sonnet|haiku|fable|claude-|codex|modelAliases' -Context 1,2" in <repo>
 exec
 "C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command "Select-String -Path 
 harness\\lib\\gate.ps1,harness\\lib\\gate.sh -Pattern 
 'Resolve-PhaseFallback|reviewFallback|phase_fallback|Resolve-PhaseModel|phase_model' -Context 1,3" in 
-C:\Users\james\Repos\harness
+<repo>
  succeeded in 481ms:
 
   harness\harness.schema.json:23:      "type": "object",
@@ -1452,7 +1452,7 @@ otherwise).
 codex
 VERDICT: FIX-THEN-SHIP
 
-1. **Medium, [.claude/commands/harness-init.md](C:/Users/james/Repos/harness/.claude/commands/harness-init.md:112):** The 
+1. **Medium, [.claude/commands/harness-init.md](<repo>/.claude/commands/harness-init.md:112):** The 
 prose overgeneralizes Codex unavailability: ÔÇ£For any phase routed to `codex` (as primary or fallback)ÔÇª otherwise that 
 phase silently runs on its Claude arm.ÔÇØ That is true for a Codex primary with Claude fallback, like 
 `review={codex,fable}`, but not for a Claude primary with Codex fallback, like shipped `implement={opus,codex}`. If Opus 
@@ -1467,7 +1467,7 @@ tokens used
 45,762
 VERDICT: FIX-THEN-SHIP
 
-1. **Medium, [.claude/commands/harness-init.md](C:/Users/james/Repos/harness/.claude/commands/harness-init.md:112):** The prose overgeneralizes Codex unavailability: ÔÇ£For any phase routed to `codex` (as primary or fallback)ÔÇª otherwise that phase silently runs on its Claude arm.ÔÇØ That is true for a Codex primary with Claude fallback, like `review={codex,fable}`, but not for a Claude primary with Codex fallback, like shipped `implement={opus,codex}`. If Opus hits a usage cap and Codex is unavailable, the fallback safety net is unavailable and the dispatcher exhausts/fails closed, not ÔÇ£silently runs on Claude.ÔÇØ  
+1. **Medium, [.claude/commands/harness-init.md](<repo>/.claude/commands/harness-init.md:112):** The prose overgeneralizes Codex unavailability: ÔÇ£For any phase routed to `codex` (as primary or fallback)ÔÇª otherwise that phase silently runs on its Claude arm.ÔÇØ That is true for a Codex primary with Claude fallback, like `review={codex,fable}`, but not for a Claude primary with Codex fallback, like shipped `implement={opus,codex}`. If Opus hits a usage cap and Codex is unavailable, the fallback safety net is unavailable and the dispatcher exhausts/fails closed, not ÔÇ£silently runs on Claude.ÔÇØ  
    **Fix:** Split the wording: Codex-primary phases fall back to their Claude fallback; Claude-primary phases keep running Claude on the happy path but lose the Codex fallback safety net if Codex is unavailable.
 
 All other checked requirements look correct: check 10 encodes rules (a)-(e), preserves legacy flat shape and `reviewFallback`, maps `reviewer` to `review.fallback=fable` under the shipped config, and the init defaults match ┬º4a.

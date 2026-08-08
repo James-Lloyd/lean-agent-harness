@@ -378,6 +378,155 @@ else
   echo "  (skipping jq-dependent gate/budget tests — jq not installed)"
 fi
 
+echo "risk: glob semantics (must be identical in risk.ps1 — neither -like nor case globs are used)"
+# shellcheck source=../lib/risk.sh
+source "$LIB/risk.sh"
+pm() { if path_matches_any "$1" "$2"; then echo 1; else echo 0; fi; }
+ok "$(pm 'src/payments/api.ts' '**/payments/**')" "**/ spans whole segments"
+ok "$(pm 'payments/api.ts' '**/payments/**')"     "**/ also matches at the repo root"
+ok "$([ "$(pm 'src/a/b.ts' 'src/*.ts')" = "0" ] && echo 1 || echo 0)" "* never crosses /"
+ok "$(pm 'src/b.ts' 'src/*.ts')"                  "* matches within one segment"
+# Regression: a character-class trim of './' here eats the dot of '.github/...' and silently unmatches
+# every CI-config rule — a fail-OPEN bug in a fail-closed component.
+ok "$(pm '.github/workflows/ci.yml' '.github/workflows/**')" "a leading dot in a path survives"
+ok "$(pm './src/payments/x.ts' '**/payments/**')" "a leading ./ prefix is stripped"
+ok "$([ "$(pm 'docs/readme.md' '**/payments/**')" = "0" ] && echo 1 || echo 0)" "a non-match stays a non-match"
+
+echo "risk: the escalate-only ratchet (an agent may confirm or raise, never lower)"
+ok "$([ "$(risk_tier_max MEDIUM LOW)" = "MEDIUM" ] && echo 1 || echo 0)" "merge cannot lower a tier"
+ok "$([ "$(risk_tier_max LOW HIGH)" = "HIGH" ] && echo 1 || echo 0)"    "merge raises to the higher tier"
+ok "$([ "$(risk_tier_max banana LOW)" = "HIGH" ] && echo 1 || echo 0)"  "an unknown tier ranks HIGH, not LOW"
+
+echo "risk: verdict parsing is fail-closed (mirror of the reviewer's last-VERDICT-line rule)"
+v="$(printf 'RISK: LOW\nRISK: HIGH\n' | risk_verdict)"
+ok "$([ "$v" = "HIGH" ] && echo 1 || echo 0)" "the LAST RISK: line decides (got '$v')"
+v="$(printf 'I would not say RISK: LOW here\nRISK: MEDIUM\n' | risk_verdict)"
+ok "$([ "$v" = "MEDIUM" ] && echo 1 || echo 0)" "a mid-reasoning mention cannot decide (got '$v')"
+v="$(printf 'looks fine to me\n' | risk_verdict)"
+ok "$([ "$v" = "HIGH" ] && echo 1 || echo 0)" "no RISK: line fails closed to HIGH (got '$v')"
+v="$(printf '' | risk_verdict)"
+ok "$([ "$v" = "HIGH" ] && echo 1 || echo 0)" "empty output fails closed to HIGH (got '$v')"
+v="$(printf 'RISK: PROBABLY-FINE\n' | risk_verdict)"
+ok "$([ "$v" = "HIGH" ] && echo 1 || echo 0)" "an unrecognized tier token is HIGH (got '$v')"
+# Case sensitivity is load-bearing, not pedantry: the PS twin's -match is case-INSENSITIVE by default,
+# so a lowercase PROSE line (which the classifier prompt actively invites) was taken as the last
+# verdict there and LOWERED a real HIGH to LOW. Both twins must reject it.
+v="$(printf 'RISK: HIGH\nrisk: low would be wrong here\n' | risk_verdict)"
+ok "$([ "$v" = "HIGH" ] && echo 1 || echo 0)" "a lowercase 'risk: low' note is NOT a verdict (got '$v')"
+v="$(printf 'Risk: Low blast radius, revertible\n' | risk_verdict)"
+ok "$([ "$v" = "HIGH" ] && echo 1 || echo 0)" "a mixed-case 'Risk: Low' is NOT a verdict (got '$v')"
+v="$(printf 'RISK:LOW\n' | risk_verdict)"
+# Both twins accept a missing space after the colon (the regex allows zero). Asserted so the
+# twins are pinned to the SAME leniency rather than drifting apart on whitespace.
+ok "$([ "$v" = "LOW" ] && echo 1 || echo 0)" "RISK:LOW with no space is still a verdict (got '$v')"
+
+if command -v jq >/dev/null 2>&1; then
+  echo "risk: deterministic rules (every criterion computed from the diff, escalate-only)"
+  # Fixture, not the shipped config: these assertions pin the RULE ENGINE and must not go red merely
+  # because someone retunes harness.config.json's globs. The shipped config is pinned separately below.
+  RCFG="$(mktemp)"; RCFG_OFF="$(mktemp)"; RF="$(mktemp)"; RA="$(mktemp)"
+  cat > "$RCFG" <<'JSON'
+{ "promotion": {
+  "enabled": true,
+  "staging": { "branch": "staging", "autoMergeAtOrBelow": "low" },
+  "prod": { "branch": "main", "autoMerge": false },
+  "alwaysHuman": ["**/payments/**"],
+  "moneySignals": ["price", "tax"],
+  "criteria": { "maxChangedLines": 1000,
+    "escalatePaths": { "migrations": ["**/migrations/**"], "infra": ["**/*.tf"] } },
+  "preconditions": { "gateGreen": true, "reviewShip": true, "e2eEvidence": true } } }
+JSON
+  cat > "$RCFG_OFF" <<'JSON'
+{ "promotion": { "enabled": false,
+  "staging": { "branch": "staging", "autoMergeAtOrBelow": "low" },
+  "prod": { "branch": "main", "autoMerge": false },
+  "preconditions": {} } }
+JSON
+  # tier_of <changed-lines> <newline-separated files> <added text>
+  tier_of() { printf '%s\n' "$2" > "$RF"; printf '%s' "$3" > "$RA"; deterministic_risk "$RCFG" "$1" "$RF" "$RA" | cut -d'|' -f1; }
+  ok "$([ "$(tier_of 10 'docs/x.md' 'hello world')" = "LOW" ] && echo 1 || echo 0)"        "a clean diff is LOW"
+  ok "$([ "$(tier_of 10 'db/migrations/1.sql' '')" = "MEDIUM" ] && echo 1 || echo 0)"      "a migration escalates to MEDIUM"
+  ok "$([ "$(tier_of 10 'infra/main.tf' '')" = "MEDIUM" ] && echo 1 || echo 0)"            "infra escalates to MEDIUM"
+  ok "$([ "$(tier_of 1000 'docs/x.md' '')" = "MEDIUM" ] && echo 1 || echo 0)"              "size at the limit escalates to MEDIUM"
+  ok "$([ "$(tier_of 999 'docs/x.md' '')" = "LOW" ] && echo 1 || echo 0)"                  "size just under the limit stays LOW"
+  ok "$([ "$(tier_of 10 'src/payments/a.ts' '')" = "HIGH" ] && echo 1 || echo 0)"          "an alwaysHuman path pins HIGH"
+  # The money rule reads CONTENT, not paths: a pricing change in a shared util has no telltale path.
+  ok "$([ "$(tier_of 10 'src/util.ts' 'const p = price * 2')" = "HIGH" ] && echo 1 || echo 0)" "a money signal in added text pins HIGH"
+  # The rule is WORD-START, not whole-word. An earlier trailing-boundary version failed in the
+  # dangerous direction: it missed tax_rate/taxes/prices, which is most of how money words appear.
+  ok "$([ "$(tier_of 10 'src/util.ts' 'const t = tax_rate * x')" = "HIGH" ] && echo 1 || echo 0)"   "a money term as a snake_case prefix fires"
+  ok "$([ "$(tier_of 10 'src/util.ts' 'const all = prices.map(f)')" = "HIGH" ] && echo 1 || echo 0)" "an inflected money term fires"
+  ok "$([ "$(tier_of 10 'src/util.ts' 'a syntax error occurred')" = "LOW" ] && echo 1 || echo 0)"    "a money term MID-word does not fire"
+  ok "$([ "$(tier_of 10 'harness/harness.config.json' '')" = "HIGH" ] && echo 1 || echo 0)" "editing the policy itself pins HIGH"
+  ok "$([ "$(tier_of 10 'plugin/engine/lib/risk.sh' '')" = "HIGH" ] && echo 1 || echo 0)"  "editing the risk lib itself pins HIGH"
+  : > "$RF"; : > "$RA"
+  ok "$([ "$(deterministic_risk "$RCFG" 0 "$RF" "$RA" | cut -d'|' -f1)" = "HIGH" ] && echo 1 || echo 0)" "an empty diff fails closed to HIGH"
+  ok "$([ "$(tier_of 10 "$(printf 'src/payments/a.ts\ndb/migrations/1.sql')" '')" = "HIGH" ] && echo 1 || echo 0)" "HIGH is not diluted by a MEDIUM rule"
+  printf 'db/migrations/1.sql\n' > "$RF"; : > "$RA"
+  ok "$(deterministic_risk "$RCFG" 10 "$RF" "$RA" | grep -qF 'migrations' && echo 1 || echo 0)" "a tripped rule is named in the reasons"
+
+  echo "risk: the promotion decision (prod is never automated)"
+  dec_of() { promotion_decision "$RCFG" "$1" "$2" "$3" "$4" "$5" | cut -d'|' -f1; }
+  ok "$([ "$(dec_of staging LOW 1 1 1)" = "AUTO" ] && echo 1 || echo 0)"     "staging + LOW + preconditions met = AUTO"
+  # The load-bearing one. Not "defaults to human" — refused before config is read at all.
+  ok "$([ "$(dec_of prod LOW 1 1 1)" = "HUMAN" ] && echo 1 || echo 0)"       "prod + LOW is STILL human"
+  ok "$([ "$(dec_of staging MEDIUM 1 1 1)" = "HUMAN" ] && echo 1 || echo 0)" "staging + MEDIUM is human"
+  ok "$([ "$(dec_of staging HIGH 1 1 1)" = "HUMAN" ] && echo 1 || echo 0)"   "staging + HIGH is human"
+  ok "$([ "$(dec_of staging LOW 1 0 1)" = "HUMAN" ] && echo 1 || echo 0)"    "a LOW diff with no review SHIP is human"
+  ok "$([ "$(dec_of staging LOW 0 1 1)" = "HUMAN" ] && echo 1 || echo 0)"    "a LOW diff with a red gate is human"
+  ok "$([ "$(dec_of staging LOW 1 1 0)" = "HUMAN" ] && echo 1 || echo 0)"    "a LOW diff with no e2e evidence is human"
+  ok "$([ "$(dec_of production LOW 1 1 1)" = "HUMAN" ] && echo 1 || echo 0)" "an unknown environment is human"
+  ok "$([ "$(promotion_decision "$RCFG_OFF" staging LOW 1 1 1 | cut -d'|' -f1)" = "HUMAN" ] && echo 1 || echo 0)" "promotion disabled is human"
+  ok "$(promotion_decision "$RCFG_OFF" prod LOW 1 1 1 | grep -qF 'prod promotion is always' && echo 1 || echo 0)" "the prod refusal names prod, not config"
+
+  echo "risk: a malformed promotion block REFUSES (it must never silently skip a rule)"
+  # Every one of these is schema-valid-or-unvalidated at runtime and previously reached AUTO, because a
+  # degenerate shape made a rule evaluate to "no match" instead of escalating -- i.e. it failed OPEN.
+  SH="$(mktemp)"
+  shape_dec() { printf '%s' "$1" > "$SH"; promotion_decision "$SH" staging "$2" "$3" "$4" "$5" | cut -d'|' -f1; }
+  NOPRE='{ "promotion": { "enabled": true, "staging": { "autoMergeAtOrBelow": "low" }, "prod": { "autoMerge": false }, "alwaysHuman": ["**/payments/**"], "moneySignals": ["price"] } }'
+  ok "$([ "$(shape_dec "$NOPRE" LOW 0 0 0)" = "HUMAN" ] && echo 1 || echo 0)" "absent preconditions => HUMAN, not 'all met'"
+  SCALAR='{ "promotion": { "enabled": true, "staging": { "autoMergeAtOrBelow": "low" }, "prod": { "autoMerge": false }, "alwaysHuman": "**/payments/**", "moneySignals": ["price"], "preconditions": { "gateGreen": true, "reviewShip": true, "e2eEvidence": true } } }'
+  ok "$([ "$(shape_dec "$SCALAR" LOW 1 1 1)" = "HUMAN" ] && echo 1 || echo 0)" "alwaysHuman as a scalar => HUMAN"
+  EMPTYAH='{ "promotion": { "enabled": true, "staging": { "autoMergeAtOrBelow": "low" }, "prod": { "autoMerge": false }, "alwaysHuman": [], "moneySignals": ["price"], "preconditions": { "gateGreen": true, "reviewShip": true, "e2eEvidence": true } } }'
+  ok "$([ "$(shape_dec "$EMPTYAH" LOW 1 1 1)" = "HUMAN" ] && echo 1 || echo 0)" "an EMPTY alwaysHuman => HUMAN"
+  STREN='{ "promotion": { "enabled": "false", "staging": { "autoMergeAtOrBelow": "low" }, "prod": { "autoMerge": false }, "alwaysHuman": ["**/payments/**"], "moneySignals": ["price"], "preconditions": { "gateGreen": true, "reviewShip": true, "e2eEvidence": true } } }'
+  ok "$([ "$(shape_dec "$STREN" LOW 1 1 1)" = "HUMAN" ] && echo 1 || echo 0)" "enabled as the STRING 'false' => HUMAN"
+  FLOATMAX='{ "promotion": { "enabled": true, "staging": { "autoMergeAtOrBelow": "low" }, "prod": { "autoMerge": false }, "alwaysHuman": ["**/payments/**"], "moneySignals": ["price"], "criteria": { "maxChangedLines": 10.5 }, "preconditions": { "gateGreen": true, "reviewShip": true, "e2eEvidence": true } } }'
+  ok "$([ "$(shape_dec "$FLOATMAX" LOW 1 1 1)" = "HUMAN" ] && echo 1 || echo 0)" "a fractional maxChangedLines => HUMAN"
+  ok "$([ "$(dec_of staging LOW 1 1 1)" = "AUTO" ] && echo 1 || echo 0)" "a well-formed enabled block still AUTOs"
+  # maxChangedLines is judged by VALUE, not type (jq floor==value), so the twins agree with the PS
+  # host regardless of whether its JSON parser produced Int32 or Int64.
+  INTBIG='{ "promotion": { "enabled": true, "staging": { "autoMergeAtOrBelow": "low" }, "prod": { "autoMerge": false }, "alwaysHuman": ["**/payments/**"], "moneySignals": ["price"], "criteria": { "maxChangedLines": 4294967296 }, "preconditions": { "gateGreen": true, "reviewShip": true, "e2eEvidence": true } } }'
+  ok "$([ "$(shape_dec "$INTBIG" LOW 1 1 1)" = "AUTO" ] && echo 1 || echo 0)" "a large (Int64) maxChangedLines is accepted"
+  INTZERO='{ "promotion": { "enabled": true, "staging": { "autoMergeAtOrBelow": "low" }, "prod": { "autoMerge": false }, "alwaysHuman": ["**/payments/**"], "moneySignals": ["price"], "criteria": { "maxChangedLines": 1000.0 }, "preconditions": { "gateGreen": true, "reviewShip": true, "e2eEvidence": true } } }'
+  ok "$([ "$(shape_dec "$INTZERO" LOW 1 1 1)" = "AUTO" ] && echo 1 || echo 0)" "1000.0 counts as an integer VALUE"
+  NOCRIT='{ "promotion": { "enabled": true, "staging": { "autoMergeAtOrBelow": "low" }, "prod": { "autoMerge": false }, "alwaysHuman": ["**/payments/**"], "moneySignals": ["price"], "preconditions": { "gateGreen": true, "reviewShip": true, "e2eEvidence": true } } }'
+  ok "$([ "$(shape_dec "$NOCRIT" LOW 1 1 1)" = "AUTO" ] && echo 1 || echo 0)" "an absent criteria block is still well-formed"
+  rm -f "$SH"
+
+  echo "risk: whitespace is TRIMMED, never deleted (interior spaces must not collapse)"
+  # tr -d '[:space:]' made "st aging" match staging in bash while the PS twin's .Trim() rejected it.
+  ok "$([ "$(promotion_decision "$RCFG" 'st aging' LOW 1 1 1 | cut -d'|' -f1)" = "HUMAN" ] && echo 1 || echo 0)" "'st aging' is an unknown environment"
+  ok "$([ "$(risk_rank 'L OW')" = "2" ] && echo 1 || echo 0)"      "'L OW' does not collapse to LOW"
+  ok "$([ "$(risk_rank '  low  ')" = "0" ] && echo 1 || echo 0)"   "surrounding whitespace is still trimmed"
+
+  echo "risk: the shipped schema + config make 'auto-merge to prod' unrepresentable"
+  # The engine refusal above is defence in depth; THIS is the structural guarantee. If either goes red,
+  # someone has made automating prod expressible in config — a policy change, not a tuning change.
+  SCHEMA="$ENGINE/harness.schema.json"; CFGP="$REPO_ROOT/harness/harness.config.json"
+  ok "$([ "$(jq -r '.properties.promotion.properties.prod.properties.autoMerge.const' "$SCHEMA")" = "false" ] && echo 1 || echo 0)" "schema pins prod.autoMerge to const false"
+  ok "$(jq -e '[.properties.promotion.properties.staging.properties.autoMergeAtOrBelow.enum[]] | index("medium") | not' "$SCHEMA" >/dev/null && echo 1 || echo 0)" "schema's staging threshold offers no 'medium'"
+  ok "$(jq -e '[.properties.promotion.properties.staging.properties.autoMergeAtOrBelow.enum[]] | index("high") | not' "$SCHEMA" >/dev/null && echo 1 || echo 0)" "schema's staging threshold offers no 'high'"
+  ok "$([ "$(jq -r '.promotion.prod.autoMerge' "$CFGP")" = "false" ] && echo 1 || echo 0)" "shipped config sets prod.autoMerge false"
+  ok "$([ "$(jq -r '.promotion.enabled' "$CFGP")" = "false" ] && echo 1 || echo 0)"        "shipped config ships promotion disabled"
+  ok "$([ "$(jq -r '.promotion.alwaysHuman | length' "$CFGP")" -gt 0 ] && echo 1 || echo 0)" "shipped config guards the money surfaces"
+  ok "$(jq -e '.properties.promotion.required | index("alwaysHuman") and index("moneySignals") and index("preconditions")' "$SCHEMA" >/dev/null && echo 1 || echo 0)" "schema REQUIRES the money keys when present"
+  rm -f "$RCFG" "$RCFG_OFF" "$RF" "$RA"
+else
+  echo "  (skipping jq-dependent risk classifier tests — jq not installed)"
+fi
+
 echo "docs: model-routing skill documents the shipped default routing"
 # The skill is the single source of truth the setup interview reads from, and harness.config.json ships
 # the same defaults — two copies of one fact. Pin them together so a retune can't update one and leave
@@ -409,6 +558,30 @@ for ph in session explore plan implement review evaluate docs; do
   fi
   ok "$hit" "skill row for $ph documents $cm @ $ce (fallback ${cf:-none}${cfe:+ @ $cfe})"
 done
+
+if command -v jq >/dev/null 2>&1; then
+  echo "docs: risk-tiering skill documents the shipped escalation criteria"
+  # Same reasoning as the model-routing pin above: the skill is the SSOT /promote and the classifier
+  # read, and harness.config.json ships the same criteria — two copies of one fact. Assert per COLUMN
+  # (2=criterion, 3=config key, 4=tier), never row-wide: the criterion cell repeats words from the key
+  # cell, so a row-wide grep false-passes when only the tier is wrong.
+  RSKILL="$REPO_ROOT/plugin/skills/risk-tiering/SKILL.md"
+  RCFGP="$REPO_ROOT/harness/harness.config.json"
+  for cat in $(jq -r '.promotion.criteria.escalatePaths | keys[]' "$RCFGP" | tr -d '\r'); do
+    srow="$(grep -F "\`$cat\`" "$RSKILL" | grep '^|' | head -1)"
+    col_key="$(printf '%s' "$srow" | awk -F'|' '{print $3}')"
+    col_tier="$(printf '%s' "$srow" | awk -F'|' '{print $4}')"
+    hit=0
+    if [ -n "$srow" ] \
+       && printf '%s' "$col_key"  | grep -qF "promotion.criteria.escalatePaths.$cat" \
+       && printf '%s' "$col_tier" | grep -qF '`MEDIUM`'; then hit=1; fi
+    ok "$hit" "risk skill documents escalatePaths.$cat as MEDIUM"
+  done
+  rmax="$(jq -r '.promotion.criteria.maxChangedLines' "$RCFGP" | tr -d '\r')"
+  ok "$(grep -qF "**$rmax**" "$RSKILL" && echo 1 || echo 0)" "risk skill states the shipped size limit ($rmax)"
+  ok "$(grep 'promotion.alwaysHuman' "$RSKILL" | grep -qF '`HIGH`' && echo 1 || echo 0)"  "risk skill names alwaysHuman as HIGH"
+  ok "$(grep 'promotion.moneySignals' "$RSKILL" | grep -qF '`HIGH`' && echo 1 || echo 0)" "risk skill names moneySignals as HIGH"
+fi
 
 echo "plugin: cross-platform hook dispatcher (node)"
 # The plugin ships hooks through plugin/hooks/run.mjs (static hooks.json can't branch on OS). Its own

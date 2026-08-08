@@ -115,6 +115,35 @@ behaves oddly.
       on (or falls back to) its Claude arm by design; say which path each codex-routed phase would take
       today.
 
+11. **Risk-gated promotion (`promotion` block).** Skip entirely (report ℹ️ "not configured") when the
+    block is absent — it is opt-in and most repos won't have it. When present:
+    - **(a) Prod is unautomatable.** `promotion.prod.autoMerge` must be `false`, and the schema's
+      `properties.promotion.properties.prod.properties.autoMerge.const` must still be `false`. Either
+      one being otherwise is **❌ and the single most important finding in the report** — it means
+      someone has made "auto-merge to prod" expressible, which is a policy change, not a tuning
+      change. Same for `promotion.staging.autoMergeAtOrBelow`: legal values are `"low"` or `null`
+      only, and the schema enum must not have grown a `medium`/`high` member.
+    - **(b) Guarding the money surfaces.** With `enabled: true`, `promotion.alwaysHuman` and
+      `promotion.moneySignals` must both be non-empty — ❌ otherwise. An enabled policy with an empty
+      money list auto-merges payment code, which is the one outcome this feature exists to prevent.
+      Also sanity-check the globs against the repo: if `alwaysHuman` matches **no** path in a codebase
+      that clearly handles money (grep for payment/billing/checkout dirs), report ⚠️ with the paths it
+      is missing — a glob that matches nothing is indistinguishable from no policy at all.
+    - **(c) Branches resolve.** `promotion.staging.branch` and `promotion.prod.branch` must exist
+      (`git rev-parse --verify`) — ⚠️ if not (the branch may legitimately not exist yet), and say so.
+    - **(d) Preconditions are not disarmed.** With `enabled: true`, all three of
+      `preconditions.{gateGreen, reviewShip, e2eEvidence}` should be `true`. Any `false` is ⚠️ with
+      the consequence spelled out (e.g. `reviewShip: false` ⇒ a LOW diff auto-merges with no
+      fresh-context review at all).
+    - **(e) The criteria table matches the skill.** `plugin/skills/risk-tiering/SKILL.md` is the SSOT;
+      every `criteria.escalatePaths` category and the `maxChangedLines` value must appear in its
+      table. ❌ on drift (the twin self-tests pin this too — if doctor sees drift the suite is red).
+    - **(f) `gh` reachability (⚠️ not ❌).** Probe `gh --version` and `gh auth status`. Unavailable
+      just means every promotion takes the human path — say so rather than failing. Additionally, if
+      `gh auth status` reports the **same** identity that authors commits here, report ⚠️: GitHub
+      rejects self-approval, so auto-approval will fail until a separate reviewer identity is
+      configured (`docs/promotion.md`).
+
 ## Output
 A short checklist (one line per check, ✅/⚠️/❌ + the finding) and, at the end, the single most important
 thing to fix if anything is red. Recommend `/ratchet` for any failure class that should never recur.

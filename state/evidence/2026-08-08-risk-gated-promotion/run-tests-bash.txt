@@ -1,3 +1,16 @@
+engine hygiene: every engine .sh PARSES (bash -n) — mirror of the PS ParseFile check
+  ok  parses: fleet.sh
+  ok  parses: lib/budget.sh
+  ok  parses: lib/checkpoint.sh
+  ok  parses: lib/dispatch.sh
+  ok  parses: lib/fleet.sh
+  ok  parses: lib/gate.sh
+  ok  parses: lib/invoke-codex.sh
+  ok  parses: lib/risk.sh
+  ok  parses: loop.sh
+  ok  parses: migrate.sh
+  ok  parses: wrappers/fleet.sh
+  ok  parses: wrappers/loop.sh
 plan counter: grep -c emits a single clean count (the bug fix)
   ok  counts 2 open items, single line (got '2')
   ok  empty plan => 0 (no double line) (got '0')
@@ -6,6 +19,14 @@ review verdict: fail-closed last-VERDICT-line parsing
   ok  REJECT wins as the last VERDICT line (got 'REJECT')
   ok  mid-sentence SHIP is not a verdict (got 'NONE')
   ok  empty output fails closed (got 'NONE')
+evaluator verdict: fail-closed parse + sub-threshold N/10 override (evaluator_verdict)
+  ok  PASS when verdict PASS and all scores >= threshold (got 'PASS')
+  ok  sub-threshold score overrides a PASS summary => FAIL (got 'FAIL')
+  ok  explicit VERDICT: FAIL => FAIL (got 'FAIL')
+  ok  no VERDICT line => NONE (got 'NONE')
+  ok  empty text => NONE (got 'NONE')
+  ok  mid-sentence VERDICT: PASS is not a verdict => NONE (got 'NONE')
+  ok  score AT threshold (7/10, strict <) not below => PASS (got 'PASS')
 codex reviewer: availability probe drives the claude fallback
   ok  missing binary => unavailable with reason (got 'codex CLI not found')
   ok  api-key mode without CODEX_API_KEY => unavailable (got 'CODEX_API_KEY not set')
@@ -25,8 +46,17 @@ usage-limit predicate: vendor-neutral markers
   ok  clean output => false
   ok  stray 429 => false
   ok  empty => false
-back-compat shim: review-codex.sh still exposes the codex API
-  ok  shim sources invoke-codex (invoke_codex + codex_review defined)
+sandbox predicate: HARNESS_SANDBOX contract + auto-detect (is_sandboxed, gate.sh)
+  ok  HARNESS_SANDBOX=1 => sandboxed
+  ok  HARNESS_SANDBOX=true => sandboxed
+  ok  HARNESS_SANDBOX=yes => sandboxed
+  ok  HARNESS_SANDBOX=YES => sandboxed (case-insensitive)
+  ok  HARNESS_SANDBOX=0 => NOT sandboxed
+  ok  HARNESS_SANDBOX=false => NOT sandboxed
+  ok  explicit 0 beats markers
+  ok  unset + no markers (bare host) => NOT sandboxed
+  ok  CODESPACES=false (present, not truthy) => sandboxed
+  ok  container=lxc (name value, present) => sandboxed
 block-destructive hook: blocks dangerous, allows safe
   ok  blocks rm -fr (flag order)
   ok  blocks rm <dir> -rf (flags after operand)
@@ -77,7 +107,7 @@ gate (jq present): multi-component pass + failure attribution
   [backend] gate (.)
   - format : true
   - lint : false
-    x lint failed in <repo>/.claude/worktrees/agent-ab80dd584fe2d3afd/harness/../.:
+    x lint failed in <repo>/harness/../.:
       
   ok  failure attributed to backend:lint (got 'backend:lint')
   [ghost] gate (no-such-dir-xyz)
@@ -136,9 +166,99 @@ dispatch: invoke_phase fallback trigger (stub claude; deterministic, no real mod
   ok  budget includes cache tokens (expect 3150, got '3150')
   ok  run-004 after run-002 was cleaned up (got 'run-004')
   ok  allocation claims the dir (2nd call => run-005, got 'run-005')
+  ok  devcontainer.json is strict JSON (jq parses, no comments)
+  ok  devcontainer sets HARNESS_SANDBOX=1
+  ok  devcontainer uses a volume workspace (no host FS bind)
+risk: glob semantics (must be identical in risk.ps1 — neither -like nor case globs are used)
+  ok  **/ spans whole segments
+  ok  **/ also matches at the repo root
+  ok  * never crosses /
+  ok  * matches within one segment
+  ok  a leading dot in a path survives
+  ok  a leading ./ prefix is stripped
+  ok  a non-match stays a non-match
+risk: the escalate-only ratchet (an agent may confirm or raise, never lower)
+  ok  merge cannot lower a tier
+  ok  merge raises to the higher tier
+  ok  an unknown tier ranks HIGH, not LOW
+risk: verdict parsing is fail-closed (mirror of the reviewer's last-VERDICT-line rule)
+  ok  the LAST RISK: line decides (got 'HIGH')
+  ok  a mid-reasoning mention cannot decide (got 'MEDIUM')
+  ok  no RISK: line fails closed to HIGH (got 'HIGH')
+  ok  empty output fails closed to HIGH (got 'HIGH')
+  ok  an unrecognized tier token is HIGH (got 'HIGH')
+  ok  a lowercase 'risk: low' note is NOT a verdict (got 'HIGH')
+  ok  a mixed-case 'Risk: Low' is NOT a verdict (got 'HIGH')
+  ok  RISK:LOW with no space is still a verdict (got 'LOW')
+risk: deterministic rules (every criterion computed from the diff, escalate-only)
+  ok  a clean diff is LOW
+  ok  a migration escalates to MEDIUM
+  ok  infra escalates to MEDIUM
+  ok  size at the limit escalates to MEDIUM
+  ok  size just under the limit stays LOW
+  ok  an alwaysHuman path pins HIGH
+  ok  a money signal in added text pins HIGH
+  ok  a money term as a snake_case prefix fires
+  ok  an inflected money term fires
+  ok  a money term MID-word does not fire
+  ok  editing the policy itself pins HIGH
+  ok  editing the risk lib itself pins HIGH
+  ok  an empty diff fails closed to HIGH
+  ok  HIGH is not diluted by a MEDIUM rule
+  ok  a tripped rule is named in the reasons
+risk: the promotion decision (prod is never automated)
+  ok  staging + LOW + preconditions met = AUTO
+  ok  prod + LOW is STILL human
+  ok  staging + MEDIUM is human
+  ok  staging + HIGH is human
+  ok  a LOW diff with no review SHIP is human
+  ok  a LOW diff with a red gate is human
+  ok  a LOW diff with no e2e evidence is human
+  ok  an unknown environment is human
+  ok  promotion disabled is human
+  ok  the prod refusal names prod, not config
+risk: a malformed promotion block REFUSES (it must never silently skip a rule)
+  ok  absent preconditions => HUMAN, not 'all met'
+  ok  alwaysHuman as a scalar => HUMAN
+  ok  an EMPTY alwaysHuman => HUMAN
+  ok  enabled as the STRING 'false' => HUMAN
+  ok  a fractional maxChangedLines => HUMAN
+  ok  a well-formed enabled block still AUTOs
+  ok  a large (Int64) maxChangedLines is accepted
+  ok  1000.0 counts as an integer VALUE
+  ok  an absent criteria block is still well-formed
+risk: whitespace is TRIMMED, never deleted (interior spaces must not collapse)
+  ok  'st aging' is an unknown environment
+  ok  'L OW' does not collapse to LOW
+  ok  surrounding whitespace is still trimmed
+risk: the shipped schema + config make 'auto-merge to prod' unrepresentable
+  ok  schema pins prod.autoMerge to const false
+  ok  schema's staging threshold offers no 'medium'
+  ok  schema's staging threshold offers no 'high'
+  ok  shipped config sets prod.autoMerge false
+  ok  shipped config ships promotion disabled
+  ok  shipped config guards the money surfaces
+  ok  schema REQUIRES the money keys when present
+docs: model-routing skill documents the shipped default routing
+  ok  skill row for session documents opus @ medium (fallback none)
+  ok  skill row for explore documents haiku @ low (fallback none)
+  ok  skill row for plan documents fable @ high (fallback none)
+  ok  skill row for implement documents codex @ high (fallback opus @ high)
+  ok  skill row for review documents fable @ high (fallback opus @ medium)
+  ok  skill row for evaluate documents fable @ high (fallback opus @ medium)
+  ok  skill row for docs documents haiku @ low (fallback none)
+docs: risk-tiering skill documents the shipped escalation criteria
+  ok  risk skill documents escalatePaths.auditLog as MEDIUM
+  ok  risk skill documents escalatePaths.authz as MEDIUM
+  ok  risk skill documents escalatePaths.contracts as MEDIUM
+  ok  risk skill documents escalatePaths.infra as MEDIUM
+  ok  risk skill documents escalatePaths.migrations as MEDIUM
+  ok  risk skill states the shipped size limit (1000)
+  ok  risk skill names alwaysHuman as HIGH
+  ok  risk skill names moneySignals as HIGH
 plugin: cross-platform hook dispatcher (node)
   ok  hook dispatcher self-test passes (node)
 migrate: end-to-end classify + apply on a synthetic repo
   ok  harness-migrate self-test passes
 
-RESULT: 104 passed, 0 failed
+RESULT: 212 passed, 0 failed

@@ -1,0 +1,46 @@
+=== e2e: risk-gated promotion, shipped engine, real invocations (bash twin) ===
+
+--- PART 1: classifying THIS change (range 4ce6aaa1321370712878639d762978f4d026d7bc..8b4185c5a7a4f007365ecfa0b548b7ceb7d3ebb2, stash-create includes the worktree)
+changed files: 58   changed lines: 3567
+deterministic tier: HIGH
+    self-governance: harness/harness.config.json (policy, guardrails, or CI)
+    self-governance: plugin/agents/risk-classifier.md (policy, guardrails, or CI)
+    self-governance: plugin/commands/promote.md (policy, guardrails, or CI)
+    self-governance: plugin/engine/lib/risk.ps1 (policy, guardrails, or CI)
+    self-governance: plugin/engine/lib/risk.sh (policy, guardrails, or CI)
+    self-governance: plugin/skills/risk-tiering/SKILL.md (policy, guardrails, or CI)
+    money signal 'price' in added lines
+    money signal 'amount' in added lines
+    money signal 'currency' in added lines
+    money signal 'charge' in added lines
+    money signal 'refund' in added lines
+    money signal 'payout' in added lines
+    money signal 'invoice' in added lines
+    money signal 'tax' in added lines
+    money signal 'discount' in added lines
+    money signal 'balance' in added lines
+    money signal 'stripe' in added lines
+    money signal 'paypal' in added lines
+    money signal 'adyen' in added lines
+    money signal 'braintree' in added lines
+    3567 changed lines (limit 1000)
+  classifier returns its LOWEST possible answer (RISK: LOW) -> parsed 'LOW'
+  final = max(HIGH, LOW) = HIGH   <- the agent CANNOT lower it
+  prod  : HUMAN|prod promotion is always a human action
+
+--- PART 2: the decision matrix against a promotion-ENABLED config
+(temp copy with enabled=true; the shipped config stays disabled)
+  A low-risk docs+util diff, all green -> staging: AUTO|LOW risk, all preconditions met, target staging
+    ...same diff -> prod:                        HUMAN|prod promotion is always a human action
+    ...no fresh-context review SHIP:             HUMAN|precondition unmet: no fresh-context review SHIP for this range
+    ...red gate:                                 HUMAN|precondition unmet: project gate is not green
+    ...no e2e evidence:                          HUMAN|precondition unmet: no end-to-end evidence for this range
+  A migration (tier MEDIUM) -> staging:          HUMAN|risk tier MEDIUM exceeds the staging auto-merge threshold
+  Money in a path NO glob covers (tier HIGH):    HUMAN|risk tier HIGH exceeds the staging auto-merge threshold
+      why: money signal 'tax' in added lines
+  Classifier did not run (verdict 'HIGH'):       HUMAN|risk tier HIGH exceeds the staging auto-merge threshold
+
+Exactly one row reaches AUTO: LOW + staging + every precondition met.
+PART 1 shows the policy refusing to auto-approve its own introduction (self-governance),
+and PART 2 row 'Money in a path NO glob covers' shows the content rule catching a pricing
+change (tax_rate) that no path glob would have seen.

@@ -97,5 +97,31 @@
       "rubric": "docs/principles/evaluator-rubric.md",
       "failBelow": 7
     }
+  },
+
+  "promotion": {
+    "_comment": "Risk-gated promotion (/promote). Deterministic rules classify the diff first and can only RAISE the tier; a fresh-context risk-classifier agent then runs and can only raise it further. LOW may auto-approve + auto-merge to staging; MEDIUM/HIGH go to a human; anything matching alwaysHuman or moneySignals is HIGH unconditionally; prod is NEVER automated. Off by default — turn on deliberately, per docs/promotion.md.",
+    "enabled": false,
+    "staging": { "branch": "staging", "autoMergeAtOrBelow": "low" },
+    "prod":    { "branch": "main",    "autoMerge": false },
+    "alwaysHuman": [
+      "**/payments/**", "**/payment/**", "**/billing/**", "**/checkout/**",
+      "**/subscription*/**", "**/payout*/**", "**/pricing/**", "**/invoic*/**"
+    ],
+    "moneySignals": [
+      "price", "amount", "currency", "charge", "refund", "payout", "invoice",
+      "tax", "discount", "balance", "stripe", "paypal", "adyen", "braintree"
+    ],
+    "criteria": {
+      "maxChangedLines": 1000,
+      "escalatePaths": {
+        "migrations": ["**/migrations/**", "**/migrate/**", "**/*.sql"],
+        "infra":      ["**/Dockerfile", "**/docker-compose*.y*ml", "**/*.tf", "**/k8s/**", "**/helm/**", "**/terraform/**"],
+        "authz":      ["**/auth/**", "**/auth*.*", "**/permission*/**", "**/session*/**", "**/*crypto*", "**/*secret*"],
+        "auditLog":   ["**/audit/**", "**/audit*.*", "**/logging/**", "**/telemetry/**", "**/monitoring/**"],
+        "contracts":  ["**/*.proto", "**/*.graphql", "**/openapi*.y*ml", "**/openapi*.json"]
+      }
+    },
+    "preconditions": { "gateGreen": true, "reviewShip": true, "e2eEvidence": true }
   }
 }

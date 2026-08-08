@@ -51,6 +51,14 @@ The *why* into code/docs; learnings into `AGENT_NOTES.md`; tick `state/fix_plan.
 `passes:true` in `state/tasks.json`; a `state/PROGRESS.md` line; commit (+tag) green.
 **Status:** `reviewed → done`.
 
+## PROMOTE (optional — risk-gated merge onward)
+Opt-in (`promotion.enabled`), and it starts where RECORD ends: a change that is already green and
+already SHIPped. `/promote <staging|prod>` asks the *other* question — not "is this correct?" but
+"if it is wrong anyway, what breaks and can we undo it?" Deterministic criteria computed from the
+diff produce a tier; a fresh-context `risk-classifier` may only raise it. **LOW** to staging
+auto-approves and auto-merges; MEDIUM, HIGH, anything touching money, and **every** prod promotion
+go to a human. Policy: `risk-tiering` skill. Operator guide: `docs/promotion.md`.
+
 ## Context hygiene (the main window)
 The phases protect their own contexts (subagents, `/verify` forks) but the orchestrating window
 accumulates. Policy: **reset over compact** — at a task boundary run `/handoff` then `/clear`; state
