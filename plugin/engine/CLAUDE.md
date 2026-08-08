@@ -33,6 +33,31 @@ Hard-won rules (each traces to a real shipped failure):
   `integer`) — the two shells do not coerce identically, and a divergence can fail open.
 - **`harness/.runs/` is reset-proof by construction** (gitignored ⇒ `reset --hard` and `clean -fd`
   both skip it) — park anything that must survive a rollback there, never in the index.
+- **A MULTI-LINE `jq` read must be CR-stripped** (`| tr -d '\r'`, and `${v%$'\r'}` in `read` loops).
+  `jq.exe` under Git Bash emits CRLF; `$(...)` strips only the *trailing* newline, so a scalar read
+  (`phase_model`) is safe but every INTERIOR line of a list keeps its `\r`. A config-derived glob
+  then compiles to a regex ending `.*\r$` and silently matches **nothing** — fail-OPEN, in
+  `lib/risk.*` the one direction a classifier must never fail. CI runs bash on Linux only, so this
+  is invisible there; it reproduces on a Windows dev box.
+- **Non-ASCII belongs in comments, not in emitted STRINGS** — PS 5.1 reads a BOM-less `.ps1` as ANSI,
+  so an em dash in a literal reaches the ledger, the audit record, or a PR comment as mojibake. The
+  sh twin must use the same ASCII text or the twins are not capability-equivalent.
 - **Embedded judge prompts exist in both twins** (loop.ps1/loop.sh, fleet.ps1/fleet.sh) and their
   verdict parsers are fail-closed on the last `VERDICT:` line — edit both copies and keep the output
   contract intact.
+- **A verdict/tier parser is CASE-SENSITIVE in both twins** — PS `-cmatch`, never `-match` (which is
+  case-insensitive by default while the sh twin's `grep -E` is not). A judge invited to add a prose
+  note emits `RISK: HIGH` then `risk: low would be wrong here`; the case-insensitive twin took the
+  PROSE line as the last verdict and LOWERED the tier. Same latent shape in `gate.ps1`'s
+  `Get-ReviewVerdict`/`Get-EvaluatorVerdict` — see the fix_plan item.
+- **Shape-validate a security-shaped config block before trusting it** — absent, scalar-instead-of-
+  array, or stringly-typed keys must reach the REFUSING branch, never a silently skipped rule. An
+  absent `preconditions` object reached AUTO with a red gate while the audit string still read "all
+  preconditions met"; `enabled: "false"` as a string read as ON under PS (non-empty string coerces to
+  `$true`).
+- **Never return a collection from a PS function you intend to TYPE-CHECK** — the output pipeline
+  unrolls a single-element array to a bare scalar, so `["**/payments/**"]` fails `-is [Array]`.
+  `return ,$value` survives assignment but NOT an inline `@(f ...)`, and an ArrayList round-trip does
+  not help either. Return a bool/int PREDICATE instead (`Test-RiskPropIsArray`, `Get-RiskPropCount`).
+- **A PS assertion over a config/schema key checks PRESENCE before content** — `@($null)` has Count 1
+  and `-notcontains` anything, so a key-DELETION mutation false-passes. The bash twin catches it.

@@ -142,6 +142,69 @@
           }
         }
       }
+    },
+    "promotion": {
+      "type": "object",
+      "required": ["enabled", "alwaysHuman", "moneySignals", "preconditions"],
+      "description": "Risk-gated promotion: classify a reviewed diff LOW/MEDIUM/HIGH, then auto-approve + auto-merge ONLY a LOW diff to staging; everything else goes to a human. Driven by /promote and the engine's lib/risk.*. Two-stage and escalate-only by construction: deterministic rules computed from the diff run first and can only RAISE the tier, then a fresh-context risk-classifier agent runs and can only raise it further — nothing can lower a tier, and an unparseable verdict is HIGH. Risk is never self-declared by the change's author. Opt-in: default false, so `/plugin update` cannot switch promotion on in a repo that never asked for it.",
+      "properties": {
+        "enabled": { "type": "boolean", "description": "Master switch. false => /promote still classifies and REPORTS, but always returns HUMAN and never touches GitHub. Default false." },
+        "staging": {
+          "type": "object",
+          "description": "The lower environment — the only one automation may merge into.",
+          "properties": {
+            "branch": { "type": "string", "description": "Target branch for a staging promotion, e.g. 'staging' or 'develop'." },
+            "autoMergeAtOrBelow": {
+              "enum": ["low", null],
+              "description": "Highest tier eligible for auto-approve + auto-merge. 'low' = only LOW promotes automatically; null = nothing does (report-only). NOTE the enum deliberately has no 'medium'/'high' member: widening automation past LOW is not a config edit, it is a schema change plus a review — see the Ona governance note in docs/promotion.md."
+            }
+          }
+        },
+        "prod": {
+          "type": "object",
+          "description": "The production environment. Promotion here is ALWAYS a human action.",
+          "properties": {
+            "branch": { "type": "string", "description": "Target branch for a prod promotion, e.g. 'main'." },
+            "autoMerge": {
+              "type": "boolean",
+              "const": false,
+              "description": "STRUCTURALLY PINNED to false. This is the mechanism behind 'prod is never automated': a config setting true fails schema validation and /harness-doctor check 11, and lib/risk.* refuses a prod AUTO decision independently of config anyway (defence in depth — a repo with no schema validation in CI is still safe)."
+            }
+          }
+        },
+        "alwaysHuman": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Glob patterns whose blast radius is financial or otherwise unacceptable to automate — a match pins the diff to HIGH unconditionally and no later stage can lower it. Seed with the money surfaces (payments, billing, checkout, subscriptions, payouts) plus anything regulated. Globs: `**` spans path segments, `*` and `?` do not cross `/`; matching is case-insensitive and anchored whole-path (repo-relative, forward slashes)."
+        },
+        "moneySignals": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Money vocabulary matched against the ADDED lines of the diff, not against paths. A term matches at a WORD START, case-insensitively, with no constraint on what follows (`tax` fires on `tax_rate`, `taxes`, `TaxTable`; it does NOT fire mid-word, so `syntax` is clean) -- inflected and snake_case forms are most of how money words appear in code, and a whole-word rule misses all of them. Catches the financial change that path globs miss — a pricing constant edited in a shared util, a rounding change in a helper. Any hit pins the diff to HIGH. Over-matching is the safe direction here: a false HIGH costs one human glance, a false LOW can auto-merge a money bug."
+        },
+        "criteria": {
+          "type": "object",
+          "description": "The objective, binary escalation criteria. Every one is computed from the diff — a change's author cannot self-classify. Failing ANY single criterion escalates the tier; passing all of them is what LOW means.",
+          "properties": {
+            "maxChangedLines": { "type": "integer", "minimum": 1, "description": "A diff with at or above this many changed lines (additions + deletions) is at least MEDIUM: past some size, review confidence is not really a function of the criteria list. INTEGER — both twins compare as integers." },
+            "escalatePaths": {
+              "type": "object",
+              "description": "Named categories of path glob that force at least MEDIUM. Category names are free-form (they appear in the audit record and the PR comment so a human can see WHICH criterion tripped); the shipped set mirrors the criteria Ona escalates on. An empty object disables path-based escalation but does NOT disable alwaysHuman or the built-in self-governance list.",
+              "additionalProperties": { "type": "array", "items": { "type": "string" } }
+            }
+          }
+        },
+        "preconditions": {
+          "type": "object",
+          "description": "Gates that must ALREADY be satisfied before a tier is even considered. Any unmet precondition forces HUMAN regardless of tier — risk classification decides how much scrutiny a GOOD change needs, it never substitutes for the gate or the review.",
+          "required": ["gateGreen", "reviewShip", "e2eEvidence"],
+          "properties": {
+            "gateGreen":   { "type": "boolean", "description": "The full project gate must be green on the promoted range." },
+            "reviewShip":  { "type": "boolean", "description": "A fresh-context /review must have SHIPped this range (the `harness-reviewed` watermark covers HEAD). Doer is not the judge, and the risk classifier is not the reviewer." },
+            "e2eEvidence": { "type": "boolean", "description": "Captured end-to-end evidence must exist for the range. Unit-green is not done." }
+          }
+        }
+      }
     }
   },
   "definitions": {

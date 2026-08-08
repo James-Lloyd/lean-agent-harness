@@ -1,0 +1,34 @@
+﻿fleet queue: live-fire with stub claude (merge, record, tamper-park)
+  ok  T-A output merged to main tree
+  ok  T-B output merged to main tree
+  ok  T-EVIL work did NOT land
+  ok  T-A merge commit exists
+  ok  T-B merge commit exists
+  ok  no T-EVIL commit
+  ok  T-A recorded validated
+  ok  T-B passes=true
+  ok  T-EVIL still todo
+  ok  T-EVIL parked in ledger
+  ok  T-CRASH parked with its real exit code
+  ok  T-CRASH work did not land
+  ok  tamper surfaced in handoff.md
+  ok  T-EVIL branch kept
+  ok  T-A branch cleaned up
+  ok  tracked tree clean after fleet
+  ok  T-FB built by the FALLBACK model
+  ok  T-FB merge commit exists
+  ok  T-FB recorded validated
+  ok  dry-run invoked no model
+  ok  dry-run left no new fleet branches
+  ok  dry-run left no new worktrees
+fleet queue: record-amend failure preserves the pending record in the run dir
+  ok  amend-fail: pending record saved to the run dir
+  ok  pending tasks.json holds the intended (validated) record
+  ok  pending PROGRESS.md holds the intended line
+  ok  ledger says T-OK merged (the finding's premise)
+  ok  ledger records the deferral for reconciliation
+  ok  T-OK merge commit still stands
+  ok  working tree NOT left staged (record restored to HEAD)
+  ok  T-BOOM parked — its merge-commit reset --hard fired
+  ok  pending record SURVIVED T-BOOM's reset --hard + clean -fd
+FLEET QUEUE RESULT: 31 passed, 0 failed

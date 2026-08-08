@@ -1,0 +1,56 @@
+Mutation testing — proof the assertions fail when the code is broken.
+A test that cannot go red is not a test. Final tree; every mutation reverted and re-verified green.
+
+Baselines: PowerShell 219/0, bash 209/0.
+
+=== ROUND 1 — the core engine rules, BOTH twins ===
+M1: remove the unconditional prod refusal in Get-PromotionDecision / promotion_decision
+    (point the `prod` branch at an unreachable environment name)
+M2: revert the leading-'./' strip to a character-set trim
+    PS   $p.TrimStart('./')      -- eats the dot of '.github/...'
+    bash sed 's|^[./]*||'
+
+  PowerShell:  3 failed   bash: 3 failed   -- the SAME three assertions on both runners:
+    FAIL a leading dot in a path survives
+    FAIL prod + LOW is STILL human
+    FAIL the prod refusal names prod, not config
+
+=== ROUND 2 — the two review blockers ===
+M3: revert Get-RiskVerdict to case-INSENSITIVE -match (PowerShell only)
+M4: bypass the promotion-config shape gate (both twins)
+
+  PowerShell: 212 passed, 7 failed
+    FAIL a lowercase 'risk: low' note is NOT a verdict     <- M3
+    FAIL a mixed-case 'Risk: Low' is NOT a verdict          <- M3
+    FAIL absent preconditions => HUMAN, not 'all met'       <- M4
+    FAIL alwaysHuman as a scalar => HUMAN                   <- M4
+    FAIL an EMPTY alwaysHuman => HUMAN                      <- M4
+    FAIL enabled as the STRING 'false' => HUMAN             <- M4
+    FAIL a fractional maxChangedLines => HUMAN              <- M4
+
+  bash: 205 passed, 4 failed
+    FAIL absent preconditions => HUMAN, not 'all met'       <- M4
+    FAIL alwaysHuman as a scalar => HUMAN                   <- M4
+    FAIL an EMPTY alwaysHuman => HUMAN                      <- M4
+    FAIL a fractional maxChangedLines => HUMAN              <- M4
+
+  bash correctly shows FEWER failures, and that is the point of the two twin-parity assertions:
+  M3 was a PowerShell-only defect (-match is case-insensitive by default, grep -E is not), and
+  "enabled as the STRING 'false'" was likewise PS-only (PS coerces a non-empty string to $true;
+  bash string-compares). Both assertions exist on BOTH runners so the twins stay pinned together.
+
+=== ROUND 3 — the doc-table pin (risk-tiering SKILL.md <-> harness.config.json) ===
+Per the CLAUDE.md ratchet, a row-wide match false-passes off a neighbouring cell, so the assertions
+match per COLUMN. Each mutation breaks ONE CELL, leaving the rest of the row correct:
+
+M5: migrations row, TIER cell only     `MEDIUM` -> `LOW`
+M6: prose size limit only              **1000** -> **500**
+
+  bash: 2 failed
+    FAIL risk skill documents escalatePaths.migrations as MEDIUM
+    FAIL risk skill states the shipped size limit (1000)
+
+=== NOT mutation-proof, and said so plainly ===
+The three PowerShell schema assertions originally false-passed on key DELETION, because @($null) is
+a one-element array and -notcontains anything. Caught in review, not by me. They now assert
+PRESENCE before content; the bash twin always caught it.

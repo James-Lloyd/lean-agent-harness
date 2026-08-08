@@ -24,6 +24,7 @@ $hookDir = Join-Path (Split-Path $engineDir -Parent) 'hooks'
 . (Join-Path $libDir 'invoke-codex.ps1')
 . (Join-Path $libDir 'dispatch.ps1')
 . (Join-Path $libDir 'fleet.ps1')
+. (Join-Path $libDir 'risk.ps1')
 # Hook tests re-invoke the CURRENT PowerShell host: powershell.exe under 5.1, pwsh under Core (a
 # hardcoded 'powershell' crashed on Linux/macOS, where only pwsh exists — despite the pwsh shebang).
 $psHost = if ($PSVersionTable.PSEdition -eq 'Core') { 'pwsh' } else { 'powershell' }
@@ -448,6 +449,145 @@ function specExitNb($path, $locked) {
 }
 ok "blocks specs/*.ipynb via notebook_path when locked" ((specExitNb 'specs/nb.ipynb' $true) -eq 2)
 
+Write-Host "risk: glob semantics (must be identical in risk.sh — neither -like nor case globs are used)"
+ok "**/ spans whole segments"             (Test-PathMatchesAny 'src/payments/api.ts' @('**/payments/**'))
+ok "**/ also matches at the repo root"    (Test-PathMatchesAny 'payments/api.ts' @('**/payments/**'))
+ok "* never crosses /"              (-not (Test-PathMatchesAny 'src/a/b.ts' @('src/*.ts')))
+ok "* matches within one segment"         (Test-PathMatchesAny 'src/b.ts' @('src/*.ts'))
+# Regression: a TrimStart('./') here trims the CHARACTER SET, turning '.github/...' into 'github/...'
+# and silently unmatching every CI-config rule — a fail-OPEN bug in a fail-closed component.
+ok "a leading dot in a path survives"     (Test-PathMatchesAny '.github/workflows/ci.yml' @('.github/workflows/**'))
+ok "a leading ./ prefix is stripped"      (Test-PathMatchesAny './src/payments/x.ts' @('**/payments/**'))
+ok "a non-match stays a non-match"  (-not (Test-PathMatchesAny 'docs/readme.md' @('**/payments/**')))
+
+Write-Host "risk: deterministic rules (every criterion computed from the diff, escalate-only)"
+# Fixture, not the shipped config: these assertions pin the RULE ENGINE, and must not go red merely
+# because someone retunes harness.config.json's globs. The shipped config is pinned separately below.
+$riskCfg = @'
+{ "promotion": {
+  "enabled": true,
+  "staging": { "branch": "staging", "autoMergeAtOrBelow": "low" },
+  "prod": { "branch": "main", "autoMerge": false },
+  "alwaysHuman": ["**/payments/**"],
+  "moneySignals": ["price", "tax"],
+  "criteria": { "maxChangedLines": 1000,
+    "escalatePaths": { "migrations": ["**/migrations/**"], "infra": ["**/*.tf"] } },
+  "preconditions": { "gateGreen": true, "reviewShip": true, "e2eEvidence": true } } }
+'@ | ConvertFrom-Json
+$riskCfgOff = @'
+{ "promotion": { "enabled": false,
+  "staging": { "branch": "staging", "autoMergeAtOrBelow": "low" },
+  "prod": { "branch": "main", "autoMerge": false },
+  "preconditions": {} } }
+'@ | ConvertFrom-Json
+function riskOf($files, $lines, $added) {
+  (Get-DeterministicRisk -Config $riskCfg -Files $files -ChangedLines $lines -AddedText $added).Tier
+}
+ok "a clean diff is LOW"                       ((riskOf @('docs/x.md') 10 'hello world') -eq 'LOW')
+ok "a migration escalates to MEDIUM"           ((riskOf @('db/migrations/1.sql') 10 '') -eq 'MEDIUM')
+ok "infra escalates to MEDIUM"                 ((riskOf @('infra/main.tf') 10 '') -eq 'MEDIUM')
+ok "size at the limit escalates to MEDIUM"     ((riskOf @('docs/x.md') 1000 '') -eq 'MEDIUM')
+ok "size just under the limit stays LOW"       ((riskOf @('docs/x.md') 999 '') -eq 'LOW')
+ok "an alwaysHuman path pins HIGH"             ((riskOf @('src/payments/a.ts') 10 '') -eq 'HIGH')
+# The money rule reads CONTENT, not paths: a pricing change in a shared util has no telltale path.
+ok "a money signal in added text pins HIGH"    ((riskOf @('src/util.ts') 10 'const p = price * 2') -eq 'HIGH')
+# The rule is WORD-START, not whole-word. An earlier trailing-boundary version failed in the
+# dangerous direction: it missed tax_rate/taxes/prices, which is most of how money words appear.
+ok "a money term as a snake_case prefix fires"  ((riskOf @('src/util.ts') 10 'const t = tax_rate * x') -eq 'HIGH')
+ok "an inflected money term fires"             ((riskOf @('src/util.ts') 10 'const all = prices.map(f)') -eq 'HIGH')
+ok "a money term MID-word does not fire"       ((riskOf @('src/util.ts') 10 'a syntax error occurred') -eq 'LOW')
+ok "editing the policy itself pins HIGH"       ((riskOf @('harness/harness.config.json') 10 '') -eq 'HIGH')
+ok "editing the risk lib itself pins HIGH"     ((riskOf @('plugin/engine/lib/risk.sh') 10 '') -eq 'HIGH')
+ok "an empty diff fails closed to HIGH"        ((riskOf @() 0 '') -eq 'HIGH')
+ok "HIGH is not diluted by a MEDIUM rule"      ((riskOf @('src/payments/a.ts','db/migrations/1.sql') 10 '') -eq 'HIGH')
+ok "a tripped rule is named in the reasons"    ((Get-DeterministicRisk -Config $riskCfg -Files @('db/migrations/1.sql') -ChangedLines 10 -AddedText '').Reasons -join ';' | ForEach-Object { $_.Contains('migrations') })
+
+Write-Host "risk: the escalate-only ratchet (an agent may confirm or raise, never lower)"
+ok "merge cannot lower a tier"             ((Merge-RiskTier 'MEDIUM' 'LOW') -eq 'MEDIUM')
+ok "merge raises to the higher tier"       ((Merge-RiskTier 'LOW' 'HIGH') -eq 'HIGH')
+ok "an unknown tier ranks HIGH, not LOW"   ((Merge-RiskTier 'banana' 'LOW') -eq 'HIGH')
+
+Write-Host "risk: verdict parsing is fail-closed (mirror of the reviewer's last-VERDICT-line rule)"
+ok "the LAST RISK: line decides"           ((Get-RiskVerdict "RISK: LOW`nRISK: HIGH") -eq 'HIGH')
+ok "a mid-reasoning mention cannot decide" ((Get-RiskVerdict "I would not say RISK: LOW here`nRISK: MEDIUM") -eq 'MEDIUM')
+ok "no RISK: line fails closed to HIGH"    ((Get-RiskVerdict 'looks fine to me') -eq 'HIGH')
+ok "empty output fails closed to HIGH"     ((Get-RiskVerdict '') -eq 'HIGH')
+ok "an unrecognized tier token is HIGH"    ((Get-RiskVerdict 'RISK: PROBABLY-FINE') -eq 'HIGH')
+# Case sensitivity is load-bearing, not pedantry. PowerShell's -match is case-INSENSITIVE by default
+# while the sh twin's grep -E is not, so a lowercase PROSE line (which the classifier prompt actively
+# invites: "a note for the human ... the deterministic rules look over-escalated") was taken as the
+# last verdict and LOWERED a real HIGH to LOW on PowerShell only.
+ok "a lowercase 'risk: low' note is NOT a verdict"  ((Get-RiskVerdict "RISK: HIGH`nrisk: low would be wrong here") -eq 'HIGH')
+ok "a mixed-case 'Risk: Low' is NOT a verdict"      ((Get-RiskVerdict 'Risk: Low blast radius, revertible') -eq 'HIGH')
+# Both twins accept a missing space after the colon (the regex allows zero). Asserted so the twins
+# are pinned to the SAME leniency rather than drifting apart on whitespace.
+ok "RISK:LOW with no space is still a verdict"      ((Get-RiskVerdict 'RISK:LOW') -eq 'LOW')
+
+Write-Host "risk: the promotion decision (prod is never automated)"
+function decOf($envName, $tier, $g, $s, $e) {
+  (Get-PromotionDecision -Config $riskCfg -Environment $envName -Tier $tier -GateGreen $g -ReviewShip $s -E2EEvidence $e).Decision
+}
+ok "staging + LOW + preconditions met = AUTO"  ((decOf 'staging' 'LOW' $true $true $true) -eq 'AUTO')
+# The load-bearing one. Not "defaults to human" — refused before config is read at all.
+ok "prod + LOW is STILL human"                 ((decOf 'prod' 'LOW' $true $true $true) -eq 'HUMAN')
+ok "staging + MEDIUM is human"                 ((decOf 'staging' 'MEDIUM' $true $true $true) -eq 'HUMAN')
+ok "staging + HIGH is human"                   ((decOf 'staging' 'HIGH' $true $true $true) -eq 'HUMAN')
+ok "a LOW diff with no review SHIP is human"   ((decOf 'staging' 'LOW' $true $false $true) -eq 'HUMAN')
+ok "a LOW diff with a red gate is human"       ((decOf 'staging' 'LOW' $false $true $true) -eq 'HUMAN')
+ok "a LOW diff with no e2e evidence is human"  ((decOf 'staging' 'LOW' $true $true $false) -eq 'HUMAN')
+ok "an unknown environment is human"           ((decOf 'production' 'LOW' $true $true $true) -eq 'HUMAN')
+ok "promotion disabled is human"               ((Get-PromotionDecision -Config $riskCfgOff -Environment 'staging' -Tier 'LOW' -GateGreen $true -ReviewShip $true -E2EEvidence $true).Decision -eq 'HUMAN')
+ok "the prod refusal names prod, not config"   ((Get-PromotionDecision -Config $riskCfgOff -Environment 'prod' -Tier 'LOW').Reason.Contains('prod promotion is always'))
+
+Write-Host "risk: a malformed promotion block REFUSES (it must never silently skip a rule)"
+# Every one of these is schema-valid-or-unvalidated at runtime and previously reached AUTO, because a
+# degenerate shape made a rule evaluate to "no match" instead of escalating - i.e. it failed OPEN.
+function ShapeDec($json, $tier, $g, $s2, $e) {
+  (Get-PromotionDecision -Config ($json | ConvertFrom-Json) -Environment 'staging' -Tier $tier -GateGreen $g -ReviewShip $s2 -E2EEvidence $e).Decision
+}
+$noPre = '{ "promotion": { "enabled": true, "staging": { "autoMergeAtOrBelow": "low" }, "prod": { "autoMerge": false }, "alwaysHuman": ["**/payments/**"], "moneySignals": ["price"] } }'
+ok "absent preconditions => HUMAN, not 'all met'" ((ShapeDec $noPre 'LOW' $false $false $false) -eq 'HUMAN')
+$scalarAH = '{ "promotion": { "enabled": true, "staging": { "autoMergeAtOrBelow": "low" }, "prod": { "autoMerge": false }, "alwaysHuman": "**/payments/**", "moneySignals": ["price"], "preconditions": { "gateGreen": true, "reviewShip": true, "e2eEvidence": true } } }'
+ok "alwaysHuman as a scalar => HUMAN"            ((ShapeDec $scalarAH 'LOW' $true $true $true) -eq 'HUMAN')
+$emptyAH = '{ "promotion": { "enabled": true, "staging": { "autoMergeAtOrBelow": "low" }, "prod": { "autoMerge": false }, "alwaysHuman": [], "moneySignals": ["price"], "preconditions": { "gateGreen": true, "reviewShip": true, "e2eEvidence": true } } }'
+ok "an EMPTY alwaysHuman => HUMAN"               ((ShapeDec $emptyAH 'LOW' $true $true $true) -eq 'HUMAN')
+# PowerShell coerces a non-empty string to $true, so a stringly-typed switch read as ON here only.
+$strEnabled = '{ "promotion": { "enabled": "false", "staging": { "autoMergeAtOrBelow": "low" }, "prod": { "autoMerge": false }, "alwaysHuman": ["**/payments/**"], "moneySignals": ["price"], "preconditions": { "gateGreen": true, "reviewShip": true, "e2eEvidence": true } } }'
+ok "enabled as the STRING 'false' => HUMAN"      ((ShapeDec $strEnabled 'LOW' $true $true $true) -eq 'HUMAN')
+$floatMax = '{ "promotion": { "enabled": true, "staging": { "autoMergeAtOrBelow": "low" }, "prod": { "autoMerge": false }, "alwaysHuman": ["**/payments/**"], "moneySignals": ["price"], "criteria": { "maxChangedLines": 10.5 }, "preconditions": { "gateGreen": true, "reviewShip": true, "e2eEvidence": true } } }'
+ok "a fractional maxChangedLines => HUMAN"       ((ShapeDec $floatMax 'LOW' $true $true $true) -eq 'HUMAN')
+ok "a well-formed enabled block still AUTOs"     ((Get-PromotionDecision -Config $riskCfg -Environment 'staging' -Tier 'LOW' -GateGreen $true -ReviewShip $true -E2EEvidence $true).Decision -eq 'AUTO')
+
+Write-Host "risk: whitespace is TRIMMED, never deleted (interior spaces must not collapse)"
+# The sh twin used `tr -d '[:space:]'`, which DELETED interior whitespace: "st aging" matched staging
+# in bash while PS's .Trim() correctly rejected it. Both twins now trim; both are pinned here.
+ok "'st aging' is an unknown environment" ((Get-PromotionDecision -Config $riskCfg -Environment 'st aging' -Tier 'LOW' -GateGreen $true -ReviewShip $true -E2EEvidence $true).Decision -eq 'HUMAN')
+ok "'L OW' does not collapse to LOW"      ((Get-RiskRank 'L OW') -eq 2)
+ok "surrounding whitespace is trimmed"    ((Get-RiskRank '  low  ') -eq 0)
+
+Write-Host "risk: the shipped schema + config make 'auto-merge to prod' unrepresentable"
+# The engine refusal above is defence in depth; THIS is the structural guarantee. If either assertion
+# goes red, someone has made automating prod expressible in config — that is a policy change, not a
+# tuning change, and it must not pass silently.
+function RProp($o, $n) { if ($null -ne $o -and $o.PSObject.Properties[$n]) { $o.PSObject.Properties[$n].Value } else { $null } }
+$schemaJson = Get-Content -LiteralPath (Join-Path $engineDir 'harness.schema.json') -Raw | ConvertFrom-Json
+$promoSchema = RProp (RProp $schemaJson 'properties') 'promotion'
+$prodSchema  = RProp (RProp (RProp $promoSchema 'properties') 'prod') 'properties'
+$stgSchema   = RProp (RProp (RProp $promoSchema 'properties') 'staging') 'properties'
+ok "schema pins prod.autoMerge to const false" ($false -eq (RProp (RProp $prodSchema 'autoMerge') 'const'))
+# Assert PRESENCE before content: @($null) is a ONE-element array and -notcontains anything, so a
+# key-DELETION mutation (which is exactly how 'medium' would become expressible) false-passed.
+$stgEnum = RProp (RProp $stgSchema 'autoMergeAtOrBelow') 'enum'
+ok "schema's staging threshold declares an enum"   ($null -ne $stgEnum)
+ok "schema's staging threshold offers no 'medium'" (($null -ne $stgEnum) -and (@($stgEnum) -notcontains 'medium'))
+ok "schema's staging threshold offers no 'high'"   (($null -ne $stgEnum) -and (@($stgEnum) -notcontains 'high'))
+ok "schema REQUIRES the money keys when present"   ((@(RProp $promoSchema 'required') -contains 'alwaysHuman') -and (@(RProp $promoSchema 'required') -contains 'moneySignals') -and (@(RProp $promoSchema 'required') -contains 'preconditions'))
+$shippedPromo = RProp (Get-Content -LiteralPath (Join-Path $repoRoot 'harness/harness.config.json') -Raw | ConvertFrom-Json) 'promotion'
+ok "shipped config sets prod.autoMerge false"  ($false -eq (RProp (RProp $shippedPromo 'prod') 'autoMerge'))
+ok "shipped config ships promotion disabled"   ($false -eq (RProp $shippedPromo 'enabled'))
+$shippedAH = RProp $shippedPromo 'alwaysHuman'
+ok "shipped config guards the money surfaces"  (($null -ne $shippedAH) -and (@($shippedAH).Count -gt 0))
+
 Write-Host "plugin: cross-platform hook dispatcher (node)"
 # The plugin ships hooks through plugin/hooks/run.mjs (static hooks.json can't branch on OS). Its own
 # node self-test covers both OS branches + a real dispatch; fold its exit code into this suite.
@@ -494,6 +634,30 @@ foreach ($ph in @('session','explore','plan','implement','review','evaluate','do
   $fbTxt = if ($cf) { if ($cfe) { "$cf @ $cfe" } else { $cf } } else { 'none' }
   ok ("skill row for {0} documents {1} @ {2} (fallback {3})" -f $ph, $cm, $ce, $fbTxt) $hit
 }
+
+Write-Host "docs: risk-tiering skill documents the shipped escalation criteria"
+# Same reasoning as the model-routing pin above: the skill is the SSOT /promote and the classifier
+# read, and harness.config.json ships the same criteria - two copies of one fact. Assert per COLUMN
+# (2=criterion, 3=config key, 4=tier), never row-wide: the criterion cell repeats words that appear
+# in the key cell, so a row-wide match false-passes when only the tier is wrong.
+$riskSkill = Join-Path $repoRoot 'plugin/skills/risk-tiering/SKILL.md'
+$riskTxt   = Get-Content -LiteralPath $riskSkill -Raw
+$cfgPromo  = RProp (Get-Content -LiteralPath (Join-Path $repoRoot 'harness/harness.config.json') -Raw | ConvertFrom-Json) 'promotion'
+$escalate  = RProp (RProp $cfgPromo 'criteria') 'escalatePaths'
+foreach ($cat in @($escalate.PSObject.Properties.Name)) {
+  $row  = ($riskTxt -split "`n" | Where-Object { $_.TrimStart().StartsWith('|') -and $_.Contains("$bt$cat$bt") } | Select-Object -First 1)
+  $cols = if ($null -ne $row) { $row -split '\|' } else { @() }
+  $colKey  = if ($cols.Count -gt 2) { $cols[2] } else { '' }
+  $colTier = if ($cols.Count -gt 3) { $cols[3] } else { '' }
+  $hit = ($null -ne $row) -and $colKey.Contains("promotion.criteria.escalatePaths.$cat") -and $colTier.Contains("${bt}MEDIUM$bt")
+  ok ("risk skill documents escalatePaths.{0} as MEDIUM" -f $cat) $hit
+}
+$maxLines = RProp (RProp $cfgPromo 'criteria') 'maxChangedLines'
+ok "risk skill states the shipped size limit ($maxLines)" ($riskTxt.Contains("**$maxLines**"))
+# @() around the pipeline: in PS 5.1 a Where-Object that matches exactly one line returns a scalar,
+# which has no .Count under StrictMode and would THROW rather than fail the assertion.
+ok "risk skill names alwaysHuman as HIGH"  (@($riskTxt -split "`n" | Where-Object { $_.Contains('promotion.alwaysHuman')  -and $_.Contains("${bt}HIGH$bt") }).Count -gt 0)
+ok "risk skill names moneySignals as HIGH" (@($riskTxt -split "`n" | Where-Object { $_.Contains('promotion.moneySignals') -and $_.Contains("${bt}HIGH$bt") }).Count -gt 0)
 
 Write-Host "migrate: end-to-end classify + apply on a synthetic repo"
 # engine/migrate.ps1 has its own e2e self-test (build a synthetic copied-in harness, report, --apply);
