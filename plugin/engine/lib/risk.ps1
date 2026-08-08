@@ -51,6 +51,19 @@ function Get-RiskPropCount($obj, [string]$name) {
   if (-not $p -or $null -eq $p.Value) { return 0 }
   return @($p.Value).Count
 }
+# Integral-VALUE test, deliberately not a concrete .NET TYPE test. ConvertFrom-Json returns Int32
+# under Windows PowerShell 5.1 and Int64 under pwsh, so `-is [int]` rejected a perfectly valid
+# `maxChangedLines: 1000` on pwsh only -- caught by CI, which runs both hosts. Mirrors the sh twin,
+# which asks jq whether `floor == value` rather than inspecting a type name.
+function Test-RiskPropIsInteger($obj, [string]$name) {
+  if ($null -eq $obj) { return $false }
+  $p = $obj.PSObject.Properties[$name]
+  if (-not $p -or $null -eq $p.Value) { return $false }
+  $v = $p.Value
+  if ($v -is [bool] -or $v -is [string]) { return $false }
+  try { $d = [double]$v } catch { return $false }
+  return ([Math]::Floor($d) -eq $d)
+}
 function Test-RiskPropIsBool($obj, [string]$name) {
   if ($null -eq $obj) { return $false }
   $p = $obj.PSObject.Properties[$name]
@@ -301,11 +314,11 @@ function Test-PromotionConfigShape($Promotion) {
     if (-not (Test-RiskPropIsBool $pre $key))  { return "promotion.preconditions.$key is not a boolean" }
   }
 
-  $maxLines = Get-RiskProp (Get-RiskProp $Promotion 'criteria') 'maxChangedLines'
-  if ($null -ne $maxLines -and $maxLines -isnot [int]) {
-    # Both twins compare it arithmetically; a float diverges across shells (and in bash the compare
-    # errors out and silently SKIPS the size rule).
-    return "promotion.criteria.maxChangedLines is not an integer (got '$maxLines')"
+  $criteria = Get-RiskProp $Promotion 'criteria'
+  if ((Test-RiskPropPresent $criteria 'maxChangedLines') -and -not (Test-RiskPropIsInteger $criteria 'maxChangedLines')) {
+    # Both twins compare it arithmetically; a fractional value diverges across shells (and in bash the
+    # compare errors out and silently SKIPS the size rule).
+    return "promotion.criteria.maxChangedLines is not an integer (got '$(Get-RiskProp $criteria 'maxChangedLines')')"
   }
   return ''   # well-formed
 }

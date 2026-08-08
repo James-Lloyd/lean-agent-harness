@@ -61,3 +61,7 @@ Hard-won rules (each traces to a real shipped failure):
   not help either. Return a bool/int PREDICATE instead (`Test-RiskPropIsArray`, `Get-RiskPropCount`).
 - **A PS assertion over a config/schema key checks PRESENCE before content** — `@($null)` has Count 1
   and `-notcontains` anything, so a key-DELETION mutation false-passes. The bash twin catches it.
+- **Never type-check a JSON value by concrete .NET type** — `ConvertFrom-Json` yields `Int32` under
+  Windows PowerShell 5.1 and `Int64` under pwsh, so `-is [int]` rejected a valid
+  `maxChangedLines: 1000` on pwsh alone. Test the VALUE (`[Math]::Floor($d) -eq $d`), mirroring the
+  sh twin's `jq floor == value`. The suites run under BOTH hosts in CI — a 5.1-only green is not green.

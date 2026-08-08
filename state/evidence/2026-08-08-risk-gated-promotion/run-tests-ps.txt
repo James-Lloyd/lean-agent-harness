@@ -1,4 +1,4 @@
-﻿engine hygiene: every engine .ps1 PARSES under this PowerShell host
+engine hygiene: every engine .ps1 PARSES under this PowerShell host
   ok  parses: fleet.ps1
   ok  parses: loop.ps1
   ok  parses: migrate.ps1
@@ -158,9 +158,9 @@ budget: run id = max existing suffix + 1, not dir count; allocation claims the d
   ok  run-004 after run-002 was cleaned up
   ok  allocation claims the dir (2nd call => run-005)
 budget: meters MAX of each token field, not the sum (modelUsage repeats counts)
-  📊 est. tokens this run: ~150
+  ?? est. tokens this run: ~150
   ok  budget meters 150 (max 100 + max 50, not summed to 300)
-  📊 est. tokens this run: ~3,150
+  ?? est. tokens this run: ~3,150
   ok  budget includes cache tokens (3150)
 block-destructive hook: blocks dangerous, allows safe
   ok  blocks rm -fr (flag order)
@@ -198,7 +198,7 @@ protect-specs hook: locks specs/ only when HARNESS_LOCK_SPECS is set
   ok  allows non-spec write when locked
   ok  allows specs/ write when unlocked
   ok  blocks specs/*.ipynb via notebook_path when locked
-risk: glob semantics (must be identical in risk.sh — neither -like nor case globs are used)
+risk: glob semantics (must be identical in risk.sh - neither -like nor case globs are used)
   ok  **/ spans whole segments
   ok  **/ also matches at the repo root
   ok  * never crosses /
@@ -253,6 +253,9 @@ risk: a malformed promotion block REFUSES (it must never silently skip a rule)
   ok  enabled as the STRING 'false' => HUMAN
   ok  a fractional maxChangedLines => HUMAN
   ok  a well-formed enabled block still AUTOs
+  ok  a large (Int64) maxChangedLines is accepted
+  ok  1000.0 counts as an integer VALUE
+  ok  an absent criteria block is still well-formed
 risk: whitespace is TRIMMED, never deleted (interior spaces must not collapse)
   ok  'st aging' is an unknown environment
   ok  'L OW' does not collapse to LOW
@@ -288,4 +291,4 @@ docs: risk-tiering skill documents the shipped escalation criteria
 migrate: end-to-end classify + apply on a synthetic repo
   ok  harness-migrate self-test passes
 
-RESULT: 219 passed, 0 failed
+RESULT: 222 passed, 0 failed

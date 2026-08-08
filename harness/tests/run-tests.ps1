@@ -557,6 +557,15 @@ ok "enabled as the STRING 'false' => HUMAN"      ((ShapeDec $strEnabled 'LOW' $t
 $floatMax = '{ "promotion": { "enabled": true, "staging": { "autoMergeAtOrBelow": "low" }, "prod": { "autoMerge": false }, "alwaysHuman": ["**/payments/**"], "moneySignals": ["price"], "criteria": { "maxChangedLines": 10.5 }, "preconditions": { "gateGreen": true, "reviewShip": true, "e2eEvidence": true } } }'
 ok "a fractional maxChangedLines => HUMAN"       ((ShapeDec $floatMax 'LOW' $true $true $true) -eq 'HUMAN')
 ok "a well-formed enabled block still AUTOs"     ((Get-PromotionDecision -Config $riskCfg -Environment 'staging' -Tier 'LOW' -GateGreen $true -ReviewShip $true -E2EEvidence $true).Decision -eq 'AUTO')
+# maxChangedLines must be judged by VALUE, not by concrete .NET type: ConvertFrom-Json yields Int32
+# under Windows PowerShell 5.1 and Int64 under pwsh, so a `-is [int]` check rejected a valid config
+# on pwsh only. CI runs both hosts and caught it; these pin the behaviour on whichever host runs.
+$intLike = '{ "promotion": { "enabled": true, "staging": { "autoMergeAtOrBelow": "low" }, "prod": { "autoMerge": false }, "alwaysHuman": ["**/payments/**"], "moneySignals": ["price"], "criteria": { "maxChangedLines": 4294967296 }, "preconditions": { "gateGreen": true, "reviewShip": true, "e2eEvidence": true } } }'
+ok "a large (Int64) maxChangedLines is accepted"  ((ShapeDec $intLike 'LOW' $true $true $true) -eq 'AUTO')
+$intZero = '{ "promotion": { "enabled": true, "staging": { "autoMergeAtOrBelow": "low" }, "prod": { "autoMerge": false }, "alwaysHuman": ["**/payments/**"], "moneySignals": ["price"], "criteria": { "maxChangedLines": 1000.0 }, "preconditions": { "gateGreen": true, "reviewShip": true, "e2eEvidence": true } } }'
+ok "1000.0 counts as an integer VALUE"            ((ShapeDec $intZero 'LOW' $true $true $true) -eq 'AUTO')
+$noCriteria = '{ "promotion": { "enabled": true, "staging": { "autoMergeAtOrBelow": "low" }, "prod": { "autoMerge": false }, "alwaysHuman": ["**/payments/**"], "moneySignals": ["price"], "preconditions": { "gateGreen": true, "reviewShip": true, "e2eEvidence": true } } }'
+ok "an absent criteria block is still well-formed" ((ShapeDec $noCriteria 'LOW' $true $true $true) -eq 'AUTO')
 
 Write-Host "risk: whitespace is TRIMMED, never deleted (interior spaces must not collapse)"
 # The sh twin used `tr -d '[:space:]'`, which DELETED interior whitespace: "st aging" matched staging

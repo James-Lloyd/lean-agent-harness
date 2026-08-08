@@ -3,8 +3,9 @@
 ## Gate
 | Suite | Result |
 |-------|--------|
-| `run-tests.ps1` (PowerShell 5.1) | **219 / 0** (baseline 150) |
-| `run-tests.sh` (bash + jq) | **209 / 0** (baseline 141) |
+| `run-tests.ps1` (PowerShell 5.1) | **222 / 0** (baseline 150) |
+| `run-tests.ps1` (pwsh / PS 7, CI) | **222 / 0** |
+| `run-tests.sh` (bash + jq) | **212 / 0** (baseline 141) |
 | `fleet-queue-test.ps1` | **31 / 0** |
 | `fleet-queue-test.sh` | **31 / 0** |
 
@@ -52,6 +53,16 @@ Should-fixes also applied: bash now TRIMS whitespace instead of deleting it (`tr
 `"st aging"` match staging in bash but not PS); the three false-passing PS schema assertions now check
 presence before content; the schema's `moneySignals` description was the last surface still describing
 the superseded whole-word rule.
+
+## A fourth fail-open-adjacent bug, caught by CI
+Local runs and the reviewer both used Windows PowerShell 5.1. CI also runs **pwsh (PS 7)**, and only
+there did the shape gate reject a valid config: `ConvertFrom-Json` returns `Int32` under 5.1 and
+`Int64` under pwsh, so `maxChangedLines -isnot [int]` was true on pwsh and a well-formed block was
+refused. It failed CLOSED (nothing would auto-merge), so it was never dangerous — but it was a twin
+divergence and a host divergence, and it would have made the feature simply not work for anyone on
+PS 7. Fixed by testing the integral VALUE (`[Math]::Floor($d) -eq $d`) rather than a .NET type name,
+which is what the sh twin was already doing via `jq floor == value`. Three assertions added on both
+runners (Int64-sized, `1000.0`, and an absent `criteria` block).
 
 ## Two real bugs the e2e caught that the unit tests did not
 - **O(files x globs) fork storm.** Compiling a glob per file per rule spawned ~5600 subprocesses on a

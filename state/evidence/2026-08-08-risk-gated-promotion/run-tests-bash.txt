@@ -224,6 +224,9 @@ risk: a malformed promotion block REFUSES (it must never silently skip a rule)
   ok  enabled as the STRING 'false' => HUMAN
   ok  a fractional maxChangedLines => HUMAN
   ok  a well-formed enabled block still AUTOs
+  ok  a large (Int64) maxChangedLines is accepted
+  ok  1000.0 counts as an integer VALUE
+  ok  an absent criteria block is still well-formed
 risk: whitespace is TRIMMED, never deleted (interior spaces must not collapse)
   ok  'st aging' is an unknown environment
   ok  'L OW' does not collapse to LOW
@@ -258,4 +261,4 @@ plugin: cross-platform hook dispatcher (node)
 migrate: end-to-end classify + apply on a synthetic repo
   ok  harness-migrate self-test passes
 
-RESULT: 209 passed, 0 failed
+RESULT: 212 passed, 0 failed

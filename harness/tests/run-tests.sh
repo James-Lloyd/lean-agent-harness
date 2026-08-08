@@ -495,6 +495,14 @@ JSON
   FLOATMAX='{ "promotion": { "enabled": true, "staging": { "autoMergeAtOrBelow": "low" }, "prod": { "autoMerge": false }, "alwaysHuman": ["**/payments/**"], "moneySignals": ["price"], "criteria": { "maxChangedLines": 10.5 }, "preconditions": { "gateGreen": true, "reviewShip": true, "e2eEvidence": true } } }'
   ok "$([ "$(shape_dec "$FLOATMAX" LOW 1 1 1)" = "HUMAN" ] && echo 1 || echo 0)" "a fractional maxChangedLines => HUMAN"
   ok "$([ "$(dec_of staging LOW 1 1 1)" = "AUTO" ] && echo 1 || echo 0)" "a well-formed enabled block still AUTOs"
+  # maxChangedLines is judged by VALUE, not type (jq floor==value), so the twins agree with the PS
+  # host regardless of whether its JSON parser produced Int32 or Int64.
+  INTBIG='{ "promotion": { "enabled": true, "staging": { "autoMergeAtOrBelow": "low" }, "prod": { "autoMerge": false }, "alwaysHuman": ["**/payments/**"], "moneySignals": ["price"], "criteria": { "maxChangedLines": 4294967296 }, "preconditions": { "gateGreen": true, "reviewShip": true, "e2eEvidence": true } } }'
+  ok "$([ "$(shape_dec "$INTBIG" LOW 1 1 1)" = "AUTO" ] && echo 1 || echo 0)" "a large (Int64) maxChangedLines is accepted"
+  INTZERO='{ "promotion": { "enabled": true, "staging": { "autoMergeAtOrBelow": "low" }, "prod": { "autoMerge": false }, "alwaysHuman": ["**/payments/**"], "moneySignals": ["price"], "criteria": { "maxChangedLines": 1000.0 }, "preconditions": { "gateGreen": true, "reviewShip": true, "e2eEvidence": true } } }'
+  ok "$([ "$(shape_dec "$INTZERO" LOW 1 1 1)" = "AUTO" ] && echo 1 || echo 0)" "1000.0 counts as an integer VALUE"
+  NOCRIT='{ "promotion": { "enabled": true, "staging": { "autoMergeAtOrBelow": "low" }, "prod": { "autoMerge": false }, "alwaysHuman": ["**/payments/**"], "moneySignals": ["price"], "preconditions": { "gateGreen": true, "reviewShip": true, "e2eEvidence": true } } }'
+  ok "$([ "$(shape_dec "$NOCRIT" LOW 1 1 1)" = "AUTO" ] && echo 1 || echo 0)" "an absent criteria block is still well-formed"
   rm -f "$SH"
 
   echo "risk: whitespace is TRIMMED, never deleted (interior spaces must not collapse)"
