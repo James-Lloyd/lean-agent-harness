@@ -77,7 +77,7 @@ gate (jq present): multi-component pass + failure attribution
   [backend] gate (.)
   - format : true
   - lint : false
-    x lint failed in /c/Users/james/Repos/harness/.claude/worktrees/agent-ab80dd584fe2d3afd/harness/../.:
+    x lint failed in <repo>/.claude/worktrees/agent-ab80dd584fe2d3afd/harness/../.:
       
   ok  failure attributed to backend:lint (got 'backend:lint')
   [ghost] gate (no-such-dir-xyz)

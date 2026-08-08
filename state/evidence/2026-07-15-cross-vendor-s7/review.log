@@ -1,12 +1,12 @@
 ﻿node.exe : OpenAI Codex v0.144.3
-At C:\Users\james\AppData\Roaming\npm\codex.ps1:22 char:14
+At <home>\AppData\Roaming\npm\codex.ps1:22 char:14
 + ...    $input | & "node$exe"  "$basedir/node_modules/@openai/codex/bin/co ...
 +                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     + CategoryInfo          : NotSpecified: (OpenAI Codex v0.144.3:String) [], RemoteException
     + FullyQualifiedErrorId : NativeCommandError
  
 --------
-workdir: C:\Users\james\Repos\harness
+workdir: <repo>
 model: gpt-5.5
 provider: openai
 approval: never
@@ -350,13 +350,13 @@ IÔÇÖll verify the live references and ordering against the checked-out tree, 
 Since this is a review, IÔÇÖll keep the output focused on defects only.
 exec
 "C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command 'Get-ChildItem -Path specs -File | Select-Object 
--ExpandProperty FullName' in C:\Users\james\Repos\harness
+-ExpandProperty FullName' in <repo>
 exec
 "C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command 'Get-Content -Raw state/fix_plan.md' in 
-C:\Users\james\Repos\harness
+<repo>
 exec
 "C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command 'Get-Content -Raw CLAUDE.md' in 
-C:\Users\james\Repos\harness
+<repo>
  succeeded in 1434ms:
 <!--
   This is the ROOT CONTEXT MAP. It is a navigation map, not a manual.
@@ -692,25 +692,25 @@ evidence
 
 
  succeeded in 1507ms:
-C:\Users\james\Repos\harness\specs\000-overview.md
-C:\Users\james\Repos\harness\specs\README.md
+<repo>\specs\000-overview.md
+<repo>\specs\README.md
 
 codex
 The project notes confirm this slice is explicitly about retiring the shim and preserving the `harness/` Ôåö 
 `plugin/engine/` byte-identical invariant. IÔÇÖm checking for hidden callers now rather than relying on the pasted diff.
 exec
 "C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command "Get-Content -Raw specs\\000-overview.md" in 
-C:\Users\james\Repos\harness
+<repo>
 exec
 "C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command 'rg -n 
 "review-codex|codex_review|Invoke-CodexReview|invoke_codex|Invoke-Codex|codex_available|Test-CodexAvailable" harness 
-plugin/engine .claude plugin 2>$null' in C:\Users\james\Repos\harness
+plugin/engine .claude plugin 2>$null' in <repo>
 exec
 "C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command "Get-Content -Raw specs\\README.md" in 
-C:\Users\james\Repos\harness
+<repo>
 exec
 "C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command 'git diff --cached --name-status' in 
-C:\Users\james\Repos\harness
+<repo>
  succeeded in 851ms:
 M	harness/fleet.ps1
 M	harness/fleet.sh
@@ -730,7 +730,7 @@ D	plugin/engine/lib/review-codex.ps1
 D	plugin/engine/lib/review-codex.sh
 M	plugin/engine/loop.ps1
 M	plugin/engine/loop.sh
-warning: unable to access 'C:\Users\james/.config/git/ignore': Permission denied
+warning: unable to access '<home>/.config/git/ignore': Permission denied
 
  succeeded in 1100ms:
 # 000 ├óÔé¼ÔÇØ Project overview (spec)
@@ -888,101 +888,101 @@ exec
 "C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command '$pairs = 
 @('"'fleet.ps1','fleet.sh','lib/invoke-codex.ps1','lib/invoke-codex.sh','loop.ps1','loop.sh'); foreach ("'$p in $pairs) { 
 $h = git show ":harness/$p" | git hash-object --stdin; $e = git show ":plugin/engine/$p" | git hash-object --stdin; 
-"$p`t$h`t$e`t$($h -eq $e)" }' in C:\Users\james\Repos\harness
+"$p`t$h`t$e`t$($h -eq $e)" }' in <repo>
 exec
 "C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command 'git diff --cached --check' in 
-C:\Users\james\Repos\harness
+<repo>
 exec
 "C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command 'git ls-files -s harness/lib/review-codex.ps1 
 harness/lib/review-codex.sh plugin/engine/lib/review-codex.ps1 plugin/engine/lib/review-codex.sh' in 
-C:\Users\james\Repos\harness
+<repo>
 exec
 "C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command "Select-String -Path harness\\loop.sh,harness\\fle
 et.sh,harness\\loop.ps1,harness\\fleet.ps1,plugin\\engine\\loop.sh,plugin\\engine\\fleet.sh,plugin\\engine\\loop.ps1,plugin\
 \engine\\fleet.ps1 -Pattern 'invoke-codex|dispatch' | ForEach-Object { \""'$($_.Path):$($_.LineNumber):$($_.Line.Trim())" 
-}' in C:\Users\james\Repos\harness
+}' in <repo>
  succeeded in 685ms:
-C:\Users\james\Repos\harness\harness\loop.sh:38:source "$SCRIPT_DIR/lib/invoke-codex.sh"   # codex invocation 
+<repo>\harness\loop.sh:38:source "$SCRIPT_DIR/lib/invoke-codex.sh"   # codex invocation 
 (codex_available, invoke_codex) ÔÇö dispatch.sh builds on it
-C:\Users\james\Repos\harness\harness\loop.sh:39:source "$SCRIPT_DIR/lib/dispatch.sh"       # invoke_phase: 
+<repo>\harness\loop.sh:39:source "$SCRIPT_DIR/lib/dispatch.sh"       # invoke_phase: 
 primary->fallback dispatcher (after gate + invoke-codex)
-C:\Users\james\Repos\harness\harness\loop.sh:126:# Route the judge through the cross-vendor dispatcher (invoke_phase, 
+<repo>\harness\loop.sh:126:# Route the judge through the cross-vendor dispatcher (invoke_phase, 
 READ-ONLY): primary = the resolved
-C:\Users\james\Repos\harness\harness\loop.sh:240:# Invoke the implement phase through the cross-vendor dispatcher 
+<repo>\harness\loop.sh:240:# Invoke the implement phase through the cross-vendor dispatcher 
 (invoke_phase). Prompt via STDIN (the
-C:\Users\james\Repos\harness\harness\loop.sh:244:# metering. The dispatcher runs $IMPLEMENT_MODEL (primary) and, ONLY on 
+<repo>\harness\loop.sh:244:# metering. The dispatcher runs $IMPLEMENT_MODEL (primary) and, ONLY on 
 codex-unavailability or a
-C:\Users\james\Repos\harness\harness\fleet.sh:46:source "$SCRIPT_DIR/lib/invoke-codex.sh"   # codex invocation 
+<repo>\harness\fleet.sh:46:source "$SCRIPT_DIR/lib/invoke-codex.sh"   # codex invocation 
 (codex_available, invoke_codex)
-C:\Users\james\Repos\harness\harness\fleet.sh:47:source "$SCRIPT_DIR/lib/dispatch.sh"       # invoke_phase: 
+<repo>\harness\fleet.sh:47:source "$SCRIPT_DIR/lib/dispatch.sh"       # invoke_phase: 
 primary->fallback dispatcher
-C:\Users\james\Repos\harness\harness\fleet.sh:162:# Route the worker build through the SAME dispatcher the loop uses 
+<repo>\harness\fleet.sh:162:# Route the worker build through the SAME dispatcher the loop uses 
 (invoke_phase, workspace-write): the
-C:\Users\james\Repos\harness\harness\loop.ps1:64:. (Join-Path $PSScriptRoot 'lib/invoke-codex.ps1')   # codex invocation 
+<repo>\harness\loop.ps1:64:. (Join-Path $PSScriptRoot 'lib/invoke-codex.ps1')   # codex invocation 
 (Test-CodexAvailable, Invoke-Codex) ÔÇö dispatch.ps1 builds on it
-C:\Users\james\Repos\harness\harness\loop.ps1:65:. (Join-Path $PSScriptRoot 'lib/dispatch.ps1')       # Invoke-Phase: 
+<repo>\harness\loop.ps1:65:. (Join-Path $PSScriptRoot 'lib/dispatch.ps1')       # Invoke-Phase: 
 primary->fallback dispatcher (after gate + invoke-codex)
-C:\Users\james\Repos\harness\harness\loop.ps1:132:# Route the judge through the cross-vendor dispatcher (Invoke-Phase, 
+<repo>\harness\loop.ps1:132:# Route the judge through the cross-vendor dispatcher (Invoke-Phase, 
 READ-ONLY): -Primary is the
-C:\Users\james\Repos\harness\harness\loop.ps1:278:# --- invoke the implement phase through the cross-vendor dispatcher 
+<repo>\harness\loop.ps1:278:# --- invoke the implement phase through the cross-vendor dispatcher 
 (Invoke-Phase) ---
-C:\Users\james\Repos\harness\harness\loop.ps1:280:# dispatcher's claude arm pipes it in (the documented `cat file | claude 
+<repo>\harness\loop.ps1:280:# dispatcher's claude arm pipes it in (the documented `cat file | claude 
 -p` pattern) and Tee's the
-C:\Users\james\Repos\harness\harness\loop.ps1:284:# The dispatcher runs $implementModel (primary) and, ONLY on 
+<repo>\harness\loop.ps1:284:# The dispatcher runs $implementModel (primary) and, ONLY on 
 codex-unavailability or a usage-limit
-C:\Users\james\Repos\harness\harness\loop.ps1:301:Update-BudgetFromLog -LogPath $iterLog   # the dispatcher wrote the 
+<repo>\harness\loop.ps1:301:Update-BudgetFromLog -LogPath $iterLog   # the dispatcher wrote the 
 transcript to $iterLog
-C:\Users\james\Repos\harness\harness\fleet.ps1:56:. (Join-Path $PSScriptRoot 'lib/invoke-codex.ps1')   # codex invocation 
+<repo>\harness\fleet.ps1:56:. (Join-Path $PSScriptRoot 'lib/invoke-codex.ps1')   # codex invocation 
 (Test-CodexAvailable, Invoke-Codex)
-C:\Users\james\Repos\harness\harness\fleet.ps1:57:. (Join-Path $PSScriptRoot 'lib/dispatch.ps1')       # Invoke-Phase: 
+<repo>\harness\fleet.ps1:57:. (Join-Path $PSScriptRoot 'lib/dispatch.ps1')       # Invoke-Phase: 
 primary->fallback dispatcher (workers re-source it in-job)
-C:\Users\james\Repos\harness\harness\fleet.ps1:157:# Route the worker build through the SAME dispatcher the loop uses 
+<repo>\harness\fleet.ps1:157:# Route the worker build through the SAME dispatcher the loop uses 
 (Invoke-Phase, workspace-write): the
-C:\Users\james\Repos\harness\harness\fleet.ps1:174:. (Join-Path $libDir 'invoke-codex.ps1')  # Test-CodexAvailable, 
+<repo>\harness\fleet.ps1:174:. (Join-Path $libDir 'invoke-codex.ps1')  # Test-CodexAvailable, 
 Invoke-Codex
-C:\Users\james\Repos\harness\harness\fleet.ps1:175:. (Join-Path $libDir 'dispatch.ps1')      # Invoke-Phase
-C:\Users\james\Repos\harness\plugin\engine\loop.sh:38:source "$SCRIPT_DIR/lib/invoke-codex.sh"   # codex invocation 
+<repo>\harness\fleet.ps1:175:. (Join-Path $libDir 'dispatch.ps1')      # Invoke-Phase
+<repo>\plugin\engine\loop.sh:38:source "$SCRIPT_DIR/lib/invoke-codex.sh"   # codex invocation 
 (codex_available, invoke_codex) ÔÇö dispatch.sh builds on it
-C:\Users\james\Repos\harness\plugin\engine\loop.sh:39:source "$SCRIPT_DIR/lib/dispatch.sh"       # invoke_phase: 
+<repo>\plugin\engine\loop.sh:39:source "$SCRIPT_DIR/lib/dispatch.sh"       # invoke_phase: 
 primary->fallback dispatcher (after gate + invoke-codex)
-C:\Users\james\Repos\harness\plugin\engine\loop.sh:126:# Route the judge through the cross-vendor dispatcher (invoke_phase, 
+<repo>\plugin\engine\loop.sh:126:# Route the judge through the cross-vendor dispatcher (invoke_phase, 
 READ-ONLY): primary = the resolved
-C:\Users\james\Repos\harness\plugin\engine\loop.sh:240:# Invoke the implement phase through the cross-vendor dispatcher 
+<repo>\plugin\engine\loop.sh:240:# Invoke the implement phase through the cross-vendor dispatcher 
 (invoke_phase). Prompt via STDIN (the
-C:\Users\james\Repos\harness\plugin\engine\loop.sh:244:# metering. The dispatcher runs $IMPLEMENT_MODEL (primary) and, ONLY 
+<repo>\plugin\engine\loop.sh:244:# metering. The dispatcher runs $IMPLEMENT_MODEL (primary) and, ONLY 
 on codex-unavailability or a
-C:\Users\james\Repos\harness\plugin\engine\fleet.sh:46:source "$SCRIPT_DIR/lib/invoke-codex.sh"   # codex invocation 
+<repo>\plugin\engine\fleet.sh:46:source "$SCRIPT_DIR/lib/invoke-codex.sh"   # codex invocation 
 (codex_available, invoke_codex)
-C:\Users\james\Repos\harness\plugin\engine\fleet.sh:47:source "$SCRIPT_DIR/lib/dispatch.sh"       # invoke_phase: 
+<repo>\plugin\engine\fleet.sh:47:source "$SCRIPT_DIR/lib/dispatch.sh"       # invoke_phase: 
 primary->fallback dispatcher
-C:\Users\james\Repos\harness\plugin\engine\fleet.sh:162:# Route the worker build through the SAME dispatcher the loop uses 
+<repo>\plugin\engine\fleet.sh:162:# Route the worker build through the SAME dispatcher the loop uses 
 (invoke_phase, workspace-write): the
-C:\Users\james\Repos\harness\plugin\engine\loop.ps1:64:. (Join-Path $PSScriptRoot 'lib/invoke-codex.ps1')   # codex 
+<repo>\plugin\engine\loop.ps1:64:. (Join-Path $PSScriptRoot 'lib/invoke-codex.ps1')   # codex 
 invocation (Test-CodexAvailable, Invoke-Codex) ÔÇö dispatch.ps1 builds on it
-C:\Users\james\Repos\harness\plugin\engine\loop.ps1:65:. (Join-Path $PSScriptRoot 'lib/dispatch.ps1')       # Invoke-Phase: 
+<repo>\plugin\engine\loop.ps1:65:. (Join-Path $PSScriptRoot 'lib/dispatch.ps1')       # Invoke-Phase: 
 primary->fallback dispatcher (after gate + invoke-codex)
-C:\Users\james\Repos\harness\plugin\engine\loop.ps1:132:# Route the judge through the cross-vendor dispatcher 
+<repo>\plugin\engine\loop.ps1:132:# Route the judge through the cross-vendor dispatcher 
 (Invoke-Phase, READ-ONLY): -Primary is the
-C:\Users\james\Repos\harness\plugin\engine\loop.ps1:278:# --- invoke the implement phase through the cross-vendor 
+<repo>\plugin\engine\loop.ps1:278:# --- invoke the implement phase through the cross-vendor 
 dispatcher (Invoke-Phase) ---
-C:\Users\james\Repos\harness\plugin\engine\loop.ps1:280:# dispatcher's claude arm pipes it in (the documented `cat file | 
+<repo>\plugin\engine\loop.ps1:280:# dispatcher's claude arm pipes it in (the documented `cat file | 
 claude -p` pattern) and Tee's the
-C:\Users\james\Repos\harness\plugin\engine\loop.ps1:284:# The dispatcher runs $implementModel (primary) and, ONLY on 
+<repo>\plugin\engine\loop.ps1:284:# The dispatcher runs $implementModel (primary) and, ONLY on 
 codex-unavailability or a usage-limit
-C:\Users\james\Repos\harness\plugin\engine\loop.ps1:301:Update-BudgetFromLog -LogPath $iterLog   # the dispatcher wrote the 
+<repo>\plugin\engine\loop.ps1:301:Update-BudgetFromLog -LogPath $iterLog   # the dispatcher wrote the 
 transcript to $iterLog
-C:\Users\james\Repos\harness\plugin\engine\fleet.ps1:56:. (Join-Path $PSScriptRoot 'lib/invoke-codex.ps1')   # codex 
+<repo>\plugin\engine\fleet.ps1:56:. (Join-Path $PSScriptRoot 'lib/invoke-codex.ps1')   # codex 
 invocation (Test-CodexAvailable, Invoke-Codex)
-C:\Users\james\Repos\harness\plugin\engine\fleet.ps1:57:. (Join-Path $PSScriptRoot 'lib/dispatch.ps1')       # 
+<repo>\plugin\engine\fleet.ps1:57:. (Join-Path $PSScriptRoot 'lib/dispatch.ps1')       # 
 Invoke-Phase: primary->fallback dispatcher (workers re-source it in-job)
-C:\Users\james\Repos\harness\plugin\engine\fleet.ps1:157:# Route the worker build through the SAME dispatcher the loop uses 
+<repo>\plugin\engine\fleet.ps1:157:# Route the worker build through the SAME dispatcher the loop uses 
 (Invoke-Phase, workspace-write): the
-C:\Users\james\Repos\harness\plugin\engine\fleet.ps1:174:. (Join-Path $libDir 'invoke-codex.ps1')  # Test-CodexAvailable, 
+<repo>\plugin\engine\fleet.ps1:174:. (Join-Path $libDir 'invoke-codex.ps1')  # Test-CodexAvailable, 
 Invoke-Codex
-C:\Users\james\Repos\harness\plugin\engine\fleet.ps1:175:. (Join-Path $libDir 'dispatch.ps1')      # Invoke-Phase
+<repo>\plugin\engine\fleet.ps1:175:. (Join-Path $libDir 'dispatch.ps1')      # Invoke-Phase
 
  succeeded in 837ms:
-warning: unable to access 'C:\Users\james/.config/git/ignore': Permission denied
+warning: unable to access '<home>/.config/git/ignore': Permission denied
 
  succeeded in 848ms:
  succeeded in 1546ms:
@@ -1001,15 +1001,15 @@ exec
 "C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command 'git grep --cached -n -E "source 
 .*invoke-codex|Join-Path .*invoke-codex|source .*dispatch|Join-Path .*dispatch" -- harness/loop.sh harness/fleet.sh 
 harness/loop.ps1 harness/fleet.ps1 plugin/engine/loop.sh plugin/engine/fleet.sh plugin/engine/loop.ps1 
-plugin/engine/fleet.ps1' in C:\Users\james\Repos\harness
+plugin/engine/fleet.ps1' in <repo>
 exec
 "C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command "git grep --cached -n -E 
 \"codex_review|Invoke-CodexReview|lib/review-codex\\.(sh|ps1)|source .*review-codex|Join-Path .*review-codex\" -- . 
-2>"'$null' in C:\Users\james\Repos\harness
+2>"'$null' in <repo>
 exec
 "C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command "git grep --cached -n -E \"source 
 \\\"\\"'$LIB/invoke-codex'"\\.sh\\\"|Join-Path \\"'$libDir '"'invoke-codex\\.ps1'|review-codex\" -- 
-harness/tests/run-tests.sh harness/tests/run-tests.ps1" in C:\Users\james\Repos\harness
+harness/tests/run-tests.sh harness/tests/run-tests.ps1" in <repo>
  succeeded in 513ms:
 AGENT_NOTES.md:60:  wrappers (`Invoke-CodexReview`/`codex_review`) preserve every existing call site ÔÇö loop/fleet 
 untouched.
@@ -1078,25 +1078,25 @@ The only remaining wrapper/shim mentions in the staged index are historical docs
 doing one last test-file sanity check because those were edited in this slice.
 exec
 "C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command 'git grep --cached -n -E 
-"Invoke-CodexReview|codex_review" -- harness plugin/engine .claude plugin/commands 2>$null' in C:\Users\james\Repos\harness
+"Invoke-CodexReview|codex_review" -- harness plugin/engine .claude plugin/commands 2>$null' in <repo>
 exec
 "C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command 'git diff --cached -- harness/tests/run-tests.sh 
-harness/tests/run-tests.ps1' in C:\Users\james\Repos\harness
+harness/tests/run-tests.ps1' in <repo>
 exec
 "C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command "Select-String -Path 
 harness\\tests\\run-tests.sh,harness\\tests\\run-tests.ps1 -Pattern 
 'invoke-codex|review-codex|Invoke-CodexReview|codex_review' | ForEach-Object { 
-\""'$($_.Path):$($_.LineNumber):$($_.Line.Trim())" }' in C:\Users\james\Repos\harness
+\""'$($_.Path):$($_.LineNumber):$($_.Line.Trim())" }' in <repo>
 2026-07-15T09:11:27.963102Z ERROR codex_core::tools::router: error=Exit code: 1
 Wall time: 0.9 seconds
 Output:
 
  exited 1 in 874ms:
  succeeded in 922ms:
-C:\Users\james\Repos\harness\harness\tests\run-tests.sh:36:# shellcheck source=../lib/invoke-codex.sh
-C:\Users\james\Repos\harness\harness\tests\run-tests.sh:37:source "$LIB/invoke-codex.sh"   # codex_available needs no jq 
+<repo>\harness\tests\run-tests.sh:36:# shellcheck source=../lib/invoke-codex.sh
+<repo>\harness\tests\run-tests.sh:37:source "$LIB/invoke-codex.sh"   # codex_available needs no jq 
 and no codex install
-C:\Users\james\Repos\harness\harness\tests\run-tests.ps1:17:. (Join-Path $libDir 'invoke-codex.ps1')
+<repo>\harness\tests\run-tests.ps1:17:. (Join-Path $libDir 'invoke-codex.ps1')
 
  succeeded in 994ms:
 diff --git a/harness/tests/run-tests.ps1 b/harness/tests/run-tests.ps1
@@ -1140,7 +1140,7 @@ index deda9d4..6065e59 100644
  echo "block-destructive hook: blocks dangerous, allows safe"
  hookrc() {  # $1 = command (no quotes/backslashes in our test inputs) ; echoes hook exit code
    printf '{"tool_name":"Bash","tool_input":{"command":"%s"}}' "$1" \
-warning: unable to access 'C:\Users\james/.config/git/ignore': Permission denied
+warning: unable to access '<home>/.config/git/ignore': Permission denied
 
 codex
 No findings.

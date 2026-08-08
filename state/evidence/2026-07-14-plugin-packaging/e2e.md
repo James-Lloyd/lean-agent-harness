@@ -27,7 +27,7 @@ Validating marketplace manifest: .../.claude-plugin/marketplace.json
 ## 2. Real install from the in-repo marketplace (throwaway project, local scope)
 
 ```
-$ claude plugin marketplace add "C:/Users/james/Repos/harness" --scope local
+$ claude plugin marketplace add "<repo>" --scope local
 ✔ Successfully added marketplace: lean-agent-harness (declared in local settings)
 
 $ claude plugin install lean-agent-harness@lean-agent-harness --scope local

@@ -12,6 +12,6 @@
 -------- iteration 1 / 1 --------
 [dry-run] would pipe PROMPT.md into: claude -p --max-turns 5 ; then run the gate.
 
-?? Loop finished after 1 iteration(s). Logs + ledger: C:\Users\james\AppData\Local\Temp\guard-97d40185\repo\harness\.runs\run-001
+?? Loop finished after 1 iteration(s). Logs + ledger: <home>\AppData\Local\Temp\guard-97d40185\repo\harness\.runs\run-001
    Next: run /review for a fresh-context QA pass before you trust this.
 

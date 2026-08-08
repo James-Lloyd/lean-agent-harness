@@ -9,7 +9,7 @@ gate: pass / fail attribution
   ok  all-green gate passes
   - format : exit 0
   - lint : exit 5
-    x lint failed (exit 5) in C:\Users\james\Repos\harness\harness\tests :
+    x lint failed (exit 5) in <repo>\harness\tests :
   ok  failing gate reports FailedStep=lint
 gate: a step that writes to STDERR but exits 0 still passes (regression: EAP=Stop)
   - format : echo oops 1>&2
@@ -31,9 +31,9 @@ gate: multi-component project gate + failure attribution
   [backend] gate (.)
   - format : exit 0
   - lint : exit 9
-    x lint failed (exit 9) in C:\Users\james\Repos\harness\harness\tests\. :
+    x lint failed (exit 9) in <repo>\harness\tests\. :
   ok  multi-component failure attributed to backend:lint
-  x component 'ghost' path missing: C:\Users\james\Repos\harness\harness\tests\no-such-dir-xyz
+  x component 'ghost' path missing: <repo>\harness\tests\no-such-dir-xyz
   ok  missing component dir fails the gate (fail-closed)
 review verdict: fail-closed last-VERDICT-line parsing
   ok  SHIP on a clean final verdict
