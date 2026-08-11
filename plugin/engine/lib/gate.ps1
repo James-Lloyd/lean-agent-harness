@@ -26,12 +26,30 @@ function Get-Prop($obj, [string]$name) {
 # purpose: only the LAST line that STARTS with VERDICT: counts — a preamble mentioning "VERDICT: SHIP"
 # mid-reasoning ("I cannot give VERDICT: SHIP") must never pass a batch. Lives here (not in loop.ps1)
 # so the self-tests can exercise it.
+#
+# CASE-SENSITIVE (`-cmatch`, not `-match`) in BOTH the line SELECTION and the verdict parse. PS
+# `-match` is case-INSENSITIVE by default while the sh twin's `grep -E` is not, so `-match` diverged
+# the twins in two places at once: SELECTION (each shell could pick a DIFFERENT "last VERDICT line")
+# and PARSE (the chosen line then read differently).
+#
+# The exploitable shape is a LINE-INITIAL lowercase sentence after a real verdict:
+#     VERDICT: REJECT
+#     verdict: ship would be my instinct but no
+# PS selected the trailing line and returned SHIP — silently converting a REJECT into a SHIP on
+# Windows — while bash returned REJECT. Prose MID-line ("I would not say verdict: ship here") was
+# never exploitable in either shell, because `^\s*VERDICT:` is line-anchored; the original write-up
+# of this bug used that non-exploitable example, so don't take it as the test case.
+#
+# The contract's verdict form is UPPERCASE; anything else is prose and must fail closed. Mirror of
+# Get-RiskVerdict in risk.ps1, which carried this fix first (2026-08-08) — this is the same defect in
+# the review/evaluate gate, and it matters doubly because `promotion.preconditions.reviewShip` trusts
+# this parser to decide whether a change may auto-merge.
 function Get-ReviewVerdict([string]$Text) {
   if (-not $Text) { return 'NONE' }
-  $line = @($Text -split "`r?`n" | Where-Object { $_ -match '^\s*VERDICT:' }) | Select-Object -Last 1
+  $line = @($Text -split "`r?`n" | Where-Object { $_ -cmatch '^\s*VERDICT:' }) | Select-Object -Last 1
   if (-not $line) { return 'NONE' }
-  if ($line -match '^\s*VERDICT:\s*SHIP(\s|$)')   { return 'SHIP' }
-  if ($line -match '^\s*VERDICT:\s*REJECT(\s|$)') { return 'REJECT' }
+  if ($line -cmatch '^\s*VERDICT:\s*SHIP(\s|$)')   { return 'SHIP' }
+  if ($line -cmatch '^\s*VERDICT:\s*REJECT(\s|$)') { return 'REJECT' }
   return 'NONE'
 }
 
@@ -48,11 +66,12 @@ function Get-ReviewVerdict([string]$Text) {
 #    so the self-tests can exercise it; mirror of evaluator_verdict in gate.sh.
 function Get-EvaluatorVerdict([string]$Text, [int]$FailBelow) {
   if (-not $Text) { return 'NONE' }
-  $line = @($Text -split "`r?`n" | Where-Object { $_ -match '^\s*VERDICT:' }) | Select-Object -Last 1
+  # CASE-SENSITIVE in both selection and parse — see the note on Get-ReviewVerdict above.
+  $line = @($Text -split "`r?`n" | Where-Object { $_ -cmatch '^\s*VERDICT:' }) | Select-Object -Last 1
   if (-not $line) { return 'NONE' }
-  $verdict = if     ($line -match '^\s*VERDICT:\s*PASS(\s|$)') { 'PASS' }
-             elseif ($line -match '^\s*VERDICT:\s*FAIL(\s|$)') { 'FAIL' }
-             else                                              { 'NONE' }
+  $verdict = if     ($line -cmatch '^\s*VERDICT:\s*PASS(\s|$)') { 'PASS' }
+             elseif ($line -cmatch '^\s*VERDICT:\s*FAIL(\s|$)') { 'FAIL' }
+             else                                               { 'NONE' }
   if ($verdict -eq 'NONE') { return 'NONE' }
   # Belt-and-braces: any per-criterion score below the hard threshold overrides a PASS summary => FAIL.
   foreach ($m in [regex]::Matches($Text, '(\d+)\s*/\s*10')) {

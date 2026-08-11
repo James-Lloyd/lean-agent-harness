@@ -25,12 +25,9 @@ Hard-won rules (each traces to a real shipped failure):
   errexit kills it on the nonzero exit before the `echo $?` line runs.
 - **An automated runner never discards a `git commit` exit code** — check it or park the branch; a
   silent commit failure turns every downstream record fail-open.
-- **Sandbox detection** (`Test-Sandboxed`/`is_sandboxed`) — container env markers are PRESENCE
-  markers, not truthy (`$container` holds a runtime *name*): test set-ness, not value. And a
-  "no markers ⇒ not sandboxed" negative test is host-dependent — branch the assertion on host
-  bareness or it fails inside the very container this feature ships.
-- **Pin config types in `harness.schema.json`** when both twins compare a value (e.g. `failBelow` is
-  `integer`) — the two shells do not coerce identically, and a divergence can fail open.
+- **A "no markers ⇒ not sandboxed" negative test is host-dependent** — branch the assertion on host
+  bareness or it fails inside the very container the feature ships in. (The positive half — container
+  env markers are PRESENCE markers, not truthy — is pinned by the sandbox-predicate tests.)
 - **`harness/.runs/` is reset-proof by construction** (gitignored ⇒ `reset --hard` and `clean -fd`
   both skip it) — park anything that must survive a rollback there, never in the index.
 - **A MULTI-LINE `jq` read must be CR-stripped** (`| tr -d '\r'`, and `${v%$'\r'}` in `read` loops).
@@ -45,11 +42,16 @@ Hard-won rules (each traces to a real shipped failure):
 - **Embedded judge prompts exist in both twins** (loop.ps1/loop.sh, fleet.ps1/fleet.sh) and their
   verdict parsers are fail-closed on the last `VERDICT:` line — edit both copies and keep the output
   contract intact.
-- **A verdict/tier parser is CASE-SENSITIVE in both twins** — PS `-cmatch`, never `-match` (which is
-  case-insensitive by default while the sh twin's `grep -E` is not). A judge invited to add a prose
-  note emits `RISK: HIGH` then `risk: low would be wrong here`; the case-insensitive twin took the
-  PROSE line as the last verdict and LOWERED the tier. Same latent shape in `gate.ps1`'s
-  `Get-ReviewVerdict`/`Get-EvaluatorVerdict` — see the fix_plan item.
+- **A verdict/tier parser is CASE-SENSITIVE in both twins, in the line SELECTION as well as the parse**
+  — PS `-cmatch`, never `-match` (which is case-insensitive by default while the sh twin's `grep -E` is
+  not). Two ways it bites, and the selection is the one people miss: with `-match` the two shells can
+  pick a DIFFERENT "last verdict line" before parsing even starts. A judge invited to add a prose note
+  emits `RISK: HIGH` then `risk: low would be wrong here`, and the case-insensitive twin LOWERED the
+  tier (risk.ps1, fixed 2026-08-08); the identical defect in `gate.ps1`'s `Get-ReviewVerdict` /
+  `Get-EvaluatorVerdict` turned `VERDICT: REJECT` + a line-initial `verdict: ship …` into a SHIP on
+  Windows while bash said REJECT — fixed 2026-08-11, 7 mutation-verified assertions per twin.
+  **Only LINE-INITIAL lowercase is exploitable** (`^\s*VERDICT:` is anchored), so test that shape —
+  prose mid-line never matched under either operator and makes a false-comfort test.
 - **Shape-validate a security-shaped config block before trusting it** — absent, scalar-instead-of-
   array, or stringly-typed keys must reach the REFUSING branch, never a silently skipped rule. An
   absent `preconditions` object reached AUTO with a red gate while the audit string still read "all
@@ -61,7 +63,9 @@ Hard-won rules (each traces to a real shipped failure):
   not help either. Return a bool/int PREDICATE instead (`Test-RiskPropIsArray`, `Get-RiskPropCount`).
 - **A PS assertion over a config/schema key checks PRESENCE before content** — `@($null)` has Count 1
   and `-notcontains` anything, so a key-DELETION mutation false-passes. The bash twin catches it.
-- **Never type-check a JSON value by concrete .NET type** — `ConvertFrom-Json` yields `Int32` under
-  Windows PowerShell 5.1 and `Int64` under pwsh, so `-is [int]` rejected a valid
-  `maxChangedLines: 1000` on pwsh alone. Test the VALUE (`[Math]::Floor($d) -eq $d`), mirroring the
-  sh twin's `jq floor == value`. The suites run under BOTH hosts in CI — a 5.1-only green is not green.
+- **Never type-check a JSON value by concrete .NET type; pin the type in the schema instead** —
+  `ConvertFrom-Json` yields `Int32` under Windows PowerShell 5.1 and `Int64` under pwsh, so `-is [int]`
+  rejected a valid `maxChangedLines: 1000` on pwsh alone. Test the VALUE (`[Math]::Floor($d) -eq $d`),
+  mirroring the sh twin's `jq floor == value`, and declare the type in `harness.schema.json` whenever
+  both twins compare it (e.g. `failBelow` is `integer`) — the two shells do not coerce identically and a
+  divergence can fail open. The suites run under BOTH hosts in CI — a 5.1-only green is not green.

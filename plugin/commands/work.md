@@ -84,12 +84,18 @@ with the deep reasoning pushed into the phase agents.
   with the task record; they never trigger another cycle.
 - *Reject* / *fix-then-ship* (open blockers) → back to EXECUTE with the findings. Each later round
   hands the reviewer the prior findings **and their resolutions**, scoped to the fix delta plus a
-  regression check — a fresh judge re-litigating settled points is what makes round 4 exist.
-- **Cap: 3 rounds** — a circuit breaker, not a quality target. Hitting it is an escalation signal,
-  not a ship signal: have the reviewer write up what is still contested to `state/handoff.md`
-  (Needs human decision) and stop — the write-up usually reveals the spec was ambiguous, which is
-  the real fix. Exception: high-blast-radius changes (payments, auth, migrations, irreversible data
-  ops) are uncapped — let the rounds run.
+  regression check — a fresh judge re-litigating settled points is what burns the second round.
+- **Cap: 2 rounds, then ASK — never auto-ship, never silently stop.** The cap is a circuit breaker,
+  not a quality target, and hitting it is an escalation signal. If round 2 still has open blockers:
+  1. Write what is still contested to `state/handoff.md` (Needs human decision) — the write-up
+     usually reveals the spec was ambiguous, which is the real fix.
+  2. **Put the decision to the human** (`AskUserQuestion`): *run another round* / *ship with the
+     blockers logged as accepted risk* / *stop and hand back*. Give them the blocker list, each with
+     `file:line — problem — what the reviewer wants`, and say plainly which you'd choose and why.
+  3. Only a human may authorise a round 3+ or an accept-the-risk ship. Never make either call
+     yourself, and never treat "the cap was reached" as equivalent to "it shipped".
+  Exception: high-blast-radius changes (payments, auth, migrations, irreversible data ops) are
+  uncapped — let the rounds run without asking.
 - On ship: `status: "reviewed"`. **Checkpoint.**
 
 ## Phase 5 — RECORD

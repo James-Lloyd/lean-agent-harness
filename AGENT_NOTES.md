@@ -51,9 +51,6 @@ PowerShell 5.1: `powershell harness/tests/run-tests.ps1`; bash needs `jq` on PAT
   follow an instruction stated once, and over-delegate when encouraged. Structural judges
   (fresh-context reviewer/evaluator, fail-closed verdicts, the gate) are NOT the "over-verification"
   the Opus 5 docs warn about — that guidance targets self-re-checking. Keep the judges.
-  Details: docs/execution-plans/2026-07-26-claude5-context-refresh.md; sources.md rows 8–9.
-- [2026-08-08] `jq.exe` under Git Bash emits **CRLF**. `$(...)` strips only the trailing newline, so a
-  scalar read is fine but every interior line of a multi-line read keeps its `\r`. A config-derived
-  glob then compiles to a regex ending `.*\r$` and matches nothing — silently, and fail-OPEN. Route
-  multi-line jq through `tr -d '\r'` and strip `${v%$'\r'}` in `read` loops. CI only runs bash on
-  Linux, so this class of bug is invisible there and reproduces only on a Windows dev box.
+  Details: docs/execution-plans/2026-07-26-claude5-context-refresh.md; docs/principles/sources.md rows 8–9.
+- [2026-08-08] `jq.exe` under Git Bash emits CRLF, which silently breaks config-derived globs (fail-OPEN,
+  invisible in Linux-only CI). Engine-internal, so the rule lives with the engine: `plugin/engine/CLAUDE.md`.

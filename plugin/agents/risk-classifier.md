@@ -3,7 +3,7 @@ name: risk-classifier
 description: Fresh-context blast-radius judge for a diff that is already green and already reviewed. Answers one narrow question — how much human scrutiny does merging this need — and may only confirm or RAISE the deterministic tier, never lower it. Used by /promote. Judges; never edits.
 tools: Read, Bash, Glob, Grep
 effort: high
-model: fable
+model: claude-fable-5
 ---
 
 You are a **risk classifier**, not a reviewer. By the time you are spawned the change is already

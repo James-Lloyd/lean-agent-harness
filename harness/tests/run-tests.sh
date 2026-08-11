@@ -46,6 +46,30 @@ ok "$([ "$v" = "NONE" ] && echo 1 || echo 0)" "mid-sentence SHIP is not a verdic
 v="$(printf '' | review_verdict)"
 ok "$([ "$v" = "NONE" ] && echo 1 || echo 0)" "empty output fails closed (got '$v')"
 
+# CASE-SENSITIVITY (2026-08-11) — twin of the -cmatch assertions in run-tests.ps1. `grep -E` was
+# already case-sensitive here, so these lock in the behavior the PS twin had to be FIXED to match:
+# both shells must select the same line AND parse it the same way.
+echo "review verdict: CASE-SENSITIVE — lowercase prose never ships (twin-parity with -cmatch)"
+v="$(printf 'verdict: ship\n' | review_verdict)"
+ok "$([ "$v" = "NONE" ] && echo 1 || echo 0)" "lowercase 'verdict: ship' is prose => NONE (got '$v')"
+v="$(printf 'Verdict: Ship\n' | review_verdict)"
+ok "$([ "$v" = "NONE" ] && echo 1 || echo 0)" "mixed-case 'Verdict: Ship' is prose => NONE (got '$v')"
+v="$(printf 'verdict: reject\n' | review_verdict)"
+ok "$([ "$v" = "NONE" ] && echo 1 || echo 0)" "lowercase 'verdict: reject' is prose => NONE (got '$v')"
+# The dangerous shape: a real REJECT followed by a LINE-INITIAL lowercase sentence. The PS twin used
+# to read this as SHIP (silently flipping a REJECT); bash always read REJECT. Prose mid-line was never
+# exploitable in either shell — `^[[:space:]]*VERDICT:` is line-anchored.
+v="$(printf 'VERDICT: REJECT\nverdict: ship would be my instinct but no\n' | review_verdict)"
+ok "$([ "$v" = "REJECT" ] && echo 1 || echo 0)" "REJECT then line-initial lowercase prose stays REJECT (got '$v')"
+v="$(printf 'VERDICT: SHIP\nverdict: reject was considered\n' | review_verdict)"
+ok "$([ "$v" = "SHIP" ] && echo 1 || echo 0)" "lowercase prose after SHIP does not un-ship it (got '$v')"
+
+echo "evaluator verdict: CASE-SENSITIVE (same defect, same fix)"
+v="$(printf '1. Correctness 9/10\nverdict: pass\n' | evaluator_verdict 7)"
+ok "$([ "$v" = "NONE" ] && echo 1 || echo 0)" "lowercase 'verdict: pass' is prose => NONE (got '$v')"
+v="$(printf '1. Correctness 9/10\nVERDICT: FAIL\nverdict: pass on reflection\n' | evaluator_verdict 7)"
+ok "$([ "$v" = "FAIL" ] && echo 1 || echo 0)" "FAIL then lowercase 'verdict: pass' stays FAIL (got '$v')"
+
 echo "evaluator verdict: fail-closed parse + sub-threshold N/10 override (evaluator_verdict)"
 v="$(printf '1. Correctness 8/10\nVERDICT: PASS\n' | evaluator_verdict 7)"
 ok "$([ "$v" = "PASS" ] && echo 1 || echo 0)" "PASS when verdict PASS and all scores >= threshold (got '$v')"
