@@ -79,8 +79,11 @@ If the agent fails to run at all (usage cap, unavailable), re-spawn once on the 
 the routing rules. If it still cannot run, the tier is **HIGH** — a classifier that did not run has
 not cleared anything.
 
-### 5. Merge the tiers
-`Merge-RiskTier` / `risk_tier_max`. This is a max(), so the agent can only have raised it.
+### 5. Merge the tiers (for the audit record)
+`Merge-RiskTier` / `risk_tier_max` gives `finalTier` for the record below. This is a max(), so the
+agent can only have raised it. The decision function (§7) recomputes this same merge internally from
+the two tiers you pass it — you cannot hand it a lower pre-merged tier — so the recorded `finalTier`
+and the actual decision can never diverge.
 
 ### 6. Write the audit record BEFORE acting
 Every automated approval must be attributable after the fact, so the record is written whether the
@@ -103,9 +106,12 @@ there is no run in progress, create `harness/.runs/promote-$(date +%Y%m%dT%H%M%S
 ```
 
 ### 7. Act
-Call `Get-PromotionDecision` / `promotion_decision` with the final tier, the environment, and the
-three precondition booleans. Do not re-derive the decision by hand — the function encodes the prod
-refusal and the disabled-by-default behavior.
+Call `Get-PromotionDecision` / `promotion_decision` with the environment, the **deterministic tier
+and the classifier tier as two separate arguments** (PS `-DeterministicTier`/`-ClassifierTier`; bash
+positional `$3`/`$4`), and the three precondition booleans. Do NOT pre-merge the tiers yourself and do
+NOT re-derive the decision by hand — the function computes the escalate-only max() internally (so a
+hand-picked lower tier cannot slip through) and encodes the prod refusal and disabled-by-default
+behavior. An unknown or omitted classifier tier ranks HIGH, so it fails closed to the HUMAN path.
 
 **On `AUTO`** (only ever reachable for staging + LOW + all preconditions met + `promotion.enabled`):
 1. Post a structured comment on the PR, criterion by criterion — each check, whether it passed, and

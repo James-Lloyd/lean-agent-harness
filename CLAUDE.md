@@ -77,6 +77,10 @@ PROMPT.md wins there); roll back a red tree rather than patching over it. At tas
   not exist. Before adding one, name the code path that consumes it; when deleting the consumer, delete
   the key in the same change (`verification.freshContextReview` sat in the schema and every config for
   months while `/work` ran the review unconditionally — turning it off disabled nothing).
+- [2026-08-12] A change to a shipped engine function's signature or behaviour bumps
+  `plugin/.claude-plugin/plugin.json` `version` in the SAME diff — an unbumped version leaves a
+  consumer's `/plugin update` serving a cached prose/engine pair from different builds (found in review
+  of the promotion-decision signature change: the lib changed but the version stayed 0.2.9).
 
 ## Nested context
 Subsystems carry their own `CLAUDE.md` next to their code (in this repo: `plugin/engine/` holds the

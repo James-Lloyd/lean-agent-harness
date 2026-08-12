@@ -1,0 +1,7 @@
+=== REAL risk.sh (merge binds the classifier) ===
+det=LOW classifier=HIGH -> HUMAN|risk tier HIGH exceeds the staging auto-merge threshold
+det=LOW classifier='' (empty) -> HUMAN|risk tier HIGH exceeds the staging auto-merge threshold
+det=LOW classifier=LOW -> AUTO|LOW risk, all preconditions met, target staging
+
+=== MUTANT (merge ignores the classifier) ===
+det=LOW classifier=HIGH -> AUTO|LOW risk, all preconditions met, target staging  <-- BUG: AUTO means classifier bypassed

@@ -548,7 +548,9 @@ ok "RISK:LOW with no space is still a verdict"      ((Get-RiskVerdict 'RISK:LOW'
 
 Write-Host "risk: the promotion decision (prod is never automated)"
 function decOf($envName, $tier, $g, $s, $e) {
-  (Get-PromotionDecision -Config $riskCfg -Environment $envName -Tier $tier -GateGreen $g -ReviewShip $s -E2EEvidence $e).Decision
+  # Single tier => deterministic=$tier, classifier=LOW (the identity for max()), so these pin the
+  # same outcomes as before the merge moved inside the function.
+  (Get-PromotionDecision -Config $riskCfg -Environment $envName -DeterministicTier $tier -ClassifierTier 'LOW' -GateGreen $g -ReviewShip $s -E2EEvidence $e).Decision
 }
 ok "staging + LOW + preconditions met = AUTO"  ((decOf 'staging' 'LOW' $true $true $true) -eq 'AUTO')
 # The load-bearing one. Not "defaults to human" — refused before config is read at all.
@@ -559,14 +561,28 @@ ok "a LOW diff with no review SHIP is human"   ((decOf 'staging' 'LOW' $true $fa
 ok "a LOW diff with a red gate is human"       ((decOf 'staging' 'LOW' $false $true $true) -eq 'HUMAN')
 ok "a LOW diff with no e2e evidence is human"  ((decOf 'staging' 'LOW' $true $true $false) -eq 'HUMAN')
 ok "an unknown environment is human"           ((decOf 'production' 'LOW' $true $true $true) -eq 'HUMAN')
-ok "promotion disabled is human"               ((Get-PromotionDecision -Config $riskCfgOff -Environment 'staging' -Tier 'LOW' -GateGreen $true -ReviewShip $true -E2EEvidence $true).Decision -eq 'HUMAN')
-ok "the prod refusal names prod, not config"   ((Get-PromotionDecision -Config $riskCfgOff -Environment 'prod' -Tier 'LOW').Reason.Contains('prod promotion is always'))
+ok "promotion disabled is human"               ((Get-PromotionDecision -Config $riskCfgOff -Environment 'staging' -DeterministicTier 'LOW' -ClassifierTier 'LOW' -GateGreen $true -ReviewShip $true -E2EEvidence $true).Decision -eq 'HUMAN')
+ok "the prod refusal names prod, not config"   ((Get-PromotionDecision -Config $riskCfgOff -Environment 'prod' -DeterministicTier 'LOW' -ClassifierTier 'LOW').Reason.Contains('prod promotion is always'))
+
+# The escalate-only merge is computed INSIDE the decision, not handed to it: the function takes the
+# deterministic tier AND the classifier's verdict and max()es them itself, so no caller can pass a
+# single hand-picked (lower) tier to bypass the classifier. These pin that the merge is internal.
+function decMerge($det, $cls) {
+  (Get-PromotionDecision -Config $riskCfg -Environment 'staging' -DeterministicTier $det -ClassifierTier $cls -GateGreen $true -ReviewShip $true -E2EEvidence $true).Decision
+}
+ok "det LOW + classifier HIGH => HUMAN (cannot bypass the classifier)"   ((decMerge 'LOW'  'HIGH')     -eq 'HUMAN')
+ok "det HIGH + classifier LOW => HUMAN (deterministic escalation kept)"  ((decMerge 'HIGH' 'LOW')      -eq 'HUMAN')
+ok "det LOW + classifier LOW => AUTO (both agree low)"                   ((decMerge 'LOW'  'LOW')      -eq 'AUTO')
+# The strongest pin: an empty or garbage classifier tier must NOT read as LOW. Get-RiskRank ranks the
+# unknown HIGH, so the merge fails CLOSED to HUMAN - a caller cannot omit the classifier to reach AUTO.
+ok "an empty classifier tier fails closed to HUMAN"                      ((decMerge 'LOW'  '')         -eq 'HUMAN')
+ok "a garbage classifier tier fails closed to HUMAN"                     ((decMerge 'LOW'  'nonsense') -eq 'HUMAN')
 
 Write-Host "risk: a malformed promotion block REFUSES (it must never silently skip a rule)"
 # Every one of these is schema-valid-or-unvalidated at runtime and previously reached AUTO, because a
 # degenerate shape made a rule evaluate to "no match" instead of escalating - i.e. it failed OPEN.
 function ShapeDec($json, $tier, $g, $s2, $e) {
-  (Get-PromotionDecision -Config ($json | ConvertFrom-Json) -Environment 'staging' -Tier $tier -GateGreen $g -ReviewShip $s2 -E2EEvidence $e).Decision
+  (Get-PromotionDecision -Config ($json | ConvertFrom-Json) -Environment 'staging' -DeterministicTier $tier -ClassifierTier 'LOW' -GateGreen $g -ReviewShip $s2 -E2EEvidence $e).Decision
 }
 $noPre = '{ "promotion": { "enabled": true, "staging": { "autoMergeAtOrBelow": "low" }, "prod": { "autoMerge": false }, "alwaysHuman": ["**/payments/**"], "moneySignals": ["price"] } }'
 ok "absent preconditions => HUMAN, not 'all met'" ((ShapeDec $noPre 'LOW' $false $false $false) -eq 'HUMAN')
@@ -579,7 +595,7 @@ $strEnabled = '{ "promotion": { "enabled": "false", "staging": { "autoMergeAtOrB
 ok "enabled as the STRING 'false' => HUMAN"      ((ShapeDec $strEnabled 'LOW' $true $true $true) -eq 'HUMAN')
 $floatMax = '{ "promotion": { "enabled": true, "staging": { "autoMergeAtOrBelow": "low" }, "prod": { "autoMerge": false }, "alwaysHuman": ["**/payments/**"], "moneySignals": ["price"], "criteria": { "maxChangedLines": 10.5 }, "preconditions": { "gateGreen": true, "reviewShip": true, "e2eEvidence": true } } }'
 ok "a fractional maxChangedLines => HUMAN"       ((ShapeDec $floatMax 'LOW' $true $true $true) -eq 'HUMAN')
-ok "a well-formed enabled block still AUTOs"     ((Get-PromotionDecision -Config $riskCfg -Environment 'staging' -Tier 'LOW' -GateGreen $true -ReviewShip $true -E2EEvidence $true).Decision -eq 'AUTO')
+ok "a well-formed enabled block still AUTOs"     ((Get-PromotionDecision -Config $riskCfg -Environment 'staging' -DeterministicTier 'LOW' -ClassifierTier 'LOW' -GateGreen $true -ReviewShip $true -E2EEvidence $true).Decision -eq 'AUTO')
 # maxChangedLines must be judged by VALUE, not by concrete .NET type: ConvertFrom-Json yields Int32
 # under Windows PowerShell 5.1 and Int64 under pwsh, so a `-is [int]` check rejected a valid config
 # on pwsh only. CI runs both hosts and caught it; these pin the behaviour on whichever host runs.
@@ -593,7 +609,7 @@ ok "an absent criteria block is still well-formed" ((ShapeDec $noCriteria 'LOW' 
 Write-Host "risk: whitespace is TRIMMED, never deleted (interior spaces must not collapse)"
 # The sh twin used `tr -d '[:space:]'`, which DELETED interior whitespace: "st aging" matched staging
 # in bash while PS's .Trim() correctly rejected it. Both twins now trim; both are pinned here.
-ok "'st aging' is an unknown environment" ((Get-PromotionDecision -Config $riskCfg -Environment 'st aging' -Tier 'LOW' -GateGreen $true -ReviewShip $true -E2EEvidence $true).Decision -eq 'HUMAN')
+ok "'st aging' is an unknown environment" ((Get-PromotionDecision -Config $riskCfg -Environment 'st aging' -DeterministicTier 'LOW' -ClassifierTier 'LOW' -GateGreen $true -ReviewShip $true -E2EEvidence $true).Decision -eq 'HUMAN')
 ok "'L OW' does not collapse to LOW"      ((Get-RiskRank 'L OW') -eq 2)
 ok "surrounding whitespace is trimmed"    ((Get-RiskRank '  low  ') -eq 0)
 

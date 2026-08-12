@@ -284,15 +284,23 @@ promotion_config_shape() {  # $1 config path
 # Fail-closed and ordered so the strongest refusals come first, BEFORE any config is consulted: the
 # prod refusal does not read promotion.prod.autoMerge at all. The schema's `const: false` protects a
 # repo that validates its config in CI; this line protects the ones that do not.
-#   $1 config path  $2 env  $3 tier  $4 gateGreen(1/0)  $5 reviewShip(1/0)  $6 e2eEvidence(1/0)
+#   $1 config path  $2 env  $3 deterministicTier  $4 classifierTier
+#   $5 gateGreen(1/0)  $6 reviewShip(1/0)  $7 e2eEvidence(1/0)
+# Takes the deterministic tier AND the classifier's verdict SEPARATELY and computes their max()
+# itself (the escalate-only merge) so a caller cannot substitute a single hand-picked tier.
 # Echoes "AUTO|reason" or "HUMAN|reason". Mirror of Get-PromotionDecision in risk.ps1.
 promotion_decision() {
-  local config="$1" envname="$2" tier="$3" gate="${4:-0}" ship="${5:-0}" e2e="${6:-0}"
+  local config="$1" envname="$2" dtier="$3" ctier="$4" gate="${5:-0}" ship="${6:-0}" e2e="${7:-0}"
   local t enabled pre_gate pre_ship pre_e2e threshold
   # TRIM, never `tr -d '[:space:]'`: deleting INTERIOR whitespace made "st aging" match staging in
   # bash while the PS twin's .Trim() correctly rejected it as an unknown environment.
   envname="$(printf '%s' "$envname" | tr '[:upper:]' '[:lower:]' | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')"
-  case "$(risk_rank "$tier")" in 0) t=LOW ;; 1) t=MEDIUM ;; *) t=HIGH ;; esac
+  # The escalate-only merge lives HERE, not in the caller: max() the two tiers so no caller can hand
+  # a single pre-merged (lower) tier and bypass the classifier. Either input unknown/absent ranks
+  # HIGH (risk_rank default, via risk_tier_max), so a garbage or omitted classifier tier fails CLOSED
+  # to HUMAN. risk_tier_max already emits canonical LOW|MEDIUM|HIGH, mirroring the PS twin's
+  # `Merge-RiskTier` — no rank round-trip needed.
+  t="$(risk_tier_max "$dtier" "$ctier")"
 
   if [ "$envname" != "staging" ] && [ "$envname" != "prod" ]; then
     echo "HUMAN|unknown environment '$2'"; return
