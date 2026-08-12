@@ -88,8 +88,8 @@ the desired behavior with the guardrails intact.
 - `plugin/.claude-plugin/plugin.json` — 0.2.8 → 0.2.9
 
 ## Verification
-- `run-tests-ps.txt` — PowerShell 5.1: **222 passed, 0 failed**
-- `run-tests-bash.txt` — bash: **212 passed, 0 failed**
+- `run-tests-ps.txt` — PowerShell 5.1: **229 passed, 0 failed**
+- `run-tests-bash.txt` — bash: **219 passed, 0 failed**
 - `doctor-check10.txt` — config ↔ agent-frontmatter agreement: **PASS** on all 6 phase/agent pairs
 - All 6 edited JSON files re-parsed successfully; `codex` key absent from all three `models` blocks
 - Routing verified byte-identical across the three repos
@@ -98,4 +98,3 @@ the desired behavior with the guardrails intact.
 - Plugin **not yet reinstalled** — the machine-wide cache is still 0.2.8, so consumers keep the old
   frontmatter until `/plugin update lean-agent-harness` runs (needs a commit first; the marketplace
   entry is git-backed and pins `gitCommitSha`).
-- Ratchet consolidation, and the dead `verification.freshContextReview` flag, deliberately deferred.
