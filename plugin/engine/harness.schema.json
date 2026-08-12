@@ -130,7 +130,6 @@
     "verification": {
       "type": "object",
       "properties": {
-        "freshContextReview": { "type": "boolean", "description": "Require an independent review in a fresh context before merge. Doer != judge." },
         "requireE2EEvidence": { "type": "boolean", "description": "Require captured end-to-end evidence, not just passing unit tests." },
         "reviewEveryNIterations": { "type": "integer", "minimum": 0, "description": "Wire the inferential judge into the unattended loop: every N GREEN (committed) iterations, spawn a fresh-context reviewer headless over the last N commits. On a REJECT verdict the loop records the finding to state/handoff.md and stops for a human. 0 = off (the loop runs the deterministic gate only — see ROADMAP). Requires loop.commitOnGreen." },
         "evaluator": {

@@ -1,0 +1,303 @@
+engine hygiene: every engine .ps1 PARSES under this PowerShell host
+  ok  parses: fleet.ps1
+  ok  parses: loop.ps1
+  ok  parses: migrate.ps1
+  ok  parses: lib\budget.ps1
+  ok  parses: lib\checkpoint.ps1
+  ok  parses: lib\dispatch.ps1
+  ok  parses: lib\fleet.ps1
+  ok  parses: lib\gate.ps1
+  ok  parses: lib\invoke-codex.ps1
+  ok  parses: lib\risk.ps1
+  ok  parses: wrappers\fleet.ps1
+  ok  parses: wrappers\loop.ps1
+gate: StrictMode-safe missing-key tolerance
+  - format : exit 0
+  ok  partial gate object does not throw
+  ok  partial gate object passes (missing steps skipped)
+gate: pass / fail attribution
+  - format : exit 0
+  - lint : exit 0
+  - test : exit 0
+  ok  all-green gate passes
+  - format : exit 0
+  - lint : exit 5
+    x lint failed (exit 5) in <repo>\harness\tests :
+  ok  failing gate reports FailedStep=lint
+gate: a step that writes to STDERR but exits 0 still passes (regression: EAP=Stop)
+  - format : echo oops 1>&2
+  - test : exit 0
+  ok  stderr-on-exit-0 step does not throw
+  ok  stderr-on-exit-0 gate passes
+gate: multi-component project gate + failure attribution
+  [frontend] gate (.)
+  - format : exit 0
+  - test : exit 0
+  [backend] gate (.)
+  - format : exit 0
+  - test : exit 0
+  [root] cross-cutting gate
+  - e2e : exit 0
+  ok  multi-component all-green passes
+  [frontend] gate (.)
+  - format : exit 0
+  [backend] gate (.)
+  - format : exit 0
+  - lint : exit 9
+    x lint failed (exit 9) in <repo>\harness\tests\. :
+  ok  multi-component failure attributed to backend:lint
+  x component 'ghost' path missing: <repo>\harness\tests\no-such-dir-xyz
+  ok  missing component dir fails the gate (fail-closed)
+review verdict: fail-closed last-VERDICT-line parsing
+  ok  SHIP on a clean final verdict
+  ok  REJECT wins as the last VERDICT line
+  ok  mid-sentence SHIP is not a verdict
+  ok  empty output fails closed
+review verdict: CASE-SENSITIVE — lowercase prose never ships (twin-parity with grep -E)
+  ok  lowercase 'verdict: ship' is prose => NONE
+  ok  mixed-case 'Verdict: Ship' is prose => NONE
+  ok  lowercase 'verdict: reject' is prose => NONE
+  ok  REJECT then line-initial lowercase prose stays REJECT
+  ok  lowercase prose after SHIP does not un-ship it
+evaluator verdict: CASE-SENSITIVE (same defect, same fix)
+  ok  lowercase 'verdict: pass' is prose => NONE
+  ok  FAIL then lowercase 'verdict: pass' stays FAIL
+evaluator verdict: fail-closed parse + sub-threshold N/10 override (Get-EvaluatorVerdict)
+  ok  PASS when verdict PASS and all scores >= threshold
+  ok  sub-threshold score overrides a PASS summary => FAIL
+  ok  explicit VERDICT: FAIL => FAIL
+  ok  no VERDICT line => NONE (fail-closed)
+  ok  empty text => NONE
+  ok  mid-sentence VERDICT: PASS is not a verdict => NONE
+  ok  score AT threshold (7/10, strict <) not below => PASS
+codex reviewer: availability probe drives the claude fallback
+  ok  missing binary => unavailable with reason
+  ok  api-key mode without CODEX_API_KEY => unavailable
+  ok  api-key mode with CODEX_API_KEY => available
+codex arg-assembly: -Mode selects the sandbox flag (read-only vs workspace-write)
+  ok  read-only mode => --sandbox read-only
+  ok  workspace-write mode => --sandbox write
+  ok  both modes keep --ask-for-approval never
+  ok  global flags precede the exec subcommand
+  ok  model passed through as -m
+  ok  effort passed as model_reasoning_effort
+  ok  no model => no -m flag
+usage-limit predicate: vendor-neutral markers (drives S3 fallback)
+  ok  detects 'usage limit'
+  ok  detects 'rate limit'
+  ok  detects 'quota' (any case)
+  ok  detects 'overloaded'
+  ok  detects HTTP 429
+  ok  detects 'too many requests'
+  ok  clean output => false
+  ok  stray 429 tokens => false
+  ok  empty output => false
+sandbox predicate: HARNESS_SANDBOX contract + auto-detect (Test-Sandboxed, gate.ps1)
+  ok  HARNESS_SANDBOX=1 => sandboxed
+  ok  HARNESS_SANDBOX=true => sandboxed
+  ok  HARNESS_SANDBOX=yes => sandboxed
+  ok  HARNESS_SANDBOX=YES => sandboxed (case-insensitive)
+  ok  HARNESS_SANDBOX=0 => NOT sandboxed
+  ok  HARNESS_SANDBOX=false => NOT sandboxed
+  ok  explicit 0 beats markers
+  ok  unset + no markers (bare host) => NOT sandboxed
+  ok  CODESPACES=false (present, not truthy) => sandboxed
+  ok  container=lxc (name value, present) => sandboxed
+sandbox template: devcontainer.json parses and marks itself a sandbox
+  ok  devcontainer.json is valid JSON (ConvertFrom-Json)
+  ok  devcontainer sets HARNESS_SANDBOX=1
+  ok  devcontainer uses a volume workspace (no host FS bind)
+model routing: Resolve-PhaseModel (config.models -> --model; '' = inherit)
+  ok  resolves implement model
+  ok  resolves reviewFallback model
+  ok  missing phase key => inherit ('')
+  ok  no models block => inherit ('')
+  ok  explicit null => inherit ('')
+model routing: nested {model,fallback} shape + Resolve-PhaseFallback
+  ok  nested primary => model
+  ok  nested review primary => codex
+  ok  nested fallback => fallback model
+  ok  reviewFallback pseudo-phase => review.fallback
+  ok  nested null fallback => inherit ('')
+  ok  nested absent phase => inherit ('') (model)
+  ok  nested absent phase => inherit ('') (fallback)
+  ok  flat-legacy primary still resolves
+  ok  flat-legacy reviewFallback (top-level)
+  ok  flat review fallback => top-level reviewFallback
+  ok  flat non-review phase has no fallback ('')
+model routing S1b: Resolve-PhaseFallback('review') is symmetric with reviewFallback pseudo-phase
+  ok  mixed review.fallback=null falls to legacy reviewFallback
+  ok  mixed: fallback accessor == reviewFallback pseudo-phase
+  ok  nested review.fallback=sonnet => fallback accessor
+  ok  nested review.fallback=sonnet => reviewFallback pseudo
+  ok  absent review + legacy => fallback accessor
+  ok  non-review nested null fallback still => ''
+dispatch: Invoke-Phase fallback trigger (stub claude; deterministic, no real model/codex)
+clean ok output
+  ok  1 primary success => Ok, Path=claude, no fallback
+Error: monthly usage limit reached
+clean ok output
+  ok  2 usage-limit => fallback fires, Ok, UsedFallback=true
+clean ok output
+  ok  3 codex unavailable => claude fallback, Ok, Path=claude
+build failed: TypeError in module
+  ok  4 generic failure => Ok=false, invoke-failed, no fallback
+  ok  4 fallback stub was NEVER invoked (marker absent)
+Error: monthly usage limit reached
+Error: monthly usage limit reached
+  ok  5 both usage-limited => Ok=false, exhausted, Path=null
+build complete; note: server was overloaded earlier
+  ok  6 success w/ 'overloaded' text => Ok, no fallback (ratchet)
+  ok  6 fallback NOT consulted on the success
+  ok  7 -Quiet primary success => Ok, Path=claude, no fallback
+  ok  7 -Quiet still writes the transcript log
+fleet: ownership overlap + batch selection (file-partitioned parallelism)
+  ok  same dir overlaps
+  ok  nested path overlaps
+  ok  glob suffix normalized
+  ok  case/slash-insensitive (Windows)
+  ok  disjoint dirs do not overlap
+  ok  empty entry overlaps everything (fail-closed)
+  ok  selects T1,T3,T6 (skips overlap/status/unowned)
+  ok  maxWorkers caps the batch
+budget: per-run reset
+  ok  budget resets to 0
+  ok  no cap => not exceeded
+budget: run id = max existing suffix + 1, not dir count; allocation claims the dir
+  ok  run-004 after run-002 was cleaned up
+  ok  allocation claims the dir (2nd call => run-005)
+budget: meters MAX of each token field, not the sum (modelUsage repeats counts)
+  📊 est. tokens this run: ~150
+  ok  budget meters 150 (max 100 + max 50, not summed to 300)
+  📊 est. tokens this run: ~3,150
+  ok  budget includes cache tokens (3150)
+block-destructive hook: blocks dangerous, allows safe
+  ok  blocks rm -fr (flag order)
+  ok  blocks rm <dir> -rf (flags after operand)
+  ok  blocks git push -f (short flag)
+  ok  blocks find -delete
+  ok  blocks git reset --hard <sha>
+  ok  blocks secret read via grep
+  ok  blocks Remove-Item -Recurse -Force
+  ok  allows git status
+  ok  allows npm test
+  ok  allows normal git push
+  ok  ALLOWS git push --force-with-lease (the recommended form)
+block-destructive: work-discard + remote-pipe coverage, false-positive exemptions
+  ok  blocks git checkout . (bare dot)
+  ok  blocks git restore .
+  ok  blocks git clean --force (long form)
+  ok  blocks rm with quoted flags
+  ok  blocks iwr | iex
+  ok  allows git checkout feature-branch
+  ok  allows cat .env.example (template)
+  ok  allows commit msg mentioning drop table
+  ok  allows src/api.key.ts (source, not a key file)
+  ok  blocks reading server.key
+block-destructive: spec-lock blocks shell writes to specs/ only when locked
+  ok  blocks shell write to specs/ when locked
+  ok  allows shell write to specs/ when unlocked
+  ok  blocks >specs/ redirect without a space when locked
+  ok  blocks touch specs/ when locked
+  ok  ALLOWS sed -n ranged READ of specs/ when locked
+  ok  ALLOWS cp specs/ -> elsewhere (read) when locked
+  ok  blocks cp -> specs/ (write) when locked
+protect-specs hook: locks specs/ only when HARNESS_LOCK_SPECS is set
+  ok  blocks specs/ write when locked
+  ok  allows non-spec write when locked
+  ok  allows specs/ write when unlocked
+  ok  blocks specs/*.ipynb via notebook_path when locked
+risk: glob semantics (must be identical in risk.sh — neither -like nor case globs are used)
+  ok  **/ spans whole segments
+  ok  **/ also matches at the repo root
+  ok  * never crosses /
+  ok  * matches within one segment
+  ok  a leading dot in a path survives
+  ok  a leading ./ prefix is stripped
+  ok  a non-match stays a non-match
+risk: deterministic rules (every criterion computed from the diff, escalate-only)
+  ok  a clean diff is LOW
+  ok  a migration escalates to MEDIUM
+  ok  infra escalates to MEDIUM
+  ok  size at the limit escalates to MEDIUM
+  ok  size just under the limit stays LOW
+  ok  an alwaysHuman path pins HIGH
+  ok  a money signal in added text pins HIGH
+  ok  a money term as a snake_case prefix fires
+  ok  an inflected money term fires
+  ok  a money term MID-word does not fire
+  ok  editing the policy itself pins HIGH
+  ok  editing the risk lib itself pins HIGH
+  ok  an empty diff fails closed to HIGH
+  ok  HIGH is not diluted by a MEDIUM rule
+  ok  a tripped rule is named in the reasons
+risk: the escalate-only ratchet (an agent may confirm or raise, never lower)
+  ok  merge cannot lower a tier
+  ok  merge raises to the higher tier
+  ok  an unknown tier ranks HIGH, not LOW
+risk: verdict parsing is fail-closed (mirror of the reviewer's last-VERDICT-line rule)
+  ok  the LAST RISK: line decides
+  ok  a mid-reasoning mention cannot decide
+  ok  no RISK: line fails closed to HIGH
+  ok  empty output fails closed to HIGH
+  ok  an unrecognized tier token is HIGH
+  ok  a lowercase 'risk: low' note is NOT a verdict
+  ok  a mixed-case 'Risk: Low' is NOT a verdict
+  ok  RISK:LOW with no space is still a verdict
+risk: the promotion decision (prod is never automated)
+  ok  staging + LOW + preconditions met = AUTO
+  ok  prod + LOW is STILL human
+  ok  staging + MEDIUM is human
+  ok  staging + HIGH is human
+  ok  a LOW diff with no review SHIP is human
+  ok  a LOW diff with a red gate is human
+  ok  a LOW diff with no e2e evidence is human
+  ok  an unknown environment is human
+  ok  promotion disabled is human
+  ok  the prod refusal names prod, not config
+risk: a malformed promotion block REFUSES (it must never silently skip a rule)
+  ok  absent preconditions => HUMAN, not 'all met'
+  ok  alwaysHuman as a scalar => HUMAN
+  ok  an EMPTY alwaysHuman => HUMAN
+  ok  enabled as the STRING 'false' => HUMAN
+  ok  a fractional maxChangedLines => HUMAN
+  ok  a well-formed enabled block still AUTOs
+  ok  a large (Int64) maxChangedLines is accepted
+  ok  1000.0 counts as an integer VALUE
+  ok  an absent criteria block is still well-formed
+risk: whitespace is TRIMMED, never deleted (interior spaces must not collapse)
+  ok  'st aging' is an unknown environment
+  ok  'L OW' does not collapse to LOW
+  ok  surrounding whitespace is trimmed
+risk: the shipped schema + config make 'auto-merge to prod' unrepresentable
+  ok  schema pins prod.autoMerge to const false
+  ok  schema's staging threshold declares an enum
+  ok  schema's staging threshold offers no 'medium'
+  ok  schema's staging threshold offers no 'high'
+  ok  schema REQUIRES the money keys when present
+  ok  shipped config sets prod.autoMerge false
+  ok  shipped config ships promotion disabled
+  ok  shipped config guards the money surfaces
+plugin: cross-platform hook dispatcher (node)
+  ok  hook dispatcher self-test passes (node)
+docs: model-routing skill documents the shipped default routing
+  ok  skill row for session documents claude-opus-4-8 @ high (fallback none)
+  ok  skill row for explore documents haiku @ low (fallback none)
+  ok  skill row for plan documents claude-fable-5 @ high (fallback claude-opus-5 @ high)
+  ok  skill row for implement documents claude-opus-5 @ high (fallback none)
+  ok  skill row for review documents claude-fable-5 @ high (fallback claude-opus-5 @ medium)
+  ok  skill row for evaluate documents claude-fable-5 @ high (fallback claude-opus-5 @ medium)
+  ok  skill row for docs documents haiku @ low (fallback none)
+docs: risk-tiering skill documents the shipped escalation criteria
+  ok  risk skill documents escalatePaths.migrations as MEDIUM
+  ok  risk skill documents escalatePaths.infra as MEDIUM
+  ok  risk skill documents escalatePaths.authz as MEDIUM
+  ok  risk skill documents escalatePaths.auditLog as MEDIUM
+  ok  risk skill documents escalatePaths.contracts as MEDIUM
+  ok  risk skill states the shipped size limit (1000)
+  ok  risk skill names alwaysHuman as HIGH
+  ok  risk skill names moneySignals as HIGH
+migrate: end-to-end classify + apply on a synthetic repo
+  ok  harness-migrate self-test passes
+
+RESULT: 229 passed, 0 failed

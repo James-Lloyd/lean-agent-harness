@@ -107,6 +107,29 @@ ok "REJECT wins as the last VERDICT line" ((Get-ReviewVerdict "I cannot give VER
 ok "mid-sentence SHIP is not a verdict" ((Get-ReviewVerdict "maybe VERDICT: SHIP later, still checking") -eq 'NONE')
 ok "empty output fails closed"          ((Get-ReviewVerdict "") -eq 'NONE')
 
+# CASE-SENSITIVITY (2026-08-11). PS `-match` is case-INSENSITIVE by default, the sh twin's `grep -E`
+# is not — so `-match` diverged the twins in TWO places: the line SELECTION (a lowercase prose line was
+# picked by PS as "the last VERDICT line" and skipped by bash, so each shell parsed a DIFFERENT line)
+# and the verdict PARSE itself. Both now use `-cmatch`. The contract's verdict form is UPPERCASE;
+# anything else is prose and must fail closed. Mirrors the risk.ps1 fix and matters doubly because
+# promotion.preconditions.reviewShip trusts this parser.
+Write-Host "review verdict: CASE-SENSITIVE — lowercase prose never ships (twin-parity with grep -E)"
+ok "lowercase 'verdict: ship' is prose => NONE"        ((Get-ReviewVerdict "verdict: ship") -eq 'NONE')
+ok "mixed-case 'Verdict: Ship' is prose => NONE"       ((Get-ReviewVerdict "Verdict: Ship") -eq 'NONE')
+ok "lowercase 'verdict: reject' is prose => NONE"      ((Get-ReviewVerdict "verdict: reject") -eq 'NONE')
+# THE DANGEROUS SHAPE, and the reason this is a security fix rather than tidying: a real REJECT
+# followed by a LINE-INITIAL lowercase sentence. Under `-match` PS selected that trailing line as
+# "the last VERDICT line" and read SHIP — silently converting a REJECT into a SHIP on Windows while
+# bash correctly reported REJECT. (Note the incident as first written up used "I would not say
+# verdict: ship here", which is NOT exploitable — `^\s*VERDICT:` is line-anchored, so prose mid-line
+# never matched under either operator. The exploitable form is lowercase at the START of a line.)
+ok "REJECT then line-initial lowercase prose stays REJECT" ((Get-ReviewVerdict "VERDICT: REJECT`nverdict: ship would be my instinct but no") -eq 'REJECT')
+ok "lowercase prose after SHIP does not un-ship it"    ((Get-ReviewVerdict "VERDICT: SHIP`nverdict: reject was considered") -eq 'SHIP')
+
+Write-Host "evaluator verdict: CASE-SENSITIVE (same defect, same fix)"
+ok "lowercase 'verdict: pass' is prose => NONE"        ((Get-EvaluatorVerdict "1. Correctness 9/10`nverdict: pass" 7) -eq 'NONE')
+ok "FAIL then lowercase 'verdict: pass' stays FAIL"    ((Get-EvaluatorVerdict "1. Correctness 9/10`nVERDICT: FAIL`nverdict: pass on reflection" 7) -eq 'FAIL')
+
 Write-Host "evaluator verdict: fail-closed parse + sub-threshold N/10 override (Get-EvaluatorVerdict)"
 ok "PASS when verdict PASS and all scores >= threshold"    ((Get-EvaluatorVerdict "1. Correctness 8/10`nVERDICT: PASS" 7) -eq 'PASS')
 ok "sub-threshold score overrides a PASS summary => FAIL"  ((Get-EvaluatorVerdict "3. Robustness 5/10`nVERDICT: PASS" 7) -eq 'FAIL')

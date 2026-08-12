@@ -48,28 +48,35 @@ PROMPT.md wins there); roll back a red tree rather than patching over it. At tas
 ## Project rules (the ratchet — grows only from real failures)
 <!-- Add via /ratchet: "- [YYYY-MM-DD] <rule> — because <the failure it prevents>" -->
 - [2026-07-14] A fresh-context judge subagent that dies on its model's usage cap gets re-spawned with
-  a `model:` override; `review`/`evaluate` carry an `opus` fallback in config for the headless path.
-- [2026-07-26] When correcting a stale fact (path, count, field name) in any prompt surface, grep the
-  whole repo for it before closing — it recurs in sibling surfaces.
-- [2026-07-29] An edit to engine comment/behavior lands in BOTH `.ps1`/`.sh` twins in the same change —
-  grep the sibling for the exact phrase (loop.sh got de-phased wording; loop.ps1 kept "Phase 3").
-- [2026-07-29] Before deleting a doc/comment block, grep for inbound pointers and rehome the content or
-  fix the pointer in the same change — a pointer into deleted content is worse than the verbosity.
+  a `model:` override; `review`/`evaluate` carry a Claude fallback in config for the headless path.
+- [2026-07-26 · consolidated 2026-08-11] **A fact you change in one prompt surface exists in others —
+  find them before you close.** Grep the whole repo for the literal (path, count, field name, phrase)
+  you just edited. Four incidents, one lesson: a stale fact recurred in a sibling surface (07-26); an
+  engine edit landed in `loop.ps1` but not the `.sh` twin (07-29); a deleted doc block left inbound
+  pointers dangling, so rehome the content or fix the pointer *in the same change* — a pointer into
+  deleted content is worse than the verbosity (07-29); and `/harness-migrate` deleted engine files from
+  consumers without updating the plugin's own checks against those paths, so harness-doctor checks 1+7
+  failed on every correctly-migrated repo (07-30).
 - [2026-07-30] A committed config pointer ($schema, profile, path) is repo-relative or plugin-resolved,
   never an absolute local path — it dies on the next device (a consumer repo's $schema pointed at this
   machine's harness checkout).
 - [2026-07-30] Compression may not swap a concrete fact for a pointer unless the pointed-at
   file/skill/command is verified to exist — resolve it before closing (a consumer map lost its model
   names to an unverified skill pointer).
-- [2026-07-30] When /harness-migrate deletes engine files from a consumer, grep the plugin's own
-  commands for checks against those paths in the same change (harness-doctor checks 1+7 failed on every
-  correctly-migrated repo).
 - [2026-08-06] A doc that names a plugin-owned file as a WRITE target must say what a *consumer* repo
   writes instead — the installed cache is outside the project, shared machine-wide, and reverted by
   `/plugin update` (the routing skill told migrate to edit agent frontmatter that consumers can't own).
 - [2026-08-06] A test pinning a doc table to a config asserts the value in its own COLUMN (split the
   row) and reads config keys via `PSObject.Properties[...]` — a row-wide match false-passes off a
   neighbouring cell, and a bare `$obj.$key` aborts the whole suite under StrictMode instead of failing.
+- [2026-08-11] A bare model **alias** (`opus`, `sonnet`) floats to the newest model in that tier — it is
+  a moving pointer, not a pin. Write the full `claude-*` ID anywhere the *generation* matters and the
+  alias only where the *tier* is the point (`haiku` for scouts). Found live: `settings.json` said
+  `"model": "opus"` intending Opus 4.8 while the session was actually running Opus 5.
+- [2026-08-11] A config key that nothing reads is worse than no key — it advertises a control that does
+  not exist. Before adding one, name the code path that consumes it; when deleting the consumer, delete
+  the key in the same change (`verification.freshContextReview` sat in the schema and every config for
+  months while `/work` ran the review unconditionally — turning it off disabled nothing).
 
 ## Nested context
 Subsystems carry their own `CLAUDE.md` next to their code (in this repo: `plugin/engine/` holds the

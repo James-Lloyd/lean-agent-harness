@@ -83,7 +83,6 @@
   },
 
   "verification": {
-    "freshContextReview": true,
     "requireE2EEvidence": true,
     "reviewEveryNIterations": 0,
     "evaluator": { "enabled": false, "rubric": "docs/principles/evaluator-rubric.md", "failBelow": 7 }

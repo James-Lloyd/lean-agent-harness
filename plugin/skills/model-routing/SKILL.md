@@ -17,16 +17,21 @@ stale copy behind in a sibling command.
 
 | Phase | Agent | model | effort | fallback | Why this one |
 |-------|-------|-------|--------|----------|--------------|
-| `session` | (the main window — you) | `opus` | `medium` | (n/a) | The **orchestrator**. It dispatches, sequences and reports; the deep thinking belongs to the phase agents. Medium keeps the cheap work cheap. **Must be Claude** — the main window can't swap vendor mid-session. |
-| `plan` | `planner` | `fable` | `high` | `null` | Design is where a bad call is most expensive. Deepest reasoner, highest effort. Interactive, so a usage cap is recoverable by hand — no fallback needed. |
-| `implement` | `generator` | `codex` | `high` | `opus` @ `high` | Cross-vendor builder (OpenAI Codex CLI). A second vendor on the build step means a Claude usage cap doesn't stop the loop, and the judge that reviews it is a different model family than the one that wrote it. |
-| `review` | `reviewer` | `fable` | `high` | `opus` @ `medium` | Fresh-context judge — the doer must never be the judge. Judges get the strongest model. Cap-proof Claude fallback because headless runs can't ask a human for help. |
-| `evaluate` | `evaluator` | `fable` | `high` | `opus` @ `medium` | Rubric scorer at the sprint gate. Same reasoning as `review`. |
+| `session` | (the main window — you) | `claude-opus-4-8` | `high` | (n/a) | The **orchestrator**. It dispatches, sequences and reports; the deep thinking belongs to the phase agents — but it also judges *when* a phase is done, so it is not the place to save tokens. **Must be Claude** — the main window can't swap vendor mid-session. Pinned to 4.8 so the orchestrator is a different generation from the Opus 5 builder it supervises. |
+| `plan` | `planner` | `claude-fable-5` | `high` | `claude-opus-5` @ `high` | Design is where a bad call is most expensive. Deepest reasoner, highest effort. |
+| `implement` | `generator` | `claude-opus-5` | `high` | `null` | The builder. Strongest coding/agentic model; a different family from the Fable judge that reviews it, so the writer never clears its own diff. **No fallback on purpose** — this phase is interactive, so a cap is recoverable by hand; a silent second-choice builder is worse than stopping. |
+| `review` | `reviewer` | `claude-fable-5` | `high` | `claude-opus-5` @ `medium` | Fresh-context judge — the doer must never be the judge. Judges get the strongest model. Cap-proof fallback because a headless run can't ask a human mid-review. Accepted tradeoff: the fallback equals the builder's model, so a Fable cap costs model diversity — the fresh-context guarantee still holds. |
+| `evaluate` | `evaluator` | `claude-fable-5` | `high` | `claude-opus-5` @ `medium` | Rubric scorer at the sprint gate. Same reasoning as `review`. Off by default (`verification.evaluator.enabled: false`) — one judge at the end is enough. |
 | `explore` | `explorer` | `haiku` | `low` | `null` | Read-only scout for fan-out searches. High volume, shallow judgment — the one place to spend nothing. |
 | `docs` | `doc-gardener` | `haiku` | `low` | `null` | Small, safe documentation edits. |
 
+**Pin full IDs, not aliases, wherever the generation matters.** The bare alias `opus` floats to whatever
+the current Opus is (today: Opus 5), so a `session` written as `opus` silently stops being 4.8 the moment
+a new Opus ships. Aliases are fine for `haiku`, where only the tier matters.
+
 Values may be a **Claude alias** (`opus`/`sonnet`/`haiku`/`fable`), a full `claude-*` ID, or the literal
-**`codex`**. Effort is `minimal|low|medium|high|xhigh`; absent = the model's own default. `fallback: null`
+**`codex`** (supported by the engine, but not routed in the recommended defaults —
+see "Cross-vendor" below). Effort is `minimal|low|medium|high|xhigh`; absent = the model's own default. `fallback: null`
 = no fallback (the phase just fails when its primary does); a whole phase set to `null`, or an absent
 `models` block, = inherit the ambient session model.
 
@@ -54,13 +59,14 @@ keystroke and make customizing possible without a seven-question interrogation.
    `explore`, `docs`. Offer each phase's default as the first option, labelled *(Recommended)*. Put
    effort in the option label (e.g. "fable @ high") rather than asking a second question per phase —
    doubling the question count for a value most people never change isn't worth it.
-3. **Ask about codex only if it's real.** Before offering a `codex` route, probe `codex --version`, then
+3. **Don't offer codex unprompted.** The recommended defaults are single-vendor; only route a phase to
+   `codex` if the human asks for cross-vendor. If they do, probe first — `codex --version`, then
    its auth the way the engine does (`lib/invoke-codex.*`): `auth: chatgpt` → `codex login status` exits
    0; `auth: api-key` → `CODEX_API_KEY` is set. Don't report an api-key user as "not signed in" for
    failing the chatgpt probe. `codex login status` also false-negatives against Azure/custom providers
    (`AGENT_NOTES.md`) — if the human says codex works, believe them over the probe. If it genuinely
-   isn't there, say so and offer the Claude-only variant (`implement` = `opus` @ `high`) instead of
-   writing a route that silently falls back forever.
+   isn't there, say so and keep the Claude-only default (`implement` = `claude-opus-5` @ `high`) instead
+   of writing a route that silently falls back forever.
 
 ### Constraints to enforce as you collect
 - `session.model` **must be Claude** — `codex` there is invalid, not a preference.
@@ -85,7 +91,7 @@ plugin (there's no in-repo `plugin/`, and `.claude/agents/` is absent or plugin-
 |---------|------|--------------|
 | `harness/harness.config.json` → `models` | `{model, fallback, effort, fallbackEffort}` per phase | **Both.** The declared table, and the one that actually routes at runtime. Also `models.codex` (`model`, `reasoningEffort`, `auth`, `timeoutSeconds`) if any phase routes to codex. |
 | `.claude/settings.json` | `model` = `session.model`, `effortLevel` = `session.effort` | **Both.** `CLAUDE_CODE_EFFORT_LEVEL` and `claude --effort` override `effortLevel` at launch. |
-| the plugin's `agents/*.md` frontmatter | `model:` and `effort:` | **Dev repo only.** Tracks the phase's **primary** when that's Claude; when the primary is `codex`, tracks the phase's Claude **`fallback`**/`fallbackEffort` (so `generator` = `implement`'s fallback). |
+| the plugin's `agents/*.md` frontmatter | `model:` and `effort:` | **Dev repo only.** Tracks the phase's **primary** when that's Claude; when the primary is `codex`, tracks the phase's Claude **`fallback`**/`fallbackEffort` (under the single-vendor defaults every agent tracks its phase's primary — e.g. `generator` = `claude-opus-5`). |
 
 **Never edit agent frontmatter from a consumer repo.** There it lives in the shared plugin cache
 (`~/.claude/plugins/…`), so the edit is outside the project (not revertible with `git`), leaks into
