@@ -8,6 +8,14 @@ lines=()
 branch="$(git -C "$root" rev-parse --abbrev-ref HEAD 2>/dev/null || true)"
 [ -n "$branch" ] && lines+=("branch: $branch")
 
+# One session = one worktree (CLAUDE.md 'Session isolation'). In a linked worktree --git-dir differs
+# from --git-common-dir; equal => the main checkout => nudge to isolate before editing.
+gitdir="$(git -C "$root" rev-parse --git-dir 2>/dev/null || true)"
+commondir="$(git -C "$root" rev-parse --git-common-dir 2>/dev/null || true)"
+if [ -n "$gitdir" ] && [ "$gitdir" = "$commondir" ]; then
+  lines+=("[worktree] on the main checkout - start a worktree (EnterWorktree) before editing; one session = one worktree.")   # ASCII to mirror the .ps1
+fi
+
 plan="$root/state/fix_plan.md"
 if [ -f "$plan" ]; then
   open=$(grep -cE '^[[:space:]]*[-*][[:space:]]+\[ \]' "$plan" || true); open="${open:-0}"
