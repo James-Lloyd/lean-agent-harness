@@ -12,6 +12,14 @@ $lines = @()
 $branch = (& git -C $root rev-parse --abbrev-ref HEAD 2>$null)
 if ($branch) { $lines += "branch: $branch" }
 
+# One session = one worktree (CLAUDE.md 'Session isolation'). In a linked worktree --git-dir differs
+# from --git-common-dir; equal => the main checkout => nudge to isolate before editing.
+$gitDir = (& git -C $root rev-parse --git-dir 2>$null)
+$commonDir = (& git -C $root rev-parse --git-common-dir 2>$null)
+if ($gitDir -and $gitDir -eq $commonDir) {
+  $lines += "[worktree] on the main checkout - start a worktree (EnterWorktree) before editing; one session = one worktree."   # ASCII: powershell.exe stdout is cp437
+}
+
 $plan = rel 'state/fix_plan.md'
 if (Test-Path $plan) {
   $open = @(Select-String -Path $plan -Pattern '^\s*[-*]\s+\[ \]' )

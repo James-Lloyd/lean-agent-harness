@@ -1,0 +1,8 @@
+== MAIN CHECKOUT (branch, not a linked worktree) -> expect nudge ==
+worktree-nudge lines: 1
+== INSIDE A LINKED WORKTREE -> expect NO nudge ==
+worktree-nudge lines: 0
+
+== PowerShell 5.1 twin (nit 5: PS functional run) ==
+MAIN CHECKOUT -> nudge lines: 1 (expect 1)
+INSIDE WORKTREE -> nudge lines: 0 (expect 0)

@@ -37,6 +37,22 @@ alone is not done. Commit when green (exception: in the headless loop the runner
 PROMPT.md wins there); roll back a red tree rather than patching over it. At task boundaries prefer
 `/handoff` then `/clear` over `/compact` — state lives in files.
 
+## Session isolation — one session = one worktree
+Each interactive session runs in its **own git worktree**, so two concurrent sessions on this repo
+never share a working tree or git index (the old "one session per repo" rule, now solved instead of
+merely avoided). At the **start of a session, enter a worktree** (`EnterWorktree`) before editing —
+`worktree.baseRef` is `fresh` in `.claude/settings.json`, so it branches from origin's default. The
+plugin, guard hooks, permissions, and the `.git/hooks` pre-commit privacy guard all resolve through
+the worktree to the main checkout, so they apply inside it with no extra wiring; while in a worktree,
+Claude Code blocks any edit to the main checkout. Land work by **PR to `main`** (state edits included);
+on exit you're prompted to keep or remove the worktree.
+- **Task-claim convention.** The shared queue (`state/fix_plan.md`/`tasks.json`) forks per worktree, so
+  two sessions branched from `main` see the *same* "next up". Point each session at a **distinct** task,
+  and as your first commit stamp the task line with your branch — `- [ ] (wip: <branch>) <task>`. The
+  branch stamp makes a double-grab **textually unique**, so the two PRs are guaranteed to conflict at
+  merge; a bare identical `[x]` tick would 3-way-merge silently and both could land. Full discipline:
+  `docs/principles/workflow.md`.
+
 ## Guardrails
 - Never weaken or delete a test to go green. Fix the code or escalate.
 - Never edit `specs/`. Propose changes to the human (`/plan`, `/onboard`, `/harness-init` may author
@@ -81,6 +97,10 @@ PROMPT.md wins there); roll back a red tree rather than patching over it. At tas
   `plugin/.claude-plugin/plugin.json` `version` in the SAME diff — an unbumped version leaves a
   consumer's `/plugin update` serving a cached prose/engine pair from different builds (found in review
   of the promotion-decision signature change: the lib changed but the version stayed 0.2.9).
+- [2026-08-12] A doc that offers "git will conflict visibly" as a safety backstop must make the competing
+  edits TEXTUALLY UNIQUE — a 3-way merge auto-resolves byte-identical changes silently, so two sessions
+  ticking the same `fix_plan.md` line `[ ]`→`[x]` both land with no signal. Stamp the claim with the
+  branch so a double-grab diverges and actually conflicts (found reviewing the worktree-isolation change).
 
 ## Nested context
 Subsystems carry their own `CLAUDE.md` next to their code (in this repo: `plugin/engine/` holds the

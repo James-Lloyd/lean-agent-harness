@@ -65,6 +65,32 @@ accumulates. Policy: **reset over compact** — at a task boundary run `/handoff
 lives in files and the SessionStart hook re-orients the fresh window. Compaction quietly loses the
 *why*; treat `/compact` as the mid-task emergency tool only.
 
+## Concurrent sessions (one session = one worktree)
+Two interactive sessions must never share one working tree + index — they clobber each other's
+uncommitted edits (a checkpoint `git reset --hard`/`clean -fd` in one wipes the other) and interleave
+commits on one branch. So **each session runs in its own git worktree** (`EnterWorktree` at session
+start; `worktree.baseRef: fresh` in `.claude/settings.json` branches from origin's default). The
+runtime already supports this: `harness/.runs/`, `.checkpoint`, `.budget.json` resolve under each
+worktree's own project root and are gitignored; the plugin, guard hooks, permissions, and the shared
+`.git/hooks` privacy guard all apply inside a worktree unchanged.
+
+The one thing a worktree does **not** isolate cleanly is the shared task queue — `state/fix_plan.md`
+and `state/tasks.json` are tracked and branch from `main`, so both sessions start on the *identical*
+top task. Two rules keep that safe without a coordinator:
+- **Claim before working.** Point each session at a **distinct** task; as its first commit, stamp the
+  task line with the session's branch — `- [ ] (wip: <branch>) <task>`. The branch stamp is what forces
+  the conflict below: two sessions claiming the same line write *different* text, so it cannot silently
+  auto-merge. No cross-worktree lock — for one operator running a handful of sessions, disjoint
+  assignment + the branch stamp is the mechanism; a pushed-ref lease is the escalation *if* same-task
+  collisions actually happen, ratcheted then, not pre-built.
+- **Land through PR, one at a time.** Each session's work — code **and** its `fix_plan.md`/`tasks.json`/
+  `PROGRESS.md` edits — lands via a PR to `main`. Merging reconciles the state files. Two sessions that
+  branch-stamped the *same* task line wrote different text there, so their PRs conflict at merge (safe —
+  resolve by hand): the backstop against a missed claim. **Without** the stamp this backstop fails —
+  byte-identical `[ ]`→`[x]` ticks 3-way-merge silently and both could land, which is the hole the stamp
+  closes. There is no auto-merge of combined state and no gate on the merged tree beyond CI, so keep
+  concurrent sessions on genuinely independent tasks.
+
 ## Mapping to autonomy
 - **Supervised:** `/work` runs one task through all phases, pausing at each checkpoint.
 - **Auto / unattended:** `harness/loop.ps1` (or `.sh`) runs `PROMPT.md`, one task per iteration,
