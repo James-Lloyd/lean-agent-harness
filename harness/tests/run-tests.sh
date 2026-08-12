@@ -490,7 +490,9 @@ JSON
   ok "$(deterministic_risk "$RCFG" 10 "$RF" "$RA" | grep -qF 'migrations' && echo 1 || echo 0)" "a tripped rule is named in the reasons"
 
   echo "risk: the promotion decision (prod is never automated)"
-  dec_of() { promotion_decision "$RCFG" "$1" "$2" "$3" "$4" "$5" | cut -d'|' -f1; }
+  # Single tier => deterministic=$2, classifier=LOW (the identity for max()), so these pin the same
+  # outcomes as before the merge moved inside the function.
+  dec_of() { promotion_decision "$RCFG" "$1" "$2" LOW "$3" "$4" "$5" | cut -d'|' -f1; }
   ok "$([ "$(dec_of staging LOW 1 1 1)" = "AUTO" ] && echo 1 || echo 0)"     "staging + LOW + preconditions met = AUTO"
   # The load-bearing one. Not "defaults to human" — refused before config is read at all.
   ok "$([ "$(dec_of prod LOW 1 1 1)" = "HUMAN" ] && echo 1 || echo 0)"       "prod + LOW is STILL human"
@@ -500,14 +502,26 @@ JSON
   ok "$([ "$(dec_of staging LOW 0 1 1)" = "HUMAN" ] && echo 1 || echo 0)"    "a LOW diff with a red gate is human"
   ok "$([ "$(dec_of staging LOW 1 1 0)" = "HUMAN" ] && echo 1 || echo 0)"    "a LOW diff with no e2e evidence is human"
   ok "$([ "$(dec_of production LOW 1 1 1)" = "HUMAN" ] && echo 1 || echo 0)" "an unknown environment is human"
-  ok "$([ "$(promotion_decision "$RCFG_OFF" staging LOW 1 1 1 | cut -d'|' -f1)" = "HUMAN" ] && echo 1 || echo 0)" "promotion disabled is human"
-  ok "$(promotion_decision "$RCFG_OFF" prod LOW 1 1 1 | grep -qF 'prod promotion is always' && echo 1 || echo 0)" "the prod refusal names prod, not config"
+  ok "$([ "$(promotion_decision "$RCFG_OFF" staging LOW LOW 1 1 1 | cut -d'|' -f1)" = "HUMAN" ] && echo 1 || echo 0)" "promotion disabled is human"
+  ok "$(promotion_decision "$RCFG_OFF" prod LOW LOW 1 1 1 | grep -qF 'prod promotion is always' && echo 1 || echo 0)" "the prod refusal names prod, not config"
+
+  # The escalate-only merge is computed INSIDE the decision, not handed to it: promotion_decision
+  # takes the deterministic tier AND the classifier's verdict and max()es them itself, so no caller
+  # can pass a single hand-picked (lower) tier to bypass the classifier. These pin it is internal.
+  merge_dec() { promotion_decision "$RCFG" staging "$1" "$2" 1 1 1 | cut -d'|' -f1; }
+  ok "$([ "$(merge_dec LOW HIGH)" = "HUMAN" ] && echo 1 || echo 0)"     "det LOW + classifier HIGH => HUMAN (cannot bypass the classifier)"
+  ok "$([ "$(merge_dec HIGH LOW)" = "HUMAN" ] && echo 1 || echo 0)"     "det HIGH + classifier LOW => HUMAN (deterministic escalation kept)"
+  ok "$([ "$(merge_dec LOW LOW)" = "AUTO" ] && echo 1 || echo 0)"       "det LOW + classifier LOW => AUTO (both agree low)"
+  # The strongest pin: an empty or garbage classifier tier must NOT read as LOW. risk_rank ranks the
+  # unknown HIGH, so the merge fails CLOSED to HUMAN - a caller cannot omit the classifier to reach AUTO.
+  ok "$([ "$(merge_dec LOW '')" = "HUMAN" ] && echo 1 || echo 0)"       "an empty classifier tier fails closed to HUMAN"
+  ok "$([ "$(merge_dec LOW nonsense)" = "HUMAN" ] && echo 1 || echo 0)" "a garbage classifier tier fails closed to HUMAN"
 
   echo "risk: a malformed promotion block REFUSES (it must never silently skip a rule)"
   # Every one of these is schema-valid-or-unvalidated at runtime and previously reached AUTO, because a
   # degenerate shape made a rule evaluate to "no match" instead of escalating -- i.e. it failed OPEN.
   SH="$(mktemp)"
-  shape_dec() { printf '%s' "$1" > "$SH"; promotion_decision "$SH" staging "$2" "$3" "$4" "$5" | cut -d'|' -f1; }
+  shape_dec() { printf '%s' "$1" > "$SH"; promotion_decision "$SH" staging "$2" LOW "$3" "$4" "$5" | cut -d'|' -f1; }
   NOPRE='{ "promotion": { "enabled": true, "staging": { "autoMergeAtOrBelow": "low" }, "prod": { "autoMerge": false }, "alwaysHuman": ["**/payments/**"], "moneySignals": ["price"] } }'
   ok "$([ "$(shape_dec "$NOPRE" LOW 0 0 0)" = "HUMAN" ] && echo 1 || echo 0)" "absent preconditions => HUMAN, not 'all met'"
   SCALAR='{ "promotion": { "enabled": true, "staging": { "autoMergeAtOrBelow": "low" }, "prod": { "autoMerge": false }, "alwaysHuman": "**/payments/**", "moneySignals": ["price"], "preconditions": { "gateGreen": true, "reviewShip": true, "e2eEvidence": true } } }'
@@ -531,7 +545,7 @@ JSON
 
   echo "risk: whitespace is TRIMMED, never deleted (interior spaces must not collapse)"
   # tr -d '[:space:]' made "st aging" match staging in bash while the PS twin's .Trim() rejected it.
-  ok "$([ "$(promotion_decision "$RCFG" 'st aging' LOW 1 1 1 | cut -d'|' -f1)" = "HUMAN" ] && echo 1 || echo 0)" "'st aging' is an unknown environment"
+  ok "$([ "$(promotion_decision "$RCFG" 'st aging' LOW LOW 1 1 1 | cut -d'|' -f1)" = "HUMAN" ] && echo 1 || echo 0)" "'st aging' is an unknown environment"
   ok "$([ "$(risk_rank 'L OW')" = "2" ] && echo 1 || echo 0)"      "'L OW' does not collapse to LOW"
   ok "$([ "$(risk_rank '  low  ')" = "0" ] && echo 1 || echo 0)"   "surrounding whitespace is still trimmed"
 

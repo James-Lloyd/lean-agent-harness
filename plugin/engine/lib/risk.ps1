@@ -273,6 +273,9 @@ function Get-DeterministicRisk {
   schema's `const: false` protects repos that validate their config in CI, and this line protects
   the ones that do not.
 
+  Takes the deterministic tier AND the classifier's verdict as SEPARATE arguments and computes their
+  max() itself (the escalate-only merge) so a caller cannot substitute a single hand-picked tier.
+
   Returns [pscustomobject]@{ Decision = 'AUTO'|'HUMAN'; Reason = string }.
   Mirror of promotion_decision in risk.sh.
 #>
@@ -324,12 +327,17 @@ function Test-PromotionConfigShape($Promotion) {
 }
 
 function Get-PromotionDecision {
-  param($Config, [string]$Environment, [string]$Tier,
+  param($Config, [string]$Environment,
+        [string]$DeterministicTier, [string]$ClassifierTier,
         [bool]$GateGreen = $false, [bool]$ReviewShip = $false, [bool]$E2EEvidence = $false)
   # Named $envName, not $env: `$env` reads as the environment-variable drive in PowerShell and the
   # shadowing is a trap for the next reader.
   $envName = ("$Environment").Trim().ToLowerInvariant()
-  $t       = @('LOW','MEDIUM','HIGH')[(Get-RiskRank $Tier)]
+  # The escalate-only merge lives HERE, not in the caller: the decision takes BOTH the deterministic
+  # tier and the classifier's verdict and computes max() itself, so no caller can hand it a single
+  # pre-merged (lower) tier and bypass the classifier's escalation. Either input being unknown/absent
+  # ranks HIGH (Get-RiskRank default), so a garbage or omitted classifier tier fails CLOSED to HUMAN.
+  $t       = Merge-RiskTier $DeterministicTier $ClassifierTier
 
   if ($envName -ne 'staging' -and $envName -ne 'prod') {
     return [pscustomobject]@{ Decision = 'HUMAN'; Reason = "unknown environment '$Environment'" }
