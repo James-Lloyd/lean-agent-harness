@@ -1,0 +1,14 @@
+S3 evidence — self-approval is rejected by GitHub
+Repo: James-Lloyd/lean-agent-harness   PR: #9   Date: 2026-08-13
+
+=== whoami (author identity) ===
+James-Lloyd
+
+=== James-Lloyd attempts to approve own PR #9 ===
+$ gh pr review 9 --approve
+failed to create review: GraphQL: Review Can not approve your own pull request (addPullRequestReview)
+exit_code=1
+
+Conclusion: the account that opened PR #9 cannot approve it. A single-identity
+auto-approve step would ALWAYS fail here — which is why /promote treats a failed
+approval as HUMAN and never falls through to merge.
