@@ -69,3 +69,7 @@ Hard-won rules (each traces to a real shipped failure):
   mirroring the sh twin's `jq floor == value`, and declare the type in `harness.schema.json` whenever
   both twins compare it (e.g. `failBelow` is `integer`) — the two shells do not coerce identically and a
   divergence can fail open. The suites run under BOTH hosts in CI — a 5.1-only green is not green.
+- **Adding a positional param to a sh lib function updates that function's arg-list header comment in
+  the SAME diff** — the PS twin's `param()` block is self-documenting, so the bash `#  $1 … $N` header
+  is the one surface that silently goes stale (found in review of `promotion_decision`'s new
+  `$8 reviewerConfigured`: PS declared it, the sh header still stopped at `$7`).

@@ -153,7 +153,8 @@ behaves oddly.
       (`docs/promotion.md` §3). When auto-merge is not armed, this is ℹ️ only.
 
 ## Output
-A short checklist (one line per check, ✅/⚠️/❌ + the finding) and, at the end, the single most important
+A short checklist (one line per check, ✅/⚠️/❌/ℹ️ + the finding — ℹ️ for a check that does not apply,
+e.g. an opt-in block a repo has not configured) and, at the end, the single most important
 thing to fix if anything is red. Recommend `/ratchet` for any failure class that should never recur.
 Also advise running Claude Code's native `/doctor`: this command checks *harness* semantics; `/doctor`
 validates the settings/hooks/skills at the platform level — the two are complementary, not redundant.

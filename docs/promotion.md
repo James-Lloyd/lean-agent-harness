@@ -89,8 +89,10 @@ only names the variable):
    token). Put it in the promotion runtime as `HARNESS_PROMOTE_REVIEWER_TOKEN` — a CI secret for the
    headless/nightly path, or your shell env for an interactive run.
 3. Turn on the repo's **Settings → General → Allow auto-merge** (else `gh pr merge --auto` errors).
-4. In an interactive Claude session the auto-mode classifier blocks `gh pr merge` / `gh pr review`;
-   allowlist those two commands in `.claude/settings.json`, or run `/promote` on the headless path.
+4. In an interactive Claude session the auto-mode classifier blocks the write-ish `gh` calls —
+   `gh pr merge`, `gh pr review`, and the reviewer-identity probe `gh api user` (blocking that last
+   one silently makes the feature *inert*: reviewer resolution fails ⇒ HUMAN). Allowlist those three
+   in `.claude/settings.json`, or run `/promote` on the headless path.
 
 ## What the tiers mean
 

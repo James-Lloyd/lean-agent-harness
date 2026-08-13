@@ -141,9 +141,12 @@ a resolved separate reviewer identity):
    trail.
 2. Approve and merge **as the reviewer identity**, scoping its token to only these two calls:
    `GH_TOKEN=$tok gh pr review <n> --approve` then `GH_TOKEN=$tok gh pr merge <n> --auto --squash`.
-   If the approve call does not succeed, STOP — take the HUMAN path and never run the merge. (`--auto`
-   also requires the repo's "Allow auto-merge" setting to be on; if merge reports it is disabled, say
-   so and leave the PR approved for a human to merge.)
+   **Re-read the token from its env var in the SAME shell invocation as these two calls** — shell
+   state does not survive between separate command runs, so a `$tok` captured back in §6 is empty
+   here and the approve would silently run unauthenticated. If the approve call does not succeed,
+   STOP — take the HUMAN path and never run the merge. (`--auto` also requires the repo's "Allow
+   auto-merge" setting to be on; if merge reports it is disabled, say so and leave the PR approved
+   for a human to merge.)
 
 **On `HUMAN`** (everything else):
 1. Post the same structured comment, headed **ESCALATED**, naming exactly which criteria tripped or
