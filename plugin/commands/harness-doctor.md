@@ -143,6 +143,14 @@ behaves oddly.
       `gh auth status` reports the **same** identity that authors commits here, report ⚠️: GitHub
       rejects self-approval, so auto-approval will fail until a separate reviewer identity is
       configured (`docs/promotion.md`).
+    - **(g) A separate reviewer identity is wired for auto-merge.** When auto-merge is armed
+      (`enabled: true` **and** `staging.autoMergeAtOrBelow == "low"`), `promotion.reviewer.tokenEnv`
+      must be a non-empty string naming an environment variable — ❌ otherwise, because without it
+      `/promote` fails closed and **nothing can ever auto-merge** (the feature is armed but inert).
+      Doctor cannot read the promotion runtime's secrets, so also report ⚠️ reminders: the named
+      variable must actually hold a *write*-access token for an identity **other** than the commit
+      author, and the repo's "Allow auto-merge" setting must be on for `gh pr merge --auto` to work
+      (`docs/promotion.md` §3). When auto-merge is not armed, this is ℹ️ only.
 
 ## Output
 A short checklist (one line per check, ✅/⚠️/❌ + the finding) and, at the end, the single most important

@@ -550,7 +550,9 @@ Write-Host "risk: the promotion decision (prod is never automated)"
 function decOf($envName, $tier, $g, $s, $e) {
   # Single tier => deterministic=$tier, classifier=LOW (the identity for max()), so these pin the
   # same outcomes as before the merge moved inside the function.
-  (Get-PromotionDecision -Config $riskCfg -Environment $envName -DeterministicTier $tier -ClassifierTier 'LOW' -GateGreen $g -ReviewShip $s -E2EEvidence $e).Decision
+  # Reviewer held configured so each case is attributable to the dimension it tests; the reviewer
+  # gate itself is pinned separately below.
+  (Get-PromotionDecision -Config $riskCfg -Environment $envName -DeterministicTier $tier -ClassifierTier 'LOW' -GateGreen $g -ReviewShip $s -E2EEvidence $e -ReviewerConfigured $true).Decision
 }
 ok "staging + LOW + preconditions met = AUTO"  ((decOf 'staging' 'LOW' $true $true $true) -eq 'AUTO')
 # The load-bearing one. Not "defaults to human" — refused before config is read at all.
@@ -564,11 +566,24 @@ ok "an unknown environment is human"           ((decOf 'production' 'LOW' $true 
 ok "promotion disabled is human"               ((Get-PromotionDecision -Config $riskCfgOff -Environment 'staging' -DeterministicTier 'LOW' -ClassifierTier 'LOW' -GateGreen $true -ReviewShip $true -E2EEvidence $true).Decision -eq 'HUMAN')
 ok "the prod refusal names prod, not config"   ((Get-PromotionDecision -Config $riskCfgOff -Environment 'prod' -DeterministicTier 'LOW' -ClassifierTier 'LOW').Reason.Contains('prod promotion is always'))
 
+# GitHub rejects self-approval, so AUTO is reachable ONLY with a separate reviewer identity. The bool
+# is fail-closed by default ($false): a LOW change that cleared every other gate still goes HUMAN when
+# no reviewer is configured. The caller computes the bool (env token + gh identity != author); the
+# decision only trusts it. This is the load-bearing pin for the reviewer-identity wiring.
+function decRev($rev) {
+  (Get-PromotionDecision -Config $riskCfg -Environment 'staging' -DeterministicTier 'LOW' -ClassifierTier 'LOW' -GateGreen $true -ReviewShip $true -E2EEvidence $true -ReviewerConfigured $rev)
+}
+ok "LOW + all preconditions but NO reviewer identity => HUMAN" ((decRev $false).Decision -eq 'HUMAN')
+ok "the no-reviewer refusal names self-approval (not the AUTO reason)" ((decRev $false).Reason.Contains('self-approval'))
+ok "the SAME LOW change WITH a reviewer identity => AUTO"     ((decRev $true).Decision -eq 'AUTO')
+# Fail-closed default: omitting the arg entirely must not reach AUTO (a stale caller cannot merge).
+ok "an OMITTED reviewer arg fails closed to HUMAN"            ((Get-PromotionDecision -Config $riskCfg -Environment 'staging' -DeterministicTier 'LOW' -ClassifierTier 'LOW' -GateGreen $true -ReviewShip $true -E2EEvidence $true).Decision -eq 'HUMAN')
+
 # The escalate-only merge is computed INSIDE the decision, not handed to it: the function takes the
 # deterministic tier AND the classifier's verdict and max()es them itself, so no caller can pass a
 # single hand-picked (lower) tier to bypass the classifier. These pin that the merge is internal.
 function decMerge($det, $cls) {
-  (Get-PromotionDecision -Config $riskCfg -Environment 'staging' -DeterministicTier $det -ClassifierTier $cls -GateGreen $true -ReviewShip $true -E2EEvidence $true).Decision
+  (Get-PromotionDecision -Config $riskCfg -Environment 'staging' -DeterministicTier $det -ClassifierTier $cls -GateGreen $true -ReviewShip $true -E2EEvidence $true -ReviewerConfigured $true).Decision
 }
 ok "det LOW + classifier HIGH => HUMAN (cannot bypass the classifier)"   ((decMerge 'LOW'  'HIGH')     -eq 'HUMAN')
 ok "det HIGH + classifier LOW => HUMAN (deterministic escalation kept)"  ((decMerge 'HIGH' 'LOW')      -eq 'HUMAN')
@@ -582,7 +597,7 @@ Write-Host "risk: a malformed promotion block REFUSES (it must never silently sk
 # Every one of these is schema-valid-or-unvalidated at runtime and previously reached AUTO, because a
 # degenerate shape made a rule evaluate to "no match" instead of escalating - i.e. it failed OPEN.
 function ShapeDec($json, $tier, $g, $s2, $e) {
-  (Get-PromotionDecision -Config ($json | ConvertFrom-Json) -Environment 'staging' -DeterministicTier $tier -ClassifierTier 'LOW' -GateGreen $g -ReviewShip $s2 -E2EEvidence $e).Decision
+  (Get-PromotionDecision -Config ($json | ConvertFrom-Json) -Environment 'staging' -DeterministicTier $tier -ClassifierTier 'LOW' -GateGreen $g -ReviewShip $s2 -E2EEvidence $e -ReviewerConfigured $true).Decision
 }
 $noPre = '{ "promotion": { "enabled": true, "staging": { "autoMergeAtOrBelow": "low" }, "prod": { "autoMerge": false }, "alwaysHuman": ["**/payments/**"], "moneySignals": ["price"] } }'
 ok "absent preconditions => HUMAN, not 'all met'" ((ShapeDec $noPre 'LOW' $false $false $false) -eq 'HUMAN')
@@ -595,7 +610,7 @@ $strEnabled = '{ "promotion": { "enabled": "false", "staging": { "autoMergeAtOrB
 ok "enabled as the STRING 'false' => HUMAN"      ((ShapeDec $strEnabled 'LOW' $true $true $true) -eq 'HUMAN')
 $floatMax = '{ "promotion": { "enabled": true, "staging": { "autoMergeAtOrBelow": "low" }, "prod": { "autoMerge": false }, "alwaysHuman": ["**/payments/**"], "moneySignals": ["price"], "criteria": { "maxChangedLines": 10.5 }, "preconditions": { "gateGreen": true, "reviewShip": true, "e2eEvidence": true } } }'
 ok "a fractional maxChangedLines => HUMAN"       ((ShapeDec $floatMax 'LOW' $true $true $true) -eq 'HUMAN')
-ok "a well-formed enabled block still AUTOs"     ((Get-PromotionDecision -Config $riskCfg -Environment 'staging' -DeterministicTier 'LOW' -ClassifierTier 'LOW' -GateGreen $true -ReviewShip $true -E2EEvidence $true).Decision -eq 'AUTO')
+ok "a well-formed enabled block still AUTOs"     ((Get-PromotionDecision -Config $riskCfg -Environment 'staging' -DeterministicTier 'LOW' -ClassifierTier 'LOW' -GateGreen $true -ReviewShip $true -E2EEvidence $true -ReviewerConfigured $true).Decision -eq 'AUTO')
 # maxChangedLines must be judged by VALUE, not by concrete .NET type: ConvertFrom-Json yields Int32
 # under Windows PowerShell 5.1 and Int64 under pwsh, so a `-is [int]` check rejected a valid config
 # on pwsh only. CI runs both hosts and caught it; these pin the behaviour on whichever host runs.
@@ -635,6 +650,11 @@ ok "shipped config sets prod.autoMerge false"  ($false -eq (RProp (RProp $shippe
 ok "shipped config ships promotion disabled"   ($false -eq (RProp $shippedPromo 'enabled'))
 $shippedAH = RProp $shippedPromo 'alwaysHuman'
 ok "shipped config guards the money surfaces"  (($null -ne $shippedAH) -and (@($shippedAH).Count -gt 0))
+# The reviewer-identity wiring: the shipped config must NAME an env var for the approver token, or
+# auto-merge can never fire (the decision fails closed on a missing reviewer). The token itself is
+# never committed — only the variable name.
+$shippedRevEnv = RProp (RProp $shippedPromo 'reviewer') 'tokenEnv'
+ok "shipped config names a reviewer token env var" (($shippedRevEnv -is [string]) -and ($shippedRevEnv.Trim().Length -gt 0))
 
 Write-Host "plugin: cross-platform hook dispatcher (node)"
 # The plugin ships hooks through plugin/hooks/run.mjs (static hooks.json can't branch on OS). Its own

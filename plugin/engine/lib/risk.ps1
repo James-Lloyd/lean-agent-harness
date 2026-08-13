@@ -329,7 +329,8 @@ function Test-PromotionConfigShape($Promotion) {
 function Get-PromotionDecision {
   param($Config, [string]$Environment,
         [string]$DeterministicTier, [string]$ClassifierTier,
-        [bool]$GateGreen = $false, [bool]$ReviewShip = $false, [bool]$E2EEvidence = $false)
+        [bool]$GateGreen = $false, [bool]$ReviewShip = $false, [bool]$E2EEvidence = $false,
+        [bool]$ReviewerConfigured = $false)
   # Named $envName, not $env: `$env` reads as the environment-variable drive in PowerShell and the
   # shadowing is a trap for the next reader.
   $envName = ("$Environment").Trim().ToLowerInvariant()
@@ -379,7 +380,15 @@ function Get-PromotionDecision {
   if ($t -ne 'LOW') {
     return [pscustomobject]@{ Decision = 'HUMAN'; Reason = "risk tier $t exceeds the staging auto-merge threshold" }
   }
-  return [pscustomobject]@{ Decision = 'AUTO'; Reason = 'LOW risk, all preconditions met, target staging' }
+  # Last gate before AUTO, and fail-closed by default ($false): GitHub rejects self-approval, so the
+  # auto-merge is only reachable when a SEPARATE reviewer identity is available to approve the PR. The
+  # caller (/promote) computes this bool from promotion.reviewer.tokenEnv -> a non-empty token whose
+  # gh identity differs from the PR author; it CANNOT be derived here (env + gh are the caller's), so
+  # an omitted/unresolvable reviewer arrives as $false and drops to HUMAN, never to the merge path.
+  if (-not $ReviewerConfigured) {
+    return [pscustomobject]@{ Decision = 'HUMAN'; Reason = 'no separate reviewer identity configured (promotion.reviewer.tokenEnv unset/empty or equals the PR author); GitHub rejects self-approval' }
+  }
+  return [pscustomobject]@{ Decision = 'AUTO'; Reason = 'LOW risk, all preconditions met, separate reviewer identity available, target staging' }
 }
 
 <#

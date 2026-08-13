@@ -81,13 +81,40 @@ not cleared anything.
 
 ### 5. Merge the tiers (for the audit record)
 `Merge-RiskTier` / `risk_tier_max` gives `finalTier` for the record below. This is a max(), so the
-agent can only have raised it. The decision function (§7) recomputes this same merge internally from
+agent can only have raised it. The decision function (§6) recomputes this same merge internally from
 the two tiers you pass it — you cannot hand it a lower pre-merged tier — so the recorded `finalTier`
 and the actual decision can never diverge.
 
-### 6. Write the audit record BEFORE acting
+### 6. Resolve the reviewer identity, then decide
+Auto-merge approves the PR, and **GitHub rejects self-approval** — so AUTO is only reachable when a
+*separate* write identity is available to approve. Resolve it FIRST (it is an input to the decision,
+which is in turn an input to the record in §7), and reduce it to one boolean; if any step below
+fails, the boolean is **false** and the decision drops to HUMAN.
+
+1. Read the env-var name from config: `promotion.reviewer.tokenEnv`. Absent/empty ⇒ reviewer
+   **false** (reason for the record: *reviewer identity not configured*).
+2. Read the token from that variable — bash `TOK="${!VAR}"`, PowerShell
+   `$tok = [Environment]::GetEnvironmentVariable($VAR)`. Empty/unset ⇒ reviewer **false**. **Never
+   echo the token, never write it to `risk.json`, the ledger, or a PR comment.**
+3. Resolve the two identities and require they differ:
+   `REVIEWER=$(GH_TOKEN=$tok gh api user --jq .login)` and
+   `AUTHOR=$(gh pr view <n> --json author --jq .author.login)` (author resolved with the *ambient*
+   token, not the reviewer token). Any failure, or `REVIEWER == AUTHOR` ⇒ reviewer **false** (reason:
+   *reviewer identity equals author*). This pre-empts the self-approval rejection instead of
+   discovering it at approve time.
+
+Then call `Get-PromotionDecision` / `promotion_decision` with the environment, the **deterministic
+tier and the classifier tier as two separate arguments** (PS `-DeterministicTier`/`-ClassifierTier`;
+bash positional `$3`/`$4`), the three precondition booleans, and **the reviewer boolean** (PS
+`-ReviewerConfigured`; bash positional `$8`). Do NOT pre-merge the tiers yourself and do NOT
+re-derive the decision by hand — the function computes the escalate-only max() internally (so a
+hand-picked lower tier cannot slip through) and encodes the prod refusal, disabled-by-default, and
+no-reviewer-identity refusals. An unknown/omitted classifier tier ranks HIGH and an absent/false
+reviewer boolean drops to HUMAN — both fail closed. Keep the returned Decision and Reason for §7/§8.
+
+### 7. Write the audit record BEFORE acting
 Every automated approval must be attributable after the fact, so the record is written whether the
-outcome is AUTO or HUMAN, and it is written *first*.
+outcome is AUTO or HUMAN, and it is written *first* (before §8 acts).
 
 Write `state/evidence/<task-id>/risk.json`:
 ```json
@@ -96,6 +123,7 @@ Write `state/evidence/<task-id>/risk.json`:
   "classifierTier": "LOW|MEDIUM|HIGH", "classifierProof": "<its escalation lines, verbatim>",
   "finalTier": "LOW|MEDIUM|HIGH",
   "preconditions": { "gateGreen": true, "reviewShip": true, "e2eEvidence": true },
+  "reviewerConfigured": true, "reviewerIdentity": "<the reviewer login, never its token>",
   "decision": "AUTO|HUMAN", "reason": "<the decision function's reason string>",
   "changedFiles": ["..."], "changedLines": 0 }
 ```
@@ -105,36 +133,36 @@ there is no run in progress, create `harness/.runs/promote-$(date +%Y%m%dT%H%M%S
 {"iter":0,"result":"risk","tier":"LOW","decision":"AUTO","env":"staging","path":"claude","usedFallback":false}
 ```
 
-### 7. Act
-Call `Get-PromotionDecision` / `promotion_decision` with the environment, the **deterministic tier
-and the classifier tier as two separate arguments** (PS `-DeterministicTier`/`-ClassifierTier`; bash
-positional `$3`/`$4`), and the three precondition booleans. Do NOT pre-merge the tiers yourself and do
-NOT re-derive the decision by hand — the function computes the escalate-only max() internally (so a
-hand-picked lower tier cannot slip through) and encodes the prod refusal and disabled-by-default
-behavior. An unknown or omitted classifier tier ranks HIGH, so it fails closed to the HUMAN path.
-
-**On `AUTO`** (only ever reachable for staging + LOW + all preconditions met + `promotion.enabled`):
+### 8. Act
+**On `AUTO`** (only ever reachable for staging + LOW + all preconditions met + `promotion.enabled` +
+a resolved separate reviewer identity):
 1. Post a structured comment on the PR, criterion by criterion — each check, whether it passed, and
-   why. A bare "approved by automation" is not an audit trail.
-2. `gh pr review --approve` then `gh pr merge --auto --squash`.
+   why (name the reviewer identity, never its token). A bare "approved by automation" is not an audit
+   trail.
+2. Approve and merge **as the reviewer identity**, scoping its token to only these two calls:
+   `GH_TOKEN=$tok gh pr review <n> --approve` then `GH_TOKEN=$tok gh pr merge <n> --auto --squash`.
+   If the approve call does not succeed, STOP — take the HUMAN path and never run the merge. (`--auto`
+   also requires the repo's "Allow auto-merge" setting to be on; if merge reports it is disabled, say
+   so and leave the PR approved for a human to merge.)
 
 **On `HUMAN`** (everything else):
 1. Post the same structured comment, headed **ESCALATED**, naming exactly which criteria tripped or
-   which precondition was unmet.
+   which precondition was unmet (including *reviewer identity not configured / equals author* when
+   that was the cause).
 2. Label the PR `risk:medium` / `risk:high`, plus `needs-human`.
 3. Append to `state/handoff.md` under `## Needs human decision`, with the range and the reasons.
 4. **Do not merge. Do not approve.** Not even "it's obviously fine" — that judgement is the thing
    this command exists to remove.
 
-### 8. Probe failures are HUMAN, not merge
-Before any `gh` call, probe: `gh --version`, `gh auth status`, and that a PR exists for this branch
-(`gh pr view --json number`). Any failure ⇒ the HUMAN path, saying which probe failed.
+### 9. Probe failures are HUMAN, not merge
+Before any `gh` call (including the §6 identity resolution), probe: `gh --version`, `gh auth status`,
+and that a PR exists for this branch (`gh pr view --json number`). Any failure ⇒ the HUMAN path,
+saying which probe failed.
 
-**GitHub rejects self-approval.** If the identity that opened the PR is the identity calling
-`gh pr review --approve`, the call fails — this is normal and expected, not a transient error. It
-means auto-approval needs a **separate reviewer identity** (see `docs/promotion.md`). Treat that
-failure as HUMAN and say so plainly; never fall through to `gh pr merge` on an approval that did not
-land.
+**GitHub rejects self-approval.** §6 pre-empts this by requiring the reviewer login to differ from the
+author before AUTO is even possible. If a self-approval rejection still surfaces at approve time
+(e.g. the env var was pointed at the author's own token), treat it as HUMAN and say so plainly; never
+fall through to `gh pr merge` on an approval that did not land.
 
 ## Output
 The final tier, the decision, and every reason that produced it — the same content as the audit

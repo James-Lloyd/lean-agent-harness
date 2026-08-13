@@ -492,7 +492,9 @@ JSON
   echo "risk: the promotion decision (prod is never automated)"
   # Single tier => deterministic=$2, classifier=LOW (the identity for max()), so these pin the same
   # outcomes as before the merge moved inside the function.
-  dec_of() { promotion_decision "$RCFG" "$1" "$2" LOW "$3" "$4" "$5" | cut -d'|' -f1; }
+  # Trailing 1 = reviewer held configured, so each case is attributable to the dimension it tests;
+  # the reviewer gate itself is pinned separately below.
+  dec_of() { promotion_decision "$RCFG" "$1" "$2" LOW "$3" "$4" "$5" 1 | cut -d'|' -f1; }
   ok "$([ "$(dec_of staging LOW 1 1 1)" = "AUTO" ] && echo 1 || echo 0)"     "staging + LOW + preconditions met = AUTO"
   # The load-bearing one. Not "defaults to human" — refused before config is read at all.
   ok "$([ "$(dec_of prod LOW 1 1 1)" = "HUMAN" ] && echo 1 || echo 0)"       "prod + LOW is STILL human"
@@ -505,10 +507,21 @@ JSON
   ok "$([ "$(promotion_decision "$RCFG_OFF" staging LOW LOW 1 1 1 | cut -d'|' -f1)" = "HUMAN" ] && echo 1 || echo 0)" "promotion disabled is human"
   ok "$(promotion_decision "$RCFG_OFF" prod LOW LOW 1 1 1 | grep -qF 'prod promotion is always' && echo 1 || echo 0)" "the prod refusal names prod, not config"
 
+  # GitHub rejects self-approval, so AUTO is reachable ONLY with a separate reviewer identity. The 8th
+  # arg is fail-closed by default (0): a LOW change that cleared every other gate still goes HUMAN when
+  # no reviewer is configured. The caller computes the arg (env token + gh identity != author); the
+  # decision only trusts it. Load-bearing pin for the reviewer-identity wiring.
+  dec_rev() { promotion_decision "$RCFG" staging LOW LOW 1 1 1 "$1" | cut -d'|' -f1; }
+  ok "$([ "$(dec_rev 0)" = "HUMAN" ] && echo 1 || echo 0)" "LOW + all preconditions but NO reviewer identity => HUMAN"
+  ok "$(promotion_decision "$RCFG" staging LOW LOW 1 1 1 0 | grep -qF 'self-approval' && echo 1 || echo 0)" "the no-reviewer refusal names self-approval (not the AUTO reason)"
+  ok "$([ "$(dec_rev 1)" = "AUTO" ] && echo 1 || echo 0)"  "the SAME LOW change WITH a reviewer identity => AUTO"
+  # Fail-closed default: omitting the 8th arg entirely must not reach AUTO (a stale caller cannot merge).
+  ok "$([ "$(promotion_decision "$RCFG" staging LOW LOW 1 1 1 | cut -d'|' -f1)" = "HUMAN" ] && echo 1 || echo 0)" "an OMITTED reviewer arg fails closed to HUMAN"
+
   # The escalate-only merge is computed INSIDE the decision, not handed to it: promotion_decision
   # takes the deterministic tier AND the classifier's verdict and max()es them itself, so no caller
   # can pass a single hand-picked (lower) tier to bypass the classifier. These pin it is internal.
-  merge_dec() { promotion_decision "$RCFG" staging "$1" "$2" 1 1 1 | cut -d'|' -f1; }
+  merge_dec() { promotion_decision "$RCFG" staging "$1" "$2" 1 1 1 1 | cut -d'|' -f1; }
   ok "$([ "$(merge_dec LOW HIGH)" = "HUMAN" ] && echo 1 || echo 0)"     "det LOW + classifier HIGH => HUMAN (cannot bypass the classifier)"
   ok "$([ "$(merge_dec HIGH LOW)" = "HUMAN" ] && echo 1 || echo 0)"     "det HIGH + classifier LOW => HUMAN (deterministic escalation kept)"
   ok "$([ "$(merge_dec LOW LOW)" = "AUTO" ] && echo 1 || echo 0)"       "det LOW + classifier LOW => AUTO (both agree low)"
@@ -521,7 +534,7 @@ JSON
   # Every one of these is schema-valid-or-unvalidated at runtime and previously reached AUTO, because a
   # degenerate shape made a rule evaluate to "no match" instead of escalating -- i.e. it failed OPEN.
   SH="$(mktemp)"
-  shape_dec() { printf '%s' "$1" > "$SH"; promotion_decision "$SH" staging "$2" LOW "$3" "$4" "$5" | cut -d'|' -f1; }
+  shape_dec() { printf '%s' "$1" > "$SH"; promotion_decision "$SH" staging "$2" LOW "$3" "$4" "$5" 1 | cut -d'|' -f1; }
   NOPRE='{ "promotion": { "enabled": true, "staging": { "autoMergeAtOrBelow": "low" }, "prod": { "autoMerge": false }, "alwaysHuman": ["**/payments/**"], "moneySignals": ["price"] } }'
   ok "$([ "$(shape_dec "$NOPRE" LOW 0 0 0)" = "HUMAN" ] && echo 1 || echo 0)" "absent preconditions => HUMAN, not 'all met'"
   SCALAR='{ "promotion": { "enabled": true, "staging": { "autoMergeAtOrBelow": "low" }, "prod": { "autoMerge": false }, "alwaysHuman": "**/payments/**", "moneySignals": ["price"], "preconditions": { "gateGreen": true, "reviewShip": true, "e2eEvidence": true } } }'
@@ -559,6 +572,10 @@ JSON
   ok "$([ "$(jq -r '.promotion.prod.autoMerge' "$CFGP")" = "false" ] && echo 1 || echo 0)" "shipped config sets prod.autoMerge false"
   ok "$([ "$(jq -r '.promotion.enabled' "$CFGP")" = "false" ] && echo 1 || echo 0)"        "shipped config ships promotion disabled"
   ok "$([ "$(jq -r '.promotion.alwaysHuman | length' "$CFGP")" -gt 0 ] && echo 1 || echo 0)" "shipped config guards the money surfaces"
+  # The reviewer-identity wiring: the shipped config must NAME an env var for the approver token, or
+  # auto-merge can never fire (the decision fails closed on a missing reviewer). Only the variable
+  # name is committed, never the token.
+  ok "$([ -n "$(jq -r '.promotion.reviewer.tokenEnv // "" ' "$CFGP")" ] && echo 1 || echo 0)" "shipped config names a reviewer token env var"
   ok "$(jq -e '.properties.promotion.required | index("alwaysHuman") and index("moneySignals") and index("preconditions")' "$SCHEMA" >/dev/null && echo 1 || echo 0)" "schema REQUIRES the money keys when present"
   rm -f "$RCFG" "$RCFG_OFF" "$RF" "$RA"
 else

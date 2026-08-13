@@ -102,6 +102,7 @@
     "enabled": false,
     "staging": { "branch": "staging", "autoMergeAtOrBelow": "low" },
     "prod":    { "branch": "main",    "autoMerge": false },
+    "reviewer": { "tokenEnv": "HARNESS_PROMOTE_REVIEWER_TOKEN" },
     "alwaysHuman": [
       "**/payments/**", "**/payment/**", "**/billing/**", "**/checkout/**",
       "**/subscription*/**", "**/payout*/**", "**/pricing/**", "**/invoic*/**"

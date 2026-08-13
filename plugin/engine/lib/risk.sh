@@ -290,7 +290,7 @@ promotion_config_shape() {  # $1 config path
 # itself (the escalate-only merge) so a caller cannot substitute a single hand-picked tier.
 # Echoes "AUTO|reason" or "HUMAN|reason". Mirror of Get-PromotionDecision in risk.ps1.
 promotion_decision() {
-  local config="$1" envname="$2" dtier="$3" ctier="$4" gate="${5:-0}" ship="${6:-0}" e2e="${7:-0}"
+  local config="$1" envname="$2" dtier="$3" ctier="$4" gate="${5:-0}" ship="${6:-0}" e2e="${7:-0}" reviewer="${8:-0}"
   local t enabled pre_gate pre_ship pre_e2e threshold
   # TRIM, never `tr -d '[:space:]'`: deleting INTERIOR whitespace made "st aging" match staging in
   # bash while the PS twin's .Trim() correctly rejected it as an unknown environment.
@@ -343,7 +343,15 @@ promotion_decision() {
   if [ "$t" != "LOW" ]; then
     echo "HUMAN|risk tier $t exceeds the staging auto-merge threshold"; return
   fi
-  echo "AUTO|LOW risk, all preconditions met, target staging"
+  # Last gate before AUTO, and fail-closed by default (0): GitHub rejects self-approval, so the
+  # auto-merge is only reachable when a SEPARATE reviewer identity is available to approve the PR. The
+  # caller (/promote) computes this from promotion.reviewer.tokenEnv -> a non-empty token whose gh
+  # identity differs from the PR author; it CANNOT be derived here (env + gh are the caller's), so an
+  # omitted/unresolvable reviewer arrives as 0 and drops to HUMAN, never to the merge path.
+  if [ "$reviewer" != "1" ]; then
+    echo "HUMAN|no separate reviewer identity configured (promotion.reviewer.tokenEnv unset/empty or equals the PR author); GitHub rejects self-approval"; return
+  fi
+  echo "AUTO|LOW risk, all preconditions met, separate reviewer identity available, target staging"
 }
 
 # Collect the raw diff signals for a range. Thin by design — everything decision-shaped lives in the

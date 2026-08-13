@@ -56,12 +56,41 @@ finds money-shaped paths your globs miss, but it cannot know your domain's names
 
 **GitHub rejects self-approval.** If the token that opens the PR is the token that calls
 `gh pr review --approve`, the approval fails — always, not intermittently. Auto-approval therefore
-needs a second identity: a machine user or GitHub App installation token with write access,
-exported as `GH_TOKEN` for the approve/merge step only.
+needs a second identity: a machine user, a second account, or a GitHub App installation token, with
+**write** access to the repo.
 
-`/promote` treats a failed approval as HUMAN and never falls through to the merge. So the failure
-mode of getting this wrong is "nothing auto-merges", not "things merge unapproved". Get it wrong
-safely first.
+You wire it in one place — a config key naming the environment variable that holds that identity's
+token:
+
+```json
+"promotion": {
+  "reviewer": { "tokenEnv": "HARNESS_PROMOTE_REVIEWER_TOKEN" }
+}
+```
+
+At AUTO time `/promote` reads that variable and runs *only* the two approve/merge calls with it:
+`GH_TOKEN=$tok gh pr review --approve` then `GH_TOKEN=$tok gh pr merge --auto --squash`. Everything
+else — the diff, the classifier, the PR the author opened — still runs under the ambient identity.
+
+Two guards make this fail safe, both in the tested decision function, not in prose:
+
+- **Not configured ⇒ HUMAN.** If the named variable is empty/unset, the decision's reviewer boolean
+  is false and a LOW change that met every other condition still goes to a human. The failure mode of
+  getting this wrong is "nothing auto-merges", not "things merge unapproved".
+- **Reviewer == author ⇒ HUMAN.** Before approving, `/promote` resolves the reviewer token's login
+  (`gh api user`) and the PR author, and refuses AUTO if they match — pre-empting the self-approval
+  rejection instead of discovering it at approve time.
+
+Setting it up in a repo (do this once, and keep the token OUT of the committed config — the config
+only names the variable):
+
+1. Create the reviewer account/machine user and add it as a **write** collaborator.
+2. Generate a token for it (fine-grained PAT: Contents + Pull requests write, or an App installation
+   token). Put it in the promotion runtime as `HARNESS_PROMOTE_REVIEWER_TOKEN` — a CI secret for the
+   headless/nightly path, or your shell env for an interactive run.
+3. Turn on the repo's **Settings → General → Allow auto-merge** (else `gh pr merge --auto` errors).
+4. In an interactive Claude session the auto-mode classifier blocks `gh pr merge` / `gh pr review`;
+   allowlist those two commands in `.claude/settings.json`, or run `/promote` on the headless path.
 
 ## What the tiers mean
 
@@ -103,9 +132,10 @@ Treat a model swap for the classifier the same way — it is a policy change, no
 
 ## Failure modes, all of which are HUMAN
 
-`gh` missing or unauthenticated · no PR for the branch · self-approval rejected · the classifier
-could not run · an unparseable `RISK:` line · an empty diff · any unmet precondition · an unknown
-environment · `enabled: false`.
+`gh` missing or unauthenticated · no PR for the branch · **no separate reviewer identity configured
+(`reviewer.tokenEnv` empty/unset)** · **the reviewer identity equals the PR author** · self-approval
+rejected · the classifier could not run · an unparseable `RISK:` line · an empty diff · any unmet
+precondition · an unknown environment · `enabled: false`.
 
 None of them merge. If you ever see a promotion path that fails toward the merge, that is a bug and
 a `/ratchet` rule.
