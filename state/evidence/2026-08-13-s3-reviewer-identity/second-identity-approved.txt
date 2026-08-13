@@ -1,0 +1,27 @@
+S3 evidence — a separate write identity CAN approve the same PR
+Repo: James-Lloyd/lean-agent-harness   PR: #9   Date: 2026-08-13
+
+=== switch active account to the reviewer identity ===
+$ gh auth switch --user jl-pr-reviewer
+✓ Switched active account for github.com to jl-pr-reviewer
+
+=== whoami (reviewer identity) ===
+jl-pr-reviewer
+
+=== jl-pr-reviewer approves PR #9 ===
+$ gh pr review 9 --approve
+exit_code=0
+
+=== switch back to author identity ===
+$ gh auth switch --user James-Lloyd
+✓ Switched active account for github.com to James-Lloyd
+
+=== PR #9 review state (queried as James-Lloyd/ADMIN) ===
+{"state":"APPROVED","user":"jl-pr-reviewer"}
+reviewDecision: APPROVED
+
+Conclusion: the same PR that James-Lloyd could NOT self-approve was approved by the
+separate write identity jl-pr-reviewer. The precondition in docs/promotion.md §3 holds:
+a second write identity is both necessary (self-approval rejected) and sufficient
+(second-identity approval accepted) for the auto-approve step. Promotion remains
+enabled:false — this establishes only the identity half of S3.
