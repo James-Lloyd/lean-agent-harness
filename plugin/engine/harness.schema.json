@@ -171,6 +171,13 @@
             }
           }
         },
+        "reviewer": {
+          "type": "object",
+          "description": "The SEPARATE identity that approves + merges an auto-promotion. GitHub rejects self-approval, so the token that opens the PR can never be the token that approves it — auto-merge needs a second identity (a machine user, a second account, or a GitHub App installation token) with write access. Only consulted when auto-merge is armed (enabled + autoMergeAtOrBelow:low); a report-only config may omit it.",
+          "properties": {
+            "tokenEnv": { "type": "string", "description": "Name of the environment variable holding the reviewer identity's GitHub token. /promote reads it and runs `gh pr review --approve` + `gh pr merge` with GH_TOKEN set to its value, for the approve/merge step only. If the variable is empty/unset at run time, or its gh identity equals the PR author, /promote fails CLOSED to HUMAN. Conventional name: HARNESS_PROMOTE_REVIEWER_TOKEN." }
+          }
+        },
         "alwaysHuman": {
           "type": "array",
           "items": { "type": "string" },
