@@ -89,3 +89,7 @@ Hard-won rules (each traces to a real shipped failure):
   drops the entire project `.codex/` layer, so emit only keys the oldest supported version accepts
   (`[[skills.config]]` needs `enabled`; `[agents]` is a role table on 0.144.3). Text-asserting tests were
   green for a full slice while every generated file was dead.
+- **Adding a positional param to a sh lib function updates that function's arg-list header comment in
+  the SAME diff** — the PS twin's `param()` block is self-documenting, so the bash `#  $1 … $N` header
+  is the one surface that silently goes stale (found in review of `promotion_decision`'s new
+  `$8 reviewerConfigured`: PS declared it, the sh header still stopped at `$7`).

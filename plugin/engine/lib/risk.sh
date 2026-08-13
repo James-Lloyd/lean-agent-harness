@@ -285,7 +285,7 @@ promotion_config_shape() {  # $1 config path
 # prod refusal does not read promotion.prod.autoMerge at all. The schema's `const: false` protects a
 # repo that validates its config in CI; this line protects the ones that do not.
 #   $1 config path  $2 env  $3 deterministicTier  $4 classifierTier
-#   $5 gateGreen(1/0)  $6 reviewShip(1/0)  $7 e2eEvidence(1/0)
+#   $5 gateGreen(1/0)  $6 reviewShip(1/0)  $7 e2eEvidence(1/0)  $8 reviewerConfigured(1/0)
 # Takes the deterministic tier AND the classifier's verdict SEPARATELY and computes their max()
 # itself (the escalate-only merge) so a caller cannot substitute a single hand-picked tier.
 # Echoes "AUTO|reason" or "HUMAN|reason". Mirror of Get-PromotionDecision in risk.ps1.
