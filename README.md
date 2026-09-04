@@ -26,7 +26,7 @@ which idea came from where.
                  │                                                          │
    you ──intent──┤  GUIDES (feedforward)            SENSORS (feedback)      │
                  │  steer BEFORE acting             observe AFTER acting    │
-                 │  • CLAUDE.md (map, not manual)   • format / lint         │
+                 │  • AGENTS.md (map, not manual)   • format / lint         │
                  │  • specs/  (immutable truth)     • typecheck             │
                  │  • skills/ (progressive disc.)   • tests (unit + e2e)    │
                  │  • LSP / types / docs/           • fresh-context review  │
@@ -55,7 +55,7 @@ stateful**. That is the whole trick to long-running work.
 
 ```bash
 # 1. Start your project from the template — this gives the SCAFFOLD you fill in:
-#    CLAUDE.md, specs/, state/, harness/harness.config.json (the plugin does NOT ship these).
+#    AGENTS.md (+ CLAUDE.md shim), specs/, state/, harness/harness.config.json (the plugin does NOT ship these).
 git clone <this-repo> my-project && cd my-project && rm -rf .git && git init
 
 # 2. Add the reusable ENGINE as a plugin (commands, agents, skills, hooks, loop/fleet runners).
@@ -101,8 +101,8 @@ the config preset, a Task Scheduler / cron recipe, and the morning audit routine
 
 | Path | What it is |
 |------|------------|
-| `CLAUDE.md` | The root **context map** (~100 lines, a navigation map — not a 1000-page manual). `/harness-init` fills it. |
-| `AGENTS.md` | Portability shim → points other agents (Codex, opencode) at `CLAUDE.md`. No proprietary lock-in. |
+| `AGENTS.md` | The root **context map** (~100 lines, a navigation map — not a 1000-page manual), in the vendor-neutral [agents.md](https://agents.md) form that Codex, Cursor, Copilot and Gemini CLI read natively. `/harness-init` fills it. |
+| `CLAUDE.md` | Claude Code's shim: `@AGENTS.md` import + a short "Claude Code specifics" section (worktree tool, plugin-provided commands, settings). No proprietary lock-in — the map is one file, read by every agent. See `docs/design-docs/002-vendor-agnostic-routing.md`. |
 | `plugin/` | The **`lean-agent-harness` plugin** — the single source of truth for the engine. Ships the commands, agents, skills, hooks (`plugin/hooks/`), and the loop/fleet engine + `lib`/`profiles`/`templates`/schema (`plugin/engine/`). This repo installs it from its own local marketplace (`.claude-plugin/marketplace.json`); deployed projects `/plugin install` + `/plugin update` it. |
 | `.claude/commands/`, `.claude/agents/`, `.claude/skills/`, `.claude/hooks/` | **Provided by the installed plugin — not duplicated in-repo.** Commands (`harness-init`, `work`, `loop`, `review`, `promote`, …); subagent roles (`planner`, `generator`, `explorer`, `evaluator`, `reviewer`, `risk-classifier`, `doc-gardener`), each pinned to a per-phase model (the doer is never the judge); skills (`stack-detect`, `model-routing`, `sprint-contract`, `e2e-evidence`, `brownfield-safety`, `risk-tiering`); cross-platform hooks (`.ps1` primary + `.sh` mirror, dispatched by `run.mjs`). |
 | `.claude/settings.json` | Permissions + env + session `model`/`effortLevel`. The hooks (format/lint/typecheck on edit, routed per component; block destructive bash; SessionStart orientation) are supplied by the plugin (`plugin/hooks/hooks.json`), not defined here. |
@@ -126,11 +126,11 @@ stack, and build/test commands:
 
 ```
 my-project/
-├── CLAUDE.md            # root map → points at each component
+├── AGENTS.md            # root map → points at each component  (CLAUDE.md = `@AGENTS.md`)
 ├── harness/             # one harness governs the whole project
 ├── specs/  state/  docs/
-├── frontend/  ├─ package.json   └─ CLAUDE.md   # component: Node, its own gate
-└── backend/   ├─ pyproject.toml └─ CLAUDE.md   # component: Python, its own gate
+├── frontend/  ├─ package.json   └─ AGENTS.md   # component: Node, its own gate (+ CLAUDE.md shim)
+└── backend/   ├─ pyproject.toml └─ AGENTS.md   # component: Python, its own gate (+ CLAUDE.md shim)
 ```
 
 Each component declares its own gate in `harness/harness.config.json` → `components[]`, and the harness
@@ -174,7 +174,7 @@ rolling back any iteration that fails the validate gate. Full contract:
 
 ## Core principles (the non-negotiables this harness encodes)
 
-1. **Map, not manual.** `CLAUDE.md` ≤ ~100 lines; it points to `docs/`, it doesn't inline everything.
+1. **Map, not manual.** `AGENTS.md` ≤ ~100 lines; it points to `docs/`, it doesn't inline everything.
    Attention is scarce — every line competes.
 2. **The ratchet.** You only add a rule after a real failure. `/ratchet` is how. Speculative rules rot.
 3. **Externalize state.** Anything not in a file the agent can read at runtime *does not exist*.
@@ -197,7 +197,7 @@ rolling back any iteration that fails the validate gate. Full contract:
 
 The harness ships with teaching comments, examples, and reference profiles so it's self-explanatory.
 Once `/harness-init` has made it yours, run **`/harness-prune`** to strip the now-dead scaffolding —
-instructional comments in the always-loaded files (`CLAUDE.md`, `AGENT_NOTES.md`, `PROMPT.md`), the
+instructional comments in the always-loaded files (`AGENTS.md`, `AGENT_NOTES.md`, `PROMPT.md`), the
 `examples/` folder, and unused stack profiles. Less noise competing for the model's attention every
 session, and it's a single revertible commit. ("Map, not manual" applies to the harness itself.)
 

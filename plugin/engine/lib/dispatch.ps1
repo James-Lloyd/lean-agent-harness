@@ -5,7 +5,7 @@
   implement call and periodic reviewer route through; it depends on gate.ps1 (Test-UsageLimitError,
   Get-Prop) and invoke-codex.ps1 (Test-CodexAvailable, Invoke-Codex), which the loop sources first.
 
-  Discipline (CLAUDE.md ratchet + parent plan §1/§3b/§4c — mirror of dispatch.sh):
+  Discipline (AGENTS.md ratchet + parent plan §1/§3b/§4c — mirror of dispatch.sh):
    - USAGE-LIMIT ONLY ON FAILURE. Test-UsageLimitError is consulted ONLY on a not-ok result. A SUCCESS
      is returned immediately and is NEVER re-examined for usage markers — a good build/review whose text
      merely mentions "overloaded"/"quota"/"429" must not be reset and discarded.

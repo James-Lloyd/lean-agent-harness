@@ -8,7 +8,7 @@ description: Detect a project's tech stack and derive the verification gate. Use
 Determine what stack(s) a repo uses and translate that into the harness's per-component verification
 gates. The harness core is stack-agnostic; this skill is the bridge that fills
 `harness/harness.config.json` → `components[]` (+ the cross-cutting `gate`) and the run/build/test
-commands in `CLAUDE.md` / `AGENT_NOTES.md`.
+commands in `AGENTS.md` / `AGENT_NOTES.md`.
 
 ## 0. First: is this one component or several?
 Many projects are **headless** — one root folder containing multiple sub-repos, each with its own root
@@ -44,7 +44,7 @@ Glob/read for manifests and lockfiles, then confirm with the human only the ambi
 | `Dockerfile` / `compose.yaml` | (containerized) | note how the app actually runs |
 
 Also detect: package manager (lockfile), monorepo (workspaces / multiple manifests → consider nested
-`CLAUDE.md` per package), and the OS (for hook wiring).
+`AGENTS.md` per package), and the OS (for hook wiring).
 
 ## 2. Resolve the real commands
 Lockfiles tell you the package manager; `package.json` `scripts` (or the Makefile/justfile/taskfile)
@@ -64,8 +64,8 @@ Profiles live in the plugin engine's `profiles/` dir (in the harness source repo
 ## 4. Write through
 For each component, add an entry to `harness/harness.config.json` → `components[]` with its `path`,
 `profile`, `languages`, `packageManager`, `commands`, and merged `gate`. Put any cross-cutting e2e in
-the top-level `gate`. Fill the Components table in `CLAUDE.md` and the run/build/test commands in
-`AGENT_NOTES.md`. For each non-trivial component, drop a nested `CLAUDE.md` in its directory (copy
-the engine's `templates/component-CLAUDE.md`). Then **prove each gate command runs** (exit 0 from that
+the top-level `gate`. Fill the Components table in `AGENTS.md` and the run/build/test commands in
+`AGENT_NOTES.md`. For each non-trivial component, drop a nested `AGENTS.md` + `CLAUDE.md` shim in its directory (copy
+the engine's `templates/component-AGENTS.md` and `component-CLAUDE.md`). Then **prove each gate command runs** (exit 0 from that
 component's directory on a clean tree) before declaring detection complete — a gate that doesn't
 execute is worse than none.

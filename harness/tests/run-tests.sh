@@ -658,6 +658,22 @@ if command -v jq >/dev/null 2>&1; then
   ok "$(grep 'promotion.moneySignals' "$RSKILL" | grep -qF '`HIGH`' && echo 1 || echo 0)" "risk skill names moneySignals as HIGH"
 fi
 
+echo "docs: AGENTS.md is the map, CLAUDE.md is the @AGENTS.md import shim (design-doc 002)"
+# One source of truth: the vendor-neutral map is AGENTS.md; every CLAUDE.md beside an AGENTS.md is a
+# shim whose FIRST non-blank line is exactly `@AGENTS.md`. Assert the shipped scaffold, the nested engine
+# map, the component template pair, and the worked example all keep that shape.
+_shim_ok() {  # $1 dir ; 0 if <dir>/AGENTS.md exists and <dir>/CLAUDE.md's first non-blank line is @AGENTS.md
+  [ -f "$1/AGENTS.md" ] && [ -f "$1/CLAUDE.md" ] \
+    && [ "$(grep -v '^[[:space:]]*$' "$1/CLAUDE.md" | head -1 | tr -d '\r')" = "@AGENTS.md" ]
+}
+for rel in "" "plugin/engine" "examples/headless-fe-be" "examples/headless-fe-be/frontend" "examples/headless-fe-be/backend"; do
+  d="$RR${rel:+/$rel}"
+  ok "$(_shim_ok "$d" && echo 1 || echo 0)" "AGENTS.md + @AGENTS.md shim in ${rel:-.}"
+done
+ok "$([ -f "$RR/plugin/engine/templates/component-AGENTS.md" ] && [ "$(grep -v '^[[:space:]]*$' "$RR/plugin/engine/templates/component-CLAUDE.md" | head -1 | tr -d '\r')" = "@AGENTS.md" ] && echo 1 || echo 0)" "component template ships as AGENTS.md map + CLAUDE.md shim"
+ok "$(grep -q '{{PROJECT_NAME}}' "$RR/AGENTS.md" && ! grep -q '{{' "$RR/CLAUDE.md" && echo 1 || echo 0)" "placeholders live in AGENTS.md, none in the CLAUDE.md shim"
+ok "$([ "$(wc -l < "$RR/CLAUDE.md")" -le 25 ] && echo 1 || echo 0)" "root CLAUDE.md shim stays short (<= 25 lines)"
+
 echo "plugin: cross-platform hook dispatcher (node)"
 # The plugin ships hooks through plugin/hooks/run.mjs (static hooks.json can't branch on OS). Its own
 # node self-test covers both OS branches + a real dispatch; fold its exit code into this suite.

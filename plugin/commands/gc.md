@@ -13,8 +13,8 @@ small, safe increments. Spawn the **`doc-gardener`** subagent and/or read-only s
 then make minimal fixes — each independently verifiable through the gate.
 
 ## Scan for (pick what's relevant to the focus)
-- **Stale docs** — `CLAUDE.md` over ~100 lines, `docs/` entries contradicting the code, broken
-  cross-links, rules in CLAUDE.md no longer earning their place (delete them — the ratchet cuts both ways).
+- **Stale docs** — `AGENTS.md` over ~100 lines, `docs/` entries contradicting the code, broken
+  cross-links, rules in AGENTS.md no longer earning their place (delete them — the ratchet cuts both ways).
 - **`AGENT_NOTES.md` bloat** — append-only and always-loaded; compact it (dedupe learnings, drop notes
   about code/commands that no longer exist) so it doesn't silently grow the per-session context.
 - **Stale evidence** — `state/evidence/<task-id>/` dirs for tasks that are done **and merged**; propose

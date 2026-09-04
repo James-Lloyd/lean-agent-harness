@@ -7,11 +7,11 @@ via `/plugin update` instead of hand re-templating.
 
 This guide migrates an **already-configured** project from a
 copied-in `.claude/` + `harness/` engine to the plugin. It is a one-time, supervised operation. The
-**scaffold stays yours**: `CLAUDE.md`, `specs/`, `state/`, and `harness/harness.config.json` are per-repo
+**scaffold stays yours**: `AGENTS.md` (+ the `CLAUDE.md` import shim), `specs/`, `state/`, and `harness/harness.config.json` are per-repo
 and are NOT replaced by the plugin.
 
 > The two halves. **Plugin (versioned, shared):** commands, agents, skills, hooks, and the loop/fleet
-> engine. **Scaffold (per-repo, yours):** `CLAUDE.md`, `specs/`, `state/`, `harness/harness.config.json`,
+> engine. **Scaffold (per-repo, yours):** `AGENTS.md` + `CLAUDE.md`, `specs/`, `state/`, `harness/harness.config.json`,
 > and the thin `harness/loop.*`/`fleet.*` wrappers that call the plugin engine.
 
 ## 0. Prerequisites
@@ -51,7 +51,7 @@ Remove the now-duplicated engine files (the plugin supplies them):
 - the full engine scripts `harness/loop.ps1`, `harness/loop.sh`, `harness/fleet.ps1`, `harness/fleet.sh`
   (replaced by thin wrappers in the next step)
 
-**Keep** `harness/harness.config.json` and everything under `state/`, `specs/`, and `CLAUDE.md`.
+**Keep** `harness/harness.config.json` and everything under `state/`, `specs/`, `AGENTS.md` and `CLAUDE.md`.
 
 ## 4. Drop in the thin runner wrappers
 So `powershell harness/loop.ps1 …` (and cron) keep working from a bare terminal — where

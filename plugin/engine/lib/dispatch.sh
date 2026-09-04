@@ -16,7 +16,7 @@
 # (low|medium|high|xhigh|max); anything else (empty, or codex's `minimal`) omits the flag so the model
 # default applies. The codex arm keeps reading models.codex.reasoningEffort. bash 3.2 / BSD-grep safe.
 #
-# Discipline (CLAUDE.md ratchet + parent plan §1/§3b/§4c — mirror of dispatch.ps1):
+# Discipline (AGENTS.md ratchet + parent plan §1/§3b/§4c — mirror of dispatch.ps1):
 #  - USAGE-LIMIT ONLY ON FAILURE. usage_limit_error is consulted ONLY on a nonzero result; a SUCCESS is
 #    returned immediately and NEVER re-examined for usage markers.
 #  - SCOPED FALLBACK. Advance to the fallback ONLY on (a) codex-unavailability or (b) a usage-limit

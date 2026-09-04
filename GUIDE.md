@@ -39,7 +39,7 @@ you trust the **checks**.
 
 ## The five ideas behind it (in one breath each)
 
-1. **A map, not a manual.** The AI reads one short page (`CLAUDE.md`) that points to where things are —
+1. **A map, not a manual.** The AI reads one short page (`AGENTS.md`; Claude Code imports it from `CLAUDE.md`) that points to where things are —
    not a giant rulebook it'll ignore.
 2. **Memory lives in files, not the AI's head.** Plans, progress, and decisions are written to disk, so
    a fresh AI session picks up exactly where the last one left off.

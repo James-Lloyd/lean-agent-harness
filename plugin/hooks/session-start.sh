@@ -8,7 +8,7 @@ lines=()
 branch="$(git -C "$root" rev-parse --abbrev-ref HEAD 2>/dev/null || true)"
 [ -n "$branch" ] && lines+=("branch: $branch")
 
-# One session = one worktree (CLAUDE.md 'Session isolation'). In a linked worktree --git-dir differs
+# One session = one worktree (AGENTS.md 'Session isolation'). In a linked worktree --git-dir differs
 # from --git-common-dir; equal => the main checkout => nudge to isolate before editing.
 gitdir="$(git -C "$root" rev-parse --git-dir 2>/dev/null || true)"
 commondir="$(git -C "$root" rev-parse --git-common-dir 2>/dev/null || true)"
@@ -40,6 +40,6 @@ fi
 if [ "${#lines[@]}" -gt 0 ]; then
   echo "Harness state ::"
   for l in "${lines[@]}"; do echo "  - $l"; done
-  echo "Read CLAUDE.md for the map. One task per iteration; verify before done."
+  echo "Read AGENTS.md for the map (CLAUDE.md imports it). One task per iteration; verify before done."
 fi
 exit 0

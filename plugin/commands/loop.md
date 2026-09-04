@@ -14,7 +14,7 @@ One iteration of `PROMPT.md`, in-session with checkpoints. For unattended runs u
 ## Procedure
 0. **Project type** — `config.project.type` = brownfield → load `brownfield-safety`, confirm the
    baseline is green, branch, characterization-test before changing untested behaviour.
-1. **Study** — `CLAUDE.md`, the relevant `specs/`, `AGENT_NOTES.md`, `state/fix_plan.md`.
+1. **Study** — `AGENTS.md`, the relevant `specs/`, `AGENT_NOTES.md`, `state/fix_plan.md`.
 2. **Select ONE item** — the top unchecked item (or $ARGUMENTS; say why if you deviate).
    - **Checkpoint (`autonomy.checkpoints.planApproval`):** state item + approach in 2–3 lines, get a 👍.
 3. **Implement** — check it isn't already done first; work in the owning component's directory;

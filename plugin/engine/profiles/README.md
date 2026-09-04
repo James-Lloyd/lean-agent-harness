@@ -11,7 +11,7 @@ iteration, before commit); the profile defines **what** `format` / `lint` / `typ
 2. The chosen profile's `gate` block is merged into the relevant **`components[].gate`** in
    `harness/harness.config.json` (each component references its profile by name); any cross-cutting e2e
    that exercises components together goes in the top-level `gate` (the root cross-cutting gate). The
-   commands are also written into `CLAUDE.md` and `AGENT_NOTES.md`.
+   commands are also written into `AGENTS.md` and `AGENT_NOTES.md`.
 3. The loop and the Claude Code hooks then run those commands. Nothing in the core references a
    specific language.
 

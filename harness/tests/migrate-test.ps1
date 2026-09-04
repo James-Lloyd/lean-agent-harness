@@ -68,12 +68,14 @@ try {
   # --- Never-touched scaffold ---
   $cfgJson = '{ "autonomy": { "mode": "supervised" }, "verification": {} }'
   Set-Content -LiteralPath (Join-Path $tmp 'harness/harness.config.json') -Value $cfgJson -Encoding utf8
-  Set-Content -LiteralPath (Join-Path $tmp 'CLAUDE.md')      -Value "# Project map (must not be touched)" -Encoding utf8
+  Set-Content -LiteralPath (Join-Path $tmp 'AGENTS.md')      -Value "# Project map (must not be touched)" -Encoding utf8
+  Set-Content -LiteralPath (Join-Path $tmp 'CLAUDE.md')      -Value "@AGENTS.md" -Encoding utf8
   Set-Content -LiteralPath (Join-Path $tmp 'AGENT_NOTES.md') -Value "# notes (must not be touched)"       -Encoding utf8
   Set-Content -LiteralPath (Join-Path $tmp 'state/PROGRESS.md') -Value "log"  -Encoding utf8
   Set-Content -LiteralPath (Join-Path $tmp 'specs/000.md')      -Value "spec" -Encoding utf8
   $cfgBytes    = [System.IO.File]::ReadAllBytes((Join-Path $tmp 'harness/harness.config.json'))
   $claudeBytes = [System.IO.File]::ReadAllBytes((Join-Path $tmp 'CLAUDE.md'))
+  $agentsBytes = [System.IO.File]::ReadAllBytes((Join-Path $tmp 'AGENTS.md'))
   $notesBytes  = [System.IO.File]::ReadAllBytes((Join-Path $tmp 'AGENT_NOTES.md'))
   $specBytes   = [System.IO.File]::ReadAllBytes((Join-Path $tmp 'specs/000.md'))
 
@@ -184,6 +186,7 @@ try {
   # Never-touched scaffold
   ok "harness.config.json untouched" (-not (Compare-Object ([System.IO.File]::ReadAllBytes((Join-Path $tmp 'harness/harness.config.json'))) $cfgBytes))
   ok "CLAUDE.md untouched"           (-not (Compare-Object ([System.IO.File]::ReadAllBytes((Join-Path $tmp 'CLAUDE.md'))) $claudeBytes))
+  ok "AGENTS.md untouched"           (-not (Compare-Object ([System.IO.File]::ReadAllBytes((Join-Path $tmp 'AGENTS.md'))) $agentsBytes))
   ok "AGENT_NOTES.md untouched"      (-not (Compare-Object ([System.IO.File]::ReadAllBytes((Join-Path $tmp 'AGENT_NOTES.md'))) $notesBytes))
   ok "specs/ untouched"              (-not (Compare-Object ([System.IO.File]::ReadAllBytes((Join-Path $tmp 'specs/000.md'))) $specBytes))
 

@@ -12,7 +12,7 @@ A good harness is shaped by *your* failure history. **Every** rule must trace to
 went wrong — never a speculative "best practice." This command is how the harness learns. It is also
 how it stays small: you add rules here, and you *delete* ones that no longer earn their attention.
 
-## Decide where the rule belongs (don't default to CLAUDE.md)
+## Decide where the rule belongs (don't default to AGENTS.md)
 A rule should live at the cheapest layer that reliably prevents recurrence:
 
 1. **A deterministic sensor (best).** Can a linter, type, test, or hook catch this automatically? If
@@ -24,8 +24,8 @@ A rule should live at the cheapest layer that reliably prevents recurrence:
 2. **A skill** — if it's a recurring *how-to* (a procedure the agent keeps getting wrong), capture it
    as a project skill under `.claude/skills/` (or `plugin/skills/` when developing the harness itself)
    so it's loaded only when relevant (progressive disclosure).
-3. **`CLAUDE.md` "Project rules"** — only if it's a judgment/constraint that can't be mechanized. Add
-   one line: `- [YYYY-MM-DD] <rule> — because <the failure>`. Keep CLAUDE.md ≤ ~100 lines; if adding
+3. **`AGENTS.md` "Project rules"** — only if it's a judgment/constraint that can't be mechanized. Add
+   one line: `- [YYYY-MM-DD] <rule> — because <the failure>`. Keep AGENTS.md ≤ ~100 lines; if adding
    this pushes it over, something older has stopped earning its place — remove that.
 
 ## Procedure
@@ -34,7 +34,7 @@ A rule should live at the cheapest layer that reliably prevents recurrence:
 3. If you added or altered a denylist pattern in `block-destructive.*` or a gate command,
    run the harness self-tests (`harness/tests/run-tests.ps1` / `run-tests.sh`) to prove the new sensor
    actually fires and nothing regressed — an untested sensor is a speculative rule.
-4. If you added a CLAUDE.md line, double-check it's specific and falsifiable, not vague advice.
+4. If you added an AGENTS.md line, double-check it's specific and falsifiable, not vague advice.
 5. Note it in `state/PROGRESS.md` so there's a trail of how the harness evolved.
 
 ## Output

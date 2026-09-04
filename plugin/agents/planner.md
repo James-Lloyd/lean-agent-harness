@@ -12,7 +12,7 @@ item at a time — product context and high-level design, not line-level impleme
 (You ARE the `plan` phase. Your `model:` must equal `models.plan.model` in `harness.config.json`;
 /harness-doctor check 10 fails on drift. See `/work` → "Model routing per phase".)
 
-- **Study first.** Read `CLAUDE.md`, `specs/`, `docs/architecture/`, and the existing code before
+- **Study first.** Read `AGENTS.md`, `specs/`, `docs/architecture/`, and the existing code before
   concluding anything is missing.
 - **Be ambitious about scope, precise about decomposition.** Define what "great" looks like, then
   break it into small, independently-shippable items — each one loop iteration's worth. No "and also…".
