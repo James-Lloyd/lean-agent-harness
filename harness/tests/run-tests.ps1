@@ -252,6 +252,19 @@ $flatReview = [pscustomobject]@{ models = [pscustomobject]@{ review='codex'; rev
 ok "flat review fallback => top-level reviewFallback" ((Resolve-PhaseFallback $flatReview 'review') -eq 'fable')
 ok "flat non-review phase has no fallback ('')"     ((Resolve-PhaseFallback $mcfg 'implement') -eq '')
 
+Write-Host "model routing: Resolve-PhaseEffort / Resolve-PhaseFallbackEffort (declared depth -> headless --effort)"
+$ecfg = [pscustomobject]@{ models = [pscustomobject]@{
+  review    = [pscustomobject]@{ model='claude-fable-5-1'; fallback='claude-opus-5'; effort='high'; fallbackEffort='medium' }
+  implement = [pscustomobject]@{ model='claude-opus-5'; fallback=$null; effort='high' }
+  docs      = [pscustomobject]@{ model='haiku'; effort=$null }
+} }
+ok "nested effort resolves"                                   ((Resolve-PhaseEffort $ecfg 'review') -eq 'high')
+ok "nested fallbackEffort resolves"                           ((Resolve-PhaseFallbackEffort $ecfg 'review') -eq 'medium')
+ok "absent fallbackEffort => '' (inherits effort at dispatch)" ((Resolve-PhaseFallbackEffort $ecfg 'implement') -eq '')
+ok "explicit null effort => ''"                               ((Resolve-PhaseEffort $ecfg 'docs') -eq '')
+ok "absent phase => ''"                                       ((Resolve-PhaseEffort $ecfg 'plan') -eq '')
+ok "flat-legacy string declares no effort"                    ((Resolve-PhaseEffort $mcfg 'implement') -eq '')
+
 Write-Host "model routing S1b: Resolve-PhaseFallback('review') is symmetric with reviewFallback pseudo-phase"
 # Mixed config: nested review with a NULL fallback + a legacy top-level reviewFallback. Both accessors
 # must agree ('fable'); before S1b, Resolve-PhaseFallback returned '' while Resolve-PhaseModel returned 'fable'.
@@ -276,9 +289,13 @@ New-Item -ItemType Directory -Force -Path $stubDir | Out-Null
 $stubClaude = Join-Path $stubDir 'stub-claude.ps1'
 @'
 $null = $input | Out-String
-$model = ''
-for ($k = 0; $k -lt $args.Count; $k++) { if ($args[$k] -eq '--model') { $model = [string]$args[$k+1] } }
-if ($env:STUB_MODEL_LOG) { Add-Content -Path $env:STUB_MODEL_LOG -Value $model }
+$model = ''; $effort = '(none)'
+for ($k = 0; $k -lt $args.Count; $k++) {
+  if ($args[$k] -eq '--model')  { $model  = [string]$args[$k+1] }
+  if ($args[$k] -eq '--effort') { $effort = [string]$args[$k+1] }
+}
+if ($env:STUB_MODEL_LOG)  { Add-Content -Path $env:STUB_MODEL_LOG  -Value $model }
+if ($env:STUB_EFFORT_LOG) { Add-Content -Path $env:STUB_EFFORT_LOG -Value "$model=$effort" }
 if ($model -like '*usage*')      { Write-Output 'Error: monthly usage limit reached'; exit 1 }
 if ($model -like '*generic*')    { Write-Output 'build failed: TypeError in module'; exit 1 }
 if ($model -like '*overloadok*') { Write-Output 'build complete; note: server was overloaded earlier'; exit 0 }
@@ -325,6 +342,33 @@ $t7 = Invoke-Phase -Mode 'read-only' -Prompt 'do the task' -RepoRoot $stubDir -L
                    -Primary 'primary-ok' -Fallback '' -ClaudeCommand $stubClaude -CodexCommand 'no-such-codex-xyz' -Quiet
 ok "7 -Quiet primary success => Ok, Path=claude, no fallback" ($t7.Ok -and $t7.Path -eq 'claude' -and (-not $t7.UsedFallback))
 ok "7 -Quiet still writes the transcript log"                 ((Test-Path $qlog) -and ((Get-Content $qlog -Raw) -match 'clean ok output'))
+# 8. Effort plumbing (2026-09-04): the claude arm passes `--effort` from -Effort for the primary and
+#    -FallbackEffort (else -Effort) for the fallback; only CLI-legal levels become a flag. The stub logs
+#    "<model>=<effort>" per invocation; match line-anchored so 'e-fb=medium' can't pass off 'e-fb2=...'.
+$elog = Join-Path $stubDir 'effort.log'
+function _RunEffort($primary, $fallback, $effort, $fbEffort) {
+  Remove-Item $elog -ErrorAction SilentlyContinue
+  $env:STUB_EFFORT_LOG = $elog
+  $null = Invoke-Phase -Mode 'read-only' -Prompt 'do the task' -RepoRoot $stubDir -LogPath $dlog `
+                       -Primary $primary -Fallback $fallback -ClaudeCommand $stubClaude -CodexCommand 'no-such-codex-xyz' `
+                       -Effort $effort -FallbackEffort $fbEffort
+  Remove-Item Env:STUB_EFFORT_LOG -ErrorAction SilentlyContinue
+  $lines = if (Test-Path $elog) { @(Get-Content $elog) } else { @() }
+  return @($lines | ForEach-Object { $_.Trim() })
+}
+$e = _RunEffort 'e-ok' '' 'high' ''
+ok "8a primary runs at its declared effort (--effort high)"          ($e -ccontains 'e-ok=high')
+$e = _RunEffort 'e-usage' 'e-fb' 'high' 'medium'
+ok "8b fallback runs at FallbackEffort (high -> medium)"             (($e -ccontains 'e-usage=high') -and ($e -ccontains 'e-fb=medium'))
+$e = _RunEffort 'e-usage' 'e-fb2' 'xhigh' ''
+ok "8c absent FallbackEffort inherits the primary's effort"          ($e -ccontains 'e-fb2=xhigh')
+$e = _RunEffort 'e-none' '' '' ''
+ok "8d no declared effort => no --effort flag (model default)"       ($e -ccontains 'e-none=(none)')
+$e = _RunEffort 'e-min' '' 'minimal' ''
+ok "8e codex-only 'minimal' is NOT passed to claude (flag omitted)"  ($e -ccontains 'e-min=(none)')
+$e = _RunEffort 'e-max' '' 'max' ''
+ok "8f 'max' is CLI-legal and passed through"                        ($e -ccontains 'e-max=max')
+ok "8g Test-ClaudeEffortLegal: xhigh yes; minimal/empty/High no (case-sensitive)" ((Test-ClaudeEffortLegal 'xhigh') -and -not (Test-ClaudeEffortLegal 'minimal') -and -not (Test-ClaudeEffortLegal '') -and -not (Test-ClaudeEffortLegal 'High'))
 Remove-Item $stubDir -Recurse -Force -ErrorAction SilentlyContinue
 
 Write-Host "fleet: ownership overlap + batch selection (file-partitioned parallelism)"

@@ -51,13 +51,19 @@ REVIEW_EVERY_N="$(cfg '.verification.reviewEveryNIterations')"; { [ "$REVIEW_EVE
 # CLI default (the pre-routing behavior, and what a /harness-prune-trimmed config degrades to).
 IMPLEMENT_MODEL="$(phase_model "$CONFIG" implement)"
 IMPLEMENT_FALLBACK="$(phase_fallback "$CONFIG" implement)"        # cross-vendor fallback (e.g. "codex"); "" = none
+IMPLEMENT_EFFORT="$(phase_effort "$CONFIG" implement)"            # declared depth -> `claude --effort` on the Claude arm; "" = model default
+IMPLEMENT_FALLBACK_EFFORT="$(phase_fallback_effort "$CONFIG" implement)"
 REVIEW_ROUTE="$(phase_model "$CONFIG" review)"                    # "codex" | claude alias/ID | ""
 REVIEW_FALLBACK="$(phase_fallback "$CONFIG" review)"             # S1b: symmetric with the reviewFallback pseudo-phase
+REVIEW_EFFORT="$(phase_effort "$CONFIG" review)"
+REVIEW_FALLBACK_EFFORT="$(phase_fallback_effort "$CONFIG" review)"
 # Evaluator-at-review-point: when enabled it augments the SAME periodic review point, scoring the batch
 # against the rubric. `cfg '... // default'` degrades a trimmed config to defaults instead of erroring.
 EVAL_ENABLED="$(cfg '.verification.evaluator.enabled // false')"
 EVAL_ROUTE="$(phase_model "$CONFIG" evaluate)"                    # "fable" | codex | claude alias/ID | ""
 EVAL_FALLBACK="$(phase_fallback "$CONFIG" evaluate)"
+EVAL_EFFORT="$(phase_effort "$CONFIG" evaluate)"
+EVAL_FALLBACK_EFFORT="$(phase_fallback_effort "$CONFIG" evaluate)"
 EVAL_RUBRIC="$(cfg '.verification.evaluator.rubric // "docs/principles/evaluator-rubric.md"')"
 EVAL_FAILBELOW="$(cfg '.verification.evaluator.failBelow // 7')"
 CODEX_AUTH="$(cfg '.models.codex.auth // "chatgpt"')"
@@ -140,6 +146,7 @@ EOF
   # never-matching pattern); Bash stays enabled — the reviewer needs `git log`/`git diff`; the hard reset
   # below undoes any mutation. reset_ref="" and max_turns=20; read-only => no write-phase reset inside.
   INVOKE_PHASE_CLAUDE_ARGS=(--disallowedTools Edit Write MultiEdit NotebookEdit)
+  INVOKE_PHASE_EFFORT="$REVIEW_EFFORT"; INVOKE_PHASE_FALLBACK_EFFORT="$REVIEW_FALLBACK_EFFORT"
   # invoke_phase must run in THIS shell (not $(...)) so INVOKE_PHASE_* propagate; capture its stdout (the
   # verdict text) via a redirect to a temp file, which does NOT spawn a subshell.
   local review_out; review_out="$(mktemp)"
@@ -213,6 +220,7 @@ EOF
   # Bash stays enabled (the judge needs git log/diff + read-only evidence commands). invoke_phase must run
   # in THIS shell so INVOKE_PHASE_* globals propagate; capture stdout via a redirect (no subshell).
   INVOKE_PHASE_CLAUDE_ARGS=(--disallowedTools Edit Write MultiEdit NotebookEdit)
+  INVOKE_PHASE_EFFORT="$EVAL_EFFORT"; INVOKE_PHASE_FALLBACK_EFFORT="$EVAL_FALLBACK_EFFORT"
   local eval_out; eval_out="$(mktemp)"
   if invoke_phase read-only "$prompt" "$REPO_ROOT" "$evallog" "$EVAL_ROUTE" "$EVAL_FALLBACK" "" 20 "$CODEX_AUTH" "$CODEX_MODEL" "$CODEX_EFFORT" "$CODEX_TIMEOUT" > "$eval_out"; then rc=0; else rc=$?; fi
   out="$(cat "$eval_out")"; rm -f "$eval_out"
@@ -325,7 +333,7 @@ while [ "$i" -lt "$MAX_ITER" ]; do
   echo "──────── iteration $i / $MAX_ITER ────────"
   ITER_LOG="$RUN_DIR/iter-$i.log"
   if [ "$DRY_RUN" -eq 1 ]; then
-    echo "[dry-run] would pipe $PROMPT_FILE into: claude -p --max-turns $MAX_TURNS${IMPLEMENT_MODEL:+ --model $IMPLEMENT_MODEL} ; then run the gate."; break
+    echo "[dry-run] would pipe $PROMPT_FILE into: claude -p --max-turns $MAX_TURNS${IMPLEMENT_MODEL:+ --model $IMPLEMENT_MODEL}${IMPLEMENT_EFFORT:+ --effort $IMPLEMENT_EFFORT} ; then run the gate."; break
   fi
 
   new_checkpoint "pre-iter-$i"
@@ -341,6 +349,7 @@ while [ "$i" -lt "$MAX_ITER" ]; do
   INVOKE_PHASE_CLAUDE_ARGS=()
   if [ "$MODE" = "auto" ] && [ "$SKIP_PERMS" = "true" ]; then INVOKE_PHASE_CLAUDE_ARGS+=(--dangerously-skip-permissions); fi
   if [ "$(cfg '.autonomy.meterTokens')" = "true" ]; then INVOKE_PHASE_CLAUDE_ARGS+=(--output-format json); fi   # exact usage
+  INVOKE_PHASE_EFFORT="$IMPLEMENT_EFFORT"; INVOKE_PHASE_FALLBACK_EFFORT="$IMPLEMENT_FALLBACK_EFFORT"
   BASE_REF="$(git rev-parse HEAD)"   # clean tree here (new_checkpoint asserts it): the fallback reset target
   if invoke_phase workspace-write "$PROMPT" "$REPO_ROOT" "$ITER_LOG" "$IMPLEMENT_MODEL" "$IMPLEMENT_FALLBACK" "$BASE_REF" "$MAX_TURNS" "$CODEX_AUTH" "$CODEX_MODEL" "$CODEX_EFFORT" "$CODEX_TIMEOUT"; then impl_rc=0; else impl_rc=$?; fi
   echo   # newline after the buffered phase output

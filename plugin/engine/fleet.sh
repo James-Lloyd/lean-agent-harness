@@ -53,6 +53,8 @@ WORKER_TURNS="$(cfg '.parallel.workerMaxTurns // .autonomy.maxTurnsPerIteration 
 WORKER_TIMEOUT="$(cfg '.parallel.workerTimeoutSeconds // 3600')"
 IMPLEMENT_MODEL="$(phase_model "$CONFIG" implement)"
 IMPLEMENT_FALLBACK="$(phase_fallback "$CONFIG" implement)"   # cross-vendor fallback (e.g. "codex"); "" = none — parity with the loop
+IMPLEMENT_EFFORT="$(phase_effort "$CONFIG" implement)"       # declared depth -> `claude --effort` on the Claude arm; "" = model default
+IMPLEMENT_FALLBACK_EFFORT="$(phase_fallback_effort "$CONFIG" implement)"
 CODEX_AUTH="$(cfg '.models.codex.auth // "chatgpt"')"
 CODEX_MODEL="$(cfg '.models.codex.model // empty')"
 CODEX_EFFORT="$(cfg '.models.codex.reasoningEffort // empty')"
@@ -148,7 +150,7 @@ for id in "${BATCH[@]}"; do
   IDS+=("$id"); BRANCHES+=("$branch"); PATHS+=("$wt"); LOGS+=("$log")
   echo "   - $id: $(task_field "$id" '.description')  [owns: $(task_field "$id" '(.files // []) | join(", ")')]"
   if [ "$DRY_RUN" -eq 1 ]; then
-    echo "[dry-run] would run in $wt : claude -p --max-turns $WORKER_TURNS${IMPLEMENT_MODEL:+ --model $IMPLEMENT_MODEL}${IMPLEMENT_FALLBACK:+ (fallback: $IMPLEMENT_FALLBACK)}"
+    echo "[dry-run] would run in $wt : claude -p --max-turns $WORKER_TURNS${IMPLEMENT_MODEL:+ --model $IMPLEMENT_MODEL}${IMPLEMENT_EFFORT:+ --effort $IMPLEMENT_EFFORT}${IMPLEMENT_FALLBACK:+ (fallback: $IMPLEMENT_FALLBACK)}"
     PIDS+=("0")
     continue
   fi
@@ -167,6 +169,7 @@ for id in "${BATCH[@]}"; do
     # array carries only the conditional flags (invoke_phase builds -p/--max-turns and guards the empty case).
     INVOKE_PHASE_CLAUDE_ARGS=()
     if [ "$MODE" = "auto" ] && [ "$SKIP_PERMS" = "true" ]; then INVOKE_PHASE_CLAUDE_ARGS+=(--dangerously-skip-permissions); fi
+    INVOKE_PHASE_EFFORT="$IMPLEMENT_EFFORT"; INVOKE_PHASE_FALLBACK_EFFORT="$IMPLEMENT_FALLBACK_EFFORT"
     invoke_phase workspace-write "$prompt" "$wt" "$log" "$IMPLEMENT_MODEL" "$IMPLEMENT_FALLBACK" "$BASE_REF" "$WORKER_TURNS" "$CODEX_AUTH" "$CODEX_MODEL" "$CODEX_EFFORT" "$CODEX_TIMEOUT" "$CLAUDE_CMD" >/dev/null 2>&1
     echo $? > "$RUN_DIR/fleet-$id.exit"
   ) &

@@ -106,7 +106,8 @@ function Get-OpenItemCount {
 # the tools to run the app, so it can't gather fresh e2e evidence itself (see ROADMAP).
 # Returns $true to continue; $false to stop the loop for human attention.
 function Invoke-PeriodicReview {
-  param([string]$Base, [string]$RunDir, [int]$Iter, [string]$Fallback, [string]$Route, $CodexCfg)
+  param([string]$Base, [string]$RunDir, [int]$Iter, [string]$Fallback, [string]$Route, $CodexCfg,
+        [string]$Effort = '', [string]$FallbackEffort = '')
   $head = "$(& git rev-parse HEAD)".Trim()
   if ($Base -eq $head) { Write-Host "  (periodic review: no new commits since last review)" -ForegroundColor DarkGray; return $true }
   Write-Host "🧑‍⚖️  Periodic fresh-context review of commits $(_Short $Base)..$(_Short $head)..." -ForegroundColor Cyan
@@ -140,6 +141,7 @@ VERDICT: REJECT   (any blocker — when unsure whether a finding is blocker-grad
   # the hard reset below undoes any mutation. Prompt via STDIN (PS 5.1 mangles embedded quotes).
   $phase = Invoke-Phase -Mode 'read-only' -Prompt $reviewPrompt -RepoRoot $RepoRoot -LogPath $reviewLog `
                         -Primary $Route -Fallback $Fallback -CodexCfg $CodexCfg -MaxTurns 20 `
+                        -Effort $Effort -FallbackEffort $FallbackEffort `
                         -ClaudeExtraArgs @('--disallowedTools', 'Edit', 'Write', 'MultiEdit', 'NotebookEdit')
   $reviewPath = if ($phase.Path) { $phase.Path } else { 'claude' }
   $invokeOk = [bool]$phase.Ok; $out = "$($phase.Output)"
@@ -186,7 +188,7 @@ function Write-Reject-Handoff {
 # to stop the loop for human attention.
 function Invoke-PeriodicEvaluation {
   param([string]$Base, [string]$RunDir, [int]$Iter, [string]$Route, [string]$Fallback, $CodexCfg,
-        [string]$Rubric, [int]$FailBelow)
+        [string]$Rubric, [int]$FailBelow, [string]$Effort = '', [string]$FallbackEffort = '')
   $head = "$(& git rev-parse HEAD)".Trim()
   if ($Base -eq $head) { Write-Host "  (periodic evaluation: no new commits since last review)" -ForegroundColor DarkGray; return $true }
   Write-Host "🧮  Periodic evaluator scoring commits $(_Short $Base)..$(_Short $head) against $Rubric..." -ForegroundColor Cyan
@@ -216,6 +218,7 @@ VERDICT: FAIL     (any criterion below $FailBelow, any guardrail breach, or unsu
   # below undoes any mutation. Prompt via STDIN (PS 5.1 mangles embedded quotes).
   $phase = Invoke-Phase -Mode 'read-only' -Prompt $evalPrompt -RepoRoot $RepoRoot -LogPath $evalLog `
                         -Primary $Route -Fallback $Fallback -CodexCfg $CodexCfg -MaxTurns 20 `
+                        -Effort $Effort -FallbackEffort $FallbackEffort `
                         -ClaudeExtraArgs @('--disallowedTools', 'Edit', 'Write', 'MultiEdit', 'NotebookEdit')
   $evalPath = if ($phase.Path) { $phase.Path } else { 'claude' }
   $invokeOk = [bool]$phase.Ok; $out = "$($phase.Output)"
@@ -260,8 +263,12 @@ $reviewEveryN = Get-Prop (Get-Prop $cfg 'verification') 'reviewEveryNIterations'
 # Per-phase model routing (config.models). '' = inherit the ambient CLI default (pre-routing behavior).
 $implementModel      = Resolve-PhaseModel $cfg 'implement'
 $implementFallback   = Resolve-PhaseFallback $cfg 'implement'     # cross-vendor fallback (e.g. 'codex'); '' = none
+$implementEffort     = Resolve-PhaseEffort $cfg 'implement'       # declared depth -> `claude --effort` on the Claude arm; '' = model default
+$implementFbEffort   = Resolve-PhaseFallbackEffort $cfg 'implement'
 $reviewRoute         = Resolve-PhaseModel $cfg 'review'            # 'codex' | claude alias/ID | ''
 $reviewFallback      = Resolve-PhaseFallback $cfg 'review'         # S1b: symmetric with the reviewFallback pseudo-phase
+$reviewEffort        = Resolve-PhaseEffort $cfg 'review'
+$reviewFbEffort      = Resolve-PhaseFallbackEffort $cfg 'review'
 # Evaluator-at-review-point: when enabled it augments the SAME periodic review point (below), scoring the
 # batch against the rubric. Route/fallback resolve through the 'evaluate' phase; rubric/threshold read
 # StrictMode-safe via Get-Prop so a trimmed config degrades to defaults instead of throwing.
@@ -269,6 +276,8 @@ $evalCfg             = Get-Prop (Get-Prop $cfg 'verification') 'evaluator'
 $evalEnabled         = [bool](Get-Prop $evalCfg 'enabled')
 $evalRoute           = Resolve-PhaseModel $cfg 'evaluate'          # 'fable' | codex | claude alias/ID | ''
 $evalFallback        = Resolve-PhaseFallback $cfg 'evaluate'
+$evalEffort          = Resolve-PhaseEffort $cfg 'evaluate'
+$evalFbEffort        = Resolve-PhaseFallbackEffort $cfg 'evaluate'
 $evalRubric          = Get-Prop $evalCfg 'rubric'; if (-not $evalRubric) { $evalRubric = 'docs/principles/evaluator-rubric.md' }
 $evalFailBelow       = Get-Prop $evalCfg 'failBelow'; if ($null -eq $evalFailBelow) { $evalFailBelow = 7 }
 $codexCfg            = Get-Prop (Get-Prop $cfg 'models') 'codex'
@@ -370,7 +379,8 @@ while ($i -lt $cfg.autonomy.maxIterations) {
 
   if ($DryRun) {
     $dryModel = if ($implementModel) { " --model $implementModel" } else { '' }
-    Write-Host "[dry-run] would pipe PROMPT.md into: claude -p --max-turns $maxTurns$dryModel ; then run the gate." -ForegroundColor DarkGray
+    $dryEffort = if ($implementEffort) { " --effort $implementEffort" } else { '' }
+    Write-Host "[dry-run] would pipe PROMPT.md into: claude -p --max-turns $maxTurns$dryModel$dryEffort ; then run the gate." -ForegroundColor DarkGray
     break
   }
 
@@ -392,6 +402,7 @@ while ($i -lt $cfg.autonomy.maxIterations) {
   $baseRef = "$(& git rev-parse HEAD)".Trim()   # clean tree here (New-Checkpoint asserts it): the fallback reset target
   $phase = Invoke-Phase -Mode 'workspace-write' -Prompt $prompt -RepoRoot $RepoRoot -LogPath $iterLog `
                         -Primary $implementModel -Fallback $implementFallback -CodexCfg $codexCfg `
+                        -Effort $implementEffort -FallbackEffort $implementFbEffort `
                         -ResetRef $baseRef -MaxTurns $maxTurns -ClaudeExtraArgs $extra
   if (-not $phase.Ok) {
     $reason = if ($phase.Reason) { $phase.Reason } else { 'invoke-failed' }
@@ -427,12 +438,12 @@ while ($i -lt $cfg.autonomy.maxIterations) {
     $greenCount++
     # Inferential judge, wired in: every N green iterations a fresh-context reviewer audits the batch.
     if ($reviewEveryN -gt 0 -and $commitOnGreen -and ($greenCount % $reviewEveryN) -eq 0) {
-      $ok = Invoke-PeriodicReview -Base $reviewBaseRef -RunDir $runDir -Iter $i -Fallback $reviewFallback -Route $reviewRoute -CodexCfg $codexCfg
+      $ok = Invoke-PeriodicReview -Base $reviewBaseRef -RunDir $runDir -Iter $i -Fallback $reviewFallback -Route $reviewRoute -CodexCfg $codexCfg -Effort $reviewEffort -FallbackEffort $reviewFbEffort
       # The evaluator augments the SAME review point: when enabled, only after the reviewer SHIPs do we
       # also score the batch against the rubric. Advance the watermark only when BOTH pass; any
       # below-threshold criterion stops the loop like a REJECT (Invoke-PeriodicEvaluation writes the handoff).
       if ($ok -and $evalEnabled) {
-        $ok = Invoke-PeriodicEvaluation -Base $reviewBaseRef -RunDir $runDir -Iter $i -Route $evalRoute -Fallback $evalFallback -CodexCfg $codexCfg -Rubric $evalRubric -FailBelow $evalFailBelow
+        $ok = Invoke-PeriodicEvaluation -Base $reviewBaseRef -RunDir $runDir -Iter $i -Route $evalRoute -Fallback $evalFallback -CodexCfg $codexCfg -Rubric $evalRubric -FailBelow $evalFailBelow -Effort $evalEffort -FallbackEffort $evalFbEffort
       }
       if ($ok) {
         $reviewBaseRef = "$(& git rev-parse HEAD)".Trim()   # advance the watermark past the reviewed batch

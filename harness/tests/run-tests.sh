@@ -303,7 +303,18 @@ JSON
   m="$(phase_model "$frcfg" reviewFallback)";ok "$([ "$m" = "fable" ] && echo 1 || echo 0)" "flat-legacy reviewFallback (top-level) (got '$m')"
   m="$(phase_fallback "$frcfg" review)";     ok "$([ "$m" = "fable" ] && echo 1 || echo 0)" "flat review fallback => top-level reviewFallback (got '$m')"
   m="$(phase_fallback "$frcfg" implement)";  ok "$([ -z "$m" ] && echo 1 || echo 0)" "flat non-review phase has no fallback (got '$m')"
-  rm -f "$ncfg" "$frcfg"
+  echo "model routing: phase_effort / phase_fallback_effort (declared depth -> headless --effort)"
+  ecfg="$(mktemp)"; printf '%s' '{ "models": {
+    "review":    { "model": "claude-fable-5-1", "fallback": "claude-opus-5", "effort": "high", "fallbackEffort": "medium" },
+    "implement": { "model": "claude-opus-5", "fallback": null, "effort": "high" },
+    "docs":      { "model": "haiku", "effort": null } } }' > "$ecfg"
+  m="$(phase_effort "$ecfg" review)";            ok "$([ "$m" = "high" ] && echo 1 || echo 0)"   "nested effort resolves (got '$m')"
+  m="$(phase_fallback_effort "$ecfg" review)";   ok "$([ "$m" = "medium" ] && echo 1 || echo 0)" "nested fallbackEffort resolves (got '$m')"
+  m="$(phase_fallback_effort "$ecfg" implement)";ok "$([ -z "$m" ] && echo 1 || echo 0)"         "absent fallbackEffort => '' (inherits effort at dispatch) (got '$m')"
+  m="$(phase_effort "$ecfg" docs)";              ok "$([ -z "$m" ] && echo 1 || echo 0)"         "explicit null effort => '' (got '$m')"
+  m="$(phase_effort "$ecfg" plan)";              ok "$([ -z "$m" ] && echo 1 || echo 0)"         "absent phase => '' (got '$m')"
+  m="$(phase_effort "$frcfg" implement)";        ok "$([ -z "$m" ] && echo 1 || echo 0)"         "flat-legacy string declares no effort (got '$m')"
+  rm -f "$ncfg" "$frcfg" "$ecfg"
 
   echo "model routing S1b: phase_fallback review symmetric with reviewFallback pseudo-phase"
   # Mixed config: nested review with a NULL fallback + a legacy top-level reviewFallback. Both accessors
@@ -332,9 +343,10 @@ JSON
   cat > "$dstub" <<'STUB'
 #!/usr/bin/env bash
 cat >/dev/null   # drain the piped prompt
-model=""
-while [ $# -gt 0 ]; do case "$1" in --model) model="$2"; shift 2;; *) shift;; esac; done
+model=""; effort="(none)"
+while [ $# -gt 0 ]; do case "$1" in --model) model="$2"; shift 2;; --effort) effort="$2"; shift 2;; *) shift;; esac; done
 [ -n "${STUB_MODEL_LOG:-}" ] && printf '%s\n' "$model" >> "$STUB_MODEL_LOG"
+[ -n "${STUB_EFFORT_LOG:-}" ] && printf '%s=%s\n' "$model" "$effort" >> "$STUB_EFFORT_LOG"
 case "$model" in
   *usage*)      echo 'Error: monthly usage limit reached'; exit 1;;
   *generic*)    echo 'build failed: TypeError in module';  exit 1;;
@@ -371,6 +383,31 @@ STUB
   run_phase m-overloadok m-ok
   ok "$([ "$rc" = "0" ] && [ "$INVOKE_PHASE_PATH" = "claude" ] && [ "$INVOKE_PHASE_USED_FALLBACK" = "0" ] && echo 1 || echo 0)" "6 success w/ 'overloaded' text => ok, no fallback (ratchet)"
   ok "$(grep -qx 'm-ok' "$dmlog" && echo 0 || echo 1)" "6 fallback NOT consulted on the success"
+  # 7. Effort plumbing (2026-09-04): the claude arm passes `--effort` from INVOKE_PHASE_EFFORT for the
+  #    primary and INVOKE_PHASE_FALLBACK_EFFORT (else the primary's) for the fallback; only CLI-legal
+  #    levels become a flag. The stub logs "<model>=<effort>" per invocation.
+  delog="$(mktemp)"
+  run_effort() {  # $1 primary  $2 fallback  $3 effort  $4 fallbackEffort
+    : > "$delog"
+    INVOKE_PHASE_EFFORT="$3"; INVOKE_PHASE_FALLBACK_EFFORT="$4"
+    if STUB_EFFORT_LOG="$delog" invoke_phase read-only 'do the task' "$(dirname "$dstub")" "$dlog" \
+        "$1" "$2" "" 20 chatgpt "" "" 900 "$dstub" "no-such-codex-xyz" > "$dout"; then rc=0; else rc=$?; fi
+    unset INVOKE_PHASE_EFFORT INVOKE_PHASE_FALLBACK_EFFORT
+  }
+  run_effort e-ok '' high ''
+  ok "$(grep -qx 'e-ok=high' "$delog" && echo 1 || echo 0)"            "7a primary runs at its declared effort (--effort high)"
+  run_effort e-usage e-fb high medium
+  ok "$(grep -qx 'e-usage=high' "$delog" && grep -qx 'e-fb=medium' "$delog" && echo 1 || echo 0)" "7b fallback runs at fallbackEffort (high -> medium)"
+  run_effort e-usage e-fb2 xhigh ''
+  ok "$(grep -qx 'e-fb2=xhigh' "$delog" && echo 1 || echo 0)"          "7c absent fallbackEffort inherits the primary's effort"
+  run_effort e-none '' '' ''
+  ok "$(grep -qx 'e-none=(none)' "$delog" && echo 1 || echo 0)"        "7d no declared effort => no --effort flag (model default)"
+  run_effort e-min '' minimal ''
+  ok "$(grep -qx 'e-min=(none)' "$delog" && echo 1 || echo 0)"         "7e codex-only 'minimal' is NOT passed to claude (flag omitted)"
+  run_effort e-max '' max ''
+  ok "$(grep -qx 'e-max=max' "$delog" && echo 1 || echo 0)"            "7f 'max' is CLI-legal and passed through"
+  ok "$(claude_effort_legal xhigh && ! claude_effort_legal minimal && ! claude_effort_legal '' && ! claude_effort_legal High && echo 1 || echo 0)" "7g claude_effort_legal: xhigh yes; minimal/empty/High no (case-sensitive)"
+  rm -f "$delog"
   rm -f "$dstub" "$dlog" "$dmlog" "$dout"
   reset_budget; ok "$([ "$(_budget_spent)" = "0" ] && echo 1 || echo 0)" "budget resets to 0"
   if budget_exceeded 0; then ok 0 "tokenBudget 0 = no cap (parity with budget.ps1)"; else ok 1 "tokenBudget 0 = no cap (parity with budget.ps1)"; fi

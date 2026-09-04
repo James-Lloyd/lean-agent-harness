@@ -10,7 +10,11 @@
 #   INVOKE_PHASE_USED_FALLBACK 0|1               whether the fallback candidate produced/attempted it
 #   INVOKE_PHASE_REASON        ""|invoke-failed|exhausted
 # Extra claude args come via a caller-set array INVOKE_PHASE_CLAUDE_ARGS (guarded for the unset/empty case
-# under set -u). bash 3.2 / BSD-grep safe.
+# under set -u). Reasoning depth comes via two caller-set scalars, also guarded: INVOKE_PHASE_EFFORT
+# (the primary's declared effort) and INVOKE_PHASE_FALLBACK_EFFORT (the fallback's; empty = same as
+# the primary). The claude arm passes `--effort <level>` only for a level the CLI accepts
+# (low|medium|high|xhigh|max); anything else (empty, or codex's `minimal`) omits the flag so the model
+# default applies. The codex arm keeps reading models.codex.reasoningEffort. bash 3.2 / BSD-grep safe.
 #
 # Discipline (CLAUDE.md ratchet + parent plan §1/§3b/§4c — mirror of dispatch.ps1):
 #  - USAGE-LIMIT ONLY ON FAILURE. usage_limit_error is consulted ONLY on a nonzero result; a SUCCESS is
@@ -20,6 +24,12 @@
 #  - WRITE-PHASE RESET. In workspace-write mode, hard-reset to <reset_ref> BEFORE a fallback candidate;
 #    never before the primary, never in read-only. A successful write phase is NOT reset (gate +
 #    autoRollbackOnRed are the safety net).
+
+# Is $1 a reasoning-effort level `claude --effort` accepts? Mirror of Test-ClaudeEffortLegal in
+# dispatch.ps1. Empty and codex-only `minimal` are NOT legal (the flag is omitted, model default applies).
+claude_effort_legal() {  # $1 level ; return 0 if the claude CLI accepts it
+  case "$1" in low|medium|high|xhigh|max) return 0;; *) return 1;; esac
+}
 
 # invoke_phase <mode> <prompt> <root> <log> <primary> <fallback> <reset_ref> <max_turns> <codex_auth>
 #              <codex_model> <codex_effort> <codex_timeout> [claude_cmd] [codex_cmd]
@@ -53,6 +63,11 @@ invoke_phase() {
       # Guard the extra-args array for the unset/empty case under set -u (bash 3.2: ${arr+x} tests arr[0]).
       if [ -n "${INVOKE_PHASE_CLAUDE_ARGS+x}" ]; then cargs+=("${INVOKE_PHASE_CLAUDE_ARGS[@]}"); fi
       [ -n "$cand" ] && cargs+=(--model "$cand")
+      # Effort: the fallback candidate runs at INVOKE_PHASE_FALLBACK_EFFORT when declared, else the
+      # primary's INVOKE_PHASE_EFFORT. Only CLI-legal levels become a flag (see claude_effort_flag).
+      local eff="${INVOKE_PHASE_EFFORT:-}"
+      if [ "$is_fallback" = "1" ] && [ -n "${INVOKE_PHASE_FALLBACK_EFFORT:-}" ]; then eff="$INVOKE_PHASE_FALLBACK_EFFORT"; fi
+      if claude_effort_legal "$eff"; then cargs+=(--effort "$eff"); fi
       # Accepted capture idiom (parity with periodic_review): buffered; pipefail surfaces claude's rc.
       if out="$(printf '%s' "$prompt" | "$claude_cmd" "${cargs[@]}" 2>&1 | tee "$log")"; then rc=0; else rc=$?; fi
     fi

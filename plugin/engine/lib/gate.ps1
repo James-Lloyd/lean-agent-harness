@@ -134,6 +134,27 @@ function Resolve-PhaseFallback($Config, [string]$Phase) {
   return ("$fb").Trim()
 }
 
+# Per-phase declared reasoning EFFORT: config.models.<phase>.effort (nested shape only; a legacy flat
+# string declares none), trimmed, or '' when absent/null. The dispatcher turns it into `claude --effort`
+# on the Claude arm when the level is CLI-legal. Mirror of phase_effort in gate.sh.
+function Resolve-PhaseEffort($Config, [string]$Phase) {
+  $m = Get-Prop (Get-Prop $Config 'models') $Phase
+  if ($null -eq $m -or $m -is [string]) { return '' }
+  $e = Get-Prop $m 'effort'
+  if ($null -eq $e) { return '' }
+  return ("$e").Trim()
+}
+
+# Per-phase declared FALLBACK effort: config.models.<phase>.fallbackEffort, or '' (= same as effort).
+# Mirror of phase_fallback_effort in gate.sh.
+function Resolve-PhaseFallbackEffort($Config, [string]$Phase) {
+  $m = Get-Prop (Get-Prop $Config 'models') $Phase
+  if ($null -eq $m -or $m -is [string]) { return '' }
+  $e = Get-Prop $m 'fallbackEffort'
+  if ($null -eq $e) { return '' }
+  return ("$e").Trim()
+}
+
 # Vendor-neutral usage/limit detector for the fallback dispatcher (S3 wires it; here it is a
 # standalone, unit-tested predicate). Detection is OUTPUT-based today: no vendor publishes a stable
 # rate-limit *exit code* we can trust, so $ExitCode is accepted for forward-compat (S3's dispatcher
