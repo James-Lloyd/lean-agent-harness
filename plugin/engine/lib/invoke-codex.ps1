@@ -69,7 +69,7 @@ function Invoke-Codex {
     [Parameter(Mandatory)][string]$Prompt,
     [Parameter(Mandatory)][string]$RepoRoot,
     [Parameter(Mandatory)][string]$LogPath,
-    $CodexCfg,                                   # config.models.codex (may be $null — all defaults)
+    $CodexCfg,                                   # effective codex settings for the phase (Resolve-PhaseCodexCfg: the phase's codex{} over models.codex; may be $null — all defaults)
     [string]$CodexCommand = 'codex'
   )
   $model   = Get-Prop $CodexCfg 'model'

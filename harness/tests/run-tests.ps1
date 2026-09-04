@@ -265,6 +265,25 @@ ok "explicit null effort => ''"                               ((Resolve-PhaseEff
 ok "absent phase => ''"                                       ((Resolve-PhaseEffort $ecfg 'plan') -eq '')
 ok "flat-legacy string declares no effort"                    ((Resolve-PhaseEffort $mcfg 'implement') -eq '')
 
+Write-Host "model routing V2: per-phase codex{model,reasoningEffort} over the global models.codex (design-doc 002 D2)"
+$xcfg = [pscustomobject]@{ models = [pscustomobject]@{
+  codex     = [pscustomobject]@{ model='gpt-global'; reasoningEffort='medium'; auth='chatgpt'; timeoutSeconds=120 }
+  review    = [pscustomobject]@{ model='codex'; fallback='claude-fable-5-1'; codex=[pscustomobject]@{ model='gpt-review'; reasoningEffort='xhigh' } }
+  evaluate  = [pscustomobject]@{ model='codex'; codex=[pscustomobject]@{ model='gpt-eval' } }
+  implement = [pscustomobject]@{ model='claude-opus-5'; fallback='codex' }
+  docs      = 'codex'
+} }
+$xr = Resolve-PhaseCodexCfg $xcfg 'review'; $xe = Resolve-PhaseCodexCfg $xcfg 'evaluate'
+$xi = Resolve-PhaseCodexCfg $xcfg 'implement'; $xd = Resolve-PhaseCodexCfg $xcfg 'docs'; $xn = Resolve-PhaseCodexCfg $ncfg 'implement'
+ok "per-phase codex.model wins over global"              ($xr.model -eq 'gpt-review')
+ok "per-phase codex.reasoningEffort wins over global"    ($xr.reasoningEffort -eq 'xhigh')
+ok "partial override: model from phase"                  ($xe.model -eq 'gpt-eval')
+ok "partial override: effort inherits global"            ($xe.reasoningEffort -eq 'medium')
+ok "no phase block => global model"                      ($xi.model -eq 'gpt-global')
+ok "flat-legacy 'codex' string => global model"          ($xd.model -eq 'gpt-global')
+ok "auth/timeout are global-only and carried through"    ($xr.auth -eq 'chatgpt' -and $xr.timeoutSeconds -eq 120)
+ok "no global, no phase block => null model (CLI default)" ($null -eq $xn.model -and $null -eq $xn.reasoningEffort)
+
 Write-Host "model routing S1b: Resolve-PhaseFallback('review') is symmetric with reviewFallback pseudo-phase"
 # Mixed config: nested review with a NULL fallback + a legacy top-level reviewFallback. Both accessors
 # must agree ('fable'); before S1b, Resolve-PhaseFallback returned '' while Resolve-PhaseModel returned 'fable'.
@@ -369,6 +388,37 @@ ok "8e codex-only 'minimal' is NOT passed to claude (flag omitted)"  ($e -cconta
 $e = _RunEffort 'e-max' '' 'max' ''
 ok "8f 'max' is CLI-legal and passed through"                        ($e -ccontains 'e-max=max')
 ok "8g Test-ClaudeEffortLegal: xhigh yes; minimal/empty/High no (case-sensitive)" ((Test-ClaudeEffortLegal 'xhigh') -and -not (Test-ClaudeEffortLegal 'minimal') -and -not (Test-ClaudeEffortLegal '') -and -not (Test-ClaudeEffortLegal 'High'))
+# 9. V2 (design-doc 002 D2): a per-phase codex model/effort reaches `codex exec -m` / model_reasoning_effort.
+#    A stub 'codex' (.ps1, injected via -CodexCommand) answers `login status` (available), logs the -m / -c
+#    values it was invoked with, and writes a SHIP verdict to the --output-last-message file it was given.
+$stubCodex = Join-Path $stubDir 'stub-codex.ps1'
+@'
+if ($args.Count -gt 0 -and $args[0] -eq 'login') { exit 0 }
+$null = $input | Out-String
+$model = ''; $effort = ''; $last = ''
+for ($k = 0; $k -lt $args.Count; $k++) {
+  if ($args[$k] -eq '-m') { $model = [string]$args[$k+1] }
+  if ($args[$k] -eq '-c' -and ([string]$args[$k+1]).StartsWith('model_reasoning_effort=')) { $effort = ([string]$args[$k+1]).Substring(23) }
+  if ($args[$k] -eq '--output-last-message') { $last = [string]$args[$k+1] }
+}
+if ($env:STUB_CODEX_LOG) { Add-Content -Path $env:STUB_CODEX_LOG -Value "model=$model effort=$effort" }
+if ($last) { Set-Content -Path $last -Value "stub reviewed it`nVERDICT: SHIP" -Encoding utf8 }
+exit 0
+'@ | Set-Content $stubCodex -Encoding utf8
+$clog = Join-Path $stubDir 'codex.log'
+$xcfgLive = [pscustomobject]@{ models = [pscustomobject]@{
+  codex  = [pscustomobject]@{ model='gpt-global'; reasoningEffort='medium'; auth='chatgpt'; timeoutSeconds=60 }
+  review = [pscustomobject]@{ model='codex'; codex=[pscustomobject]@{ model='gpt-per-phase'; reasoningEffort='xhigh' } }
+} }
+Remove-Item $clog -ErrorAction SilentlyContinue; $env:STUB_CODEX_LOG = $clog
+$t9 = Invoke-Phase -Mode 'read-only' -Prompt 'judge the task' -RepoRoot $stubDir -LogPath $dlog `
+                   -Primary 'codex' -Fallback '' -CodexCfg (Resolve-PhaseCodexCfg $xcfgLive 'review') `
+                   -ClaudeCommand $stubClaude -CodexCommand $stubCodex
+Remove-Item Env:STUB_CODEX_LOG -ErrorAction SilentlyContinue
+$t9log = if (Test-Path $clog) { @(Get-Content $clog | ForEach-Object { $_.Trim() }) } else { @() }
+ok "9a codex primary available => Ok, Path=codex, no fallback"                     ($t9.Ok -and $t9.Path -eq 'codex' -and (-not $t9.UsedFallback))
+ok "9b codex arm returns the --output-last-message text (verdict)"                 ("$($t9.Output)" -match 'VERDICT: SHIP')
+ok "9c per-phase codex model/effort reached codex argv (-m / model_reasoning_effort)" ($t9log -ccontains 'model=gpt-per-phase effort="xhigh"')
 Remove-Item $stubDir -Recurse -Force -ErrorAction SilentlyContinue
 
 Write-Host "fleet: ownership overlap + batch selection (file-partitioned parallelism)"

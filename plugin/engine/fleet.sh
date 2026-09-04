@@ -56,9 +56,9 @@ IMPLEMENT_FALLBACK="$(phase_fallback "$CONFIG" implement)"   # cross-vendor fall
 IMPLEMENT_EFFORT="$(phase_effort "$CONFIG" implement)"       # declared depth -> `claude --effort` on the Claude arm; "" = model default
 IMPLEMENT_FALLBACK_EFFORT="$(phase_fallback_effort "$CONFIG" implement)"
 CODEX_AUTH="$(cfg '.models.codex.auth // "chatgpt"')"
-CODEX_MODEL="$(cfg '.models.codex.model // empty')"
-CODEX_EFFORT="$(cfg '.models.codex.reasoningEffort // empty')"
 CODEX_TIMEOUT="$(cfg '.models.codex.timeoutSeconds // 900')"
+CODEX_MODEL="$(phase_codex_model "$CONFIG" implement)"     # per-phase override over models.codex (design-doc 002 D2); "" = CLI default
+CODEX_EFFORT="$(phase_codex_effort "$CONFIG" implement)"
 CLAUDE_CMD="${HARNESS_CLAUDE_CMD:-claude}"   # injectable for stub-driven queue tests (parity: fleet.ps1)
 MODE="$(cfg '.autonomy.mode')"
 SKIP_PERMS="$(cfg '.autonomy.skipPermissions')"

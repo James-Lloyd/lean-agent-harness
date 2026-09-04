@@ -67,9 +67,12 @@ EVAL_FALLBACK_EFFORT="$(phase_fallback_effort "$CONFIG" evaluate)"
 EVAL_RUBRIC="$(cfg '.verification.evaluator.rubric // "docs/principles/evaluator-rubric.md"')"
 EVAL_FAILBELOW="$(cfg '.verification.evaluator.failBelow // 7')"
 CODEX_AUTH="$(cfg '.models.codex.auth // "chatgpt"')"
-CODEX_MODEL="$(cfg '.models.codex.model // empty')"
-CODEX_EFFORT="$(cfg '.models.codex.reasoningEffort // empty')"
 CODEX_TIMEOUT="$(cfg '.models.codex.timeoutSeconds // 900')"
+# Per-phase codex model/effort (design-doc 002 D2): models.<phase>.codex{model,reasoningEffort} wins
+# over the global models.codex block; auth + timeout stay global. "" = float on the codex CLI default.
+IMPLEMENT_CODEX_MODEL="$(phase_codex_model "$CONFIG" implement)";  IMPLEMENT_CODEX_EFFORT="$(phase_codex_effort "$CONFIG" implement)"
+REVIEW_CODEX_MODEL="$(phase_codex_model "$CONFIG" review)";        REVIEW_CODEX_EFFORT="$(phase_codex_effort "$CONFIG" review)"
+EVAL_CODEX_MODEL="$(phase_codex_model "$CONFIG" evaluate)";        EVAL_CODEX_EFFORT="$(phase_codex_effort "$CONFIG" evaluate)"
 # Defaults for optional loop keys, so a trimmed config (e.g. after /harness-prune) degrades to the same
 # defaults loop.ps1 uses instead of grepping a file literally named "null" / cat-ing it under set -e.
 PLAN_FILE="$(cfg '.loop.planFile')";   { [ "$PLAN_FILE" = "null" ]   || [ -z "$PLAN_FILE" ]; }   && PLAN_FILE="state/fix_plan.md"
@@ -150,7 +153,7 @@ EOF
   # invoke_phase must run in THIS shell (not $(...)) so INVOKE_PHASE_* propagate; capture its stdout (the
   # verdict text) via a redirect to a temp file, which does NOT spawn a subshell.
   local review_out; review_out="$(mktemp)"
-  if invoke_phase read-only "$prompt" "$REPO_ROOT" "$reviewlog" "$REVIEW_ROUTE" "$REVIEW_FALLBACK" "" 20 "$CODEX_AUTH" "$CODEX_MODEL" "$CODEX_EFFORT" "$CODEX_TIMEOUT" > "$review_out"; then rc=0; else rc=$?; fi
+  if invoke_phase read-only "$prompt" "$REPO_ROOT" "$reviewlog" "$REVIEW_ROUTE" "$REVIEW_FALLBACK" "" 20 "$CODEX_AUTH" "$REVIEW_CODEX_MODEL" "$REVIEW_CODEX_EFFORT" "$CODEX_TIMEOUT" > "$review_out"; then rc=0; else rc=$?; fi
   out="$(cat "$review_out")"; rm -f "$review_out"
   local review_path="${INVOKE_PHASE_PATH:-claude}"
   # A judge must not mutate the artifact: restore the tree to exactly the reviewed HEAD, no matter
@@ -222,7 +225,7 @@ EOF
   INVOKE_PHASE_CLAUDE_ARGS=(--disallowedTools Edit Write MultiEdit NotebookEdit)
   INVOKE_PHASE_EFFORT="$EVAL_EFFORT"; INVOKE_PHASE_FALLBACK_EFFORT="$EVAL_FALLBACK_EFFORT"
   local eval_out; eval_out="$(mktemp)"
-  if invoke_phase read-only "$prompt" "$REPO_ROOT" "$evallog" "$EVAL_ROUTE" "$EVAL_FALLBACK" "" 20 "$CODEX_AUTH" "$CODEX_MODEL" "$CODEX_EFFORT" "$CODEX_TIMEOUT" > "$eval_out"; then rc=0; else rc=$?; fi
+  if invoke_phase read-only "$prompt" "$REPO_ROOT" "$evallog" "$EVAL_ROUTE" "$EVAL_FALLBACK" "" 20 "$CODEX_AUTH" "$EVAL_CODEX_MODEL" "$EVAL_CODEX_EFFORT" "$CODEX_TIMEOUT" > "$eval_out"; then rc=0; else rc=$?; fi
   out="$(cat "$eval_out")"; rm -f "$eval_out"
   local eval_path="${INVOKE_PHASE_PATH:-claude}"
   # A judge must not mutate the artifact: restore the tree to exactly the evaluated HEAD, no matter what.
@@ -351,7 +354,7 @@ while [ "$i" -lt "$MAX_ITER" ]; do
   if [ "$(cfg '.autonomy.meterTokens')" = "true" ]; then INVOKE_PHASE_CLAUDE_ARGS+=(--output-format json); fi   # exact usage
   INVOKE_PHASE_EFFORT="$IMPLEMENT_EFFORT"; INVOKE_PHASE_FALLBACK_EFFORT="$IMPLEMENT_FALLBACK_EFFORT"
   BASE_REF="$(git rev-parse HEAD)"   # clean tree here (new_checkpoint asserts it): the fallback reset target
-  if invoke_phase workspace-write "$PROMPT" "$REPO_ROOT" "$ITER_LOG" "$IMPLEMENT_MODEL" "$IMPLEMENT_FALLBACK" "$BASE_REF" "$MAX_TURNS" "$CODEX_AUTH" "$CODEX_MODEL" "$CODEX_EFFORT" "$CODEX_TIMEOUT"; then impl_rc=0; else impl_rc=$?; fi
+  if invoke_phase workspace-write "$PROMPT" "$REPO_ROOT" "$ITER_LOG" "$IMPLEMENT_MODEL" "$IMPLEMENT_FALLBACK" "$BASE_REF" "$MAX_TURNS" "$CODEX_AUTH" "$IMPLEMENT_CODEX_MODEL" "$IMPLEMENT_CODEX_EFFORT" "$CODEX_TIMEOUT"; then impl_rc=0; else impl_rc=$?; fi
   echo   # newline after the buffered phase output
   if [ "$impl_rc" -ne 0 ]; then
     impl_uf=false; [ "${INVOKE_PHASE_USED_FALLBACK:-0}" = "1" ] && impl_uf=true

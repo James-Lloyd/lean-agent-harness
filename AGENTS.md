@@ -107,6 +107,9 @@ editing** (Claude Code: see CLAUDE.md; anything else: `git worktree add`). Land 
 - [2026-09-04] A `fix_plan.md` line ticked `[x]` names its `state/evidence/<dir>` in the DONE comment, and
   the PROGRESS line cites both twins' gate counts — a tick with no evidence dir is not done. Found live: V1
   of the vendor refit was ticked on unit-green alone and the fresh-context reviewer rejected it.
+- [2026-09-04] When a global config key gains a per-phase override, grep the key name in the skill, the
+  doctor check AND the schema description before closing — the sentence "X reads the global key" lives in
+  all three (V2 left it in the model-routing skill twice, doctor 10(e), and the schema's effort description).
 
 ## Nested context
 Subsystems carry their own `AGENTS.md` next to their code (in this repo: `plugin/engine/` holds the

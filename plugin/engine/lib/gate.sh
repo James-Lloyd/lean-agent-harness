@@ -105,6 +105,26 @@ phase_fallback_effort() {  # $1 config path  $2 phase
     | if ($m|type) == "object" then ($m.fallbackEffort // "") else "" end' "$1"
 }
 
+# Per-phase CODEX model: config.models.<phase>.codex.model when the phase carries a `codex` override
+# object, else the global models.codex.model, else "" (= float on the CLI default). Design-doc 002 D2:
+# the literal "codex" in model/fallback stays the vendor key; the per-phase block only retunes which
+# Codex model/depth that phase gets. Mirror of Resolve-PhaseCodexCfg (.model) in gate.ps1.
+phase_codex_model() {  # $1 config path  $2 phase
+  jq -r --arg p "$2" '
+    (.models[$p]) as $m
+    | (if ($m|type) == "object" then ($m.codex.model // null) else null end) as $o
+    | if $o != null then $o else (.models.codex.model // "") end' "$1"
+}
+
+# Per-phase CODEX reasoning effort: models.<phase>.codex.reasoningEffort, else the global
+# models.codex.reasoningEffort, else "". Mirror of Resolve-PhaseCodexCfg (.reasoningEffort) in gate.ps1.
+phase_codex_effort() {  # $1 config path  $2 phase
+  jq -r --arg p "$2" '
+    (.models[$p]) as $m
+    | (if ($m|type) == "object" then ($m.codex.reasoningEffort // null) else null end) as $o
+    | if $o != null then $o else (.models.codex.reasoningEffort // "") end' "$1"
+}
+
 # Vendor-neutral usage/limit detector (mirror of Test-UsageLimitError). Output-based; $2 exit code is
 # reserved for forward-compat (S3 passes it) and not yet decisive. bash 3.2 / BSD-grep safe (no \b).
 usage_limit_error() {  # $1 output text  $2 exit code (reserved) ; return 0 if a usage/limit marker present

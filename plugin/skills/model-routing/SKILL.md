@@ -38,6 +38,13 @@ default. `minimal` is a codex-only level (the Claude CLI rejects it, so the disp
 `max` is Claude-only. `fallback: null` = no fallback (the phase just fails when its primary does); a
 whole phase set to `null`, or an absent `models` block, = inherit the ambient session model.
 
+**Per-phase Codex settings.** A phase whose `model` or `fallback` is `codex` may add
+`"codex": { "model": "gpt-5.6-sol", "reasoningEffort": "high" }`; each key set there wins over the
+global `models.codex` block for that phase (keys left null inherit it). `auth` and `timeoutSeconds`
+stay global. Don't add the block to a phase that never routes to codex — the engine won't read it and
+`/harness-doctor` 10(g) will say so. Prefer `model: null` (float on the Codex CLI default) unless you
+have a reason to pin: every `*-codex` model ID was retired in 2026-07/08, so pinned IDs rot.
+
 ## Running the interview
 
 **Lead with the table, not with a blank form.** Most people want the defaults; make accepting them one
@@ -77,7 +84,8 @@ keystroke and make customizing possible without a seven-question interrogation.
 - Steer `session.effort` to `low|medium|high|xhigh` — `minimal` and `max` have no `effortLevel`
   equivalent, so neither can be written to settings.json. This is interview guidance, not a validation
   rule: doctor 10(e)(i) reports either there as ⚠️, so don't "fix" the doctor to hard-fail it.
-- A phase whose primary is `codex` takes its **depth** from `models.codex.reasoningEffort`, and its
+- A phase whose primary is `codex` takes its **depth** from its own `codex.reasoningEffort`, else the
+  global `models.codex.reasoningEffort`, and its
   Claude arm is the *fallback* — so that phase's agent frontmatter tracks `fallbackEffort`.
 
 ## Writing the answer down (all surfaces together, or not at all)
@@ -92,7 +100,7 @@ plugin (there's no in-repo `plugin/`, and `.claude/agents/` is absent or plugin-
 
 | Surface | Gets | Write it in… |
 |---------|------|--------------|
-| `harness/harness.config.json` → `models` | `{model, fallback, effort, fallbackEffort}` per phase | **Both.** The declared table, and the one that actually routes at runtime. Also `models.codex` (`model`, `reasoningEffort`, `auth`, `timeoutSeconds`) if any phase routes to codex. |
+| `harness/harness.config.json` → `models` | `{model, fallback, effort, fallbackEffort}` per phase, plus an optional per-phase `codex: {model, reasoningEffort}` on codex-routed phases | **Both.** The declared table, and the one that actually routes at runtime. Also the global `models.codex` (`model`, `reasoningEffort`, `auth`, `timeoutSeconds`) if any phase routes to codex. |
 | `.claude/settings.json` | `model` = `session.model`, `effortLevel` = `session.effort` | **Both.** `CLAUDE_CODE_EFFORT_LEVEL` and `claude --effort` override `effortLevel` at launch. |
 | the plugin's `agents/*.md` frontmatter | `model:` and `effort:` | **Dev repo only.** Tracks the phase's **primary** when that's Claude; when the primary is `codex`, tracks the phase's Claude **`fallback`**/`fallbackEffort` (under the single-vendor defaults every agent tracks its phase's primary — e.g. `generator` = `claude-opus-5`). |
 
@@ -107,7 +115,8 @@ The headless loop and fleet read the same config and dispatch `--model` **and** 
 Claude arm (since 2026-09-04): the primary runs at the phase's `effort`, a fallback at its
 `fallbackEffort` (else the primary's `effort`). What is still **not** enforced by any file, and should
 be presented as a preference rather than a guarantee: the `effort` of a codex-primary phase (codex
-reads `models.codex.reasoningEffort`), and `fallbackEffort` on an **interactive** `/work` re-spawn (a
+reads the phase's `codex.reasoningEffort`, else `models.codex.reasoningEffort`), and `fallbackEffort` on
+an **interactive** `/work` re-spawn (a
 usage-cap re-spawn pins the model, not the depth).
 
 ## Verify before you call it done

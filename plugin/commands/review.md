@@ -13,7 +13,9 @@ Run an **independent** review, uncontaminated by the reasoning that produced the
 `harness.config.json` → `models.review`:
 - **`"codex"`** (cross-vendor judge — different training lineage): probe availability
   (`codex --version`, then `codex login status` exit 0 or `CODEX_API_KEY` set). If available, run it
-  READ-ONLY via Bash (global flags before the subcommand; `models.codex` supplies model/effort):
+  READ-ONLY via Bash (global flags before the subcommand; the phase's effective codex settings supply
+  model/effort — `review.codex{model,reasoningEffort}` over the global `models.codex`, resolved by
+  `phase_codex_model`/`phase_codex_effort` or `Resolve-PhaseCodexCfg` in `engine/lib/gate.*`):
   ```
   codex --sandbox read-only --ask-for-approval never exec - --cd <repo-root> --skip-git-repo-check
   ```

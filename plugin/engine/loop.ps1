@@ -280,7 +280,11 @@ $evalEffort          = Resolve-PhaseEffort $cfg 'evaluate'
 $evalFbEffort        = Resolve-PhaseFallbackEffort $cfg 'evaluate'
 $evalRubric          = Get-Prop $evalCfg 'rubric'; if (-not $evalRubric) { $evalRubric = 'docs/principles/evaluator-rubric.md' }
 $evalFailBelow       = Get-Prop $evalCfg 'failBelow'; if ($null -eq $evalFailBelow) { $evalFailBelow = 7 }
-$codexCfg            = Get-Prop (Get-Prop $cfg 'models') 'codex'
+# Per-phase codex settings (design-doc 002 D2): models.<phase>.codex{model,reasoningEffort} merged over
+# the global models.codex block (auth + timeoutSeconds stay global). Always an object — StrictMode-safe.
+$implementCodexCfg   = Resolve-PhaseCodexCfg $cfg 'implement'
+$reviewCodexCfg      = Resolve-PhaseCodexCfg $cfg 'review'
+$evalCodexCfg        = Resolve-PhaseCodexCfg $cfg 'evaluate'
 $modelLabel = if ($implementModel) { $implementModel } else { 'inherit' }
 Write-Host "🔧 Harness loop | type=$projType | mode=$($cfg.autonomy.mode) | maxIter=$($cfg.autonomy.maxIterations) | maxTurns=$maxTurns | model=$modelLabel | budget=$($cfg.autonomy.tokenBudget)" -ForegroundColor Cyan
 
@@ -401,7 +405,7 @@ while ($i -lt $cfg.autonomy.maxIterations) {
   if (Get-Prop $cfg.autonomy 'meterTokens') { $extra += @('--output-format', 'json') }   # exact usage
   $baseRef = "$(& git rev-parse HEAD)".Trim()   # clean tree here (New-Checkpoint asserts it): the fallback reset target
   $phase = Invoke-Phase -Mode 'workspace-write' -Prompt $prompt -RepoRoot $RepoRoot -LogPath $iterLog `
-                        -Primary $implementModel -Fallback $implementFallback -CodexCfg $codexCfg `
+                        -Primary $implementModel -Fallback $implementFallback -CodexCfg $implementCodexCfg `
                         -Effort $implementEffort -FallbackEffort $implementFbEffort `
                         -ResetRef $baseRef -MaxTurns $maxTurns -ClaudeExtraArgs $extra
   if (-not $phase.Ok) {
@@ -438,12 +442,12 @@ while ($i -lt $cfg.autonomy.maxIterations) {
     $greenCount++
     # Inferential judge, wired in: every N green iterations a fresh-context reviewer audits the batch.
     if ($reviewEveryN -gt 0 -and $commitOnGreen -and ($greenCount % $reviewEveryN) -eq 0) {
-      $ok = Invoke-PeriodicReview -Base $reviewBaseRef -RunDir $runDir -Iter $i -Fallback $reviewFallback -Route $reviewRoute -CodexCfg $codexCfg -Effort $reviewEffort -FallbackEffort $reviewFbEffort
+      $ok = Invoke-PeriodicReview -Base $reviewBaseRef -RunDir $runDir -Iter $i -Fallback $reviewFallback -Route $reviewRoute -CodexCfg $reviewCodexCfg -Effort $reviewEffort -FallbackEffort $reviewFbEffort
       # The evaluator augments the SAME review point: when enabled, only after the reviewer SHIPs do we
       # also score the batch against the rubric. Advance the watermark only when BOTH pass; any
       # below-threshold criterion stops the loop like a REJECT (Invoke-PeriodicEvaluation writes the handoff).
       if ($ok -and $evalEnabled) {
-        $ok = Invoke-PeriodicEvaluation -Base $reviewBaseRef -RunDir $runDir -Iter $i -Route $evalRoute -Fallback $evalFallback -CodexCfg $codexCfg -Rubric $evalRubric -FailBelow $evalFailBelow -Effort $evalEffort -FallbackEffort $evalFbEffort
+        $ok = Invoke-PeriodicEvaluation -Base $reviewBaseRef -RunDir $runDir -Iter $i -Route $evalRoute -Fallback $evalFallback -CodexCfg $evalCodexCfg -Rubric $evalRubric -FailBelow $evalFailBelow -Effort $evalEffort -FallbackEffort $evalFbEffort
       }
       if ($ok) {
         $reviewBaseRef = "$(& git rev-parse HEAD)".Trim()   # advance the watermark past the reviewed batch

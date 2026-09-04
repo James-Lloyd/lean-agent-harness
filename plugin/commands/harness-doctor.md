@@ -115,13 +115,23 @@ behaves oddly.
       Everything else declared here has **no enforcing file** — report ℹ️, never ❌: a `fallbackEffort` on
       a **Claude-primary** phase under an **interactive** `/work` re-spawn (that re-spawn pins `model:`
       only, so `review`/`evaluate` fallback depth is advisory there, though honored headlessly) and the
-      `effort` of a **codex-primary** phase (codex reads `models.codex.reasoningEffort`; that phase's
+      `effort` of a **codex-primary** phase (codex reads the phase's `codex.reasoningEffort`, else the
+      global `models.codex.reasoningEffort` — see (g); that phase's
       Claude arm is its *fallback*, governed by `fallbackEffort`).
     - **(f) Codex reachability (⚠️ not ❌), for every codex-routed phase.** For **each** phase whose
       `model` OR `fallback` is `"codex"`, probe `codex --version` and (auth `chatgpt`) `codex login
       status` exit 0, or (auth `api-key`) `CODEX_API_KEY` set. Unavailable is ⚠️ not ❌ — that phase runs
       on (or falls back to) its Claude arm by design; say which path each codex-routed phase would take
       today.
+    - **(g) Per-phase codex overrides are read, and legal.** A phase may carry `codex: { model,
+      reasoningEffort }` (design-doc 002 D2), merged over the global `models.codex` by the engine's
+      `phase_codex_model`/`phase_codex_effort` (sh) and `Resolve-PhaseCodexCfg` (ps1). It is consumed
+      ONLY when that phase's `model` or `fallback` is `"codex"` — on any other phase it is a key nothing
+      reads (ratchet 2026-08-11): ⚠️, name the phase, suggest deleting the block or routing the phase to
+      codex. `reasoningEffort` there must be a codex level (`minimal|low|medium|high|xhigh`; `max` is
+      Claude-only) — anything else is ❌. `auth`/`timeoutSeconds` inside a per-phase block are ❌
+      (global-only; the engine ignores them there). Report the effective `-m`/effort each codex-routed
+      phase would run with, so a stale pinned GPT ID (every `*-codex` ID is retired) is visible.
 
 11. **Risk-gated promotion (`promotion` block).** Skip entirely (report ℹ️ "not configured") when the
     block is absent — it is opt-in and most repos won't have it. When present:
