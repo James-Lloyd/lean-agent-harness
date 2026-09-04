@@ -17,23 +17,26 @@ stale copy behind in a sibling command.
 
 | Phase | Agent | model | effort | fallback | Why this one |
 |-------|-------|-------|--------|----------|--------------|
-| `session` | (the main window — you) | `claude-opus-4-8` | `high` | (n/a) | The **orchestrator**. It dispatches, sequences and reports; the deep thinking belongs to the phase agents — but it also judges *when* a phase is done, so it is not the place to save tokens. **Must be Claude** — the main window can't swap vendor mid-session. Pinned to 4.8 so the orchestrator is a different generation from the Opus 5 builder it supervises. |
-| `plan` | `planner` | `claude-fable-5` | `high` | `claude-opus-5` @ `high` | Design is where a bad call is most expensive. Deepest reasoner, highest effort. |
-| `implement` | `generator` | `claude-opus-5` | `high` | `null` | The builder. Strongest coding/agentic model; a different family from the Fable judge that reviews it, so the writer never clears its own diff. **No fallback on purpose** — this phase is interactive, so a cap is recoverable by hand; a silent second-choice builder is worse than stopping. |
-| `review` | `reviewer` | `claude-fable-5` | `high` | `claude-opus-5` @ `medium` | Fresh-context judge — the doer must never be the judge. Judges get the strongest model. Cap-proof fallback because a headless run can't ask a human mid-review. Accepted tradeoff: the fallback equals the builder's model, so a Fable cap costs model diversity — the fresh-context guarantee still holds. |
-| `evaluate` | `evaluator` | `claude-fable-5` | `high` | `claude-opus-5` @ `medium` | Rubric scorer at the sprint gate. Same reasoning as `review`. Off by default (`verification.evaluator.enabled: false`) — one judge at the end is enough. |
+| `session` | (the main window — you) | `claude-fable-5-1` | `medium` | (n/a) | The **orchestrator**. It dispatches, sequences and reports; the deep thinking belongs to the phase agents — but it also judges *when* a phase is done, so it gets the strongest model at a moderate depth. Anthropic's Fable 5.1 guidance: `medium` roughly matches Fable 5 at lower cost, and at `low` it searches less and batches implied tool calls less — so `medium`, not `low`. **Must be Claude** — the main window can't swap vendor mid-session. |
+| `plan` | `planner` | `claude-fable-5-1` | `high` | `claude-opus-5` @ `high` | Design is where a bad call is most expensive. Deepest reasoner at `high` — Anthropic's recommended start; go to `xhigh` only on a measured gain. |
+| `implement` | `generator` | `claude-opus-5` | `high` | `null` | The builder. Anthropic's own default is to start on Opus 5 and escalate to Fable only when Opus 5 at higher effort fails; it is also a different model from the Fable judge that reviews it, so the writer never clears its own diff. **No fallback on purpose** — this phase is interactive, so a cap is recoverable by hand; a silent second-choice builder is worse than stopping. Worth an A/B on a real task: Fable 5.1 @ `medium` has cache reads at a quarter of Opus 5's price, so on long cache-heavy builds cost per completed task can come out close. |
+| `review` | `reviewer` | `claude-fable-5-1` | `high` | `claude-opus-5` @ `medium` | Fresh-context judge — the doer must never be the judge. Judges get the strongest model. Cap-proof fallback because a headless run can't ask a human mid-review. Accepted tradeoff: the fallback equals the builder's model, so a Fable cap costs model diversity — the fresh-context guarantee still holds. |
+| `evaluate` | `evaluator` | `claude-fable-5-1` | `high` | `claude-opus-5` @ `medium` | Rubric scorer at the sprint gate. Same reasoning as `review`. Off by default (`verification.evaluator.enabled: false`) — one judge at the end is enough. |
 | `explore` | `explorer` | `haiku` | `low` | `null` | Read-only scout for fan-out searches. High volume, shallow judgment — the one place to spend nothing. |
 | `docs` | `doc-gardener` | `haiku` | `low` | `null` | Small, safe documentation edits. |
 
-**Pin full IDs, not aliases, wherever the generation matters.** The bare alias `opus` floats to whatever
-the current Opus is (today: Opus 5), so a `session` written as `opus` silently stops being 4.8 the moment
-a new Opus ships. Aliases are fine for `haiku`, where only the tier matters.
+**Pin full IDs, not aliases, wherever the generation matters.** The bare aliases `opus` and `fable` float
+to whatever the current model of that tier is (today: Opus 5 and Fable 5.1), so a phase written as
+`fable` silently changes model the moment a new Fable ships — and effort levels do not mean the same
+depth across generations, so a floated model also floats its cost. Aliases are fine for `haiku`, where
+only the tier matters.
 
 Values may be a **Claude alias** (`opus`/`sonnet`/`haiku`/`fable`), a full `claude-*` ID, or the literal
 **`codex`** (supported by the engine, but not routed in the recommended defaults —
-see "Cross-vendor" below). Effort is `minimal|low|medium|high|xhigh`; absent = the model's own default. `fallback: null`
-= no fallback (the phase just fails when its primary does); a whole phase set to `null`, or an absent
-`models` block, = inherit the ambient session model.
+see "Cross-vendor" below). Effort is `minimal|low|medium|high|xhigh|max`; absent = the model's own
+default. `minimal` is a codex-only level (the Claude CLI rejects it, so the dispatcher omits the flag);
+`max` is Claude-only. `fallback: null` = no fallback (the phase just fails when its primary does); a
+whole phase set to `null`, or an absent `models` block, = inherit the ambient session model.
 
 ## Running the interview
 
@@ -71,9 +74,9 @@ keystroke and make customizing possible without a seven-question interrogation.
 ### Constraints to enforce as you collect
 - `session.model` **must be Claude** — `codex` there is invalid, not a preference.
 - A `fallback` must not equal a `codex` primary (no `codex → codex`; there's one hop of escape, not two).
-- Steer `session.effort` to `low|medium|high|xhigh` — `minimal` has no `effortLevel` equivalent, so it
-  can't be written to settings.json. This is interview guidance, not a validation rule: doctor 10(e)(i)
-  reports `minimal` there as ⚠️, so don't "fix" the doctor to hard-fail it.
+- Steer `session.effort` to `low|medium|high|xhigh` — `minimal` and `max` have no `effortLevel`
+  equivalent, so neither can be written to settings.json. This is interview guidance, not a validation
+  rule: doctor 10(e)(i) reports either there as ⚠️, so don't "fix" the doctor to hard-fail it.
 - A phase whose primary is `codex` takes its **depth** from `models.codex.reasoningEffort`, and its
   Claude arm is the *fallback* — so that phase's agent frontmatter tracks `fallbackEffort`.
 
@@ -100,10 +103,12 @@ anyway: the frontmatter is only a **default**, and `/work` resolves `config.mode
 subagent per spawn with the Agent `model:` override — the config wins at runtime. In a consumer repo,
 config + settings.json *are* the complete write.
 
-The headless loop reads the same config and dispatches `--model` (only — not `--effort`). What is
-**not** enforced by any file, and should be presented as a preference rather than a guarantee: the
-`effort` of a codex-primary phase, and `fallbackEffort` on a Claude-primary phase (a usage-cap re-spawn
-pins the model, not the depth).
+The headless loop and fleet read the same config and dispatch `--model` **and** `--effort` on the
+Claude arm (since 2026-09-04): the primary runs at the phase's `effort`, a fallback at its
+`fallbackEffort` (else the primary's `effort`). What is still **not** enforced by any file, and should
+be presented as a preference rather than a guarantee: the `effort` of a codex-primary phase (codex
+reads `models.codex.reasoningEffort`), and `fallbackEffort` on an **interactive** `/work` re-spawn (a
+usage-cap re-spawn pins the model, not the depth).
 
 ## Verify before you call it done
 Run `/harness-doctor` and read **check 10** — it validates value legality, session-is-Claude,

@@ -25,6 +25,14 @@ a different model on purpose — never review your own diff. See `/work` → "Mo
   only honest proof needs an interactive browser, hand back to the orchestrator to capture it rather
   than claiming evidence you can't produce.
 - **Never weaken or delete a test** to go green. Fix the code, or revert and record the blocker.
+- **The task sets the scope.** A pre-existing bug, a performance concern, or nearby cleanup the task
+  doesn't mention is a follow-up to report in your summary (and `state/fix_plan.md`), not a change to
+  make now — unless the requested behaviour cannot work without it. Where the task is ambiguous,
+  implement the reading its wording and the surrounding code most directly support and state that
+  assumption. Scratch scripts and quick checks need not be kept; commit tests only where the task or
+  the gate calls for them.
+- **Edit surgically.** When it won't change the result, make a targeted edit rather than rewriting the
+  whole file — fewer tokens, smaller diff, easier review.
 - **Your job ends at:** implementation complete, gate green, evidence captured, the *why* commented,
   learnings appended to `AGENT_NOTES.md`. You run in an isolated worktree — leave your finished
   changes in its working tree, **uncommitted**; the orchestrator commits, merges back, and does the

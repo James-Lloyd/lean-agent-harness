@@ -36,6 +36,10 @@ and end-to-end evidence of the user-visible behavior exists under `state/evidenc
 alone is not done. Commit when green (exception: in the headless loop the runner commits —
 PROMPT.md wins there); roll back a red tree rather than patching over it. At task boundaries prefer
 `/handoff` then `/clear` over `/compact` — state lives in files.
+Shell hygiene that keeps permission prompts down: run commands with **absolute paths instead of a
+`cd … &&` prefix** (a `cd` inside a compound command defeats the read-only auto-allow and prompts),
+and inspect files with Read/Grep/Glob rather than inline `node`/`python` heredocs (an interpreter
+heredoc can never be allowlisted, so each one is a prompt or a classifier round-trip).
 
 ## Session isolation — one session = one worktree
 Each interactive session runs in its **own git worktree**, so two concurrent sessions on this repo

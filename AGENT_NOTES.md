@@ -54,3 +54,16 @@ PowerShell 5.1: `powershell harness/tests/run-tests.ps1`; bash needs `jq` on PAT
   Details: docs/execution-plans/2026-07-26-claude5-context-refresh.md; docs/principles/sources.md rows 8–9.
 - [2026-08-08] `jq.exe` under Git Bash emits CRLF, which silently breaks config-derived globs (fail-OPEN,
   invisible in Linux-only CI). Engine-internal, so the rule lives with the engine: `plugin/engine/CLAUDE.md`.
+- [2026-09-04] Permission-prompt load is mostly NOT an allowlist gap. Across 50 recent sessions, ~45% of
+  Bash calls began `cd <path> && …` (a `cd` in a compound command defeats the read-only auto-allow and
+  prompts) and ~13% were `node`/`python` heredocs (an interpreter can never be allowlisted). Use absolute
+  paths and the Read/Grep/Glob tools instead; rule recorded in CLAUDE.md "How to work". Separately, the
+  user-level Claude settings file carried ~200 KB of mojibake in its auto-mode context strings (an em
+  dash re-encoded through cp1252 ~10x) that the auto-mode classifier re-read on every call — keep
+  settings strings ASCII; the classifier also blocks shell writes to that file, so a human runs the repair.
+- [2026-09-04] Headless `--effort` is now plumbed (dispatch.* Claude arm, from `models.<phase>.effort` /
+  `fallbackEffort`). Only `low|medium|high|xhigh|max` become a flag — `minimal` is codex-only and is
+  silently omitted, so a `minimal` on a Claude phase runs at the model default, not at minimal.
+- [2026-09-04] The block-destructive hook's secrets-read pattern matches `.env` as a SUBSTRING, so a
+  `cat >> notes.md <<EOF` whose body mentions `autoMode.environment` is denied as "reading secrets".
+  Append prose through the Edit tool, or keep `.env`-shaped words out of heredoc bodies.

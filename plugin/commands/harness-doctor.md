@@ -94,21 +94,26 @@ behaves oddly.
       cross-vendor escape hatch beyond one hop, so both candidates being codex leaves a usage-limit stop
       nowhere to go.
     - **(e) Declared effort tracks frontmatter — where anything enforces it.** `effort`/`fallbackEffort`
-      are optional (`minimal|low|medium|high|xhigh`); absent = the model default, and absent everywhere
-      is ✅. Two enforced cases, both ❌ on mismatch:
+      are optional (`minimal|low|medium|high|xhigh|max`); absent = the model default, and absent everywhere
+      is ✅. `minimal` on a **Claude** primary/fallback is ⚠️ (codex-only level; the headless dispatcher
+      omits the flag and the model default applies). Two graded cases, both ❌ on mismatch, then one
+      that needs no grading:
       **(i) Session** — `.claude/settings.json` `effortLevel` == `models.session.effort` (the settings key
-      accepts `low|medium|high|xhigh`; `minimal` has no settings equivalent, so declaring it for `session`
-      is ⚠️. `CLAUDE_CODE_EFFORT_LEVEL` and `claude --effort` override the file at launch — note if the
-      env var is set to something else, don't fail on it).
+      accepts `low|medium|high|xhigh`; `minimal` and `max` have no settings equivalent, so declaring
+      either for `session` is ⚠️, not ❌. `CLAUDE_CODE_EFFORT_LEVEL` and `claude --effort` override the
+      file at launch — note if the env var is set to something else, don't fail on it).
       **(ii) Subagents** — the agent whose `model:` lands on a phase (same mapping as (c)) must carry the
       matching `effort:`: the phase's `effort` when frontmatter tracks the primary, its `fallbackEffort`
       when frontmatter tracks the Claude fallback (`generator` → `implement`; an absent `fallbackEffort`
       inherits `effort`).
+      **(iii) Headless** — the loop/fleet dispatcher passes `--effort` on its Claude arm (primary at
+      `effort`, fallback at `fallbackEffort`, else `effort`) straight from the config, so there is no
+      second file to drift from; nothing to grade beyond this sub-check's own enum line above.
       Everything else declared here has **no enforcing file** — report ℹ️, never ❌: a `fallbackEffort` on
-      a **Claude-primary** phase (the usage-cap re-spawn pins `model:` only, so `review`/`evaluate`
-      fallback depth is advisory) and the `effort` of a **codex-primary** phase (codex reads
-      `models.codex.reasoningEffort`; that phase's Claude arm is its *fallback*, governed by
-      `fallbackEffort`).
+      a **Claude-primary** phase under an **interactive** `/work` re-spawn (that re-spawn pins `model:`
+      only, so `review`/`evaluate` fallback depth is advisory there, though honored headlessly) and the
+      `effort` of a **codex-primary** phase (codex reads `models.codex.reasoningEffort`; that phase's
+      Claude arm is its *fallback*, governed by `fallbackEffort`).
     - **(f) Codex reachability (⚠️ not ❌), for every codex-routed phase.** For **each** phase whose
       `model` OR `fallback` is `"codex"`, probe `codex --version` and (auth `chatgpt`) `codex login
       status` exit 0, or (auth `api-key`) `CODEX_API_KEY` set. Unavailable is ⚠️ not ❌ — that phase runs

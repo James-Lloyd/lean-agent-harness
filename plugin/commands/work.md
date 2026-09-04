@@ -34,10 +34,13 @@ the config (readable directly, or via the engine lib resolvers — bash `phase_m
 With the default config every phase is Claude (single-vendor by decision 2026-08-11 — the codex arm
 still exists in the engine but is unrouted), so PLAN, EXECUTE and REVIEW each spawn their Claude
 subagent: `generator` **is** the implement primary (`claude-opus-5`, no fallback — if it caps the
-build stops), `planner`/`reviewer` run `claude-fable-5` with a `claude-opus-5` fallback. Subagent
+build stops), `planner`/`reviewer` run `claude-fable-5-1` with a `claude-opus-5` fallback. Subagent
 frontmatter carries each phase's primary Claude model *and* its declared `effort`; `/harness-doctor`
-check 10 validates that. You — the orchestrator — run `models.session` (`claude-opus-4-8` at high
+check 10 validates that. You — the orchestrator — run `models.session` (`claude-fable-5-1` at medium
 effort by default): dispatch and sequencing, with the deep reasoning pushed into the phase agents.
+Spawn the phase agents in the background and keep working while they run (only wait when the next
+step needs their result) — Anthropic measured lower time to completion at the same quality when the
+lead is not forced to stop for each subagent.
 
 ## Phase 0 — PROJECT TYPE
 - `config.project.type` = **brownfield** → load the `brownfield-safety` skill, confirm the baseline is

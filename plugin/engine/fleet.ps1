@@ -65,6 +65,8 @@ if (-not $workerTurns) { $workerTurns = 40 }
 $workerTimeout = Get-Prop $parallelCfg 'workerTimeoutSeconds'; if (-not $workerTimeout) { $workerTimeout = 3600 }
 $implementModel = Resolve-PhaseModel $cfg 'implement'
 $implementFallback = Resolve-PhaseFallback $cfg 'implement'   # cross-vendor fallback (e.g. 'codex'); '' = none — parity with the loop
+$implementEffort = Resolve-PhaseEffort $cfg 'implement'       # declared depth -> `claude --effort` on the Claude arm; '' = model default
+$implementFbEffort = Resolve-PhaseFallbackEffort $cfg 'implement'
 $codexCfg = Get-Prop (Get-Prop $cfg 'models') 'codex'
 $claudeCmd = if ($env:HARNESS_CLAUDE_CMD) { $env:HARNESS_CLAUDE_CMD } else { 'claude' }   # injectable for stub-driven queue tests (parity: fleet.sh)
 
@@ -149,8 +151,9 @@ foreach ($t in $batch) {
   $logPath = Join-Path $runDir "fleet-$tid.log"
   if ($DryRun) {
     $dryModel = if ($implementModel) { " --model $implementModel" } else { '' }
+    $dryEffort = if ($implementEffort) { " --effort $implementEffort" } else { '' }
     $dryFallback = if ($implementFallback) { " (fallback: $implementFallback)" } else { '' }
-    Write-Host "[dry-run] would run in $wtPath : claude -p --max-turns $workerTurns$dryModel$dryFallback" -ForegroundColor DarkGray
+    Write-Host "[dry-run] would run in $wtPath : claude -p --max-turns $workerTurns$dryModel$dryEffort$dryFallback" -ForegroundColor DarkGray
     $workers += [pscustomobject]@{ Task = $t; Id = $tid; Branch = $branch; Path = $wtPath; Job = $null; Log = $logPath }
     continue
   }
@@ -166,7 +169,7 @@ foreach ($t in $batch) {
   $libDir = Join-Path $PSScriptRoot 'lib'
   $prompt = New-WorkerPrompt $t
   $job = Start-Job -ScriptBlock {
-    param($libDir, $wt, $p, $log, $cmd, $primary, $fallback, $codexCfg, $baseRef, $turns, $extra)
+    param($libDir, $wt, $p, $log, $cmd, $primary, $fallback, $codexCfg, $baseRef, $turns, $extra, $effort, $fbEffort)
     $ErrorActionPreference = 'Stop'; Set-StrictMode -Version Latest
     Set-Location $wt
     $env:HARNESS_LOCK_SPECS = '1'
@@ -175,9 +178,10 @@ foreach ($t in $batch) {
     . (Join-Path $libDir 'dispatch.ps1')      # Invoke-Phase
     $ph = Invoke-Phase -Mode 'workspace-write' -Prompt $p -RepoRoot $wt -LogPath $log `
             -Primary $primary -Fallback $fallback -CodexCfg $codexCfg -ResetRef $baseRef `
+            -Effort $effort -FallbackEffort $fbEffort `
             -MaxTurns $turns -ClaudeExtraArgs $extra -ClaudeCommand $cmd -Quiet
     if ($ph.Ok) { 0 } else { 1 }   # the job's only output object -> the merge queue reads it as the worker exit
-  } -ArgumentList $libDir, $wtPath, $prompt, $logPath, $claudeCmd, $implementModel, $implementFallback, $codexCfg, $baseRef, $workerTurns, $extra
+  } -ArgumentList $libDir, $wtPath, $prompt, $logPath, $claudeCmd, $implementModel, $implementFallback, $codexCfg, $baseRef, $workerTurns, $extra, $implementEffort, $implementFbEffort
   $workers += [pscustomobject]@{ Task = $t; Id = $tid; Branch = $branch; Path = $wtPath; Job = $job; Log = $logPath }
   Write-Host "  ▶ worker $tid started in $wtPath" -ForegroundColor Cyan
 }

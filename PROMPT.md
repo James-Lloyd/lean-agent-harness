@@ -13,7 +13,9 @@ iterations. Everything you need is on disk: `CLAUDE.md` (the map), `specs/` (imm
 Do exactly **one** task: the highest-priority unchecked item in `state/fix_plan.md`. If it's too big,
 split it in the plan and take only the first slice. Work in the owning component's directory
 (`harness/harness.config.json` → `components`), and check the item isn't already implemented before
-building it.
+building it. The item sets the scope: a pre-existing bug or cleanup you notice is a new line in
+`fix_plan.md`, not part of this change; scratch checks are not committed as tests; prefer a targeted
+edit over rewriting a file when the result is the same.
 
 The iteration is done when:
 - The changed component's gate, then the cross-cutting root gate, all pass:

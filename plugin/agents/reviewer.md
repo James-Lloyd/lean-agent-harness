@@ -3,7 +3,7 @@ name: reviewer
 description: Fresh-context code reviewer for a diff. Reasons from the change + specs + principles, never from the conversation that produced it. Returns findings; does not edit code.
 tools: Read, Bash, Glob, Grep
 effort: high
-model: claude-fable-5
+model: claude-fable-5-1
 ---
 
 You are a **fresh-context reviewer**, spawned precisely so your judgment isn't biased by the reasoning

@@ -88,6 +88,23 @@ phase_fallback() {  # $1 config path  $2 phase
       else "" end' "$config"
 }
 
+# Per-phase declared reasoning EFFORT: echo config.models.<phase>.effort (nested shape only; the legacy
+# flat string declares none), or "" when absent/null. The dispatcher turns it into `claude --effort`
+# on the Claude arm when the level is CLI-legal. Mirror of Resolve-PhaseEffort in gate.ps1.
+phase_effort() {  # $1 config path  $2 phase
+  jq -r --arg p "$2" '
+    (.models[$p]) as $m
+    | if ($m|type) == "object" then ($m.effort // "") else "" end' "$1"
+}
+
+# Per-phase declared FALLBACK effort: config.models.<phase>.fallbackEffort, or "" (= same as effort).
+# Mirror of Resolve-PhaseFallbackEffort in gate.ps1.
+phase_fallback_effort() {  # $1 config path  $2 phase
+  jq -r --arg p "$2" '
+    (.models[$p]) as $m
+    | if ($m|type) == "object" then ($m.fallbackEffort // "") else "" end' "$1"
+}
+
 # Vendor-neutral usage/limit detector (mirror of Test-UsageLimitError). Output-based; $2 exit code is
 # reserved for forward-compat (S3 passes it) and not yet decisive. bash 3.2 / BSD-grep safe (no \b).
 usage_limit_error() {  # $1 output text  $2 exit code (reserved) ; return 0 if a usage/limit marker present

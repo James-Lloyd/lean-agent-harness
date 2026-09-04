@@ -18,11 +18,18 @@
      the gate + autoRollbackOnRed are its safety net.
 #>
 
+# Is $Level a reasoning-effort level `claude --effort` accepts? Mirror of claude_effort_legal in
+# dispatch.sh. '' and codex-only 'minimal' are NOT legal (the flag is omitted, model default applies).
+function Test-ClaudeEffortLegal([string]$Level) {
+  return ($Level -cin @('low', 'medium', 'high', 'xhigh', 'max'))
+}
+
 # Run one claude headless phase. Prompt via STDIN (Windows PowerShell 5.1 corrupts embedded quotes in
 # native args). Live streaming preserved via Tee-Object to $LogPath (no Out-String on the live pipe),
 # then the text is read back for .Output; when $LogPath is empty the file tee is skipped. Runs under
 # EAP='Continue' so claude's routine stderr doesn't throw under the caller's 'Stop'; the native exit is
-# read explicitly from $LASTEXITCODE (a non-zero exit is not an exception). $Model '' => omit --model.
+# read explicitly from $LASTEXITCODE (a non-zero exit is not an exception). $Model '' => omit --model;
+# $Effort not CLI-legal (see Test-ClaudeEffortLegal) => omit --effort.
 function Invoke-ClaudePhase {
   param(
     [string]$Model = '',
@@ -31,11 +38,13 @@ function Invoke-ClaudePhase {
     [int]$MaxTurns = 40,
     [string[]]$ExtraArgs = @(),
     [string]$ClaudeCommand = 'claude',
+    [string]$Effort = '',
     [switch]$Quiet   # swap the live Out-Host passthrough for Out-Null (fleet workers run inside Start-Job)
   )
   $a = @('-p', '--max-turns', "$MaxTurns")
   if ($ExtraArgs -and $ExtraArgs.Count -gt 0) { $a += $ExtraArgs }
   if ($Model) { $a += @('--model', "$Model") }
+  if (Test-ClaudeEffortLegal $Effort) { $a += @('--effort', "$Effort") }
   $prevEAP = $ErrorActionPreference; $ErrorActionPreference = 'Continue'
   $exit = 0; $out = ''
   try {
@@ -76,6 +85,8 @@ function Invoke-Phase {
     [string[]]$ClaudeExtraArgs = @(),
     [string]$ClaudeCommand = '',           # injectable for tests; else $env:HARNESS_CLAUDE_CMD ?? 'claude'
     [string]$CodexCommand = 'codex',       # injectable for tests
+    [string]$Effort = '',                  # declared effort of the primary (claude arm: --effort when CLI-legal)
+    [string]$FallbackEffort = '',          # declared effort of the fallback; '' = same as the primary
     [switch]$Quiet                         # fleet workers pass -Quiet so Start-Job doesn't replay the transcript
   )
   $claudeCmd = if ($ClaudeCommand) { $ClaudeCommand } elseif ($env:HARNESS_CLAUDE_CMD) { $env:HARNESS_CLAUDE_CMD } else { 'claude' }
@@ -98,7 +109,9 @@ function Invoke-Phase {
       $res = Invoke-Codex -Mode $Mode -Prompt $Prompt -RepoRoot $RepoRoot -LogPath $LogPath -CodexCfg $CodexCfg -CodexCommand $CodexCommand
     } else {
       $vendor = 'claude'
-      $res = Invoke-ClaudePhase -Model $cand -Prompt $Prompt -LogPath $LogPath -MaxTurns $MaxTurns -ExtraArgs $ClaudeExtraArgs -ClaudeCommand $claudeCmd -Quiet:$Quiet
+      # The fallback candidate runs at $FallbackEffort when declared, else the primary's $Effort.
+      $eff = if ($isFallback -and $FallbackEffort) { $FallbackEffort } else { $Effort }
+      $res = Invoke-ClaudePhase -Model $cand -Prompt $Prompt -LogPath $LogPath -MaxTurns $MaxTurns -ExtraArgs $ClaudeExtraArgs -ClaudeCommand $claudeCmd -Effort $eff -Quiet:$Quiet
     }
     if ($res.Ok) {
       # SUCCESS: return immediately — never re-examine a success for usage markers (ratchet).

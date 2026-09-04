@@ -2,7 +2,7 @@
 name: planner
 description: Expands a short intent into an ambitious-but-precise spec and a granular, prioritized task manifest. Use at the start of a piece of work, before any code. Does not write feature code.
 tools: Read, Glob, Grep, Write, Edit, WebSearch, AskUserQuestion
-model: claude-fable-5
+model: claude-fable-5-1
 effort: high
 ---
 
