@@ -110,6 +110,10 @@ editing** (Claude Code: see CLAUDE.md; anything else: `git worktree add`). Land 
 - [2026-09-04] When a global config key gains a per-phase override, grep the key name in the skill, the
   doctor check AND the schema description before closing — the sentence "X reads the global key" lives in
   all three (V2 left it in the model-routing skill twice, doctor 10(e), and the schema's effort description).
+- [2026-09-04] A doc claim that a guard hook allows or denies a payload shape must be backed by a probe
+  carrying the DENYLISTED content, not a benign one — a benign probe never reaches the fallback branch.
+  Found in review: `block-destructive` scans the whole payload when `tool_input.command` is absent, so
+  the generated Codex hooks under matcher `*` would have denied any edit mentioning `rm -rf`.
 
 ## Nested context
 Subsystems carry their own `AGENTS.md` next to their code (in this repo: `plugin/engine/` holds the

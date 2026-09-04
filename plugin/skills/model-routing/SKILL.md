@@ -43,7 +43,9 @@ whole phase set to `null`, or an absent `models` block, = inherit the ambient se
 global `models.codex` block for that phase (keys left null inherit it). `auth` and `timeoutSeconds`
 stay global. Don't add the block to a phase that never routes to codex — the engine won't read it and
 `/harness-doctor` 10(g) will say so. Prefer `model: null` (float on the Codex CLI default) unless you
-have a reason to pin: every `*-codex` model ID was retired in 2026-07/08, so pinned IDs rot.
+have a reason to pin: every `*-codex` model ID was retired in 2026-07/08, so pinned IDs rot. Once any
+phase routes to codex, run `harness/codex-setup.*` to generate Codex's own copies of the guard hooks,
+agents and skills path (`docs/codex-setup.md`; doctor check 12 keeps them fresh).
 
 ## Running the interview
 

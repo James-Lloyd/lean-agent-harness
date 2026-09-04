@@ -55,12 +55,16 @@ Remove the now-duplicated engine files (the plugin supplies them):
 
 ## 4. Drop in the thin runner wrappers
 So `powershell harness/loop.ps1 …` (and cron) keep working from a bare terminal — where
-`$CLAUDE_PLUGIN_ROOT` is not set — copy the four wrapper templates into `harness/`:
+`$CLAUDE_PLUGIN_ROOT` is not set — copy the six wrapper templates into `harness/` (`/harness-migrate`
+installs the four runner wrappers; add the two `codex-setup` ones by hand, or run the engine script
+directly — they only matter once a phase routes to codex):
 ```
-<plugin>/engine/wrappers/loop.ps1   → harness/loop.ps1
-<plugin>/engine/wrappers/loop.sh    → harness/loop.sh
-<plugin>/engine/wrappers/fleet.ps1  → harness/fleet.ps1
-<plugin>/engine/wrappers/fleet.sh   → harness/fleet.sh
+<plugin>/engine/wrappers/loop.ps1        → harness/loop.ps1
+<plugin>/engine/wrappers/loop.sh         → harness/loop.sh
+<plugin>/engine/wrappers/fleet.ps1       → harness/fleet.ps1
+<plugin>/engine/wrappers/fleet.sh        → harness/fleet.sh
+<plugin>/engine/wrappers/codex-setup.ps1 → harness/codex-setup.ps1
+<plugin>/engine/wrappers/codex-setup.sh  → harness/codex-setup.sh
 ```
 Each wrapper finds the installed engine (via `$HARNESS_ENGINE` → `$CLAUDE_PLUGIN_ROOT` →
 `~/.claude/plugins` search) and dispatches with `--project-root <this repo>`. For cron / bare shells you

@@ -162,6 +162,21 @@ behaves oddly.
       rejects self-approval, so auto-approval will fail until a separate reviewer identity is
       configured (`docs/promotion.md`).
 
+12. **Codex surfaces are generated and fresh (only when anything routes to codex).** Skip with ℹ️
+    "no phase routes to codex" when no `models.*.model`/`fallback` is `"codex"` and there is no `.codex/`
+    dir. Otherwise run the generator's own check — `bash harness/codex-setup.sh --check` (or
+    `powershell harness/codex-setup.ps1 -Check`; wrappers copied by `/harness-init`, engine script
+    `${CLAUDE_PLUGIN_ROOT}/engine/codex-setup.*`; if the wrappers are absent, e.g. a `/harness-migrate`d
+    repo, run the engine script with `--project-root <repo>` directly) — and grade its output: `fresh`
+    (exit 0) = ✅; `NOT generated` (exit 1) = ❌ when a phase routes to codex (its hooks/agents/skills do
+    not exist for Codex yet — run the generator), ⚠️ when nothing routes there; `STALE` (exit 1) = ⚠️ (an
+    input changed since generation — re-run). Note `block-destructive` is generated under the
+    shell-tool matcher (`_shell_matcher_note` in the file) and is unverified until V5 — ℹ️. Also confirm `.gitignore` contains a line that is exactly
+    `.codex/` — a tracked `.codex/` is ❌ (it embeds this machine's absolute plugin path; ratchet
+    2026-07-30). Finally, remind that under headless `codex exec` the repo's `.codex/hooks.json` is
+    skipped until the repo is trusted or `--user` installed the hooks (`docs/codex-setup.md`, first
+    paragraph) — an ℹ️, since it is Codex's policy, not drift.
+
 ## Output
 A short checklist (one line per check, ✅/⚠️/❌ + the finding) and, at the end, the single most important
 thing to fix if anything is red. Recommend `/ratchet` for any failure class that should never recur.

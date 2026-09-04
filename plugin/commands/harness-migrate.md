@@ -35,8 +35,10 @@ provide verbatim.
    - bash: `... migrate.sh --apply` (`--replace-runners`, `--force`)
    `--apply` refuses a dirty tree unless `--force`, so the migration lands as one reviewable diff. It
    removes IDENTICAL files, strips the duplicate engine hook wiring from `.claude/settings.json` (your
-   project-specific hooks and all non-hook settings survive), installs the runner wrappers (original
-   backed up to `*.pre-plugin.bak`), and writes `harness/MIGRATION-REPORT.md`.
+   project-specific hooks and all non-hook settings survive), installs the four runner wrappers (original
+   backed up to `*.pre-plugin.bak`; the two `codex-setup` wrappers are not runners — copy them from
+   `<plugin>/engine/wrappers/` if a phase routes to codex, or call the engine script directly), and
+   writes `harness/MIGRATION-REPORT.md`.
 4. **Verify + commit.** Read `harness/MIGRATION-REPORT.md`, act on any **WARN** (an un-wired customized
    hook needs its ratchet ported or its wiring re-added), then **review `git diff`** and commit. Every
    change is reversible with `git`.

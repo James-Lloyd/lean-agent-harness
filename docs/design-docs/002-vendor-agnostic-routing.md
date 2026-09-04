@@ -60,7 +60,9 @@ depth per phase — is delivered by the override object.
 **D3. Codex surfaces are *generated*, machine-local, and gitignored.** (slice V3)
 A new engine script pair `codex-setup.{ps1,sh}` writes `.codex/config.toml` (`[[skills.config]] path`
 pointing at the installed plugin's `skills/`, `[agents]` defaults from `models.*`, hooks feature on),
-`.codex/hooks.json` (the five guard hooks through the same `run.mjs` bodies), and `.codex/agents/*.toml`
+`.codex/hooks.json` (four of the five guard hooks through the same `run.mjs` bodies — `lock-config` has no
+Codex event, and `block-destructive` is scoped to the shell-tool matcher because its whole-payload
+fallback scan would falsely deny edits under `*`), and `.codex/agents/*.toml`
 (generated from `plugin/agents/*.md` frontmatter + body). Generated because the plugin lives in the
 per-machine cache and a committed absolute path dies on the next device (ratchet 2026-07-30);
 gitignored for the same reason `.claude/settings.local.json` is. `--user` writes the hooks to
