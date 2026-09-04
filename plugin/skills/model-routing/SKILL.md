@@ -74,9 +74,9 @@ keystroke and make customizing possible without a seven-question interrogation.
 ### Constraints to enforce as you collect
 - `session.model` **must be Claude** — `codex` there is invalid, not a preference.
 - A `fallback` must not equal a `codex` primary (no `codex → codex`; there's one hop of escape, not two).
-- Steer `session.effort` to `low|medium|high|xhigh` — `minimal` has no `effortLevel` equivalent, so it
-  can't be written to settings.json. This is interview guidance, not a validation rule: doctor 10(e)(i)
-  reports `minimal` there as ⚠️, so don't "fix" the doctor to hard-fail it.
+- Steer `session.effort` to `low|medium|high|xhigh` — `minimal` and `max` have no `effortLevel`
+  equivalent, so neither can be written to settings.json. This is interview guidance, not a validation
+  rule: doctor 10(e)(i) reports either there as ⚠️, so don't "fix" the doctor to hard-fail it.
 - A phase whose primary is `codex` takes its **depth** from `models.codex.reasoningEffort`, and its
   Claude arm is the *fallback* — so that phase's agent frontmatter tracks `fallbackEffort`.
 

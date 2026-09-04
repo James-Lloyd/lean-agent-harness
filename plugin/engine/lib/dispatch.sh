@@ -64,7 +64,7 @@ invoke_phase() {
       if [ -n "${INVOKE_PHASE_CLAUDE_ARGS+x}" ]; then cargs+=("${INVOKE_PHASE_CLAUDE_ARGS[@]}"); fi
       [ -n "$cand" ] && cargs+=(--model "$cand")
       # Effort: the fallback candidate runs at INVOKE_PHASE_FALLBACK_EFFORT when declared, else the
-      # primary's INVOKE_PHASE_EFFORT. Only CLI-legal levels become a flag (see claude_effort_flag).
+      # primary's INVOKE_PHASE_EFFORT. Only CLI-legal levels become a flag (see claude_effort_legal).
       local eff="${INVOKE_PHASE_EFFORT:-}"
       if [ "$is_fallback" = "1" ] && [ -n "${INVOKE_PHASE_FALLBACK_EFFORT:-}" ]; then eff="$INVOKE_PHASE_FALLBACK_EFFORT"; fi
       if claude_effort_legal "$eff"; then cargs+=(--effort "$eff"); fi
