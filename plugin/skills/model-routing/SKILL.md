@@ -47,6 +47,16 @@ have a reason to pin: every `*-codex` model ID was retired in 2026-07/08, so pin
 phase routes to codex, run `harness/codex-setup.*` to generate Codex's own copies of the guard hooks,
 agents and skills path (`docs/codex-setup.md`; doctor check 12 keeps them fresh).
 
+**Second reviewer (the recommended first use of Codex).** `review.second: { model, effort }` adds a
+second, read-only judge that reviews the SAME batch after the primary SHIPs; SHIP requires both, and both
+verdicts land in the ledger. Independent benchmarks (design-doc 002) show Claude Code's and Codex's
+reviewers catch mostly *different* bugs, and that a cross-vendor reviewer helps only when it is
+comment-only — so the second reviewer is read-only by construction and has **no fallback**: the point is
+model diversity, and a substitute is not the configured second opinion (an unreachable second reviewer
+fails closed; doctor 10(h) warns). Recommended pair: primary `claude-fable-5-1` @ `high`, second
+`codex` with `review.codex: { model: "gpt-5.6-sol", reasoningEffort: "high" }`. Off by default; turn it on
+in shadow mode first (slice V5) and compare the two judges' findings before letting it gate.
+
 ## Running the interview
 
 **Lead with the table, not with a blank form.** Most people want the defaults; make accepting them one

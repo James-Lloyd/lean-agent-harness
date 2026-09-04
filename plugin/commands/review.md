@@ -43,7 +43,14 @@ Run an **independent** review, uncontaminated by the reasoning that produced the
    requirement, breaks an interface contract, loses data, opens a security hole, or fails a test).
    It must not raise issues untraceable to a spec requirement or a correctness, security, or
    data-integrity failure; "no findings — ship" is valid.
-3. If a `code-review` skill/plugin is installed, optionally run it as a second sensor.
+3. **Second reviewer** (`models.review.second`, design-doc 002 D4): when set, and ONLY when the primary
+   judge ships (a primary reject already decides the point), run the same review once more on `second.model` — a Claude model → a fresh
+   `reviewer` subagent pinned to that model via the Agent `model:` override; `codex` → the read-only
+   codex path above with review's codex settings. No fallback (a substitute is not the configured
+   second opinion): if it cannot run, the verdict is **reject** (fail-closed) and you say so. The final
+   verdict is **ship only if both ship**; list both judges' findings, labelled by judge, and note
+   where they disagree — that disagreement is the value of the second opinion.
+4. If a `code-review` skill/plugin is installed, optionally run it as a further sensor.
 
 ## Output
 **ship / fix-then-ship / reject** + findings (`file:line — severity — problem — fix`). The verdict

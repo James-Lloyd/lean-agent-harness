@@ -57,6 +57,10 @@ REVIEW_ROUTE="$(phase_model "$CONFIG" review)"                    # "codex" | cl
 REVIEW_FALLBACK="$(phase_fallback "$CONFIG" review)"             # S1b: symmetric with the reviewFallback pseudo-phase
 REVIEW_EFFORT="$(phase_effort "$CONFIG" review)"
 REVIEW_FALLBACK_EFFORT="$(phase_fallback_effort "$CONFIG" review)"
+# Second reviewer (design-doc 002 D4): after the primary SHIPs, a second judge on a different model
+# (typically the other vendor) reviews the same batch read-only; SHIP requires both. "" = none.
+REVIEW_SECOND="$(phase_second_model "$CONFIG" review)"
+REVIEW_SECOND_EFFORT="$(phase_second_effort "$CONFIG" review)"
 # Evaluator-at-review-point: when enabled it augments the SAME periodic review point, scoring the batch
 # against the rubric. `cfg '... // default'` degrades a trimmed config to defaults instead of erroring.
 EVAL_ENABLED="$(cfg '.verification.evaluator.enabled // false')"
@@ -167,19 +171,56 @@ EOF
   # Fail-closed verdict parse: only the LAST line starting with VERDICT: counts (review_verdict in
   # lib/gate.sh). A preamble like "I cannot give VERDICT: SHIP" must never pass the batch.
   local v; v="$(printf '%s\n' "$out" | review_verdict)"
-  ledger "{\"iter\":$iter,\"result\":\"review\",\"path\":\"$review_path\",\"verdict\":\"$v\"}"
+  ledger "{\"iter\":$iter,\"result\":\"review\",\"path\":\"$review_path\",\"model\":\"$REVIEW_ROUTE\",\"verdict\":\"$v\"}"
   case "$v" in
     SHIP)
       echo "  🟢 Periodic review: SHIP."
       # NB: the harness-reviewed watermark tag is advanced by the CALLER, only after BOTH the reviewer AND
       # (when enabled) the evaluator pass — else a reviewer-SHIP-then-evaluator-FAIL batch would be tagged
       # "reviewed" while the loop stops like a REJECT, hiding rejected work from a later /review.
+      # Second reviewer (design-doc 002 D4): a different model judges the SAME batch; SHIP requires both.
+      if [ -n "$REVIEW_SECOND" ]; then
+        if second_review "$base" "$head" "$run_dir" "$iter" "$prompt"; then return 0; else return 1; fi
+      fi
       return 0;;
     REJECT) reason="REJECT";;
     *) reason="no clear SHIP verdict (fail-closed)";;
   esac
   echo "  🔴 Periodic review: $reason. Stopping for human attention."
   _reject_handoff "$reason" "$base" "$head" "$iter" "$reviewlog"; return 1
+}
+
+# Second reviewer (bash mirror of Invoke-SecondReview): same prompt, same READ-ONLY discipline, a
+# DIFFERENT model ($REVIEW_SECOND — a Claude alias/ID or "codex", which takes review's codex settings).
+# NO fallback: the point is model diversity, and a substitute model is not the second opinion that was
+# configured — an unavailable or usage-limited second reviewer FAILS CLOSED like a missing verdict.
+# Independent benchmarks (design-doc 002) show two vendors' reviewers catch mostly different bugs.
+second_review() {  # $1 base  $2 head  $3 run_dir  $4 iter  $5 prompt ; 0 = SHIP, 1 = stop
+  local base="$1" head="$2" run_dir="$3" iter="$4" prompt="$5" out rc v reason
+  echo "🧑‍⚖️  Second reviewer ($REVIEW_SECOND) on the same batch..."
+  local seclog="$run_dir/review-second-after-$iter.log"
+  INVOKE_PHASE_CLAUDE_ARGS=(--disallowedTools Edit Write MultiEdit NotebookEdit)
+  INVOKE_PHASE_EFFORT="$REVIEW_SECOND_EFFORT"; INVOKE_PHASE_FALLBACK_EFFORT=""
+  local sec_out; sec_out="$(mktemp)"
+  if invoke_phase read-only "$prompt" "$REPO_ROOT" "$seclog" "$REVIEW_SECOND" "" "" 20 "$CODEX_AUTH" "$REVIEW_CODEX_MODEL" "$REVIEW_CODEX_EFFORT" "$CODEX_TIMEOUT" > "$sec_out"; then rc=0; else rc=$?; fi
+  out="$(cat "$sec_out")"; rm -f "$sec_out"
+  # On exhaustion (unavailable/capped) the dispatcher leaves INVOKE_PHASE_PATH empty: label by the configured vendor.
+  local sec_path="${INVOKE_PHASE_PATH:-}"; [ -z "$sec_path" ] && { if [ "$REVIEW_SECOND" = "codex" ]; then sec_path=codex; else sec_path=claude; fi; }
+  git reset --hard "$head" >/dev/null 2>&1 || true; git clean -fd >/dev/null 2>&1 || true
+  if [ "$rc" -ne 0 ]; then
+    echo "  ! second reviewer could not run ($sec_path) — failing closed (stopping for human)."
+    ledger "{\"iter\":$iter,\"result\":\"review-second\",\"path\":\"$sec_path\",\"model\":\"$REVIEW_SECOND\",\"verdict\":\"ERROR\"}"
+    _reject_handoff "second reviewer ($REVIEW_SECOND) could not run" "$base" "$head" "$iter" "$seclog"; return 1
+  fi
+  v="$(printf '%s\n' "$out" | review_verdict)"
+  ledger "{\"iter\":$iter,\"result\":\"review-second\",\"path\":\"$sec_path\",\"model\":\"$REVIEW_SECOND\",\"verdict\":\"$v\"}"
+  case "$v" in
+    SHIP)   echo "  🟢 Second reviewer: SHIP (both judges agree)."; return 0;;
+    REJECT) reason="second reviewer ($REVIEW_SECOND): REJECT";;
+    *)      reason="second reviewer ($REVIEW_SECOND): no clear SHIP verdict (fail-closed)";;
+  esac
+  echo "  🔴 $reason. Stopping for human attention."
+  _reject_handoff "$reason" "$base" "$head" "$iter" "$seclog"; return 1
 }
 
 _reject_handoff() {  # $1 reason  $2 base  $3 head  $4 iter  $5 log
@@ -262,7 +303,7 @@ CONFIG_HASH0="$(config_hash)"
 
 assert_clean_git_tree
 PROJ_TYPE="$(cfg '.project.type')"; [ "$PROJ_TYPE" = "null" ] && PROJ_TYPE="greenfield"
-echo "🔧 Harness loop | type=$PROJ_TYPE | mode=$MODE | maxIter=$MAX_ITER | maxTurns=$MAX_TURNS | model=${IMPLEMENT_MODEL:-inherit} | budget=$TOKEN_BUDGET"
+echo "🔧 Harness loop | type=$PROJ_TYPE | mode=$MODE | maxIter=$MAX_ITER | maxTurns=$MAX_TURNS | model=${IMPLEMENT_MODEL:-inherit} | review=${REVIEW_ROUTE:-inherit}${REVIEW_SECOND:+ +second=$REVIEW_SECOND} | budget=$TOKEN_BUDGET"
 
 if [ "$MODE" = "auto" ] && [ "$(cfg '.verification.requireE2EEvidence')" = "true" ] && ! any_e2e; then
   echo "⚠️  auto mode + requireE2EEvidence, but no e2e gate step is configured. The loop will commit on"
@@ -381,15 +422,16 @@ while [ "$i" -lt "$MAX_ITER" ]; do
     # Inferential judge, wired in: every N green iterations a fresh-context reviewer audits the batch.
     if [ "$REVIEW_EVERY_N" -gt 0 ] && [ "$(cfg '.loop.commitOnGreen')" = "true" ] && [ $((GREEN_COUNT % REVIEW_EVERY_N)) -eq 0 ]; then
       if periodic_review "$REVIEW_BASE" "$RUN_DIR" "$i"; then review_ok=0; else review_ok=1; fi
-      # The evaluator augments the SAME review point: when enabled, only after the reviewer SHIPs do we
-      # also score the batch against the rubric. Advance the watermark only when BOTH pass; any
-      # below-threshold criterion stops the loop like a REJECT (periodic_evaluation writes the handoff).
+      # The evaluator augments the SAME review point: when enabled, only after the reviewer(s) SHIP (the
+      # primary, then the optional second reviewer inside periodic_review) do we also score the batch
+      # against the rubric. Judge order: primary -> second -> evaluator. Advance the watermark only when
+      # ALL pass; any below-threshold criterion stops the loop like a REJECT (periodic_evaluation writes the handoff).
       if [ "$review_ok" -eq 0 ] && [ "$EVAL_ENABLED" = "true" ]; then
         if periodic_evaluation "$REVIEW_BASE" "$RUN_DIR" "$i"; then review_ok=0; else review_ok=1; fi
       fi
       if [ "$review_ok" -eq 0 ]; then
         REVIEW_BASE="$(git rev-parse HEAD)"   # advance the watermark past the reviewed batch
-        git tag -f harness-reviewed "$REVIEW_BASE" >/dev/null 2>&1 || true   # both judges passed: mark reviewed for a later /review
+        git tag -f harness-reviewed "$REVIEW_BASE" >/dev/null 2>&1 || true   # all judges passed: mark reviewed for a later /review
       else
         ledger "{\"iter\":$i,\"result\":\"review-stop\"}"; break
       fi

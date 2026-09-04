@@ -50,7 +50,7 @@ them for an overnight session. Only the changed keys are shown — leave the res
 | `meterTokens: true` + `tokenBudget` | With metering on, the loop invokes with `--output-format json` and reads real `usage`, so `tokenBudget` is a close per-run cap instead of a ~15k/iteration estimate. Size the budget from a typical iteration × `maxIterations` with headroom. Trade-off: `iter-N.log` is JSON, not streamed text. |
 | `skipPermissions: false` | Keeps the permission layer (deny/ask rules + the destructive-command hook) with teeth. `true` voids it entirely and is only safe **inside a real sandbox** — see below. |
 | `reviewEveryNIterations: 3` | Puts "doer ≠ judge" into the unattended path: a READ-ONLY fresh-context reviewer scores every 3rd green batch and **fails closed** — a REJECT (or a crash/truncation) writes `state/handoff.md` and **stops the loop** for your morning triage. Requires `commitOnGreen`. |
-| `evaluator.enabled: true` | Augments that same review point: after the reviewer SHIPs, a read-only evaluate-phase judge scores the batch against the rubric; any criterion below `failBelow` stops the loop like a REJECT. Optional — drop it for a lighter gate. |
+| `evaluator.enabled: true` | Augments that same review point: after the reviewer(s) SHIP — the primary and, if `models.review.second` is set, the second read-only judge — a read-only evaluate-phase judge scores the batch against the rubric; any criterion below `failBelow` stops the loop like a REJECT. Optional — drop it for a lighter gate. |
 | `commitOnGreen` + `autoRollbackOnRed` | Green = a commit you can inspect; red = an automatic rollback so you never wake to a broken tree. |
 | `stopWhenPlanEmpty` | The loop exits when the plan is exhausted rather than spinning. |
 

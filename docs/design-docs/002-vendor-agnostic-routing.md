@@ -70,9 +70,12 @@ gitignored for the same reason `.claude/settings.local.json` is. `--user` writes
 the bypass flag. `/harness-doctor` grows a check that the generated set is present and not stale.
 
 **D4. Cross-vendor review is a *second, read-only* reviewer, never a replacement.** (slice V4)
-`models.review.second: { model, effort }` (default `null`) runs after the primary reviewer at every
-review point — the loop's periodic review and `/review` — in read-only mode with the same prompt and
-verdict contract. The verdict is SHIP only if **both** ship; findings are unioned into the record. The
+`models.review.second: { model, effort }` (default `null`) runs after the primary reviewer **ships** at
+every review point — the loop's periodic review and `/review` — in read-only mode with the same prompt
+and verdict contract; a primary REJECT already decides the point, so the second is not consulted on a
+rejected batch. The verdict is SHIP only if **both** ship; both verdicts and transcripts are recorded.
+Judge order at the loop's review point is primary → second → evaluator (when enabled); the
+`harness-reviewed` watermark advances only after the LAST judge passes. The
 second reviewer must differ from the primary in model (doctor ⚠️ otherwise: same model twice is
 self-review, which measured as worthless). Read-only is non-negotiable: the regression mechanism in the
 literature is a reviewer that rewrites. Recommended first use: primary `claude-fable-5-1` @ `high`,

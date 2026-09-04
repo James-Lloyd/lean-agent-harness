@@ -195,7 +195,7 @@ if [ -f "$settings" ]; then
     [ -n "$cmd" ] || continue
     ref="$(engine_hook_ref "$cmd")"
     [ -n "$ref" ] || continue
-    reffile="$(printf '%s' "$cmd" | grep -Eo "${ref}\.(ps1|sh)" | head -1)"
+    reffile="$(printf '%s' "$cmd" | grep -Eo "${ref}\.(ps1|sh)" | head -1 || true)"   # no-match grep must not kill migrate under pipefail (engine AGENTS.md rule)
     if [ -n "$reffile" ] && [ ! -e "$PROJECT_ROOT/.claude/hooks/$reffile" ]; then
       STRIP_FILES+=("$reffile")
     else

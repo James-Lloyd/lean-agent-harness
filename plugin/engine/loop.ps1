@@ -107,7 +107,7 @@ function Get-OpenItemCount {
 # Returns $true to continue; $false to stop the loop for human attention.
 function Invoke-PeriodicReview {
   param([string]$Base, [string]$RunDir, [int]$Iter, [string]$Fallback, [string]$Route, $CodexCfg,
-        [string]$Effort = '', [string]$FallbackEffort = '')
+        [string]$Effort = '', [string]$FallbackEffort = '', [string]$Second = '', [string]$SecondEffort = '')
   $head = "$(& git rev-parse HEAD)".Trim()
   if ($Base -eq $head) { Write-Host "  (periodic review: no new commits since last review)" -ForegroundColor DarkGray; return $true }
   Write-Host "🧑‍⚖️  Periodic fresh-context review of commits $(_Short $Base)..$(_Short $head)..." -ForegroundColor Cyan
@@ -158,17 +158,54 @@ VERDICT: REJECT   (any blocker — when unsure whether a finding is blocker-grad
   # Fail-closed verdict parse: only the LAST line starting with VERDICT: counts (Get-ReviewVerdict in
   # lib/gate.ps1). A preamble like "I cannot give VERDICT: SHIP" must never pass the batch.
   $verdict = Get-ReviewVerdict $out
-  Write-Ledger @{ iter = $Iter; result = 'review'; path = $reviewPath; verdict = "$verdict" }
+  Write-Ledger @{ iter = $Iter; result = 'review'; path = $reviewPath; model = $Route; verdict = "$verdict" }
   if ($verdict -eq 'SHIP') {
     Write-Host "  🟢 Periodic review: SHIP." -ForegroundColor Green
     # NB: the harness-reviewed watermark tag is advanced by the CALLER, only after BOTH the reviewer AND
     # (when enabled) the evaluator pass — otherwise a reviewer-SHIP-then-evaluator-FAIL batch would be
     # tagged "reviewed" while the loop stops like a REJECT, hiding rejected work from a later /review.
+    # Second reviewer (design-doc 002 D4): a different model judges the SAME batch; SHIP requires both.
+    if ($Second) {
+      return (Invoke-SecondReview -Base $Base -Head $head -RunDir $RunDir -Iter $Iter -Prompt $reviewPrompt `
+                                  -Second $Second -SecondEffort $SecondEffort -CodexCfg $CodexCfg)
+    }
     return $true
   }
   $reason = if ($verdict -eq 'REJECT') { 'REJECT' } else { 'no clear SHIP verdict (fail-closed)' }
   Write-Host "  🔴 Periodic review: $reason. Stopping for human attention." -ForegroundColor Red
   Write-Reject-Handoff -Reason $reason -Base $Base -Head $head -Iter $Iter -Log $reviewLog
+  return $false
+}
+
+# Second reviewer (mirror of second_review in loop.sh): same prompt, same READ-ONLY discipline, a
+# DIFFERENT model ($Second — a Claude alias/ID or 'codex', which takes review's codex settings). NO
+# fallback: the point is model diversity, and a substitute model is not the second opinion that was
+# configured — an unavailable or usage-limited second reviewer FAILS CLOSED like a missing verdict.
+function Invoke-SecondReview {
+  param([string]$Base, [string]$Head, [string]$RunDir, [int]$Iter, [string]$Prompt,
+        [string]$Second, [string]$SecondEffort = '', $CodexCfg)
+  Write-Host "🧑‍⚖️  Second reviewer ($Second) on the same batch..." -ForegroundColor Cyan
+  $secLog = Join-Path $RunDir ("review-second-after-$Iter.log")
+  $phase = Invoke-Phase -Mode 'read-only' -Prompt $Prompt -RepoRoot $RepoRoot -LogPath $secLog `
+                        -Primary $Second -Fallback '' -CodexCfg $CodexCfg -MaxTurns 20 `
+                        -Effort $SecondEffort -FallbackEffort '' `
+                        -ClaudeExtraArgs @('--disallowedTools', 'Edit', 'Write', 'MultiEdit', 'NotebookEdit')
+  # On exhaustion (unavailable/capped) the dispatcher leaves Path null: label by the configured vendor.
+  $secPath = if ($phase.Path) { $phase.Path } elseif ($Second -eq 'codex') { 'codex' } else { 'claude' }
+  & git reset --hard $Head *> $null
+  & git clean -fd *> $null
+  if (-not [bool]$phase.Ok) {
+    Write-Host "  ! second reviewer could not run ($secPath) — failing closed (stopping for human)." -ForegroundColor Red
+    Write-Ledger @{ iter = $Iter; result = 'review-second'; path = $secPath; model = $Second; verdict = 'ERROR' }
+    Write-Reject-Handoff -Reason "second reviewer ($Second) could not run" -Base $Base -Head $Head -Iter $Iter -Log $secLog
+    return $false
+  }
+  $v = Get-ReviewVerdict "$($phase.Output)"
+  Write-Ledger @{ iter = $Iter; result = 'review-second'; path = $secPath; model = $Second; verdict = "$v" }
+  if ($v -eq 'SHIP') { Write-Host "  🟢 Second reviewer: SHIP (both judges agree)." -ForegroundColor Green; return $true }
+  $reason = if ($v -eq 'REJECT') { "second reviewer ($Second): REJECT" } else { "second reviewer ($Second): no clear SHIP verdict (fail-closed)" }
+  Write-Host "  🔴 $reason. Stopping for human attention." -ForegroundColor Red
+  Write-Reject-Handoff -Reason $reason -Base $Base -Head $Head -Iter $Iter -Log $secLog
   return $false
 }
 
@@ -269,6 +306,10 @@ $reviewRoute         = Resolve-PhaseModel $cfg 'review'            # 'codex' | c
 $reviewFallback      = Resolve-PhaseFallback $cfg 'review'         # S1b: symmetric with the reviewFallback pseudo-phase
 $reviewEffort        = Resolve-PhaseEffort $cfg 'review'
 $reviewFbEffort      = Resolve-PhaseFallbackEffort $cfg 'review'
+# Second reviewer (design-doc 002 D4): after the primary SHIPs, a second judge on a different model
+# (typically the other vendor) reviews the same batch read-only; SHIP requires both. '' = none.
+$reviewSecond        = Resolve-PhaseSecondModel $cfg 'review'
+$reviewSecondEffort  = Resolve-PhaseSecondEffort $cfg 'review'
 # Evaluator-at-review-point: when enabled it augments the SAME periodic review point (below), scoring the
 # batch against the rubric. Route/fallback resolve through the 'evaluate' phase; rubric/threshold read
 # StrictMode-safe via Get-Prop so a trimmed config degrades to defaults instead of throwing.
@@ -286,7 +327,9 @@ $implementCodexCfg   = Resolve-PhaseCodexCfg $cfg 'implement'
 $reviewCodexCfg      = Resolve-PhaseCodexCfg $cfg 'review'
 $evalCodexCfg        = Resolve-PhaseCodexCfg $cfg 'evaluate'
 $modelLabel = if ($implementModel) { $implementModel } else { 'inherit' }
-Write-Host "🔧 Harness loop | type=$projType | mode=$($cfg.autonomy.mode) | maxIter=$($cfg.autonomy.maxIterations) | maxTurns=$maxTurns | model=$modelLabel | budget=$($cfg.autonomy.tokenBudget)" -ForegroundColor Cyan
+$reviewLabel = if ($reviewRoute) { $reviewRoute } else { 'inherit' }
+if ($reviewSecond) { $reviewLabel += " +second=$reviewSecond" }
+Write-Host "🔧 Harness loop | type=$projType | mode=$($cfg.autonomy.mode) | maxIter=$($cfg.autonomy.maxIterations) | maxTurns=$maxTurns | model=$modelLabel | review=$reviewLabel | budget=$($cfg.autonomy.tokenBudget)" -ForegroundColor Cyan
 
 if ($cfg.autonomy.mode -eq 'auto' -and (Get-Prop (Get-Prop $cfg 'verification') 'requireE2EEvidence') -and -not (Test-AnyE2E)) {
   Write-Host "⚠️  auto mode + requireE2EEvidence, but no e2e gate step is configured. The loop will commit on" -ForegroundColor Yellow
@@ -442,16 +485,17 @@ while ($i -lt $cfg.autonomy.maxIterations) {
     $greenCount++
     # Inferential judge, wired in: every N green iterations a fresh-context reviewer audits the batch.
     if ($reviewEveryN -gt 0 -and $commitOnGreen -and ($greenCount % $reviewEveryN) -eq 0) {
-      $ok = Invoke-PeriodicReview -Base $reviewBaseRef -RunDir $runDir -Iter $i -Fallback $reviewFallback -Route $reviewRoute -CodexCfg $reviewCodexCfg -Effort $reviewEffort -FallbackEffort $reviewFbEffort
-      # The evaluator augments the SAME review point: when enabled, only after the reviewer SHIPs do we
-      # also score the batch against the rubric. Advance the watermark only when BOTH pass; any
-      # below-threshold criterion stops the loop like a REJECT (Invoke-PeriodicEvaluation writes the handoff).
+      $ok = Invoke-PeriodicReview -Base $reviewBaseRef -RunDir $runDir -Iter $i -Fallback $reviewFallback -Route $reviewRoute -CodexCfg $reviewCodexCfg -Effort $reviewEffort -FallbackEffort $reviewFbEffort -Second $reviewSecond -SecondEffort $reviewSecondEffort
+      # The evaluator augments the SAME review point: when enabled, only after the reviewer(s) SHIP (the
+      # primary, then the optional second reviewer inside Invoke-PeriodicReview) do we also score the batch
+      # against the rubric. Judge order: primary -> second -> evaluator. Advance the watermark only when
+      # ALL pass; any below-threshold criterion stops the loop like a REJECT (Invoke-PeriodicEvaluation writes the handoff).
       if ($ok -and $evalEnabled) {
         $ok = Invoke-PeriodicEvaluation -Base $reviewBaseRef -RunDir $runDir -Iter $i -Route $evalRoute -Fallback $evalFallback -CodexCfg $evalCodexCfg -Rubric $evalRubric -FailBelow $evalFailBelow -Effort $evalEffort -FallbackEffort $evalFbEffort
       }
       if ($ok) {
         $reviewBaseRef = "$(& git rev-parse HEAD)".Trim()   # advance the watermark past the reviewed batch
-        & git tag -f harness-reviewed $reviewBaseRef *> $null   # both judges passed: mark reviewed for a later /review
+        & git tag -f harness-reviewed $reviewBaseRef *> $null   # all judges passed: mark reviewed for a later /review
       } else {
         Write-Ledger @{ iter = $i; result = 'review-stop' }
         break

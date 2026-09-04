@@ -328,7 +328,18 @@ JSON
   m="$(phase_codex_model "$xcfg" implement)";  ok "$([ "$m" = "gpt-global" ] && echo 1 || echo 0)" "no phase block => global model (got '$m')"
   m="$(phase_codex_model "$xcfg" docs)";       ok "$([ "$m" = "gpt-global" ] && echo 1 || echo 0)" "flat-legacy 'codex' string => global model (got '$m')"
   m="$(phase_codex_model "$ncfg" implement)";  ok "$([ -z "$m" ] && echo 1 || echo 0)"             "no global, no phase block => '' (CLI default) (got '$m')"
-  rm -f "$ncfg" "$frcfg" "$ecfg" "$xcfg"
+  echo "model routing V4: review.second{model,effort} — the second, read-only reviewer (design-doc 002 D4)"
+  scfg="$(mktemp)"; printf '%s' '{ "models": {
+    "review": { "model": "claude-fable-5-1", "fallback": "claude-opus-5", "effort": "high", "second": { "model": "codex", "effort": "high" } },
+    "evaluate": { "model": "claude-fable-5-1", "second": { "model": null } },
+    "docs": "haiku" } }' > "$scfg"
+  m="$(phase_second_model "$scfg" review)";   ok "$([ "$m" = "codex" ] && echo 1 || echo 0)" "second.model resolves (got '$m')"
+  m="$(phase_second_effort "$scfg" review)";  ok "$([ "$m" = "high" ] && echo 1 || echo 0)"  "second.effort resolves (got '$m')"
+  m="$(phase_second_model "$scfg" evaluate)"; ok "$([ -z "$m" ] && echo 1 || echo 0)"        "second.model null => '' (no second reviewer) (got '$m')"
+  m="$(phase_second_model "$scfg" implement)";ok "$([ -z "$m" ] && echo 1 || echo 0)"        "absent phase => '' (got '$m')"
+  m="$(phase_second_model "$scfg" docs)";     ok "$([ -z "$m" ] && echo 1 || echo 0)"        "flat-legacy string => '' (got '$m')"
+  m="$(phase_second_model "$xcfg" review)";   ok "$([ -z "$m" ] && echo 1 || echo 0)"        "review without a second block => '' (got '$m')"
+  rm -f "$ncfg" "$frcfg" "$ecfg" "$xcfg" "$scfg"
 
   echo "model routing S1b: phase_fallback review symmetric with reviewFallback pseudo-phase"
   # Mixed config: nested review with a NULL fallback + a legacy top-level reviewFallback. Both accessors
@@ -471,6 +482,12 @@ STUB
   printf '%s\n' '{"usage":{"input_tokens":100,"output_tokens":50,"cache_creation_input_tokens":1000,"cache_read_input_tokens":2000}}' > "$blog"
   reset_budget; update_budget_from_log "$blog" >/dev/null
   ok "$([ "$(_budget_spent)" = "3150" ] && echo 1 || echo 0)" "budget includes cache tokens (expect 3150, got '$(_budget_spent)')"
+  # Regression (2026-09-04): a transcript with NO token counts (every meterTokens=false run) must not abort
+  # the caller under `set -euo pipefail` - the no-match grep pipelines used to fail the assignment and
+  # errexit killed the loop right after the implement phase. Run it in a strict subshell to prove it.
+  printf '%s\n' 'implemented the thing; no usage block here' > "$blog"
+  if ( set -euo pipefail; reset_budget; update_budget_from_log "$blog" >/dev/null; [ "$(_budget_spent)" = "15000" ] ); then nb=1; else nb=0; fi
+  ok "$nb" "budget: a log with NO token counts survives set -euo pipefail and falls back to the 15000 estimate"
   # run id = max existing suffix + 1, not dir count (count-based ids collide after cleanup).
   tmpruns="$(mktemp -d)"; mkdir -p "$tmpruns/.runs/run-001" "$tmpruns/.runs/run-003"
   rid="$( (SCRIPT_DIR="$tmpruns"; loop_run_id) )"
