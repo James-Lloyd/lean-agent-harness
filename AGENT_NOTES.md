@@ -89,3 +89,8 @@ PowerShell 5.1: `powershell harness/tests/run-tests.ps1`; bash needs `jq` on PAT
   (not the `codex-code-mode-host.exe` beside it); `grep -a -o` for field names settles docs-vs-installed drift fast
   (0.144.3 has `AgentRoleToml` but no `default_subagent_model`). An unknown TOML key is a FATAL, silent config-load
   error that drops the whole project `.codex/` layer — load-test generated config with a one-line `codex exec`.
+- [2026-09-05] `state/handoff.md` is GITIGNORED and therefore per-worktree: a handoff written inside a
+  worktree cannot land in its PR and dies when the worktree is removed, leaving the next session to read a
+  stale one from the main checkout. Finish a worktree session by copying it across with a plain `cp` (the
+  file is untracked, so the worktree guard permits the write). `git status` calling the tree clean after you
+  edited it is the tell.
