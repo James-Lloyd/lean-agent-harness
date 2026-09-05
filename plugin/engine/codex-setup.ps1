@@ -27,7 +27,8 @@
   Usage: codex-setup.ps1 -ProjectRoot <repo> [-Check] [-User] [-ShellMatcher <regex>]
     -Check  exit 0 if the generated set exists and matches the current inputs, 1 if missing/stale
     -User   ALSO write hooks.json to ~/.codex/hooks.json (override dir with $env:HARNESS_CODEX_HOME) - the
-            only place repo hooks run under headless `codex exec` without --dangerously-bypass-hook-trust.
+            ONLY file headless `codex exec` loads hooks from (V5: the project file is never loaded
+            headlessly); it still needs `/hooks` trust once, or --dangerously-bypass-hook-trust per run.
             MACHINE-WIDE: applies to every Codex project on this machine. Refuses to overwrite a
             hooks.json there that the harness did not generate.
     -ShellMatcher <regex>  the PreToolUse matcher for block-destructive (Codex shell tool name(s)).
@@ -199,5 +200,5 @@ if ($User) {
 
 $nAgents = @(Get-ChildItem -LiteralPath (Join-Path $out 'agents') -Filter *.toml).Count
 Write-Output "codex-setup: wrote $out (config.toml, hooks.json, $nAgents agents) for plugin $pluginVersion"
-Write-Output "NOTE: under headless 'codex exec' the repo's .codex/hooks.json is skipped until the repo is trusted (or -User / --dangerously-bypass-hook-trust) - docs/codex-setup.md"
+Write-Output "NOTE: under headless 'codex exec' the repo's .codex/hooks.json is NEVER loaded (Codex 0.144.3, slice V5) - use -User (~/.codex/hooks.json) plus /hooks trust or --dangerously-bypass-hook-trust; the project file serves interactive sessions - docs/codex-setup.md"
 exit 0

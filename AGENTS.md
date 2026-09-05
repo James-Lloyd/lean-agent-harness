@@ -119,6 +119,9 @@ editing** (Claude Code: see CLAUDE.md; anything else: `git worktree add`). Land 
   and ACT on it (a one-line `codex exec`), never by asserting the emitted text; and a denial contract is verified by
   the destructive command NOT running, never by the hook's exit code. V3 shipped text-green and live-dead on four
   counts (two fatal config keys, project hooks never loaded headless, exit-2 denials ignored) — all found by V5.
+  When a live-fire disproves a fact, sweep the generated artifacts' own runtime output and help text too, not
+  just the docs — an operator reads the tool's stdout, not the design doc (the generator kept printing the
+  disproved claim as its last line; caught in review).
 
 ## Nested context
 Subsystems carry their own `AGENTS.md` next to their code (in this repo: `plugin/engine/` holds the

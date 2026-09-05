@@ -59,6 +59,10 @@ const dispatch = (payload, ...pre) =>
   const a = parseArgs(['node', 'run.mjs', '--codex', 'block-destructive']);
   const b = parseArgs(['node', 'run.mjs', 'block-destructive']);
   ok('parseArgs: --codex <hook> / <hook>', a.codex === true && a.hook === 'block-destructive' && b.codex === false && b.hook === 'block-destructive');
+  // a misplaced or unknown flag is a usage error, never a silent fall-through to Claude mode (fail-open under Codex)
+  const c = parseArgs(['node', 'run.mjs', 'block-destructive', '--codex']);
+  const d = parseArgs(['node', 'run.mjs', '--bogus', 'block-destructive']);
+  ok('parseArgs: misplaced/unknown flag -> no hook + error', c.hook === undefined && !!c.error && d.hook === undefined && !!d.error);
 }
 // 6. translation table: exit 2 on PreToolUse -> deny JSON, exit 0, reason = stderr
 {
@@ -75,8 +79,8 @@ const dispatch = (payload, ...pre) =>
   let j = null; try { j = JSON.parse(post.out); } catch { /* fail below */ }
   const allow = codexDecision(0, 'context line\n', '', 'SessionStart');
   const errc = codexDecision(1, '', 'boom', 'PreToolUse');
-  ok('codexDecision: exit 2 + PostToolUse -> {decision: block}; exit 0 passes stdout; exit 1 stays exit 1 (error, not decision)',
-    post.code === 0 && j && j.decision === 'block' && j.reason === 'format failed'
+  ok('codexDecision: exit 2 + PostToolUse -> {decision: block} AND stderr kept; exit 0 passes stdout; exit 1 stays exit 1 (error, not decision)',
+    post.code === 0 && j && j.decision === 'block' && j.reason === 'format failed' && post.err === 'format failed'
     && allow.code === 0 && allow.out === 'context line\n'
     && errc.code === 1 && errc.err === 'boom' && errc.out === '');
 }

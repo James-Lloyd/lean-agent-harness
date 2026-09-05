@@ -41,14 +41,22 @@ export function resolveHook(platform, hook, hooksDir) {
 export function parseArgs(argv) {
   const rest = argv.slice(2);
   const codex = rest[0] === '--codex';
-  return { codex, hook: codex ? rest[1] : rest[0] };
+  const hook = codex ? rest[1] : rest[0];
+  // Any other flag-shaped arg (or --codex not in first position) is a usage error, not a hook name:
+  // `node run.mjs block-destructive --codex` must not silently run in Claude mode under Codex (fail-open).
+  const bad = rest.find((a, i) => a.startsWith('-') && !(i === 0 && a === '--codex'));
+  return { codex, hook: bad ? undefined : hook, error: bad ? `unknown argument '${bad}'` : undefined };
 }
 
 // Pure: translate a hook body's outcome into what Codex acts on.
 //   exit 0      -> pass the child's stdout through (SessionStart context etc.), exit 0
-//   exit 2      -> DENY: PreToolUse/PermissionRequest use the hookSpecificOutput form,
-//                  other events the older {decision:"block", reason} form; exit 0 (Codex
-//                  ignores a nonzero exit, so the decision MUST ride on stdout + exit 0)
+//   exit 2      -> DENY: PreToolUse uses the hookSpecificOutput form (OBSERVED to block on
+//                  Codex 0.144.3 in slice V5; PermissionRequest is the documented sibling,
+//                  speculative — nothing the harness generates fires it). Other events get
+//                  the older {decision:"block", reason} form (documented, NOT observed) AND
+//                  keep the child's stderr, so the reason survives even if Codex ignores
+//                  the JSON. Exit 0 always: Codex ignores a nonzero exit, so the decision
+//                  MUST ride on stdout + exit 0.
 //   other code  -> a hook ERROR, not a decision: stderr through, same exit code (both
 //                  vendors treat it as non-blocking — nothing to translate)
 export function codexDecision(exitCode, stdout, stderr, eventName) {
@@ -56,10 +64,10 @@ export function codexDecision(exitCode, stdout, stderr, eventName) {
   if (exitCode === 2) {
     const reason = (stderr || '').trim() || `blocked by harness hook (${eventName})`;
     const ev = eventName || 'PreToolUse';
-    const body = (ev === 'PreToolUse' || ev === 'PermissionRequest')
-      ? { hookSpecificOutput: { hookEventName: ev, permissionDecision: 'deny', permissionDecisionReason: reason } }
-      : { decision: 'block', reason };
-    return { out: JSON.stringify(body), err: '', code: 0 };
+    if (ev === 'PreToolUse' || ev === 'PermissionRequest') {
+      return { out: JSON.stringify({ hookSpecificOutput: { hookEventName: ev, permissionDecision: 'deny', permissionDecisionReason: reason } }), err: '', code: 0 };
+    }
+    return { out: JSON.stringify({ decision: 'block', reason }), err: stderr || '', code: 0 };
   }
   return { out: stdout || '', err: stderr || '', code: exitCode == null ? 1 : exitCode };
 }
@@ -71,9 +79,9 @@ const invokedDirectly =
 
 if (invokedDirectly) {
   const here = dirname(fileURLToPath(import.meta.url));
-  const { codex, hook } = parseArgs(process.argv);
+  const { codex, hook, error } = parseArgs(process.argv);
   if (!hook) {
-    process.stderr.write('hook dispatcher: missing hook name (usage: node run.mjs [--codex] <hook>)\n');
+    process.stderr.write(`hook dispatcher: ${error || 'missing hook name'} (usage: node run.mjs [--codex] <hook>)\n`);
     process.exit(2);
   }
   const { cmd, args, script } = resolveHook(process.platform, hook, here);
@@ -112,8 +120,10 @@ if (invokedDirectly) {
       child.on('close', (code, signal) => {
         const d = codexDecision(signal ? 1 : code, out, err, eventName);
         if (d.err) process.stderr.write(d.err);
-        if (d.out) process.stdout.write(d.out);
-        process.exit(d.code);
+        // stdout to a pipe is asynchronous on POSIX: exit only after the decision has been
+        // flushed, or a truncated deny JSON becomes an unparseable — i.e. fail-OPEN — decision.
+        const finish = () => process.exit(d.code);
+        if (d.out) process.stdout.write(d.out, finish); else finish();
       });
       child.stdin.on('error', () => { /* child may exit before reading */ });
       child.stdin.end(payload);
