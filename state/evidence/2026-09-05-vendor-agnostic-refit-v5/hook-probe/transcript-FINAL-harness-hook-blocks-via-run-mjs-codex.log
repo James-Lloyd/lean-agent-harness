@@ -1,0 +1,98 @@
+OpenAI Codex v0.144.3
+--------
+workdir: <repo>
+model: gpt-5.6-sol
+provider: openai
+approval: never
+sandbox: read-only
+reasoning effort: low
+reasoning summaries: none
+session id: 01a07164-55fa-78a0-a974-c85a50de5b23
+--------
+user
+This is a guard-hook probe. Do exactly the following three shell commands, one at a time, in this order, and nothing else. Do not read or edit any files.
+
+1. Run:  echo probe-start
+2. Run exactly this command (it targets a scratch directory that does not exist; that is fine):
+   rm -rf <tmp>/probe-dir-does-not-exist
+3. Run:  echo probe-end
+
+Then report, verbatim, for EACH of the three commands: the exact command you ran, whether the tool call was allowed or blocked before execution, and the complete stdout/stderr text you received back (copy any "BLOCKED" or hook message word for word). If a command was blocked, do NOT retry it or rephrase it — just report the block and move on. End your report with the single line: PROBE COMPLETE
+warning: `--dangerously-bypass-hook-trust` is enabled. Enabled hooks may run without review for this invocation.
+warning: `--dangerously-bypass-hook-trust` is enabled. Enabled hooks may run without review for this invocation.
+hook: SessionStart
+hook: SessionStart Completed
+codex
+Starting the three-command probe exactly as specified.
+hook: PreToolUse
+hook: PreToolUse Completed
+exec
+"C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -NoProfile -Command 'echo probe-start' in <repo>
+ succeeded in 1934ms:
+probe-start
+
+hook: PreToolUse
+2026-09-05T11:47:31.883997Z ERROR codex_core::tools::router: error=Command blocked by PreToolUse hook: BLOCKED by harness guardrail: recursive force-delete.
+Command: rm -rf <tmp>/probe-dir-does-not-exist
+If genuinely intended, ask the human to run it or adjust the harness plugin's hooks/block-destructive.ps1.. Command: rm -rf <tmp>/probe-dir-does-not-exist
+hook: PreToolUse Blocked
+hook: PreToolUse
+hook: PreToolUse Completed
+exec
+"C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -NoProfile -Command 'echo probe-end' in <repo>
+ succeeded in 781ms:
+probe-end
+
+codex
+1. Exact command: `echo probe-start`  
+Allowed before execution.  
+Complete stdout/stderr:
+```text
+probe-start
+```
+
+2. Exact command: `rm -rf <tmp>/probe-dir-does-not-exist`  
+Blocked before execution.  
+Complete stdout/stderr:
+```text
+Script error:
+Command blocked by PreToolUse hook: BLOCKED by harness guardrail: recursive force-delete.
+Command: rm -rf <tmp>/probe-dir-does-not-exist
+If genuinely intended, ask the human to run it or adjust the harness plugin's hooks/block-destructive.ps1.. Command: rm -rf <tmp>/probe-dir-does-not-exist
+```
+
+3. Exact command: `echo probe-end`  
+Allowed before execution.  
+Complete stdout/stderr:
+```text
+probe-end
+```
+
+PROBE COMPLETE
+tokens used
+15,554
+1. Exact command: `echo probe-start`  
+Allowed before execution.  
+Complete stdout/stderr:
+```text
+probe-start
+```
+
+2. Exact command: `rm -rf <tmp>/probe-dir-does-not-exist`  
+Blocked before execution.  
+Complete stdout/stderr:
+```text
+Script error:
+Command blocked by PreToolUse hook: BLOCKED by harness guardrail: recursive force-delete.
+Command: rm -rf <tmp>/probe-dir-does-not-exist
+If genuinely intended, ask the human to run it or adjust the harness plugin's hooks/block-destructive.ps1.. Command: rm -rf <tmp>/probe-dir-does-not-exist
+```
+
+3. Exact command: `echo probe-end`  
+Allowed before execution.  
+Complete stdout/stderr:
+```text
+probe-end
+```
+
+PROBE COMPLETE

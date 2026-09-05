@@ -1,0 +1,83 @@
+=== probe hooks.json events ===
+{"event":"PreToolUse","matchers":["shell|exec_command|local_shell|command_execution","*","*"]}
+{"event":"PostToolUse","matchers":["*","*"]}
+{"event":"SessionStart","matchers":["*","*"]}
+{"event":"UserPromptSubmit","matchers":["*"]}
+{"event":"Stop","matchers":["*"]}
+=== codex exec rc=0 seconds=36 ===
+=== recorded hook events (label / tool_name / payload keys) ===
+=== full PreToolUse payloads ===
+=== BLOCKED / hook lines in codex transcript ===
+14:This is a guard-hook probe. Do exactly the following three shell commands, one at a time, in this order, and nothing else. Do not read or edit any files.
+21:Then report, verbatim, for EACH of the three commands: the exact command you ran, whether the tool call was allowed or blocked before execution, and the complete stdout/stderr text you received back (copy any "BLOCKED" or hook message word for word). If a command was blocked, do NOT retry it or rephrase it — just report the block and move on. End your report with the single line: PROBE COMPLETE
+=== codex final message ===
+Command: `echo probe-start`
+Tool call: allowed
+stdout/stderr:
+```text
+probe-start
+```
+
+Command: `rm -rf <tmp>/probe-dir-does-not-exist`
+Tool call: allowed
+stdout/stderr:
+```text
+Remove-Item : A parameter cannot be found that matches parameter name 'rf'.
+At line:2 char:4
++ rm -rf <tmp>/probe-dir-does-not-ex ...
++    ~~~
+    + CategoryInfo          : InvalidArgument: (:) [Remove-Item], ParameterBindingException
+    + FullyQualifiedErrorId : NamedParameterNotFound,Microsoft.PowerShell.Commands.RemoveItemCommand
+```
+
+Command: `echo probe-end`
+Tool call: allowed
+stdout/stderr:
+```text
+probe-end
+```
+
+PROBE COMPLETE
+=== tail of transcript ===
+    + FullyQualifiedErrorId : NamedParameterNotFound,Microsoft.PowerShell.Commands.RemoveItemCommand
+```
+
+Command: `echo probe-end`
+Tool call: allowed
+stdout/stderr:
+```text
+probe-end
+```
+
+PROBE COMPLETE
+tokens used
+14,390
+Command: `echo probe-start`
+Tool call: allowed
+stdout/stderr:
+```text
+probe-start
+```
+
+Command: `rm -rf <tmp>/probe-dir-does-not-exist`
+Tool call: allowed
+stdout/stderr:
+```text
+Remove-Item : A parameter cannot be found that matches parameter name 'rf'.
+At line:2 char:4
++ rm -rf <tmp>/probe-dir-does-not-ex ...
++    ~~~
+    + CategoryInfo          : InvalidArgument: (:) [Remove-Item], ParameterBindingException
+    + FullyQualifiedErrorId : NamedParameterNotFound,Microsoft.PowerShell.Commands.RemoveItemCommand
+```
+
+Command: `echo probe-end`
+Tool call: allowed
+stdout/stderr:
+```text
+probe-end
+```
+
+PROBE COMPLETE
+codex-setup: fresh (plugin 0.3.4)
+=== git status ===
