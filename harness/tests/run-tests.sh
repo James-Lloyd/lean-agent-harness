@@ -726,6 +726,71 @@ ok "$([ -f "$RR/plugin/engine/templates/component-AGENTS.md" ] && [ "$(grep -v '
 ok "$(grep -q '{{PROJECT_NAME}}' "$RR/AGENTS.md" && ! grep -q '{{' "$RR/CLAUDE.md" && echo 1 || echo 0)" "placeholders live in AGENTS.md, none in the CLAUDE.md shim"
 ok "$([ "$(wc -l < "$RR/CLAUDE.md")" -le 25 ] && echo 1 || echo 0)" "root CLAUDE.md shim stays short (<= 25 lines)"
 
+echo "codex-setup: generated, gitignored Codex surfaces from a temp project (design-doc 002 D3)"
+# Drive the real engine generator against a throwaway project whose review phase routes to codex with a
+# per-phase model, then assert each generated surface + the --check / --user contracts. jq-dependent.
+if command -v jq >/dev/null 2>&1; then
+  CSP="$(mktemp -d)"; mkdir -p "$CSP/harness"
+  printf '%s' '{ "models": {
+    "codex":  { "model": "gpt-global", "reasoningEffort": "medium", "auth": "chatgpt", "timeoutSeconds": 60 },
+    "review": { "model": "codex", "fallback": "claude-fable-5-1", "codex": { "model": "gpt-review", "reasoningEffort": "xhigh" } },
+    "implement": { "model": "claude-opus-5" } } }' > "$CSP/harness/harness.config.json"
+  printf 'node_modules/\n' > "$CSP/.gitignore"
+  CS="$ENGINE/codex-setup.sh"
+  if bash "$CS" --project-root "$CSP" >/dev/null 2>&1; then g=0; else g=1; fi
+  ok "$([ "$g" = "0" ] && echo 1 || echo 0)" "generate exits 0"
+  ok "$([ -f "$CSP/.codex/config.toml" ] && grep -q '^hooks = true' "$CSP/.codex/config.toml" && grep -q '^path = ".*plugin/skills"' "$CSP/.codex/config.toml" && echo 1 || echo 0)" "config.toml: hooks on + skills path -> plugin/skills"
+  ok "$(grep -q '^default_subagent_model = "gpt-global"' "$CSP/.codex/config.toml" && echo 1 || echo 0)"   "config.toml: [agents] defaults from the global codex block"
+  ok "$(grep -q '^path = "[A-Za-z]:/\|^path = "/' "$CSP/.codex/config.toml" && ! grep -qF '\' "$CSP/.codex/config.toml" && echo 1 || echo 0)" "config.toml: native absolute path with forward slashes (no /c/ MSYS form on Windows)"
+  ok "$(jq -e '([.hooks[][] | .hooks[] | .command] | (length == 4) and all(test("run.mjs\" (block-destructive|protect-specs|format-and-check|session-start)$")))' "$CSP/.codex/hooks.json" >/dev/null 2>&1 && echo 1 || echo 0)" "hooks.json: four commands, every one routed through run.mjs"
+  # block-destructive scans the WHOLE payload when tool_input.command is absent (fail toward scanning), so
+  # it must never sit under "*" - a Codex edit whose text mentions `rm -rf` would be falsely denied.
+  ok "$(jq -e '[.hooks.PreToolUse[] | select(.hooks[].command | test("block-destructive$")) | .matcher] | (length == 1) and (.[0] != "*") and (.[0] | test("shell"))' "$CSP/.codex/hooks.json" >/dev/null 2>&1 && echo 1 || echo 0)" "hooks.json: block-destructive is under the shell-tool matcher, NOT *"
+  ok "$(jq -e '[.hooks.PreToolUse[] | select(.hooks[].command | test("protect-specs$")) | .matcher] == ["*"] and (.hooks.PostToolUse[0].matcher == "*") and (.hooks.SessionStart[0].matcher == "*")' "$CSP/.codex/hooks.json" >/dev/null 2>&1 && echo 1 || echo 0)" "hooks.json: protect-specs / format-and-check / session-start run under *"
+  ok "$(jq -e '.hooks | has("ConfigChange") | not' "$CSP/.codex/hooks.json" >/dev/null 2>&1 && echo 1 || echo 0)" "hooks.json: no ConfigChange (no Codex event for it)"
+  bash "$CS" --project-root "$CSP" --shell-matcher 'my_shell' >/dev/null 2>&1 || true
+  ok "$(jq -e '[.hooks.PreToolUse[] | select(.hooks[].command | test("block-destructive$")) | .matcher] == ["my_shell"]' "$CSP/.codex/hooks.json" >/dev/null 2>&1 && echo 1 || echo 0)" "--shell-matcher pins block-destructive's matcher (V5 will confirm the real name)"
+  # The reason for the scoping, proven with a DESTRUCTIVE literal (a benign probe never reaches the fallback):
+  edit_payload='{"tool_name":"apply_patch","tool_input":{"patch":"+ echo do not run rm -rf / here"}}'
+  if printf '%s' "$edit_payload" | bash "$ENGINE/../hooks/block-destructive.sh" >/dev/null 2>&1; then bdrc=0; else bdrc=$?; fi
+  ok "$([ "$bdrc" = "2" ] && echo 1 || echo 0)" "block-destructive DENIES an edit payload that merely mentions rm -rf (why it is not under *) (rc=$bdrc)"
+  if printf '%s' "$edit_payload" | bash "$ENGINE/../hooks/protect-specs.sh" >/dev/null 2>&1; then psrc=0; else psrc=$?; fi
+  ok "$([ "$psrc" = "0" ] && echo 1 || echo 0)" "protect-specs ALLOWS a payload without a file path (safe under *) (rc=$psrc)"
+  ok "$([ "$(ls "$CSP/.codex/agents"/*.toml | wc -l | tr -d ' ')" = "$(ls "$ENGINE/../agents"/*.md | wc -l | tr -d ' ')" ] && echo 1 || echo 0)" "agents/: one TOML per plugin agent"
+  ok "$(grep -q '^model = "gpt-review"' "$CSP/.codex/agents/reviewer.toml" && grep -q '^model_reasoning_effort = "xhigh"' "$CSP/.codex/agents/reviewer.toml" && grep -q '^sandbox_mode = "read-only"' "$CSP/.codex/agents/reviewer.toml" && echo 1 || echo 0)" "reviewer.toml: per-phase codex model/effort + read-only sandbox"
+  ok "$(grep -q '^sandbox_mode = "workspace-write"' "$CSP/.codex/agents/generator.toml" && grep -q '^model = "gpt-global"' "$CSP/.codex/agents/generator.toml" && echo 1 || echo 0)" "generator.toml: workspace-write + inherits the global codex model"
+  ok "$(grep -q "^developer_instructions = '''" "$CSP/.codex/agents/reviewer.toml" && grep -q 'fresh-context reviewer' "$CSP/.codex/agents/reviewer.toml" && ! grep -q '^name: reviewer' "$CSP/.codex/agents/reviewer.toml" && echo 1 || echo 0)" "reviewer.toml: body embedded as a TOML literal, frontmatter stripped"
+  ok "$([ "$(grep -cx '\.codex/' "$CSP/.gitignore")" = "1" ] && echo 1 || echo 0)" ".gitignore gained exactly one '.codex/' line"
+  bash "$CS" --project-root "$CSP" >/dev/null 2>&1 || true
+  ok "$([ "$(grep -cx '\.codex/' "$CSP/.gitignore")" = "1" ] && echo 1 || echo 0)" "re-run is idempotent on .gitignore"
+  # A consumer .gitignore on Windows is often CRLF: the presence check must CR-strip or bash re-appends forever.
+  printf 'node_modules/\r\n.codex/\r\n' > "$CSP/.gitignore"
+  bash "$CS" --project-root "$CSP" >/dev/null 2>&1 || true
+  ok "$([ "$(tr -d '\r' < "$CSP/.gitignore" | grep -cx '\.codex/')" = "1" ] && echo 1 || echo 0)" "CRLF .gitignore already containing .codex/ is left alone (no duplicate)"
+  # Cross-twin parity: where powershell.exe exists (Windows dev box), the PS twin must call the bash-generated set fresh.
+  if command -v powershell.exe >/dev/null 2>&1; then
+    if powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$ENGINE/codex-setup.ps1" -ProjectRoot "$(cygpath -w "$CSP" 2>/dev/null || printf '%s' "$CSP")" -Check >/dev/null 2>&1; then xt=0; else xt=1; fi
+    ok "$([ "$xt" = "0" ] && echo 1 || echo 0)" "cross-twin: PS -Check calls the bash-generated set fresh (digest parity)"
+  fi
+  if bash "$CS" --project-root "$CSP" --check >/dev/null 2>&1; then ck=0; else ck=1; fi
+  ok "$([ "$ck" = "0" ] && echo 1 || echo 0)" "--check exits 0 right after generation (fresh)"
+  printf ' ' >> "$CSP/harness/harness.config.json"
+  if o="$(bash "$CS" --project-root "$CSP" --check 2>&1)"; then ck=0; else ck=1; fi
+  ok "$([ "$ck" = "1" ] && printf '%s' "$o" | grep -q STALE && echo 1 || echo 0)" "--check exits 1 STALE after an input changes"
+  rm -rf "$CSP/.codex"
+  if o="$(bash "$CS" --project-root "$CSP" --check 2>&1)"; then ck=0; else ck=1; fi
+  ok "$([ "$ck" = "1" ] && printf '%s' "$o" | grep -q 'NOT generated' && echo 1 || echo 0)" "--check exits 1 NOT generated when .codex/ is absent"
+  CH="$(mktemp -d)"
+  HARNESS_CODEX_HOME="$CH" bash "$CS" --project-root "$CSP" --user >/dev/null 2>&1 || true
+  ok "$([ -f "$CH/hooks.json" ] && jq -e '._generated_by' "$CH/hooks.json" >/dev/null 2>&1 && echo 1 || echo 0)" "--user writes hooks.json into \$HARNESS_CODEX_HOME"
+  printf '{"hooks":{}}' > "$CH/hooks.json"
+  if HARNESS_CODEX_HOME="$CH" bash "$CS" --project-root "$CSP" --user >/dev/null 2>&1; then u=0; else u=1; fi
+  ok "$([ "$u" = "1" ] && [ "$(cat "$CH/hooks.json")" = '{"hooks":{}}' ] && echo 1 || echo 0)" "--user refuses to overwrite a hooks.json the harness did not generate"
+  rm -rf "$CSP" "$CH"
+else
+  echo "  (skipping codex-setup tests - jq not installed)"
+fi
+
 echo "plugin: cross-platform hook dispatcher (node)"
 # The plugin ships hooks through plugin/hooks/run.mjs (static hooks.json can't branch on OS). Its own
 # node self-test covers both OS branches + a real dispatch; fold its exit code into this suite.

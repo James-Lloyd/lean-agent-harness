@@ -752,6 +752,111 @@ $rootShim   = Get-Content -LiteralPath (Join-Path $repoRoot 'CLAUDE.md') -Raw
 ok "placeholders live in AGENTS.md, none in the CLAUDE.md shim" ($rootAgents.Contains('{{PROJECT_NAME}}') -and -not $rootShim.Contains('{{'))
 ok "root CLAUDE.md shim stays short (<= 25 lines)" (@(Get-Content -LiteralPath (Join-Path $repoRoot 'CLAUDE.md')).Count -le 25)
 
+Write-Host "codex-setup: generated, gitignored Codex surfaces from a temp project (design-doc 002 D3)"
+# Drive the real engine generator against a throwaway project whose review phase routes to codex with a
+# per-phase model, then assert each generated surface + the -Check / -User contracts. Mirror of the bash block.
+$csp = Join-Path ([System.IO.Path]::GetTempPath()) ("codex-setup-" + [System.IO.Path]::GetRandomFileName())
+New-Item -ItemType Directory -Force -Path (Join-Path $csp 'harness') | Out-Null
+$cscfg = '{ "models": {
+  "codex":  { "model": "gpt-global", "reasoningEffort": "medium", "auth": "chatgpt", "timeoutSeconds": 60 },
+  "review": { "model": "codex", "fallback": "claude-fable-5-1", "codex": { "model": "gpt-review", "reasoningEffort": "xhigh" } },
+  "implement": { "model": "claude-opus-5" } } }'
+[System.IO.File]::WriteAllText((Join-Path $csp 'harness/harness.config.json'), $cscfg, (New-Object System.Text.UTF8Encoding($false)))
+[System.IO.File]::WriteAllText((Join-Path $csp '.gitignore'), "node_modules/`n", (New-Object System.Text.UTF8Encoding($false)))
+$cs = Join-Path $engineDir 'codex-setup.ps1'
+# NB: never `2>&1` a native call under the suite's EAP=Stop - PS 5.1 wraps each stderr line in a
+# NativeCommandError and aborts the suite (the generator's intended "refusing to overwrite" message did
+# exactly that). Run the child under EAP=Continue and read only stdout + the exit code.
+function _CS { param([string[]]$extra)
+  $prev = $ErrorActionPreference; $ErrorActionPreference = 'Continue'
+  try { $null = & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $cs -ProjectRoot $csp @extra 2>$null; return $LASTEXITCODE }
+  finally { $ErrorActionPreference = $prev }
+}
+function _CSOut { param([string[]]$extra)
+  $prev = $ErrorActionPreference; $ErrorActionPreference = 'Continue'
+  try { $o = (& powershell.exe -NoProfile -ExecutionPolicy Bypass -File $cs -ProjectRoot $csp @extra 2>$null | Out-String); return @{ rc = $LASTEXITCODE; out = $o } }
+  finally { $ErrorActionPreference = $prev }
+}
+ok "generate exits 0" ((_CS @()) -eq 0)
+$cfgToml = Get-Content -LiteralPath (Join-Path $csp '.codex/config.toml') -Raw
+ok "config.toml: hooks on + skills path -> plugin/skills"        ($cfgToml -match '(?m)^hooks = true' -and $cfgToml -match '(?m)^path = ".*plugin/skills"')
+ok "config.toml: [agents] defaults from the global codex block"  ($cfgToml -match '(?m)^default_subagent_model = "gpt-global"')
+ok "config.toml: native absolute path with forward slashes"      ($cfgToml -match '(?m)^path = "([A-Za-z]:/|/)' -and -not $cfgToml.Contains('\'))
+$hj = Get-Content -LiteralPath (Join-Path $csp '.codex/hooks.json') -Raw | ConvertFrom-Json
+$allCmds = @(); foreach ($ev in @('PreToolUse', 'PostToolUse', 'SessionStart')) { foreach ($e in (Get-Prop $hj.hooks $ev)) { foreach ($h in $e.hooks) { $allCmds += [string]$h.command } } }
+ok "hooks.json: four commands, every one routed through run.mjs" (($allCmds.Count -eq 4) -and (@($allCmds | Where-Object { $_ -match 'run\.mjs" (block-destructive|protect-specs|format-and-check|session-start)$' }).Count -eq 4))
+# Single-element arrays must survive ConvertTo-Json as ARRAYS (a scalarised entry would still index as [0]);
+# assert the real shape via property access (not a function return, so the unrolling rule does not bite).
+ok "hooks.json: event entries and hook lists are JSON arrays"   (($hj.hooks.PreToolUse -is [Array]) -and ($hj.hooks.PostToolUse -is [Array]) -and ($hj.hooks.PostToolUse[0].hooks -is [Array]) -and ($hj.hooks.SessionStart[0].hooks -is [Array]))
+# block-destructive scans the WHOLE payload when tool_input.command is absent (fail toward scanning), so
+# it must never sit under "*" - a Codex edit whose text mentions `rm -rf` would be falsely denied.
+$bdEntries = @($hj.hooks.PreToolUse | Where-Object { @($_.hooks | Where-Object { $_.command -match 'block-destructive$' }).Count -gt 0 })
+$psEntries = @($hj.hooks.PreToolUse | Where-Object { @($_.hooks | Where-Object { $_.command -match 'protect-specs$' }).Count -gt 0 })
+ok "hooks.json: block-destructive is under the shell-tool matcher, NOT *" (($bdEntries.Count -eq 1) -and ($bdEntries[0].matcher -ne '*') -and ($bdEntries[0].matcher -match 'shell'))
+ok "hooks.json: protect-specs / format-and-check / session-start run under *" (($psEntries.Count -eq 1) -and ($psEntries[0].matcher -eq '*') -and ($hj.hooks.PostToolUse[0].matcher -eq '*') -and ($hj.hooks.SessionStart[0].matcher -eq '*'))
+ok "hooks.json: no ConfigChange (no Codex event for it)"        ($null -eq (Get-Prop $hj.hooks 'ConfigChange'))
+$null = _CS @('-ShellMatcher', 'my_shell')
+$hj2 = Get-Content -LiteralPath (Join-Path $csp '.codex/hooks.json') -Raw | ConvertFrom-Json
+$bd2 = @($hj2.hooks.PreToolUse | Where-Object { @($_.hooks | Where-Object { $_.command -match 'block-destructive$' }).Count -gt 0 })
+ok "-ShellMatcher pins block-destructive's matcher (V5 will confirm the real name)" (($bd2.Count -eq 1) -and ($bd2[0].matcher -ceq 'my_shell'))
+# The reason for the scoping, proven with a DESTRUCTIVE literal (a benign probe never reaches the fallback):
+$editPayload = '{"tool_name":"apply_patch","tool_input":{"patch":"+ echo do not run rm -rf / here"}}'
+$hooksRoot = Join-Path (Split-Path $engineDir -Parent) 'hooks'
+$prevEAP2 = $ErrorActionPreference; $ErrorActionPreference = 'Continue'
+try {
+  $null = ($editPayload | & powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $hooksRoot 'block-destructive.ps1') 2>$null); $bdrc = $LASTEXITCODE
+  $null = ($editPayload | & powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $hooksRoot 'protect-specs.ps1')     2>$null); $psrc = $LASTEXITCODE
+} finally { $ErrorActionPreference = $prevEAP2 }
+ok "block-destructive DENIES an edit payload that merely mentions rm -rf (why it is not under *)" ($bdrc -eq 2)
+ok "protect-specs ALLOWS a payload without a file path (safe under *)"                          ($psrc -eq 0)
+$nAgents = @(Get-ChildItem -LiteralPath (Join-Path $csp '.codex/agents') -Filter *.toml).Count
+$nPlugin = @(Get-ChildItem -LiteralPath (Join-Path (Split-Path $engineDir -Parent) 'agents') -Filter *.md).Count
+ok "agents/: one TOML per plugin agent"                          ($nAgents -eq $nPlugin -and $nAgents -gt 0)
+$rv = Get-Content -LiteralPath (Join-Path $csp '.codex/agents/reviewer.toml') -Raw
+$gn = Get-Content -LiteralPath (Join-Path $csp '.codex/agents/generator.toml') -Raw
+ok "reviewer.toml: per-phase codex model/effort + read-only sandbox" ($rv -match '(?m)^model = "gpt-review"' -and $rv -match '(?m)^model_reasoning_effort = "xhigh"' -and $rv -match '(?m)^sandbox_mode = "read-only"')
+ok "generator.toml: workspace-write + inherits the global codex model" ($gn -match '(?m)^sandbox_mode = "workspace-write"' -and $gn -match '(?m)^model = "gpt-global"')
+ok "reviewer.toml: body embedded as a TOML literal, frontmatter stripped" ($rv.Contains("developer_instructions = '''") -and $rv.Contains('fresh-context reviewer') -and -not ($rv -match '(?m)^name: reviewer'))
+$giCount = @(Get-Content -LiteralPath (Join-Path $csp '.gitignore') | Where-Object { $_ -ceq '.codex/' }).Count
+ok ".gitignore gained exactly one '.codex/' line"                ($giCount -eq 1)
+$null = _CS @()
+$giCount2 = @(Get-Content -LiteralPath (Join-Path $csp '.gitignore') | Where-Object { $_ -ceq '.codex/' }).Count
+ok "re-run is idempotent on .gitignore"                          ($giCount2 -eq 1)
+# Cross-twin parity: where a REAL bash exists (Git Bash on a Windows box or CI runner; /usr/bin/bash on
+# Unix pwsh), bash --check must call the PS-generated set fresh. On Windows a bare `bash` resolves to the
+# System32 WSL launcher (which fails without a distro/virtualisation), so locate Git Bash explicitly.
+$gitBash = $null
+foreach ($cand in @("$env:ProgramFiles\Git\bin\bash.exe", "$env:ProgramFiles\Git\usr\bin\bash.exe", "${env:ProgramFiles(x86)}\Git\bin\bash.exe")) {
+  if ($cand -and (Test-Path $cand)) { $gitBash = $cand; break }
+}
+if (-not $gitBash) { $c = Get-Command bash -ErrorAction SilentlyContinue; if ($c -and ($c.Source -notmatch 'System32|WindowsApps')) { $gitBash = $c.Source } }
+if ($gitBash) {
+  $prevEAP3 = $ErrorActionPreference; $ErrorActionPreference = 'Continue'
+  # Forward slashes for bash: its `dirname` treats a backslash path as a bare filename (the engine now
+  # normalises its own path too, but a test should not depend on that).
+  try { $null = (& $gitBash ((Join-Path $engineDir 'codex-setup.sh').Replace('\', '/')) --project-root ($csp.Replace('\', '/')) --check 2>$null); $xt = $LASTEXITCODE } finally { $ErrorActionPreference = $prevEAP3 }
+  ok "cross-twin: bash --check calls the PS-generated set fresh (digest parity)" ($xt -eq 0)
+} else {
+  Write-Host "  (skipping cross-twin bash --check - no Git Bash / real bash found)"
+}
+ok "-Check exits 0 right after generation (fresh)"               ((_CS @('-Check')) -eq 0)
+[System.IO.File]::AppendAllText((Join-Path $csp 'harness/harness.config.json'), ' ')
+$r = _CSOut @('-Check')
+ok "-Check exits 1 STALE after an input changes"                 ($r.rc -eq 1 -and $r.out -match 'STALE')
+Remove-Item -Recurse -Force (Join-Path $csp '.codex')
+$r = _CSOut @('-Check')
+ok "-Check exits 1 NOT generated when .codex/ is absent"         ($r.rc -eq 1 -and $r.out -match 'NOT generated')
+$ch = Join-Path ([System.IO.Path]::GetTempPath()) ("codex-home-" + [System.IO.Path]::GetRandomFileName())
+$env:HARNESS_CODEX_HOME = $ch
+$null = _CS @('-User')
+$uh = Join-Path $ch 'hooks.json'
+ok "-User writes hooks.json into HARNESS_CODEX_HOME"             ((Test-Path $uh) -and ($null -ne (Get-Prop (Get-Content -LiteralPath $uh -Raw | ConvertFrom-Json) '_generated_by')))
+[System.IO.File]::WriteAllText($uh, '{"hooks":{}}', (New-Object System.Text.UTF8Encoding($false)))
+$urc = _CS @('-User')
+ok "-User refuses to overwrite a hooks.json the harness did not generate" ($urc -ne 0 -and ((Get-Content -LiteralPath $uh -Raw) -eq '{"hooks":{}}'))
+Remove-Item Env:HARNESS_CODEX_HOME -ErrorAction SilentlyContinue
+Remove-Item -Recurse -Force $csp, $ch -ErrorAction SilentlyContinue
+
 Write-Host "plugin: cross-platform hook dispatcher (node)"
 # The plugin ships hooks through plugin/hooks/run.mjs (static hooks.json can't branch on OS). Its own
 # node self-test covers both OS branches + a real dispatch; fold its exit code into this suite.

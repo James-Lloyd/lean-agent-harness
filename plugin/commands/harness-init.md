@@ -90,11 +90,15 @@ With answers in hand:
   (`block-destructive`, `protect-specs`, `format-and-check`, `session-start`, `lock-config`) to
   `bash "${CLAUDE_PROJECT_DIR}/.claude/hooks/<hook>.sh"` (or `pwsh …` for PowerShell 7). Either way,
   tighten `permissions.ask`/`deny` for any project-specific guardrails from Step 2.7.
-- **Runner wrappers (plugin installs only).** The loop/fleet engine ships in the plugin. Copy the four
+- **Runner wrappers (plugin installs only).** The loop/fleet engine ships in the plugin. Copy the six
   thin wrappers from `<plugin>/engine/wrappers/` into `harness/` (`loop.ps1`, `loop.sh`, `fleet.ps1`,
-  `fleet.sh`) so `powershell harness/loop.ps1 …` and cron keep working; they locate the installed engine
-  and dispatch `--project-root <repo>`. `harness/` then holds only `harness.config.json` + these wrappers
-  + gitignored runtime — no engine code.
+  `fleet.sh`, `codex-setup.ps1`, `codex-setup.sh`) so `powershell harness/loop.ps1 …` and cron keep
+  working; they locate the installed engine and dispatch `--project-root <repo>`. `harness/` then holds
+  only `harness.config.json` + these wrappers + gitignored runtime — no engine code.
+- **Codex surfaces (only if any phase routes to `codex`).** Run `bash harness/codex-setup.sh` (or the
+  `.ps1`) to generate the gitignored `.codex/` (config, guard hooks, one Codex agent per plugin agent);
+  it appends `.codex/` to `.gitignore` itself. Read the first paragraph of `docs/codex-setup.md` before
+  relying on the hooks headlessly. Skip entirely for a single-vendor Claude routing.
 - **Model routing + reasoning effort (per phase).** Apply the answers you already collected in Step 2.8
   using the **`model-routing` skill**'s write-all-surfaces contract — don't re-run the interview here.
   (If Step 2.8 was skipped, run it now.) The skill owns the recommended defaults, the interview, the
