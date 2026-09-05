@@ -1,6 +1,6 @@
 # 002 — Vendor-agnostic routing (Claude Code today, OpenAI Codex CLI swappable per phase)
 
-- **Status:** accepted (slice V1 shipped; V2–V5 in `state/fix_plan.md`)
+- **Status:** accepted (V1–V4 shipped 2026-09-05 as PRs #11–#14; V5 live-fire PARTIAL — second-reviewer shadow run done 2026-09-05 (`state/evidence/2026-09-05-vendor-agnostic-refit-v5/`), real Codex hook denial pending a human-run probe; tracked in `state/fix_plan.md`)
 - **Date:** 2026-09-04
 
 ## Context

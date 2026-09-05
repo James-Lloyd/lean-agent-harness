@@ -67,3 +67,14 @@ PowerShell 5.1: `powershell harness/tests/run-tests.ps1`; bash needs `jq` on PAT
 - [2026-09-04] The block-destructive hook's secrets-read pattern matches `.env` as a SUBSTRING, so a
   `cat >> notes.md <<EOF` whose body mentions `autoMode.environment` is denied as "reading secrets".
   Append prose through the Edit tool, or keep `.env`-shaped words out of heredoc bodies.
+- [2026-09-05] `codex exec` prints two `ERROR codex_models_manager … 401 Unauthorized … token_expired` lines at
+  start-up and then runs normally — that is the models-list cache refresh, not the session. `codex login status`
+  (what `codex_available` probes) and the exit code are the signals the dispatcher keys on; do not read a 401 in
+  the transcript as a usage-limit or unavailable trigger.
+- [2026-09-05] The auto-mode permission classifier refuses to run a script that carries Codex
+  `--dangerously-bypass-hook-trust` (the flag a headless `codex exec` needs to honour a repo `.codex/hooks.json`
+  without persisting trust), even against a nonexistent scratch path in a read-only sandbox. A Codex hook probe is
+  therefore a human-run step: stage the script in the evidence dir and hand James the Git Bash command line.
+- [2026-09-05] Inside a worktree session the isolation hook also refuses a reviewer SUBAGENT's `powershell`
+  invocations, so a Windows judge can re-run the bash twin live but not the PS twin; CI covers PS. It likewise
+  refuses inline `source`/`export` — put multi-step shell in a scratchpad script and run `bash <script>`.
