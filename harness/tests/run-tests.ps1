@@ -799,11 +799,14 @@ function _CSOut { param([string[]]$extra)
 ok "generate exits 0" ((_CS @()) -eq 0)
 $cfgToml = Get-Content -LiteralPath (Join-Path $csp '.codex/config.toml') -Raw
 ok "config.toml: hooks on + skills path -> plugin/skills"        ($cfgToml -match '(?m)^hooks = true' -and $cfgToml -match '(?m)^path = ".*plugin/skills"')
-ok "config.toml: [agents] defaults from the global codex block"  ($cfgToml -match '(?m)^default_subagent_model = "gpt-global"')
+# V5 live-fire against Codex 0.144.3: a skills.config entry without `enabled` is a FATAL config-load error,
+# and `[agents]` + `default_subagent_*` (what V3 emitted) are rejected as a malformed agent role.
+ok "config.toml: skills.config entry carries enabled = true (required by Codex 0.144.3)" ($cfgToml -match '(?m)^path = ".*plugin/skills"\r?\nenabled = true')
+ok "config.toml: no [agents] block / default_subagent_* keys (fatal to load on Codex 0.144.3)" (-not ($cfgToml -match '(?m)^\[agents\]|^default_subagent'))
 ok "config.toml: native absolute path with forward slashes"      ($cfgToml -match '(?m)^path = "([A-Za-z]:/|/)' -and -not $cfgToml.Contains('\'))
 $hj = Get-Content -LiteralPath (Join-Path $csp '.codex/hooks.json') -Raw | ConvertFrom-Json
 $allCmds = @(); foreach ($ev in @('PreToolUse', 'PostToolUse', 'SessionStart')) { foreach ($e in (Get-Prop $hj.hooks $ev)) { foreach ($h in $e.hooks) { $allCmds += [string]$h.command } } }
-ok "hooks.json: four commands, every one routed through run.mjs" (($allCmds.Count -eq 4) -and (@($allCmds | Where-Object { $_ -match 'run\.mjs" (block-destructive|protect-specs|format-and-check|session-start)$' }).Count -eq 4))
+ok "hooks.json: four commands, every one routed through run.mjs --codex (Codex ignores exit 2; V5)" (($allCmds.Count -eq 4) -and (@($allCmds | Where-Object { $_ -match 'run\.mjs" --codex (block-destructive|protect-specs|format-and-check|session-start)$' }).Count -eq 4))
 # Single-element arrays must survive ConvertTo-Json as ARRAYS (a scalarised entry would still index as [0]);
 # assert the real shape via property access (not a function return, so the unrolling rule does not bite).
 ok "hooks.json: event entries and hook lists are JSON arrays"   (($hj.hooks.PreToolUse -is [Array]) -and ($hj.hooks.PostToolUse -is [Array]) -and ($hj.hooks.PostToolUse[0].hooks -is [Array]) -and ($hj.hooks.SessionStart[0].hooks -is [Array]))
@@ -811,13 +814,14 @@ ok "hooks.json: event entries and hook lists are JSON arrays"   (($hj.hooks.PreT
 # it must never sit under "*" - a Codex edit whose text mentions `rm -rf` would be falsely denied.
 $bdEntries = @($hj.hooks.PreToolUse | Where-Object { @($_.hooks | Where-Object { $_.command -match 'block-destructive$' }).Count -gt 0 })
 $psEntries = @($hj.hooks.PreToolUse | Where-Object { @($_.hooks | Where-Object { $_.command -match 'protect-specs$' }).Count -gt 0 })
-ok "hooks.json: block-destructive is under the shell-tool matcher, NOT *" (($bdEntries.Count -eq 1) -and ($bdEntries[0].matcher -ne '*') -and ($bdEntries[0].matcher -match 'shell'))
+# V5 pinned the real name from a recorded Codex 0.144.3 PreToolUse payload: tool_name "Bash".
+ok "hooks.json: block-destructive is under the shell-tool matcher 'Bash' (V5-verified), NOT *" (($bdEntries.Count -eq 1) -and ($bdEntries[0].matcher -ceq 'Bash'))
 ok "hooks.json: protect-specs / format-and-check / session-start run under *" (($psEntries.Count -eq 1) -and ($psEntries[0].matcher -eq '*') -and ($hj.hooks.PostToolUse[0].matcher -eq '*') -and ($hj.hooks.SessionStart[0].matcher -eq '*'))
 ok "hooks.json: no ConfigChange (no Codex event for it)"        ($null -eq (Get-Prop $hj.hooks 'ConfigChange'))
 $null = _CS @('-ShellMatcher', 'my_shell')
 $hj2 = Get-Content -LiteralPath (Join-Path $csp '.codex/hooks.json') -Raw | ConvertFrom-Json
 $bd2 = @($hj2.hooks.PreToolUse | Where-Object { @($_.hooks | Where-Object { $_.command -match 'block-destructive$' }).Count -gt 0 })
-ok "-ShellMatcher pins block-destructive's matcher (V5 will confirm the real name)" (($bd2.Count -eq 1) -and ($bd2[0].matcher -ceq 'my_shell'))
+ok "-ShellMatcher overrides block-destructive's matcher (default Bash, pinned in V5)" (($bd2.Count -eq 1) -and ($bd2[0].matcher -ceq 'my_shell'))
 # The reason for the scoping, proven with a DESTRUCTIVE literal (a benign probe never reaches the fallback):
 $editPayload = '{"tool_name":"apply_patch","tool_input":{"patch":"+ echo do not run rm -rf / here"}}'
 $hooksRoot = Join-Path (Split-Path $engineDir -Parent) 'hooks'

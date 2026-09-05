@@ -1,6 +1,6 @@
 # 002 — Vendor-agnostic routing (Claude Code today, OpenAI Codex CLI swappable per phase)
 
-- **Status:** accepted (slice V1 shipped; V2–V5 in `state/fix_plan.md`)
+- **Status:** accepted — all slices shipped. V1–V4 merged 2026-09-05 as PRs #11–#14; V5 live-fire done 2026-09-05 (`state/evidence/2026-09-05-vendor-agnostic-refit-v5/`): second reviewer compared on a real diff (Fable SHIP vs Codex REJECT, advisory), and the hook probe found four V3 defects fixed in plugin 0.3.5 (see Consequences)
 - **Date:** 2026-09-04
 
 ## Context
@@ -18,7 +18,9 @@ findings are recorded here so this doc stands alone):
   in `~/.codex/hooks.json` or `<repo>/.codex/hooks.json`, with the *same JSON shape* as Claude Code's
   (`matcher` + `{type: "command", command, timeout}`, JSON on stdin, exit 2 = deny). Repo-level hooks
   are **skipped silently under `codex exec`** until the repo is trusted, or with
-  `--dangerously-bypass-hook-trust`.
+  `--dangerously-bypass-hook-trust`. *(V5 live-fire on 0.144.3 disproved both of the last two claims:
+  exit 2 is a hook failure that PROCEEDS, only the JSON `permissionDecision` blocks; and the repo-level
+  file is never loaded headlessly at all — see Consequences.)*
 - Codex has **custom subagents** (`.codex/agents/*.toml` with `model`, `model_reasoning_effort`,
   `sandbox_mode`), **plugins**, and reads the **Agent Skills** standard from `.agents/skills/` (not
   `.claude/skills/`). Claude Code reads `.claude/skills/` only. Both follow symlinks/junctions.
@@ -59,7 +61,8 @@ depth per phase — is delivered by the override object.
 
 **D3. Codex surfaces are *generated*, machine-local, and gitignored.** (slice V3)
 A new engine script pair `codex-setup.{ps1,sh}` writes `.codex/config.toml` (`[[skills.config]] path`
-pointing at the installed plugin's `skills/`, `[agents]` defaults from `models.*`, hooks feature on),
+pointing at the installed plugin's `skills/` with `enabled = true`, hooks feature on — no `[agents]`
+block: V5 found Codex 0.144.3 rejects `enabled`/`default_subagent_*` there as a malformed agent role),
 `.codex/hooks.json` (four of the five guard hooks through the same `run.mjs` bodies — `lock-config` has no
 Codex event, and `block-destructive` is scoped to the shell-tool matcher because its whole-payload
 fallback scan would falsely deny edits under `*`), and `.codex/agents/*.toml`
@@ -87,12 +90,19 @@ loop headlessly or drives the phases by hand until a command→skill bridge exis
 
 ## Consequences
 
-- **Guardrails hold under Codex only when the generated hooks are installed and trusted.** The
-  headless codex arm today is guarded by `--sandbox` + the gate + `autoRollbackOnRed`; V3 adds the
-  hooks, and the doc for V3 must state the `exec` trust caveat in the first paragraph.
-- **The Codex hook payload field names are unverified.** The shape is documented as the same, but
-  `run.mjs` reads `tool_input.command`; V3's live-fire task checks the field names before the hooks are
-  called equivalent.
+- **Guardrails hold under Codex only when the generated hooks are installed user-level AND trusted.**
+  V5 (2026-09-05, Codex 0.144.3) found the project `.codex/hooks.json` is never loaded by headless
+  `exec` — even trusted, even with the bypass flag — so `--user` is the headless path, and it still
+  needs `/hooks` trust or `--dangerously-bypass-hook-trust`. The engine's codex arm passes neither, so a
+  loop run under Codex is guarded by `--sandbox` + the gate + `autoRollbackOnRed` unless the operator
+  trusted the user-level hooks once. `docs/codex-setup.md` states this in its first section.
+- **The Codex hook payload field names are VERIFIED (V5):** `tool_name: "Bash"`, `tool_input.command`,
+  `hook_event_name`, `cwd`, `session_id`, `turn_id`, `tool_use_id`, `permission_mode`, `model`,
+  `transcript_path` — the same contract `run.mjs`'s bodies already read. But **exit code 2 is not a
+  denial under Codex** (logged `Failed`, call proceeds); only the JSON `permissionDecision: "deny"`
+  output blocks. `run.mjs --codex <hook>` translates a child's exit 2 + stderr into that JSON, and
+  `codex-setup` emits it on every hook command. Two V3 `config.toml` keys were also fatal on 0.144.3
+  (`skills.config` without `enabled`; an `[agents]` settings block) — fixed in V5, plugin 0.3.5.
 - **32 KiB AGENTS.md chain.** The root map is ~8 KB; the component template ~2 KB. `/gc` and the
   doc-gardener already police "map over ~100 lines" — the rule moves to `AGENTS.md`.
 - **`fable`/`opus` alias floating applies to Codex too:** a `codex.model: null` floats on the CLI

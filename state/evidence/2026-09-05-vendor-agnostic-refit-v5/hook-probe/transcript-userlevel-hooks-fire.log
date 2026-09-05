@@ -1,0 +1,31 @@
+OpenAI Codex v0.144.3
+--------
+workdir: <repo>
+model: gpt-5.6-sol
+provider: openai
+approval: never
+sandbox: read-only
+reasoning effort: low
+reasoning summaries: none
+session id: 01a0714f-057d-78f1-9f3a-12fdd3f2b37a
+--------
+user
+Run exactly one shell command: echo hello-from-probe . Then reply with the single word DONE.
+warning: `--dangerously-bypass-hook-trust` is enabled. Enabled hooks may run without review for this invocation.
+warning: `--dangerously-bypass-hook-trust` is enabled. Enabled hooks may run without review for this invocation.
+hook: SessionStart
+hook: SessionStart Completed
+codex
+Running the requested probe command.
+hook: PreToolUse
+hook: PreToolUse Completed
+exec
+"C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command 'echo hello-from-probe' in <repo>
+ succeeded in 4890ms:
+hello-from-probe
+
+codex
+DONE
+tokens used
+10,108
+DONE

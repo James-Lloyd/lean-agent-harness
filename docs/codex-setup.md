@@ -1,12 +1,25 @@
 # Running the harness under OpenAI Codex CLI — `codex-setup`
 
-**Read this first: under headless `codex exec`, Codex skips a repository's `.codex/hooks.json` until the
-repository has been trusted, or you pass `--dangerously-bypass-hook-trust`.** The guard hooks the harness
-generates into `.codex/` therefore protect an *interactive* Codex session in a trusted repo, and a
-headless run only when you either trust the repo first or install the hooks user-wide with `--user`
-(`~/.codex/hooks.json`). A headless run without either is guarded only by Codex's own sandbox
-(`--sandbox read-only|workspace-write`), the harness gate, and `autoRollbackOnRed` — exactly what the
-engine's codex arm relied on before this slice. Decide which you are running before you rely on a hook.
+**Read this first — verified live against Codex CLI 0.144.3 in slice V5 (2026-09-05,
+`state/evidence/2026-09-05-vendor-agnostic-refit-v5/`):**
+
+- Under headless `codex exec` the repository's `.codex/hooks.json` is **never loaded** — not with
+  `[projects.'<path>'] trust_level = "trusted"`, not with `--dangerously-bypass-hook-trust`, not both
+  (three file shapes tried, zero events). Only the user-level `~/.codex/hooks.json` (what `--user`
+  writes) and inline `-c hooks.<Event>=[…]` overrides fire. For a headless run, install with `--user`;
+  the project file is for interactive sessions, where `/hooks` reviews and trusts it.
+- Even user-level hooks run headlessly only with `--dangerously-bypass-hook-trust` (per invocation)
+  or after an interactive `/hooks` review has persisted trust for the hook's hash. Otherwise Codex skips
+  them silently. The engine's codex arm (`lib/invoke-codex.*`) does NOT pass the bypass flag.
+- **Codex does not treat exit code 2 as a denial.** A hook that exits 2 with a stderr reason is logged
+  `hook: PreToolUse Failed` and the tool call **proceeds** (fail-open — observed with a real `rm -rf`).
+  Only the JSON decision on stdout, exit 0, blocks:
+  `{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"…"}}`
+  (transcript: `hook: PreToolUse Blocked`, model sees `Command blocked by PreToolUse hook: …`).
+  `run.mjs --codex <hook>` performs that translation and the generator emits every hook command with it.
+- A headless run without hooks is guarded only by Codex's own sandbox (`--sandbox read-only|workspace-write`),
+  the harness gate, and `autoRollbackOnRed` — exactly what the codex arm relied on before V3. Decide
+  which you are running before you rely on a hook.
 
 ## What it generates (design-doc 002, D3)
 
@@ -15,7 +28,7 @@ engine's codex arm relied on before this slice. Decide which you are running bef
 
 | File | Content | Why generated, not committed |
 |---|---|---|
-| `.codex/config.toml` | `[features] hooks = true`; `[[skills.config]] path = <plugin>/skills` so Codex reads the harness skills (Agent Skills standard); `[agents]` defaults from the global `models.codex` block | the plugin lives in the per-machine cache (`~/.claude/plugins/…`), so the path is absolute and local — a committed absolute path dies on the next device (ratchet 2026-07-30) |
+| `.codex/config.toml` | `[features] hooks = true`; `[[skills.config]] path = <plugin>/skills` + `enabled = true` so Codex reads the harness skills (Agent Skills standard). **No `[agents]` block**: verified live on Codex 0.144.3 (slice V5), `[agents]` is a table of agent *roles* there, so the `enabled`/`default_subagent_*` keys V3 emitted were rejected as a malformed role — and any config-load error kills the *whole* `.codex/` layer silently (the run continues on `~/.codex/config.toml` alone). Per-agent model/effort lives in `agents/<name>.toml` | the plugin lives in the per-machine cache (`~/.claude/plugins/…`), so the path is absolute and local — a committed absolute path dies on the next device (ratchet 2026-07-30) |
 | `.codex/hooks.json` | four of the five harness guard hooks routed through the same `run.mjs` dispatcher and hook bodies Claude Code uses: `protect-specs`, `format-and-check`, `session-start` under matcher `*`; `block-destructive` under the **shell-tool matcher** only (`--shell-matcher`, see below). `lock-config` has no Codex event (`ConfigChange`) | same absolute-path reason |
 | `.codex/agents/<name>.toml` | one Codex custom agent per plugin agent: `model`/`model_reasoning_effort` from that phase's **effective** codex settings (`models.<phase>.codex{}` over `models.codex`), `sandbox_mode = "read-only"` for the judges (reviewer, evaluator, risk-classifier, explorer) and `"workspace-write"` for the writers, `developer_instructions` = the agent's body | the body is plugin content: regenerate on `/plugin update` rather than fork it |
 | `.codex/.harness-stamp.json` | plugin version + a sha256 of every input (config, hook manifest, agent files, plugin root) | lets `--check` say **fresh / STALE / NOT generated** deterministically; `/harness-doctor` check 12 runs it |
@@ -27,8 +40,8 @@ It also appends `.codex/` to the project's `.gitignore` if missing.
 ```
 bash harness/codex-setup.sh              # generate / regenerate
 bash harness/codex-setup.sh --check      # exit 0 fresh, 1 stale or missing (doctor check 12)
-bash harness/codex-setup.sh --user       # also install hooks to ~/.codex/hooks.json (headless-safe; MACHINE-WIDE)
-bash harness/codex-setup.sh --shell-matcher 'shell'   # pin block-destructive to Codex's real shell tool name
+bash harness/codex-setup.sh --user       # also install hooks to ~/.codex/hooks.json (the ONLY file headless exec loads; MACHINE-WIDE)
+bash harness/codex-setup.sh --shell-matcher 'Bash'    # override block-destructive's tool matcher (default Bash, recorded live in V5)
 powershell harness/codex-setup.ps1 [-Check] [-User] [-ShellMatcher <regex>]
 ```
 
@@ -42,32 +55,46 @@ ordinal file order, so both runtimes agree. **Re-run after** `/plugin update lea
 `--user` refuses to overwrite a `~/.codex/hooks.json` the harness did not generate (no `_generated_by`
 key) — merge by hand in that case.
 
-## Assumptions to verify live (slice V5)
+## What V5 verified live (Codex CLI 0.144.3, 2026-09-05) — and what is still assumed
 
-- **Tool names, and why `block-destructive` is not under `*`.** Codex's tool names are not Claude
-  Code's (`Bash`, `Edit`, …). `protect-specs`, `format-and-check` and `session-start` run under
-  `matcher: "*"` because their bodies **allow** (exit 0) a payload without a file path — verified with
-  foreign payloads. `block-destructive` is different: when `tool_input.command` is absent it deliberately
-  **scans the whole payload** ("fail toward scanning"), so under `*` a Codex *edit* whose patch text
-  merely mentions `rm -rf`, `DROP TABLE` or `.env` would be denied with a misleading "BLOCKED" — proven
-  with a destructive-literal probe (rc=2), which a benign probe never reaches. It is therefore emitted
-  only under `--shell-matcher` (default `shell|exec_command|local_shell|command_execution`, a **best
-  guess** at Codex's shell tool names). A wrong name means that one hook never fires — fail-open for
-  destructive shell commands under Codex, never a false denial. Until V5 observes a real Codex denial
-  and pins the name, treat `block-destructive` under Codex as *absent*, and rely on `--sandbox`.
+- **Tool name and payload — VERIFIED.** A recorded PreToolUse payload: `{"session_id","turn_id",
+  "transcript_path","cwd","hook_event_name":"PreToolUse","model","permission_mode","tool_name":"Bash",
+  "tool_input":{"command":"…"},"tool_use_id":"exec-…"}` — Codex mirrors Claude Code's hook contract, so
+  shell commands arrive as **`Bash`** (the docs also name `Edit`/`Write` for `apply_patch` edits) and
+  `block-destructive`'s `.tool_input.command` read is correct. `--shell-matcher` therefore defaults to
+  `Bash`. Why it is still not under `*`: when `tool_input.command` is absent the hook deliberately **scans
+  the whole payload** ("fail toward scanning"), so under `*` a Codex *edit* whose patch text merely
+  mentions `rm -rf`, `DROP TABLE` or `.env` would be denied with a misleading "BLOCKED" — proven with a
+  destructive-literal probe (rc=2), which a benign probe never reaches.
+- **Denial mechanism — VERIFIED (and it was wrong before V5).** Exit code 2 does not block under Codex
+  (see the first section); the JSON `permissionDecision: "deny"` output does. `run.mjs --codex` translates.
+- **Project-level `.codex/hooks.json` under headless `exec` — VERIFIED not loaded** (first section).
+  `--user` is the headless path; the harness's own codex arm never passes the bypass flag, so a loop run
+  under Codex relies on `--sandbox` + gate + rollback unless the user-level hooks have been trusted once
+  interactively.
+- **`config.toml` schema — VERIFIED, two V3 keys were fatal.** `[[skills.config]]` requires `enabled`
+  (missing ⇒ `Error loading config.toml: missing field 'enabled'`), and `[agents]` is a table of agent
+  roles (`enabled = true` / `default_subagent_*` ⇒ `expected struct AgentRoleToml`). Either error kills the
+  entire project `.codex/` layer silently — the run continues on `~/.codex/config.toml` alone, which is
+  why the V3 tests (which never loaded the file in Codex) stayed green. Newer Codex docs list
+  `agents.enabled`/`agents.default_subagent_*`; 0.144.3 does not accept them, so the generator emits only
+  what the oldest supported CLI loads. **Any generated config for a foreign tool must be load-tested
+  against the installed tool before its tests are believed** — `codex exec` with a one-line prompt does it.
 - **Digest across twins.** The `--check` stamp hashes raw inputs plus the plugin root path as each twin
   spells it (bash: logical `pwd` through `cygpath -m`; PS: `$PSScriptRoot`). A symlinked plugin cache or
   a differently-cased path can make one twin report STALE for the other's output — never a false
   *fresh*. Regenerate with the twin you run `--check` with.
-- **Unknown top-level keys in `hooks.json`.** The generated file carries `_generated_by` (which the `--user`
-  refusal logic relies on) and `_shell_matcher_note` beside `hooks`. Whether Codex's parser tolerates
-  unknown top-level keys is **unverified**; if it rejects the file, *all four* hooks are silently absent.
-  V5 checks this first: confirm `session-start` visibly fires before judging any denial.
+- **Unknown top-level keys in `hooks.json` — still unverified for the generated file.** Codex's docs show a
+  top-level `description` key beside `hooks`, so extra keys are probably tolerated, but the `--user` probe
+  with the real generated file (which carries `_generated_by` and `_shell_matcher_note`) was not run in V5
+  (a machine-wide write the session's permission classifier refused). If a `--user` install produces no
+  `hook: SessionStart` line in a transcript, suspect these keys first.
 - **No `ConfigChange` event** in Codex; the harness's `lock-config` hook has no Codex twin. The loop's
   config hash pin still catches a mid-run config edit after the fact.
-- **Agent TOML keys** (`developer_instructions`, `model_reasoning_effort`, `sandbox_mode`) follow the
-  Codex subagent docs as read on 2026-09-04; a Codex release that renames them shows up as Codex
-  ignoring the agent — re-check on upgrade.
+- **Agent TOML keys** (`developer_instructions`, `model_reasoning_effort`, `sandbox_mode`) exist as
+  strings in the 0.144.3 binary (`AgentRoleToml`), but whether `.codex/agents/*.toml` files are
+  auto-discovered was not exercised in V5 — the second reviewer ran through `codex exec`, not a spawned
+  agent. Re-check on upgrade.
 
 ## What stays Claude-only
 

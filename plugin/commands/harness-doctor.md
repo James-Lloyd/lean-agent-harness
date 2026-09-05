@@ -179,10 +179,14 @@ behaves oddly.
     (exit 0) = ✅; `NOT generated` (exit 1) = ❌ when a phase routes to codex (its hooks/agents/skills do
     not exist for Codex yet — run the generator), ⚠️ when nothing routes there; `STALE` (exit 1) = ⚠️ (an
     input changed since generation — re-run). Note `block-destructive` is generated under the
-    shell-tool matcher (`_shell_matcher_note` in the file) and is unverified until V5 — ℹ️. Also confirm `.gitignore` contains a line that is exactly
+    shell-tool matcher `Bash` (`_shell_matcher_note` in the file; recorded live from Codex 0.144.3 in V5),
+    and every hook command carries `run.mjs --codex` — Codex ignores exit code 2, so the dispatcher must
+    translate a denial into the JSON `permissionDecision` output; a hooks.json whose commands lack `--codex`
+    is stale from before V5 and fails open — ❌. Also confirm `.gitignore` contains a line that is exactly
     `.codex/` — a tracked `.codex/` is ❌ (it embeds this machine's absolute plugin path; ratchet
     2026-07-30). Finally, remind that under headless `codex exec` the repo's `.codex/hooks.json` is
-    skipped until the repo is trusted or `--user` installed the hooks (`docs/codex-setup.md`, first
+    never loaded (V5-verified, even trusted + bypass flag) — only `--user`'s `~/.codex/hooks.json` fires,
+    and only once trusted via `/hooks` or with `--dangerously-bypass-hook-trust` (`docs/codex-setup.md`, first
     paragraph) — an ℹ️, since it is Codex's policy, not drift.
 
 ## Output

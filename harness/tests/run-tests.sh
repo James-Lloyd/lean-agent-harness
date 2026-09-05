@@ -757,16 +757,21 @@ if command -v jq >/dev/null 2>&1; then
   if bash "$CS" --project-root "$CSP" >/dev/null 2>&1; then g=0; else g=1; fi
   ok "$([ "$g" = "0" ] && echo 1 || echo 0)" "generate exits 0"
   ok "$([ -f "$CSP/.codex/config.toml" ] && grep -q '^hooks = true' "$CSP/.codex/config.toml" && grep -q '^path = ".*plugin/skills"' "$CSP/.codex/config.toml" && echo 1 || echo 0)" "config.toml: hooks on + skills path -> plugin/skills"
-  ok "$(grep -q '^default_subagent_model = "gpt-global"' "$CSP/.codex/config.toml" && echo 1 || echo 0)"   "config.toml: [agents] defaults from the global codex block"
+  # V5 live-fire against Codex 0.144.3: a skills.config entry without `enabled` is a FATAL config-load error,
+  # and `[agents]` + `default_subagent_*` (what V3 emitted) are rejected as a malformed agent role. The
+  # generated file must carry `enabled = true` directly under the skills path and NO [agents] block at all.
+  ok "$(grep -A1 '^path = ".*plugin/skills"' "$CSP/.codex/config.toml" | grep -q '^enabled = true' && echo 1 || echo 0)" "config.toml: skills.config entry carries enabled = true (required by Codex 0.144.3)"
+  ok "$(! grep -q '^\[agents\]\|^default_subagent' "$CSP/.codex/config.toml" && echo 1 || echo 0)"   "config.toml: no [agents] block / default_subagent_* keys (fatal to load on Codex 0.144.3)"
   ok "$(grep -q '^path = "[A-Za-z]:/\|^path = "/' "$CSP/.codex/config.toml" && ! grep -qF '\' "$CSP/.codex/config.toml" && echo 1 || echo 0)" "config.toml: native absolute path with forward slashes (no /c/ MSYS form on Windows)"
-  ok "$(jq -e '([.hooks[][] | .hooks[] | .command] | (length == 4) and all(test("run.mjs\" (block-destructive|protect-specs|format-and-check|session-start)$")))' "$CSP/.codex/hooks.json" >/dev/null 2>&1 && echo 1 || echo 0)" "hooks.json: four commands, every one routed through run.mjs"
+  ok "$(jq -e '([.hooks[][] | .hooks[] | .command] | (length == 4) and all(test("run.mjs\" --codex (block-destructive|protect-specs|format-and-check|session-start)$")))' "$CSP/.codex/hooks.json" >/dev/null 2>&1 && echo 1 || echo 0)" "hooks.json: four commands, every one routed through run.mjs"
   # block-destructive scans the WHOLE payload when tool_input.command is absent (fail toward scanning), so
   # it must never sit under "*" - a Codex edit whose text mentions `rm -rf` would be falsely denied.
-  ok "$(jq -e '[.hooks.PreToolUse[] | select(.hooks[].command | test("block-destructive$")) | .matcher] | (length == 1) and (.[0] != "*") and (.[0] | test("shell"))' "$CSP/.codex/hooks.json" >/dev/null 2>&1 && echo 1 || echo 0)" "hooks.json: block-destructive is under the shell-tool matcher, NOT *"
+  # V5 pinned the real name from a recorded Codex 0.144.3 PreToolUse payload: tool_name "Bash".
+  ok "$(jq -e '[.hooks.PreToolUse[] | select(.hooks[].command | test("block-destructive$")) | .matcher] == ["Bash"]' "$CSP/.codex/hooks.json" >/dev/null 2>&1 && echo 1 || echo 0)" "hooks.json: block-destructive is under the shell-tool matcher \"Bash\" (V5-verified), NOT *"
   ok "$(jq -e '[.hooks.PreToolUse[] | select(.hooks[].command | test("protect-specs$")) | .matcher] == ["*"] and (.hooks.PostToolUse[0].matcher == "*") and (.hooks.SessionStart[0].matcher == "*")' "$CSP/.codex/hooks.json" >/dev/null 2>&1 && echo 1 || echo 0)" "hooks.json: protect-specs / format-and-check / session-start run under *"
   ok "$(jq -e '.hooks | has("ConfigChange") | not' "$CSP/.codex/hooks.json" >/dev/null 2>&1 && echo 1 || echo 0)" "hooks.json: no ConfigChange (no Codex event for it)"
   bash "$CS" --project-root "$CSP" --shell-matcher 'my_shell' >/dev/null 2>&1 || true
-  ok "$(jq -e '[.hooks.PreToolUse[] | select(.hooks[].command | test("block-destructive$")) | .matcher] == ["my_shell"]' "$CSP/.codex/hooks.json" >/dev/null 2>&1 && echo 1 || echo 0)" "--shell-matcher pins block-destructive's matcher (V5 will confirm the real name)"
+  ok "$(jq -e '[.hooks.PreToolUse[] | select(.hooks[].command | test("block-destructive$")) | .matcher] == ["my_shell"]' "$CSP/.codex/hooks.json" >/dev/null 2>&1 && echo 1 || echo 0)" "--shell-matcher overrides block-destructive's matcher (default Bash, pinned in V5)"
   # The reason for the scoping, proven with a DESTRUCTIVE literal (a benign probe never reaches the fallback):
   edit_payload='{"tool_name":"apply_patch","tool_input":{"patch":"+ echo do not run rm -rf / here"}}'
   if printf '%s' "$edit_payload" | bash "$ENGINE/../hooks/block-destructive.sh" >/dev/null 2>&1; then bdrc=0; else bdrc=$?; fi

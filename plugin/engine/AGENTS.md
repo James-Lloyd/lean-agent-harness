@@ -79,3 +79,13 @@ Hard-won rules (each traces to a real shipped failure):
   mirroring the sh twin's `jq floor == value`, and declare the type in `harness.schema.json` whenever
   both twins compare it (e.g. `failBelow` is `integer`) — the two shells do not coerce identically and a
   divergence can fail open. The suites run under BOTH hosts in CI — a 5.1-only green is not green.
+- **Hook exit codes are a Claude Code contract, not a universal one** — Codex logs exit 2 as `Failed` and
+  PROCEEDS with the tool call; its denial is JSON `permissionDecision: "deny"` on stdout with exit 0.
+  Hook BODIES stay single-contract (exit 2 = deny); `run.mjs --codex` translates per consumer. Any new hook
+  consumer gets its own translation in the dispatcher, verified by a real command that did NOT run
+  (found live 2026-09-05: the harness hook fired on a real `rm -rf` under Codex and the command ran).
+- **A generated config for a foreign tool is load-tested against the INSTALLED tool version before its
+  emitter's tests are believed** — Codex treats an unknown/missing TOML key as a fatal load error and silently
+  drops the entire project `.codex/` layer, so emit only keys the oldest supported version accepts
+  (`[[skills.config]]` needs `enabled`; `[agents]` is a role table on 0.144.3). Text-asserting tests were
+  green for a full slice while every generated file was dead.
