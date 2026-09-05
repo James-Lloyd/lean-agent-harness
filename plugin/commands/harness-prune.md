@@ -17,7 +17,7 @@ removes the scaffolding that has served its purpose. **Everything is one git com
 1. Refuse to run on a dirty tree (`git status --porcelain` must be empty) so the prune is a clean,
    isolated, revertible commit. Ask the human to commit/stash first if needed.
 2. Confirm `/harness-init` has actually run (config has no `{{PLACEHOLDER}}`-derived nulls in `gate`,
-   `CLAUDE.md` has real content). If it hasn't, stop — there's nothing safe to prune yet.
+   `AGENTS.md` has real content). If it hasn't, stop — there's nothing safe to prune yet.
 3. **Preview before deleting.** List exactly what you'll remove/trim and roughly how much (lines/files),
    then get a 👍. Deletion is destructive even with git behind it.
 
@@ -25,7 +25,7 @@ removes the scaffolding that has served its purpose. **Everything is one git com
 These reduce *per-session* context cost (the always-loaded files) and obvious clutter:
 
 1. **Trim instructional comments from always-loaded files**, keeping all operative content:
-   - `CLAUDE.md` (and any nested component `CLAUDE.md`): remove the top `<!-- ROOT CONTEXT MAP / RULES
+   - `AGENTS.md` (and any nested component `AGENTS.md`): remove the top `<!-- ROOT CONTEXT MAP / RULES
      FOR THIS FILE -->` block and the inline `{{PLACEHOLDER}}`-hint comments. **Keep** the ratchet
      comment (it's live guidance) and all real content.
    - `AGENT_NOTES.md`, `PROMPT.md`: remove the leading meta-explanation comment blocks; keep the actual

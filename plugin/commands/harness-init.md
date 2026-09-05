@@ -70,14 +70,15 @@ With answers in hand:
   and its `gate` with real commands). Put any cross-cutting e2e in the top-level `gate`. For each
   component's stack, reference a matching profile from the plugin engine's `profiles/` dir
   (`${CLAUDE_PLUGIN_ROOT}/engine/profiles/<stack>.json`) or copy its `_template.json`.
-- **`CLAUDE.md`** — replace every `{{PLACEHOLDER}}`: name, description, domain, project shape, and the
+- **`AGENTS.md`** (the map; `CLAUDE.md` is the one-line `@AGENTS.md` import shim and stays as shipped)
+  — replace every `{{PLACEHOLDER}}`: name, description, domain, project shape, and the
   **Components table** (one row per component). The gate commands go in `AGENT_NOTES.md`'s run/build
   block and `harness/harness.config.json`, not the root map. Leave the ratchet section empty (it
   grows from failures). Keep the file ≤ ~100 lines — trim, don't pad.
-- **Nested `CLAUDE.md`** — for each non-trivial component, copy the engine's template
-  (`${CLAUDE_PLUGIN_ROOT}/engine/templates/component-CLAUDE.md`)
-  into that component's directory (e.g. `frontend/CLAUDE.md`) and fill it — entry points live here, not
-  in the root map. Skip for a single-root project.
+- **Nested `AGENTS.md`** — for each non-trivial component, copy BOTH engine templates
+  (`${CLAUDE_PLUGIN_ROOT}/engine/templates/component-AGENTS.md` and `component-CLAUDE.md`)
+  into that component's directory (e.g. `frontend/AGENTS.md` + `frontend/CLAUDE.md`) and fill the
+  AGENTS.md — entry points live here, not in the root map; the CLAUDE.md stays the `@AGENTS.md` shim. Skip for a single-root project.
 - **`AGENT_NOTES.md`** — fill the run/build/test commands and any known environment quirks.
 - **`.claude/settings.json`** — **plugin vs copied engine.** If this project uses the
   `lean-agent-harness` **plugin** (`claude plugin list` shows it enabled), the hooks, agents, skills and

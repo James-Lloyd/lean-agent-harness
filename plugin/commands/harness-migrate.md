@@ -60,7 +60,7 @@ provide verbatim.
    commit, after the migration diff, so a routing change never hides inside a file-move.
 
 ## Never touched
-`CLAUDE.md`, `AGENT_NOTES.md`, `state/`, `specs/`, `docs/`, `harness/harness.config.json`,
+`AGENTS.md`, `CLAUDE.md`, `AGENT_NOTES.md`, `state/`, `specs/`, `docs/`, `harness/harness.config.json`,
 `.claude/settings.local.json`. Step 5 is the one exception, and only on an explicit go-ahead: it may
 write **those two files and nothing else** — a `models` block in `harness.config.json` and the matching
 `model`/`effortLevel` in `.claude/settings.json`, both inside the repo and both revertible with `git`.

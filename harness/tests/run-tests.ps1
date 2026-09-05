@@ -680,6 +680,28 @@ ok "shipped config ships promotion disabled"   ($false -eq (RProp $shippedPromo 
 $shippedAH = RProp $shippedPromo 'alwaysHuman'
 ok "shipped config guards the money surfaces"  (($null -ne $shippedAH) -and (@($shippedAH).Count -gt 0))
 
+Write-Host "docs: AGENTS.md is the map, CLAUDE.md is the @AGENTS.md import shim (design-doc 002)"
+# One source of truth: the vendor-neutral map is AGENTS.md; every CLAUDE.md beside an AGENTS.md is a
+# shim whose FIRST non-blank line is exactly `@AGENTS.md`. Mirror of the bash block.
+function Test-AgentsShim([string]$dir) {
+  $a = Join-Path $dir 'AGENTS.md'; $c = Join-Path $dir 'CLAUDE.md'
+  if (-not (Test-Path $a) -or -not (Test-Path $c)) { return $false }
+  $first = @(Get-Content -LiteralPath $c | Where-Object { $_.Trim() -ne '' }) | Select-Object -First 1
+  return ("$first".Trim() -ceq '@AGENTS.md')
+}
+foreach ($rel in @('', 'plugin/engine', 'examples/headless-fe-be', 'examples/headless-fe-be/frontend', 'examples/headless-fe-be/backend')) {
+  $d = if ($rel) { Join-Path $repoRoot $rel } else { $repoRoot }
+  ok ("AGENTS.md + @AGENTS.md shim in {0}" -f $(if ($rel) { $rel } else { '.' })) (Test-AgentsShim $d)
+}
+$tplA = Join-Path $repoRoot 'plugin/engine/templates/component-AGENTS.md'
+$tplC = Join-Path $repoRoot 'plugin/engine/templates/component-CLAUDE.md'
+$tplFirst = @(Get-Content -LiteralPath $tplC | Where-Object { $_.Trim() -ne '' }) | Select-Object -First 1
+ok "component template ships as AGENTS.md map + CLAUDE.md shim" ((Test-Path $tplA) -and ("$tplFirst".Trim() -ceq '@AGENTS.md'))
+$rootAgents = Get-Content -LiteralPath (Join-Path $repoRoot 'AGENTS.md') -Raw
+$rootShim   = Get-Content -LiteralPath (Join-Path $repoRoot 'CLAUDE.md') -Raw
+ok "placeholders live in AGENTS.md, none in the CLAUDE.md shim" ($rootAgents.Contains('{{PROJECT_NAME}}') -and -not $rootShim.Contains('{{'))
+ok "root CLAUDE.md shim stays short (<= 25 lines)" (@(Get-Content -LiteralPath (Join-Path $repoRoot 'CLAUDE.md')).Count -le 25)
+
 Write-Host "plugin: cross-platform hook dispatcher (node)"
 # The plugin ships hooks through plugin/hooks/run.mjs (static hooks.json can't branch on OS). Its own
 # node self-test covers both OS branches + a real dispatch; fold its exit code into this suite.

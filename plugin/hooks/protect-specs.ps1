@@ -1,7 +1,7 @@
 ﻿#!/usr/bin/env pwsh
 # PreToolUse(Edit|Write|MultiEdit) hook — make specs/ immutable DURING an unattended loop run.
 # Specs are the contract; the loop must never rewrite them to make work "pass". This mechanizes the
-# CLAUDE.md/PROMPT.md prose guardrail in the one context where prose isn't enough (headless auto runs).
+# AGENTS.md/PROMPT.md prose guardrail in the one context where prose isn't enough (headless auto runs).
 #
 # Env-gated on purpose: only blocks when $env:HARNESS_LOCK_SPECS is set (loop.ps1/loop.sh set it before
 # invoking the model). In interactive sessions the var is unset, so /plan, /harness-init, and /onboard —

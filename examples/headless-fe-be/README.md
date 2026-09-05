@@ -5,20 +5,23 @@ sub-repos with different stacks:
 
 ```
 acme-dashboard/
-├── CLAUDE.md                 # root map → points at both components  (see ./CLAUDE.md)
+├── AGENTS.md                 # root map → points at both components  (see ./AGENTS.md)
+├── CLAUDE.md                 # `@AGENTS.md` — Claude Code reads the map through this import
 ├── harness/                  # ONE harness governs the whole project
 ├── specs/                    # shared, immutable — incl. the FE↔BE API contract
 ├── frontend/                 # component: Next.js + TypeScript (pnpm)
 │   ├── package.json
-│   └── CLAUDE.md             # component's local map  (see ./frontend/CLAUDE.md)
+│   ├── AGENTS.md             # component's local map  (see ./frontend/AGENTS.md)
+│   └── CLAUDE.md             # `@AGENTS.md`
 └── backend/                  # component: FastAPI + Python (uv)
     ├── pyproject.toml
-    └── CLAUDE.md             # component's local map  (see ./backend/CLAUDE.md)
+    ├── AGENTS.md             # component's local map  (see ./backend/AGENTS.md)
+    └── CLAUDE.md             # `@AGENTS.md`
 ```
 
 > **Note on this folder's layout.** To avoid duplicating the harness machinery, the example ships only
 > the parts unique to a configured project: `harness.config.json` (here at the example root), the
-> filled-in `CLAUDE.md` maps, and stub `specs/`. In a *real* project the config lives at
+> filled-in `AGENTS.md` maps, and stub `specs/`. In a *real* project the config lives at
 > `harness/harness.config.json` as drawn above (stack profiles ship inside the plugin engine) — that's
 > why the maps below reference `harness/…` paths even though this example flattens the config to its root.
 
@@ -41,12 +44,12 @@ The file that makes it all work is [`harness.config.json`](./harness.config.json
 ## How it was produced
 You don't write this by hand. In a real project you'd run **`/harness-init`**, which detects the two
 sub-repos, interviews you to confirm each stack and its commands, and writes this config plus the
-nested `CLAUDE.md` files. This folder just shows you the finished shape.
+nested `AGENTS.md` files (each with a one-line `CLAUDE.md` import shim). This folder just shows you the finished shape.
 
 ## Files here
 - [`harness.config.json`](./harness.config.json) — the multi-component config (the important bit).
-- [`CLAUDE.md`](./CLAUDE.md) — the filled-in root map.
-- [`frontend/CLAUDE.md`](./frontend/CLAUDE.md), [`backend/CLAUDE.md`](./backend/CLAUDE.md) — per-component maps.
+- [`AGENTS.md`](./AGENTS.md) — the filled-in root map ([`CLAUDE.md`](./CLAUDE.md) is the `@AGENTS.md` shim).
+- [`frontend/AGENTS.md`](./frontend/AGENTS.md), [`backend/AGENTS.md`](./backend/AGENTS.md) — per-component maps.
 - [`specs/000-overview.md`](./specs/000-overview.md), [`specs/020-api.md`](./specs/020-api.md) — stub specs
   (the overview + the FE↔BE contract), modelling the `NNN-<slug>.md` numbering convention.
 

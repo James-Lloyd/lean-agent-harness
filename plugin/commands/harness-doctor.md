@@ -23,10 +23,13 @@ behaves oddly.
    `ConvertFrom-Json` are fine; `node`'s `JSON.parse` chokes on the UTF-8 BOM the config may carry —
    don't report a false "invalid JSON").
 
-2. **No un-filled placeholders.** Grep the always-loaded files (`CLAUDE.md`, any nested component
-   `CLAUDE.md`, `AGENT_NOTES.md`, `PROMPT.md`, `harness.config.json`) **and `specs/`** (the shipped
+2. **No un-filled placeholders, and the map is importable.** Grep the always-loaded files (`AGENTS.md`, any nested
+   component `AGENTS.md`, `AGENT_NOTES.md`, `PROMPT.md`, `harness.config.json`) **and `specs/`** (the shipped
    `specs/000-overview.md` carries `{{OWNER}}`/`{{DATE}}`) for `{{...}}` — any remaining means
-   `/harness-init` didn't finish.
+   `/harness-init` didn't finish. Then check the **import shim**: the root `CLAUDE.md` (and every nested
+   `CLAUDE.md` beside a nested `AGENTS.md`) has, as its FIRST non-blank line, exactly `@AGENTS.md` — that import is
+   how Claude Code reads the map (docs/design-docs/002). A `CLAUDE.md` with its own map content instead is
+   ❌ two sources of truth; a missing shim next to a nested `AGENTS.md` is ❌ (Claude Code never sees that map).
 
 3. **Components are real.** Each `config.components[].path` exists. The edit-hook's deepest-prefix routing
    has no ambiguous overlaps (two components can't both own the same file unambiguously).

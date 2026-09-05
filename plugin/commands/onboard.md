@@ -44,7 +44,7 @@ Run the discovered gate now, on the untouched code:
 - `specs/` — reverse-engineer "as-built" specs **only** for the area you're about to change; capture the
   current behaviour and its acceptance criteria. Don't try to spec the whole legacy system up front.
 - `AGENT_NOTES.md` — the real run/build/test commands and any "looks broken but isn't" landmines.
-- `CLAUDE.md` — fill the map and set the project as brownfield; add the "respect existing code" guardrail.
+- `AGENTS.md` — fill the map and set the project as brownfield; add the "respect existing code" guardrail.
 
 ## 5. Report
 Summarize: components found, the architecture in a few lines, the exact gate, baseline status

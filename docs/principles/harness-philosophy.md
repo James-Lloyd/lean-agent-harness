@@ -9,7 +9,7 @@ tooling, state — is the harness. "A decent model with a great harness beats a 
 harness." Most agent failures are harness gaps, not model gaps. So we invest here.
 
 ## 2. Two halves: guides and sensors (you need both)
-- **Guides (feedforward)** steer *before* the agent acts: `CLAUDE.md`, `specs/`, skills, types, LSP.
+- **Guides (feedforward)** steer *before* the agent acts: `AGENTS.md`, `specs/`, skills, types, LSP.
   Feedforward-only encodes rules that are never validated.
 - **Sensors (feedback)** observe *after* it acts: format, lint, typecheck, tests, fresh-context review.
   Feedback-only lets the same mistake repeat.
@@ -19,7 +19,7 @@ checks earliest.
 
 ## 3. The ratchet
 Every rule must trace to a real failure. Speculative "best practices" become a graveyard of stale rules
-that crowd out the task. `CLAUDE.md` stays a **map, not a manual** (≤ ~100 lines). You add rules via
+that crowd out the task. `AGENTS.md` stays a **map, not a manual** (≤ ~100 lines). You add rules via
 `/ratchet` *after* something breaks, and you delete rules that stop earning their attention. The
 harness is shaped by *your* failure history — it is a living system, not a one-time setup.
 

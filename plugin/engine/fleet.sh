@@ -128,7 +128,7 @@ conflict that voids your work. If the task genuinely requires an unowned file, S
 FLEET_NOTES.md in the repo root instead.
 
 Rules:
-1. Study first: CLAUDE.md, the relevant specs/, AGENT_NOTES.md. Search before assuming.
+1. Study first: AGENTS.md, the relevant specs/, AGENT_NOTES.md. Search before assuming.
 2. Full implementation — no placeholders, no stubs. Never weaken or delete a test. specs/ is locked.
 3. Before finishing, run your component's gate commands (harness/harness.config.json -> components):
    format -> lint -> typecheck -> build -> test. Leave the gate green in this worktree.

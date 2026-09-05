@@ -5,7 +5,7 @@
   "model": "claude-fable-5-1",
   "effortLevel": "medium",
 
-  "_worktree_note": "One session = one worktree (CLAUDE.md 'Session isolation'). baseRef 'fresh' branches each session's worktree from origin's default branch (clean tree matching the remote); 'head' would carry local unpushed state. .claude/settings.json, permissions, the plugin, and .git/hooks all resolve through a worktree to the main checkout, so the guard hooks + pre-commit privacy guard apply inside it for free.",
+  "_worktree_note": "One session = one worktree (AGENTS.md 'Session isolation' + CLAUDE.md 'Claude Code specifics'). baseRef 'fresh' branches each session's worktree from origin's default branch (clean tree matching the remote); 'head' would carry local unpushed state. .claude/settings.json, permissions, the plugin, and .git/hooks all resolve through a worktree to the main checkout, so the guard hooks + pre-commit privacy guard apply inside it for free.",
   "worktree": {
     "baseRef": "fresh"
   },

@@ -2,10 +2,10 @@
 
 Brief, factual entries a fresh-context agent needs to be productive in *this* repo. Keep it terse —
 it's loaded often; `/gc` compacts it. Engine-internal rules (PS 5.1, twin parity, dispatcher
-invariants) live in `plugin/engine/CLAUDE.md`, not here.
+invariants) live in `plugin/engine/AGENTS.md`, not here.
 
 ## How to run / build / test
-<!-- /harness-init fills one block per component (mirroring the CLAUDE.md components table); a
+<!-- /harness-init fills one block per component (mirroring the AGENTS.md components table); a
      single-root project has one block. Correct these the moment reality differs. -->
 - **{{COMPONENT_NAME}}** (`{{COMPONENT_PATH}}` — run these in that directory):
   - Run: `{{COMPONENT_RUN}}` · Build: `{{COMPONENT_BUILD}}` · Test: `{{COMPONENT_TEST}}`
@@ -53,11 +53,11 @@ PowerShell 5.1: `powershell harness/tests/run-tests.ps1`; bash needs `jq` on PAT
   the Opus 5 docs warn about — that guidance targets self-re-checking. Keep the judges.
   Details: docs/execution-plans/2026-07-26-claude5-context-refresh.md; docs/principles/sources.md rows 8–9.
 - [2026-08-08] `jq.exe` under Git Bash emits CRLF, which silently breaks config-derived globs (fail-OPEN,
-  invisible in Linux-only CI). Engine-internal, so the rule lives with the engine: `plugin/engine/CLAUDE.md`.
+  invisible in Linux-only CI). Engine-internal, so the rule lives with the engine: `plugin/engine/AGENTS.md`.
 - [2026-09-04] Permission-prompt load is mostly NOT an allowlist gap. Across 50 recent sessions, ~45% of
   Bash calls began `cd <path> && …` (a `cd` in a compound command defeats the read-only auto-allow and
   prompts) and ~13% were `node`/`python` heredocs (an interpreter can never be allowlisted). Use absolute
-  paths and the Read/Grep/Glob tools instead; rule recorded in CLAUDE.md "How to work". Separately, the
+  paths and the Read/Grep/Glob tools instead; rule recorded in AGENTS.md "How to work". Separately, the
   user-level Claude settings file carried ~200 KB of mojibake in its auto-mode context strings (an em
   dash re-encoded through cp1252 ~10x) that the auto-mode classifier re-read on every call — keep
   settings strings ASCII; the classifier also blocks shell writes to that file, so a human runs the repair.

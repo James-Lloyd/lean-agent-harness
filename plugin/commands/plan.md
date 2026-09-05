@@ -11,7 +11,7 @@ Goal: $ARGUMENTS
 Expand the intent into a plan the loop can execute one item at a time. Ambitious about scope, precise
 about decomposition. No feature code here.
 
-1. **Study first** — `CLAUDE.md`, relevant `specs/`, `docs/architecture/`, the existing code.
+1. **Study first** — `AGENTS.md`, relevant `specs/`, `docs/architecture/`, the existing code.
 2. **Clarify the why.** Ask (AskUserQuestion) when the outcome or acceptance criteria are ambiguous;
    capture *why* it matters for the amnesiac loops that follow.
 3. **Update the source of truth** — new/changed requirements go in `specs/NNN-<slug>.md` with

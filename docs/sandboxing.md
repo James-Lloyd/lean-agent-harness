@@ -126,4 +126,4 @@ recognized sandbox print nothing.
   hooks don't apply.
 
 Spec/test integrity in supervised use rests on the fresh-context `/review` plus the guardrails in
-`CLAUDE.md`/`PROMPT.md`; for unattended runs, add the isolation profiles above.
+`AGENTS.md`/`PROMPT.md`; for unattended runs, add the isolation profiles above.

@@ -5,7 +5,7 @@
 -->
 
 You are running one iteration of an autonomous engineering loop, with no memory of previous
-iterations. Everything you need is on disk: `CLAUDE.md` (the map), `specs/` (immutable requirements),
+iterations. Everything you need is on disk: `AGENTS.md` (the map), `specs/` (immutable requirements),
 `AGENT_NOTES.md` (operational gotchas), `state/fix_plan.md` (the prioritized work stack), and
 `state/PROGRESS.md` + recent `git log` (what just happened). If `project.type` in
 `harness/harness.config.json` is **brownfield**, read the `brownfield-safety` skill before touching code.

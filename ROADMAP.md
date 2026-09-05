@@ -90,7 +90,7 @@ the code doesn't back. (Ratchet them in as real use demands.)
 ## Distribution as a Claude Code plugin
 - **Now wired (2026-07-14):** the reusable engine ships as the `lean-agent-harness` **plugin** served
   from the in-repo marketplace (`.claude-plugin/marketplace.json`), with the per-repo scaffold
-  (`CLAUDE.md`, `specs/`, `state/`, `harness/harness.config.json`, `/harness-init`) staying the template
+  (`AGENTS.md` + `CLAUDE.md`, `specs/`, `state/`, `harness/harness.config.json`, `/harness-init`) staying the template
   half. Engine fixes (skills, agents, hooks, doctor, loop/fleet) now arrive via `/plugin update` instead
   of hand re-templating. `plugin/` holds the payload (agents, commands, skills), `plugin/hooks/` the
   guardrails behind a **node dispatcher** (one static `hooks.json` that picks powershell/bash by OS —
@@ -108,12 +108,12 @@ the code doesn't back. (Ratchet them in as real use demands.)
 ## Tracking the Claude Code platform (bets that can expire under us)
 - **`--bare` watch:** the docs say `--bare` (skips hooks/skills/`CLAUDE.md` discovery) "will become the
   default for `-p` in a future release." The unattended loop **depends** on that discovery (hooks are
-  the guardrails; `CLAUDE.md` is the map). Add a regression check to the self-tests before that flips.
+  the guardrails; `CLAUDE.md` imports the map). Add a regression check to the self-tests before that flips.
 - **Native `/goal` loop:** offer the built-in `/goal <gate condition>` Stop-hook loop as an alternative
   inner loop — `claude -p "/goal …"` runs to completion in one invocation. Keep `loop.ps1`/`loop.sh` for
   what `/goal` doesn't do: budgets, checkpoints, rollback, and git orchestration.
 - **`.claude/rules/`:** adopt path-scoped rule files with `paths:` frontmatter (e.g. brownfield rules
-  scoped to component dirs) so guidance loads only where it applies and `CLAUDE.md` stays under the
+  scoped to component dirs) so guidance loads only where it applies and `AGENTS.md` stays under the
   ~200-line guidance.
 
 ## "Re-examine the harness on every new model"

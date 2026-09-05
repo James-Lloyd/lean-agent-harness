@@ -51,12 +51,14 @@ done
 
 # --- Never-touched scaffold ---
 printf '%s' '{ "autonomy": { "mode": "supervised" }, "verification": {} }' > "$TMP/harness/harness.config.json"
-printf '# Project map (must not be touched)\n' > "$TMP/CLAUDE.md"
+printf '# Project map (must not be touched)\n' > "$TMP/AGENTS.md"
+printf '@AGENTS.md\n' > "$TMP/CLAUDE.md"
 printf '# notes (must not be touched)\n'       > "$TMP/AGENT_NOTES.md"
 printf 'log\n'  > "$TMP/state/PROGRESS.md"
 printf 'spec\n' > "$TMP/specs/000.md"
 cfg_sum="$(cksum < "$TMP/harness/harness.config.json")"
 claude_sum="$(cksum < "$TMP/CLAUDE.md")"
+agents_sum="$(cksum < "$TMP/AGENTS.md")"
 notes_sum="$(cksum < "$TMP/AGENT_NOTES.md")"
 spec_sum="$(cksum < "$TMP/specs/000.md")"
 
@@ -163,6 +165,7 @@ ok "$bak_ok"  "all 4 runners backed up to .pre-plugin.bak"
 # Never-touched scaffold
 ok "$([ "$(cksum < "$TMP/harness/harness.config.json")" = "$cfg_sum" ] && echo 1 || echo 0)" "harness.config.json untouched"
 ok "$([ "$(cksum < "$TMP/CLAUDE.md")" = "$claude_sum" ] && echo 1 || echo 0)"                "CLAUDE.md untouched"
+ok "$([ "$(cksum < "$TMP/AGENTS.md")" = "$agents_sum" ] && echo 1 || echo 0)"                "AGENTS.md untouched"
 ok "$([ "$(cksum < "$TMP/AGENT_NOTES.md")" = "$notes_sum" ] && echo 1 || echo 0)"            "AGENT_NOTES.md untouched"
 ok "$([ "$(cksum < "$TMP/specs/000.md")" = "$spec_sum" ] && echo 1 || echo 0)"               "specs/ untouched"
 

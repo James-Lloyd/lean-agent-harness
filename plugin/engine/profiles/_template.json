@@ -23,7 +23,7 @@
   },
 
   "commands": {
-    "_comment": "Operational commands surfaced into CLAUDE.md / AGENT_NOTES.md.",
+    "_comment": "Operational commands surfaced into AGENTS.md / AGENT_NOTES.md.",
     "install": "<install deps>",
     "run": "<run the app / dev server>"
   },
