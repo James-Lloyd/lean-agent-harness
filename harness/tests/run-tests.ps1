@@ -284,6 +284,19 @@ ok "flat-legacy 'codex' string => global model"          ($xd.model -eq 'gpt-glo
 ok "auth/timeout are global-only and carried through"    ($xr.auth -eq 'chatgpt' -and $xr.timeoutSeconds -eq 120)
 ok "no global, no phase block => null model (CLI default)" ($null -eq $xn.model -and $null -eq $xn.reasoningEffort)
 
+Write-Host "model routing V4: review.second{model,effort} - the second, read-only reviewer (design-doc 002 D4)"
+$scfg = [pscustomobject]@{ models = [pscustomobject]@{
+  review   = [pscustomobject]@{ model='claude-fable-5-1'; fallback='claude-opus-5'; effort='high'; second=[pscustomobject]@{ model='codex'; effort='high' } }
+  evaluate = [pscustomobject]@{ model='claude-fable-5-1'; second=[pscustomobject]@{ model=$null } }
+  docs     = 'haiku'
+} }
+ok "second.model resolves"                                ((Resolve-PhaseSecondModel $scfg 'review') -eq 'codex')
+ok "second.effort resolves"                               ((Resolve-PhaseSecondEffort $scfg 'review') -eq 'high')
+ok "second.model null => '' (no second reviewer)"         ((Resolve-PhaseSecondModel $scfg 'evaluate') -eq '')
+ok "absent phase => ''"                                   ((Resolve-PhaseSecondModel $scfg 'implement') -eq '')
+ok "flat-legacy string => ''"                             ((Resolve-PhaseSecondModel $scfg 'docs') -eq '')
+ok "review without a second block => ''"                  ((Resolve-PhaseSecondModel $xcfg 'review') -eq '')
+
 Write-Host "model routing S1b: Resolve-PhaseFallback('review') is symmetric with reviewFallback pseudo-phase"
 # Mixed config: nested review with a NULL fallback + a legacy top-level reviewFallback. Both accessors
 # must agree ('fable'); before S1b, Resolve-PhaseFallback returned '' while Resolve-PhaseModel returned 'fable'.
@@ -462,6 +475,12 @@ ok "budget meters 150 (max 100 + max 50, not summed to 300)" ((Get-Budget).token
 Set-Content -Path $blog -Value '{"usage":{"input_tokens":100,"output_tokens":50,"cache_creation_input_tokens":1000,"cache_read_input_tokens":2000}}' -Encoding utf8
 Reset-Budget; Update-BudgetFromLog -LogPath $blog | Out-Null
 ok "budget includes cache tokens (3150)" ((Get-Budget).tokensSpent -eq 3150)
+# Parity with the bash regression (2026-09-04): a transcript with NO token counts (every meterTokens=false
+# run) must not throw and falls back to the 15000 estimate.
+Set-Content -Path $blog -Value 'implemented the thing; no usage block here' -Encoding utf8
+$nbOk = $false
+try { Reset-Budget; Update-BudgetFromLog -LogPath $blog | Out-Null; $nbOk = ((Get-Budget).tokensSpent -eq 15000) } catch { $nbOk = $false }
+ok "budget: a log with NO token counts does not throw and falls back to the 15000 estimate" $nbOk
 Remove-Item $blog -ErrorAction SilentlyContinue
 Reset-Budget
 

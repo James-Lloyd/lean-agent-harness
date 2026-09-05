@@ -45,11 +45,15 @@ update_budget_from_log() {  # $1 logfile
     # per-model `modelUsage` breakdown alongside the aggregate `usage`, so summing double-counts.
     # Cache tokens too: cache reads/writes dominate real usage in long agentic sessions — ignoring
     # them under-meters by an order of magnitude and defeats tokenBudget as a runaway bound.
+    # `|| true` on EVERY pipeline: under the loop's `set -euo pipefail` a no-match grep makes the whole
+    # `$(...)` assignment fail and errexit kills the loop right after the implement phase - which is
+    # every run whose transcript lacks JSON token counts, i.e. every run with meterTokens=false (the
+    # default). Found live by loop-review-test.sh (2026-09-04); the unit test fed a log WITH counts.
     local max_in max_out max_cc max_cr
-    max_in="$(grep -oE '"input_tokens"[[:space:]]*:[[:space:]]*[0-9]+'  "$1" | grep -oE '[0-9]+' | sort -n | tail -1)"
-    max_out="$(grep -oE '"output_tokens"[[:space:]]*:[[:space:]]*[0-9]+' "$1" | grep -oE '[0-9]+' | sort -n | tail -1)"
-    max_cc="$(grep -oE '"cache_creation_input_tokens"[[:space:]]*:[[:space:]]*[0-9]+' "$1" | grep -oE '[0-9]+' | sort -n | tail -1)"
-    max_cr="$(grep -oE '"cache_read_input_tokens"[[:space:]]*:[[:space:]]*[0-9]+'     "$1" | grep -oE '[0-9]+' | sort -n | tail -1)"
+    max_in="$(grep -oE '"input_tokens"[[:space:]]*:[[:space:]]*[0-9]+'  "$1" | grep -oE '[0-9]+' | sort -n | tail -1 || true)"
+    max_out="$(grep -oE '"output_tokens"[[:space:]]*:[[:space:]]*[0-9]+' "$1" | grep -oE '[0-9]+' | sort -n | tail -1 || true)"
+    max_cc="$(grep -oE '"cache_creation_input_tokens"[[:space:]]*:[[:space:]]*[0-9]+' "$1" | grep -oE '[0-9]+' | sort -n | tail -1 || true)"
+    max_cr="$(grep -oE '"cache_read_input_tokens"[[:space:]]*:[[:space:]]*[0-9]+'     "$1" | grep -oE '[0-9]+' | sort -n | tail -1 || true)"
     spent="$(( ${max_in:-0} + ${max_out:-0} + ${max_cc:-0} + ${max_cr:-0} ))"
     if [ -z "$spent" ] || [ "$spent" -le 0 ] 2>/dev/null; then
       spent="$(grep -oE '[0-9][0-9,]*[[:space:]]*tokens' "$1" | grep -oE '[0-9,]+' | tr -d ',' | sort -n | tail -1 || true)"

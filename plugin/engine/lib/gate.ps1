@@ -174,6 +174,25 @@ function Resolve-PhaseCodexCfg($Config, [string]$Phase) {
   }
 }
 
+# SECOND reviewer (design-doc 002 D4): config.models.<phase>.second.model / .effort (trimmed), or '' when
+# there is none. Meaningful on `review` only: after the primary reviewer SHIPs, the second judge (a
+# different model, typically the other vendor) reviews the SAME batch read-only; SHIP requires both.
+# Mirror of phase_second_model / phase_second_effort in gate.sh.
+function Resolve-PhaseSecondModel($Config, [string]$Phase) {
+  $m = Get-Prop (Get-Prop $Config 'models') $Phase
+  if ($null -eq $m -or $m -is [string]) { return '' }
+  $v = Get-Prop (Get-Prop $m 'second') 'model'
+  if ($null -eq $v) { return '' }
+  return ("$v").Trim()
+}
+function Resolve-PhaseSecondEffort($Config, [string]$Phase) {
+  $m = Get-Prop (Get-Prop $Config 'models') $Phase
+  if ($null -eq $m -or $m -is [string]) { return '' }
+  $v = Get-Prop (Get-Prop $m 'second') 'effort'
+  if ($null -eq $v) { return '' }
+  return ("$v").Trim()
+}
+
 # Vendor-neutral usage/limit detector for the fallback dispatcher (S3 wires it; here it is a
 # standalone, unit-tested predicate). Detection is OUTPUT-based today: no vendor publishes a stable
 # rate-limit *exit code* we can trust, so $ExitCode is accepted for forward-compat (S3's dispatcher

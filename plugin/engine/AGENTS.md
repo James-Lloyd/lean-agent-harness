@@ -13,14 +13,24 @@ Hard-won rules (each traces to a real shipped failure):
   var so they don't leak into the job output stream; emit only the 0/1 exit proxy the caller reads.
 - **sh parity under `set -e`** — where the ps1 twin routes git through the exit-swallowing `_Git` in
   an error/degradation branch, the raw sh git call needs `|| true`, or sh aborts where ps1 tolerates.
+- **A `$(pipeline)` assignment under `pipefail` aborts on a no-match `grep`** — `x="$(grep … | sort |
+  tail -1)"` fails the assignment when grep finds nothing, and errexit kills the script. Every
+  "optional extraction" pipeline ends in `|| true`. Found live 2026-09-04: `update_budget_from_log`
+  killed the bash loop after every implement phase whose transcript had no JSON token counts (i.e.
+  every `meterTokens=false` run); the unit test fed a log WITH counts, so only the stub-driven
+  loop-review live-fire caught it. Feed the no-match shape to any parser test.
 - **Dispatcher invariants** (`lib/dispatch.*`) — a per-phase `fallback` fires ONLY on a failed
   invocation, even when the resolved primary is `''` (inherit ambient); the usage-limit sniffer
   (`Test-UsageLimitError`/`usage_limit_error`) is consulted ONLY on failure, never to overturn a
   success — the markers are substrings, and a good build whose output mentions "quota"/"429" must
   not be reset and retried.
-- **Multi-judge review point** — when a gate has N sequential judges (reviewer + evaluator), any
-  externally-visible "passed" marker (the `harness-reviewed` tag) advances only after the LAST judge
-  passes — the tag lives in the caller's both-passed branch, not inside `Invoke-PeriodicReview`.
+- **Multi-judge review point** — when a gate has N sequential judges (primary reviewer, optional second
+  reviewer, evaluator — in that order), any externally-visible "passed" marker (the `harness-reviewed`
+  tag) advances only after the LAST judge passes — the tag lives in the caller's all-passed branch, not
+  inside `Invoke-PeriodicReview`. Adding a judge edits, in the same diff, every surface that enumerates
+  the judges or their trigger (this rule, the caller comments, `/review`, the schema, `docs/overnight.md`)
+  so they state the same trigger — V4 shipped "after the primary returns its verdict" in `/review` and
+  "after the primary SHIPs" in the engine.
 - **A backgrounded bash subshell that must record its exit code needs `set +e` inside** — inherited
   errexit kills it on the nonzero exit before the `echo $?` line runs.
 - **An automated runner never discards a `git commit` exit code** — check it or park the branch; a

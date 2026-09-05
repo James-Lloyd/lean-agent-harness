@@ -132,6 +132,14 @@ behaves oddly.
       Claude-only) — anything else is ❌. `auth`/`timeoutSeconds` inside a per-phase block are ❌
       (global-only; the engine ignores them there). Report the effective `-m`/effort each codex-routed
       phase would run with, so a stale pinned GPT ID (every `*-codex` ID is retired) is visible.
+    - **(h) Second reviewer.** `models.review.second{model,effort}` (design-doc 002 D4) is read by the
+      loop's review point and `/review` only: on any other phase it is an unread key - ⚠️. When set:
+      `model` must be a legal Claude alias/ID or `"codex"` (❌ otherwise); `second.model` equal to
+      `review.model` (or to its resolved Claude fallback) is ⚠️ "self-review - no diversity"; a `codex`
+      second is probed like (f) and reported ⚠️ when unreachable, with the consequence spelled out:
+      the second reviewer has NO fallback, so an unreachable one stops every review point fail-closed
+      until it is reachable or removed. Say which pair will actually judge (e.g. "claude-fable-5-1 then
+      codex gpt-5.6-sol").
 
 11. **Risk-gated promotion (`promotion` block).** Skip entirely (report ℹ️ "not configured") when the
     block is absent — it is opt-in and most repos won't have it. When present:

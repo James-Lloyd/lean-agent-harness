@@ -125,6 +125,21 @@ phase_codex_effort() {  # $1 config path  $2 phase
     | if $o != null then $o else (.models.codex.reasoningEffort // "") end' "$1"
 }
 
+# SECOND reviewer (design-doc 002 D4): config.models.<phase>.second.model / .effort, or "" when there is
+# none. Meaningful on `review` only: after the primary reviewer SHIPs, the second judge (a different
+# model, typically the other vendor) reviews the SAME batch read-only; SHIP requires both. Mirror of
+# Resolve-PhaseSecondModel / Resolve-PhaseSecondEffort in gate.ps1.
+phase_second_model() {  # $1 config path  $2 phase
+  jq -r --arg p "$2" '
+    (.models[$p]) as $m
+    | if ($m|type) == "object" then ($m.second.model // "") else "" end' "$1"
+}
+phase_second_effort() {  # $1 config path  $2 phase
+  jq -r --arg p "$2" '
+    (.models[$p]) as $m
+    | if ($m|type) == "object" then ($m.second.effort // "") else "" end' "$1"
+}
+
 # Vendor-neutral usage/limit detector (mirror of Test-UsageLimitError). Output-based; $2 exit code is
 # reserved for forward-compat (S3 passes it) and not yet decisive. bash 3.2 / BSD-grep safe (no \b).
 usage_limit_error() {  # $1 output text  $2 exit code (reserved) ; return 0 if a usage/limit marker present
