@@ -28,7 +28,10 @@ the config (readable directly, or via the engine lib resolvers — bash `phase_m
 - **`codex` primary** → do NOT spawn the subagent; invoke the codex lib via Bash in the phase's mode
   (**workspace-write** for plan/execute, **read-only** for review/evaluate). Prefer the dispatcher
   (`Invoke-Phase` / `invoke_phase` from `engine/lib/dispatch.*`) — it retries once on the Claude
-  fallback for free. bash: call `invoke_phase` directly, never in `$(...)` (subshell drops its return
+  fallback for free, and pass the phase's **resolved** codex settings or the per-phase override is
+  silently ignored: PS `-CodexCfg (Resolve-PhaseCodexCfg $cfg '<phase>')`; bash the
+  `"$(phase_codex_model "$cfg" <phase>)" "$(phase_codex_effort "$cfg" <phase>)"` positionals (both in
+  `engine/lib/gate.*`). bash: call `invoke_phase` directly, never in `$(...)` (subshell drops its return
   globals). No subagent ever wraps codex.
 
 With the default config every phase is Claude (single-vendor by decision 2026-08-11 — the codex arm

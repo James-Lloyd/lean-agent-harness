@@ -33,7 +33,7 @@
         "docs": { "$ref": "#/definitions/phaseRouting", "description": "Model for the doc-gardener agent." },
         "codex": {
           "type": "object",
-          "description": "Settings for the OpenAI Codex CLI — used whenever ANY phase's model or fallback resolves to 'codex' (no longer review-specific).",
+          "description": "GLOBAL defaults for the OpenAI Codex CLI — used whenever ANY phase's model or fallback resolves to 'codex'. A phase may override `model` and `reasoningEffort` for itself via its own `codex: {…}` block (definitions/phaseRouting); `auth` and `timeoutSeconds` are global-only.",
           "properties": {
             "model": { "type": ["string", "null"], "description": "Passed as `codex exec -m`. null = don't pin; float on the CLI's default (recommended — pinned IDs rot as OpenAI retires models)." },
             "reasoningEffort": { "type": ["string", "null"], "enum": ["minimal", "low", "medium", "high", "xhigh", null], "description": "Sets codex `model_reasoning_effort` for the run. Default high." },
@@ -215,8 +215,17 @@
           "properties": {
             "model":    { "type": ["string", "null"], "description": "Primary model for this phase: a Claude alias (haiku|sonnet|opus|fable), a full ID, or the literal 'codex' (cross-vendor OpenAI Codex CLI)." },
             "fallback": { "type": ["string", "null"], "description": "Model used when the primary is unavailable or hits a usage/limit error: a Claude alias/ID or 'codex'. null = no fallback. Must not be 'codex' when model is already 'codex'." },
-            "effort":   { "type": ["string", "null"], "enum": ["minimal", "low", "medium", "high", "xhigh", "max", null], "description": "DECLARED reasoning effort for the phase's primary. Enforced where a file carries it — the `effort:` frontmatter of the phase's agent (the plugin's agents/*.md), for `session` the `effortLevel` key in .claude/settings.json (doctor check 10(e) validates both), and headlessly by the loop/fleet dispatcher, which passes `claude --effort <level>` on its Claude arm (since 2026-09-04). `minimal` is codex-only: on a Claude arm the flag is omitted and the model default applies; `max` is Claude-only. Advisory elsewhere: a `codex` primary takes its depth from models.codex.reasoningEffort. null/absent = the model default." },
-            "fallbackEffort": { "type": ["string", "null"], "enum": ["minimal", "low", "medium", "high", "xhigh", "max", null], "description": "Declared reasoning effort for the phase's `fallback` model, when the fallback should run at a different depth than the primary (e.g. review = fable@high with an opus@medium cap-proof fallback). Enforced headlessly: the loop/fleet dispatcher passes it as `--effort` when the fallback candidate runs. Enforced by frontmatter only for a codex-primary phase, whose Claude arm IS the fallback (generator tracks implement.fallbackEffort); on an interactive /work re-spawn of a Claude-primary phase it is advisory, since that re-spawn pins the model alone. null/absent = same as `effort`." }
+            "effort":   { "type": ["string", "null"], "enum": ["minimal", "low", "medium", "high", "xhigh", "max", null], "description": "DECLARED reasoning effort for the phase's primary. Enforced where a file carries it — the `effort:` frontmatter of the phase's agent (the plugin's agents/*.md), for `session` the `effortLevel` key in .claude/settings.json (doctor check 10(e) validates both), and headlessly by the loop/fleet dispatcher, which passes `claude --effort <level>` on its Claude arm (since 2026-09-04). `minimal` is codex-only: on a Claude arm the flag is omitted and the model default applies; `max` is Claude-only. Advisory elsewhere: a `codex` primary takes its depth from its own codex.reasoningEffort, else models.codex.reasoningEffort. null/absent = the model default." },
+            "fallbackEffort": { "type": ["string", "null"], "enum": ["minimal", "low", "medium", "high", "xhigh", "max", null], "description": "Declared reasoning effort for the phase's `fallback` model, when the fallback should run at a different depth than the primary (e.g. review = fable@high with an opus@medium cap-proof fallback). Enforced headlessly: the loop/fleet dispatcher passes it as `--effort` when the fallback candidate runs. Enforced by frontmatter only for a codex-primary phase, whose Claude arm IS the fallback (generator tracks implement.fallbackEffort); on an interactive /work re-spawn of a Claude-primary phase it is advisory, since that re-spawn pins the model alone. null/absent = same as `effort`." },
+            "codex": {
+              "type": ["object", "null"],
+              "description": "Per-phase Codex override (design-doc 002 D2), read ONLY when this phase's `model` or `fallback` is the literal 'codex'. Each key set here wins over the global models.codex block for this phase; keys left null inherit it. auth and timeoutSeconds are global-only. On a phase that never routes to codex this block is unread — /harness-doctor check 10(g) warns.",
+              "properties": {
+                "model": { "type": ["string", "null"], "description": "Codex model for this phase, passed as `codex exec -m` (e.g. gpt-5.6-sol). null = inherit models.codex.model (null there = float on the CLI default; every *-codex ID was retired in 2026-07/08, so pinned IDs rot)." },
+                "reasoningEffort": { "type": ["string", "null"], "enum": ["minimal", "low", "medium", "high", "xhigh", null], "description": "Codex `model_reasoning_effort` for this phase. null = inherit models.codex.reasoningEffort." }
+              },
+              "additionalProperties": false
+            }
           },
           "additionalProperties": false }
       ]

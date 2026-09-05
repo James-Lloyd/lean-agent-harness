@@ -155,6 +155,25 @@ function Resolve-PhaseFallbackEffort($Config, [string]$Phase) {
   return ("$e").Trim()
 }
 
+# Effective CODEX settings for one phase: the global models.codex block with the phase's optional
+# `codex: { model, reasoningEffort }` override merged on top (auth + timeoutSeconds are global-only by
+# design-doc 002 D2). Always returns an object (all-null when nothing is configured) so Invoke-Codex's
+# Get-Prop reads stay StrictMode-safe. Mirror of phase_codex_model / phase_codex_effort in gate.sh.
+function Resolve-PhaseCodexCfg($Config, [string]$Phase) {
+  $models = Get-Prop $Config 'models'
+  $g = Get-Prop $models 'codex'
+  $m = Get-Prop $models $Phase
+  $o = if ($null -ne $m -and $m -isnot [string]) { Get-Prop $m 'codex' } else { $null }
+  $model  = Get-Prop $o 'model';           if ($null -eq $model)  { $model  = Get-Prop $g 'model' }
+  $effort = Get-Prop $o 'reasoningEffort'; if ($null -eq $effort) { $effort = Get-Prop $g 'reasoningEffort' }
+  return [pscustomobject]@{
+    model           = $model
+    reasoningEffort = $effort
+    auth            = Get-Prop $g 'auth'
+    timeoutSeconds  = Get-Prop $g 'timeoutSeconds'
+  }
+}
+
 # Vendor-neutral usage/limit detector for the fallback dispatcher (S3 wires it; here it is a
 # standalone, unit-tested predicate). Detection is OUTPUT-based today: no vendor publishes a stable
 # rate-limit *exit code* we can trust, so $ExitCode is accepted for forward-compat (S3's dispatcher

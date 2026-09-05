@@ -67,7 +67,7 @@ $implementModel = Resolve-PhaseModel $cfg 'implement'
 $implementFallback = Resolve-PhaseFallback $cfg 'implement'   # cross-vendor fallback (e.g. 'codex'); '' = none — parity with the loop
 $implementEffort = Resolve-PhaseEffort $cfg 'implement'       # declared depth -> `claude --effort` on the Claude arm; '' = model default
 $implementFbEffort = Resolve-PhaseFallbackEffort $cfg 'implement'
-$codexCfg = Get-Prop (Get-Prop $cfg 'models') 'codex'
+$codexCfg = Resolve-PhaseCodexCfg $cfg 'implement'   # per-phase codex{model,reasoningEffort} over the global block (design-doc 002 D2)
 $claudeCmd = if ($env:HARNESS_CLAUDE_CMD) { $env:HARNESS_CLAUDE_CMD } else { 'claude' }   # injectable for stub-driven queue tests (parity: fleet.sh)
 
 # --- preflight -------------------------------------------------------------------

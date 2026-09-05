@@ -14,7 +14,8 @@
 # (the primary's declared effort) and INVOKE_PHASE_FALLBACK_EFFORT (the fallback's; empty = same as
 # the primary). The claude arm passes `--effort <level>` only for a level the CLI accepts
 # (low|medium|high|xhigh|max); anything else (empty, or codex's `minimal`) omits the flag so the model
-# default applies. The codex arm keeps reading models.codex.reasoningEffort. bash 3.2 / BSD-grep safe.
+# default applies. The codex arm's model/effort arrive from the caller (<codex_model> <codex_effort>,
+# resolved per phase: the phase's codex{} block over the global models.codex). bash 3.2 / BSD-grep safe.
 #
 # Discipline (AGENTS.md ratchet + parent plan §1/§3b/§4c — mirror of dispatch.ps1):
 #  - USAGE-LIMIT ONLY ON FAILURE. usage_limit_error is consulted ONLY on a nonzero result; a SUCCESS is

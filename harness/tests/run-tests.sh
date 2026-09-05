@@ -314,7 +314,21 @@ JSON
   m="$(phase_effort "$ecfg" docs)";              ok "$([ -z "$m" ] && echo 1 || echo 0)"         "explicit null effort => '' (got '$m')"
   m="$(phase_effort "$ecfg" plan)";              ok "$([ -z "$m" ] && echo 1 || echo 0)"         "absent phase => '' (got '$m')"
   m="$(phase_effort "$frcfg" implement)";        ok "$([ -z "$m" ] && echo 1 || echo 0)"         "flat-legacy string declares no effort (got '$m')"
-  rm -f "$ncfg" "$frcfg" "$ecfg"
+  echo "model routing V2: per-phase codex{model,reasoningEffort} over the global models.codex (design-doc 002 D2)"
+  xcfg="$(mktemp)"; printf '%s' '{ "models": {
+    "codex":     { "model": "gpt-global", "reasoningEffort": "medium", "auth": "chatgpt", "timeoutSeconds": 120 },
+    "review":    { "model": "codex", "fallback": "claude-fable-5-1", "codex": { "model": "gpt-review", "reasoningEffort": "xhigh" } },
+    "evaluate":  { "model": "codex", "codex": { "model": "gpt-eval" } },
+    "implement": { "model": "claude-opus-5", "fallback": "codex" },
+    "docs":      "codex" } }' > "$xcfg"
+  m="$(phase_codex_model "$xcfg" review)";     ok "$([ "$m" = "gpt-review" ] && echo 1 || echo 0)" "per-phase codex.model wins over global (got '$m')"
+  m="$(phase_codex_effort "$xcfg" review)";    ok "$([ "$m" = "xhigh" ] && echo 1 || echo 0)"      "per-phase codex.reasoningEffort wins over global (got '$m')"
+  m="$(phase_codex_model "$xcfg" evaluate)";   ok "$([ "$m" = "gpt-eval" ] && echo 1 || echo 0)"   "partial override: model from phase (got '$m')"
+  m="$(phase_codex_effort "$xcfg" evaluate)";  ok "$([ "$m" = "medium" ] && echo 1 || echo 0)"     "partial override: effort inherits global (got '$m')"
+  m="$(phase_codex_model "$xcfg" implement)";  ok "$([ "$m" = "gpt-global" ] && echo 1 || echo 0)" "no phase block => global model (got '$m')"
+  m="$(phase_codex_model "$xcfg" docs)";       ok "$([ "$m" = "gpt-global" ] && echo 1 || echo 0)" "flat-legacy 'codex' string => global model (got '$m')"
+  m="$(phase_codex_model "$ncfg" implement)";  ok "$([ -z "$m" ] && echo 1 || echo 0)"             "no global, no phase block => '' (CLI default) (got '$m')"
+  rm -f "$ncfg" "$frcfg" "$ecfg" "$xcfg"
 
   echo "model routing S1b: phase_fallback review symmetric with reviewFallback pseudo-phase"
   # Mixed config: nested review with a NULL fallback + a legacy top-level reviewFallback. Both accessors
@@ -408,6 +422,44 @@ STUB
   ok "$(grep -qx 'e-max=max' "$delog" && echo 1 || echo 0)"            "7f 'max' is CLI-legal and passed through"
   ok "$(claude_effort_legal xhigh && ! claude_effort_legal minimal && ! claude_effort_legal '' && ! claude_effort_legal High && echo 1 || echo 0)" "7g claude_effort_legal: xhigh yes; minimal/empty/High no (case-sensitive)"
   rm -f "$delog"
+  # 8. V2 (design-doc 002 D2): a per-phase codex model/effort reaches `codex exec -m` / model_reasoning_effort.
+  #    A stub "codex" answers `login status` (available), logs the -m / -c values it was invoked with,
+  #    and writes a SHIP verdict to the --output-last-message file the harness asked for.
+  cstub="$(mktemp)"; clog="$(mktemp)"
+  cat > "$cstub" <<'STUB'
+#!/usr/bin/env bash
+[ "${1:-}" = "login" ] && exit 0
+cat >/dev/null   # drain the piped prompt
+model=""; effort=""; last=""
+while [ $# -gt 0 ]; do
+  case "$1" in
+    -m) model="$2"; shift 2;;
+    -c) case "$2" in model_reasoning_effort=*) effort="${2#model_reasoning_effort=}";; esac; shift 2;;
+    --output-last-message) last="$2"; shift 2;;
+    *) shift;;
+  esac
+done
+[ -n "${STUB_CODEX_LOG:-}" ] && printf 'model=%s effort=%s\n' "$model" "$effort" >> "$STUB_CODEX_LOG"
+[ -n "$last" ] && printf 'stub reviewed it\nVERDICT: SHIP\n' > "$last"
+exit 0
+STUB
+  chmod +x "$cstub"; : > "$clog"
+  # The -m / effort values come FROM the resolvers over a real config (resolver -> argv join), not from
+  # literals: the phase block must beat the global block all the way to codex's argv.
+  xlive="$(mktemp)"; printf '%s' '{ "models": {
+    "codex":  { "model": "gpt-global", "reasoningEffort": "medium", "auth": "chatgpt", "timeoutSeconds": 60 },
+    "review": { "model": "codex", "codex": { "model": "gpt-per-phase", "reasoningEffort": "xhigh" } } } }' > "$xlive"
+  if STUB_CODEX_LOG="$clog" invoke_phase read-only 'judge the task' "$(dirname "$dstub")" "$dlog" \
+      codex '' '' 20 chatgpt "$(phase_codex_model "$xlive" review)" "$(phase_codex_effort "$xlive" review)" 30 "$dstub" "$cstub" > "$dout"; then rc=0; else rc=$?; fi
+  rm -f "$xlive"
+  ok "$([ "$rc" = "0" ] && [ "$INVOKE_PHASE_PATH" = "codex" ] && [ "$INVOKE_PHASE_USED_FALLBACK" = "0" ] && echo 1 || echo 0)" "8a codex primary available => ok, path=codex, no fallback"
+  ok "$(grep -q 'VERDICT: SHIP' "$dout" && echo 1 || echo 0)"                                    "8b codex arm returns the --output-last-message text (verdict)"
+  ok "$(grep -qx 'model=gpt-per-phase effort="xhigh"' "$clog" && echo 1 || echo 0)"              "8c per-phase codex model/effort (resolved from config, over the global block) reached codex argv"
+  : > "$clog"
+  if STUB_CODEX_LOG="$clog" invoke_phase read-only 'judge the task' "$(dirname "$dstub")" "$dlog" \
+      codex '' '' 20 chatgpt '' '' 30 "$dstub" "$cstub" > "$dout"; then rc=0; else rc=$?; fi
+  ok "$([ "$rc" = "0" ] && grep -qx 'model= effort=' "$clog" && echo 1 || echo 0)"              "8d empty model/effort => no -m / no effort override (CLI defaults)"
+  rm -f "$cstub" "$clog"
   rm -f "$dstub" "$dlog" "$dmlog" "$dout"
   reset_budget; ok "$([ "$(_budget_spent)" = "0" ] && echo 1 || echo 0)" "budget resets to 0"
   if budget_exceeded 0; then ok 0 "tokenBudget 0 = no cap (parity with budget.ps1)"; else ok 1 "tokenBudget 0 = no cap (parity with budget.ps1)"; fi
