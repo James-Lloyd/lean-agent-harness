@@ -1,23 +1,54 @@
 {
   "$schema": "../plugin/engine/harness.schema.json",
   "_comment": "The one file you tune per project (/harness-init writes the stack bits; harness.schema.json is the field reference). A project = one-or-more components, each with its own gate, plus a cross-cutting root gate.",
-
   "project": {
     "type": "greenfield",
-    "baseline": { "established": false, "ref": null }
+    "baseline": {
+      "established": false,
+      "ref": null
+    }
   },
-
   "models": {
     "_comment": "Per-phase {model, fallback, effort, fallbackEffort}: a Claude alias/ID; null = inherit session / no fallback. Fallback fires only on a FAILED invocation (unavailable or usage-limited). Enforced via settings.json `model`, agent frontmatter, and the loop dispatcher — /harness-doctor check 10 validates agreement. `effort` is DECLARED here and ENFORCED by settings.json `effortLevel` (session), the phase agent's `effort:` frontmatter (subagents), and — since 2026-09-04 — `claude --effort` on the headless dispatcher's Claude arm (primary runs at `effort`, a fallback at `fallbackEffort`, else `effort`). Still advisory: fallbackEffort on an INTERACTIVE re-spawn (a usage-cap re-spawn pins the model, not the depth). IDS ARE PINNED, NOT ALIASES: the bare aliases `opus` and `fable` float to the current model of that tier (today Opus 5 / Fable 5.1), so write the full ID for anything whose generation matters. Retuned 2026-09-04 for Claude Fable 5.1 (GA 2026-09-01): session = Fable 5.1 @ medium (Anthropic: medium roughly matches Fable 5 at lower cost, and the orchestrator delegates its deep reasoning); plan/review/evaluate = Fable 5.1 @ high (start at high, raise only on a measured gain); implement stays Opus 5 @ high (Anthropic's own default: start on Opus 5, escalate to Fable only when Opus 5 at higher effort fails). Codex was removed from routing on 2026-08-11 (single-vendor by decision); the engine's codex arm still exists and is tested, it is simply unrouted. FALLBACKS ONLY ON THE FABLE PHASES (plan/review/evaluate), by decision 2026-08-11: Fable is the model that has actually usage-capped in practice (3x, killing reviews), and a headless run cannot ask a human for help mid-review. implement has NO fallback — if Opus 5 is capped the build simply stops, which is the honest outcome for an interactive phase. DOER != JUDGE: implement is Opus 5 and review is Fable 5.1, so the writer is never the reviewer. Residual edge, accepted knowingly — the review fallback IS Opus 5, so a Fable cap makes the reviewer the same model that wrote the diff. The primary guarantee still holds (the reviewer is a fresh context that never sees the conversation that produced the code); only model diversity is lost, only on a cap, and no diff merges without a human.",
-    "session":   { "model": "claude-fable-5-1", "fallback": null,            "effort": "medium" },
-    "explore":   { "model": "haiku",            "fallback": null,            "effort": "low" },
-    "plan":      { "model": "claude-fable-5-1", "fallback": "claude-opus-5", "effort": "high", "fallbackEffort": "high" },
-    "implement": { "model": "claude-opus-5",    "fallback": null,            "effort": "high" },
-    "review":    { "model": "claude-fable-5-1", "fallback": "claude-opus-5", "effort": "high", "fallbackEffort": "medium" },
-    "evaluate":  { "model": "claude-fable-5-1", "fallback": "claude-opus-5", "effort": "high", "fallbackEffort": "medium" },
-    "docs":      { "model": "haiku",            "fallback": null,            "effort": "low" }
+    "session": {
+      "model": "claude-fable-5-1",
+      "fallback": null,
+      "effort": "medium"
+    },
+    "explore": {
+      "model": "haiku",
+      "fallback": null,
+      "effort": "low"
+    },
+    "plan": {
+      "model": "claude-fable-5-1",
+      "fallback": "claude-opus-5",
+      "effort": "high",
+      "fallbackEffort": "high"
+    },
+    "implement": {
+      "model": "claude-opus-5",
+      "fallback": null,
+      "effort": "high"
+    },
+    "review": {
+      "model": "claude-fable-5-1",
+      "fallback": "claude-opus-5",
+      "effort": "high",
+      "fallbackEffort": "medium"
+    },
+    "evaluate": {
+      "model": "claude-fable-5-1",
+      "fallback": "claude-opus-5",
+      "effort": "high",
+      "fallbackEffort": "medium"
+    },
+    "docs": {
+      "model": "haiku",
+      "fallback": null,
+      "effort": "low"
+    }
   },
-
   "autonomy": {
     "mode": "supervised",
     "maxIterations": 20,
@@ -31,7 +62,6 @@
       "everyNIterations": 5
     }
   },
-
   "loop": {
     "promptFile": "PROMPT.md",
     "planFile": "state/fix_plan.md",
@@ -42,21 +72,24 @@
     "tagOnGreen": true,
     "stopWhenPlanEmpty": true
   },
-
   "workflow": {
-    "phases": ["plan", "execute", "validate", "review", "record"],
+    "phases": [
+      "plan",
+      "execute",
+      "validate",
+      "review",
+      "record"
+    ],
     "checkpointBetweenPhases": true,
     "requireSprintContractBefore": "execute",
     "requireReviewBefore": "done"
   },
-
   "parallel": {
     "_comment": "Fleet runner: opt-in parallel workers over independent tasks (declared 'files' ownership), serialized merge queue. Review bandwidth binds before compute.",
     "maxWorkers": 3,
     "workerMaxTurns": null,
     "workerTimeoutSeconds": 3600
   },
-
   "components": [
     {
       "name": "root",
@@ -65,7 +98,10 @@
       "languages": [],
       "packageManager": null,
       "runtime": null,
-      "commands": { "install": null, "run": null },
+      "commands": {
+        "install": null,
+        "run": null
+      },
       "gate": {
         "format": null,
         "lint": null,
@@ -76,7 +112,6 @@
       }
     }
   ],
-
   "gate": {
     "_comment": "Cross-cutting gate, run from the repo ROOT after every component gate passes (usually just the e2e; all-null for a single-component project).",
     "format": null,
@@ -86,7 +121,6 @@
     "test": null,
     "e2e": null
   },
-
   "verification": {
     "requireE2EEvidence": true,
     "reviewEveryNIterations": 0,
@@ -96,31 +130,89 @@
       "failBelow": 7
     }
   },
-
   "promotion": {
     "_comment": "Risk-gated promotion (/promote). Deterministic rules classify the diff first and can only RAISE the tier; a fresh-context risk-classifier agent then runs and can only raise it further. LOW may auto-approve + auto-merge to staging; MEDIUM/HIGH go to a human; anything matching alwaysHuman or moneySignals is HIGH unconditionally; prod is NEVER automated. Off by default — turn on deliberately, per docs/promotion.md.",
-    "enabled": false,
-    "staging": { "branch": "staging", "autoMergeAtOrBelow": "low" },
-    "prod":    { "branch": "main",    "autoMerge": false },
-    "reviewer": { "tokenEnv": "HARNESS_PROMOTE_REVIEWER_TOKEN" },
+    "enabled": true,
+    "staging": {
+      "branch": "staging",
+      "autoMergeAtOrBelow": "low"
+    },
+    "prod": {
+      "branch": "main",
+      "autoMerge": false
+    },
+    "reviewer": {
+      "tokenEnv": "HARNESS_PROMOTE_REVIEWER_TOKEN"
+    },
     "alwaysHuman": [
-      "**/payments/**", "**/payment/**", "**/billing/**", "**/checkout/**",
-      "**/subscription*/**", "**/payout*/**", "**/pricing/**", "**/invoic*/**"
+      "**/payments/**",
+      "**/payment/**",
+      "**/billing/**",
+      "**/checkout/**",
+      "**/subscription*/**",
+      "**/payout*/**",
+      "**/pricing/**",
+      "**/invoic*/**"
     ],
     "moneySignals": [
-      "price", "amount", "currency", "charge", "refund", "payout", "invoice",
-      "tax", "discount", "balance", "stripe", "paypal", "adyen", "braintree"
+      "price",
+      "amount",
+      "currency",
+      "charge",
+      "refund",
+      "payout",
+      "invoice",
+      "tax",
+      "discount",
+      "balance",
+      "stripe",
+      "paypal",
+      "adyen",
+      "braintree"
     ],
     "criteria": {
       "maxChangedLines": 1000,
       "escalatePaths": {
-        "migrations": ["**/migrations/**", "**/migrate/**", "**/*.sql"],
-        "infra":      ["**/Dockerfile", "**/docker-compose*.y*ml", "**/*.tf", "**/k8s/**", "**/helm/**", "**/terraform/**"],
-        "authz":      ["**/auth/**", "**/auth*.*", "**/permission*/**", "**/session*/**", "**/*crypto*", "**/*secret*"],
-        "auditLog":   ["**/audit/**", "**/audit*.*", "**/logging/**", "**/telemetry/**", "**/monitoring/**"],
-        "contracts":  ["**/*.proto", "**/*.graphql", "**/openapi*.y*ml", "**/openapi*.json"]
+        "migrations": [
+          "**/migrations/**",
+          "**/migrate/**",
+          "**/*.sql"
+        ],
+        "infra": [
+          "**/Dockerfile",
+          "**/docker-compose*.y*ml",
+          "**/*.tf",
+          "**/k8s/**",
+          "**/helm/**",
+          "**/terraform/**"
+        ],
+        "authz": [
+          "**/auth/**",
+          "**/auth*.*",
+          "**/permission*/**",
+          "**/session*/**",
+          "**/*crypto*",
+          "**/*secret*"
+        ],
+        "auditLog": [
+          "**/audit/**",
+          "**/audit*.*",
+          "**/logging/**",
+          "**/telemetry/**",
+          "**/monitoring/**"
+        ],
+        "contracts": [
+          "**/*.proto",
+          "**/*.graphql",
+          "**/openapi*.y*ml",
+          "**/openapi*.json"
+        ]
       }
     },
-    "preconditions": { "gateGreen": true, "reviewShip": true, "e2eEvidence": true }
+    "preconditions": {
+      "gateGreen": true,
+      "reviewShip": true,
+      "e2eEvidence": true
+    }
   }
 }

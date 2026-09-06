@@ -1,0 +1,26 @@
+{
+  "label": "MEDIUM migration",
+  "repo": "throwaway consumer-shaped repo (see probe-consumer.sh)",
+  "range": "ccc3a3c..51dc6eb",
+  "environment": "staging",
+  "deterministicTier": "MEDIUM",
+  "deterministicReasons": [
+    "migrations: db/migrations/002_add_index.sql"
+  ],
+  "classifierTier": "MEDIUM",
+  "classifierProof": "not run in this probe; passed the deterministic tier as the neutral input to the escalate-only max()",
+  "finalTier": "MEDIUM",
+  "preconditions": {
+    "gateGreen": true,
+    "reviewShip": true,
+    "e2eEvidence": true
+  },
+  "reviewerConfigured": true,
+  "decision": "HUMAN",
+  "reason": "risk tier MEDIUM exceeds the staging auto-merge threshold",
+  "changedFiles": [
+    "db/migrations/002_add_index.sql"
+  ],
+  "changedLines": 1,
+  "outcome": null
+}

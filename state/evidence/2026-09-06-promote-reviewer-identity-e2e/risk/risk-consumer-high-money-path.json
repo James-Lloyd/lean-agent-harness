@@ -1,0 +1,26 @@
+{
+  "label": "HIGH checkout+money",
+  "repo": "throwaway consumer-shaped repo (see probe-consumer.sh)",
+  "range": "51dc6eb..9246597",
+  "environment": "staging",
+  "deterministicTier": "HIGH",
+  "deterministicReasons": [
+    "alwaysHuman path: src/checkout/pricing.ts; money signal 'amount' in added lines; money signal 'charge' in added lines; money signal 'refund' in added lines; money signal 'tax' in added lines"
+  ],
+  "classifierTier": "HIGH",
+  "classifierProof": "not run in this probe; passed the deterministic tier as the neutral input to the escalate-only max()",
+  "finalTier": "HIGH",
+  "preconditions": {
+    "gateGreen": true,
+    "reviewShip": true,
+    "e2eEvidence": true
+  },
+  "reviewerConfigured": true,
+  "decision": "HUMAN",
+  "reason": "risk tier HIGH exceeds the staging auto-merge threshold",
+  "changedFiles": [
+    "src/checkout/pricing.ts"
+  ],
+  "changedLines": 5,
+  "outcome": null
+}

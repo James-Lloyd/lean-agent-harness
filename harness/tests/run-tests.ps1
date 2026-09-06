@@ -171,6 +171,12 @@ ok "detects 'too many requests'"  (Test-UsageLimitError '429 Too Many Requests')
 ok "clean output => false"        (-not (Test-UsageLimitError 'review complete. VERDICT: SHIP'))
 ok "stray 429 tokens => false"    (-not (Test-UsageLimitError 'processed 429 files successfully'))
 ok "empty output => false"        (-not (Test-UsageLimitError ''))
+# Twin of the bash regression (2026-09-06): the sh side matched with `printf | grep -q`, which loses a
+# real match to SIGPIPE + pipefail once the transcript outgrows the 64 KiB pipe buffer. PowerShell
+# matches in-process with no pipe, so this side was never wrong - the assertion exists so the twins
+# are pinned to the SAME behaviour on a large input and a future rewrite toward a pipe goes red here too.
+$bigOut = "monthly usage limit reached`n" + ('x' * 200000)
+ok "detects a usage limit past the pipe buffer" (Test-UsageLimitError $bigOut)
 
 Write-Host "sandbox predicate: HARNESS_SANDBOX contract + auto-detect (Test-Sandboxed, gate.ps1)"
 # Save/restore HARNESS_SANDBOX around each case in a finally so no state leaks into the rest of the suite.
@@ -513,6 +519,13 @@ ok "allows git status"                 ((hookExit 'git status') -eq 0)
 ok "allows npm test"                   ((hookExit 'npm test') -eq 0)
 ok "allows normal git push"            ((hookExit 'git push origin feature') -eq 0)
 ok "ALLOWS git push --force-with-lease (the recommended form)" ((hookExit $lease) -eq 0)
+# Twin of the bash pin (2026-09-06): the guard must still fire when the destructive command is buried
+# in an OVERSIZED payload. The .sh hook matches with `printf | grep -q`, the shape that failed open in
+# money_signal once the text passed the 64 KiB pipe buffer under pipefail; the .ps1 hook matches
+# in-process and was never exposed. Pin the BEHAVIOUR on both so the guard has to keep denying however
+# either is rewritten. Command first, so a match-early grep cannot drain the pipe and hide the defect.
+$bigCmd = 'rm -rf / ; ' + ('x' * 200000)
+ok "blocks a destructive command inside a payload larger than the pipe buffer" ((hookExit $bigCmd) -eq 2)
 
 Write-Host "block-destructive: work-discard + remote-pipe coverage, false-positive exemptions"
 $checkoutDot = 'git checkout ' + '.'
@@ -632,6 +645,12 @@ ok "a money signal in added text pins HIGH"    ((riskOf @('src/util.ts') 10 'con
 ok "a money term as a snake_case prefix fires"  ((riskOf @('src/util.ts') 10 'const t = tax_rate * x') -eq 'HIGH')
 ok "an inflected money term fires"             ((riskOf @('src/util.ts') 10 'const all = prices.map(f)') -eq 'HIGH')
 ok "a money term MID-word does not fire"       ((riskOf @('src/util.ts') 10 'a syntax error occurred') -eq 'LOW')
+# Twin of the bash regression (found 2026-09-06 dogfooding /promote on a real range): the sh side's
+# `printf | grep -q` lost a real match to SIGPIPE + pipefail once the added text outgrew the 64 KiB
+# pipe buffer, so a real payments diff classified LOW. PowerShell matches in-process, so this side was
+# never wrong - the assertion pins both twins to the same answer on a big diff.
+$bigMoney = "const p = price * 2`n" + ('x' * 200000)
+ok "a money signal fires in an added text larger than the pipe buffer" ((riskOf @('src/util.ts') 10 $bigMoney) -eq 'HIGH')
 ok "editing the policy itself pins HIGH"       ((riskOf @('harness/harness.config.json') 10 '') -eq 'HIGH')
 ok "editing the risk lib itself pins HIGH"     ((riskOf @('plugin/engine/lib/risk.sh') 10 '') -eq 'HIGH')
 ok "an empty diff fails closed to HIGH"        ((riskOf @() 0 '') -eq 'HIGH')
@@ -663,7 +682,9 @@ Write-Host "risk: the promotion decision (prod is never automated)"
 function decOf($envName, $tier, $g, $s, $e) {
   # Single tier => deterministic=$tier, classifier=LOW (the identity for max()), so these pin the
   # same outcomes as before the merge moved inside the function.
-  (Get-PromotionDecision -Config $riskCfg -Environment $envName -DeterministicTier $tier -ClassifierTier 'LOW' -GateGreen $g -ReviewShip $s -E2EEvidence $e).Decision
+  # Reviewer held configured so each case is attributable to the dimension it tests; the reviewer
+  # gate itself is pinned separately below.
+  (Get-PromotionDecision -Config $riskCfg -Environment $envName -DeterministicTier $tier -ClassifierTier 'LOW' -GateGreen $g -ReviewShip $s -E2EEvidence $e -ReviewerConfigured $true).Decision
 }
 ok "staging + LOW + preconditions met = AUTO"  ((decOf 'staging' 'LOW' $true $true $true) -eq 'AUTO')
 # The load-bearing one. Not "defaults to human" — refused before config is read at all.
@@ -677,11 +698,24 @@ ok "an unknown environment is human"           ((decOf 'production' 'LOW' $true 
 ok "promotion disabled is human"               ((Get-PromotionDecision -Config $riskCfgOff -Environment 'staging' -DeterministicTier 'LOW' -ClassifierTier 'LOW' -GateGreen $true -ReviewShip $true -E2EEvidence $true).Decision -eq 'HUMAN')
 ok "the prod refusal names prod, not config"   ((Get-PromotionDecision -Config $riskCfgOff -Environment 'prod' -DeterministicTier 'LOW' -ClassifierTier 'LOW').Reason.Contains('prod promotion is always'))
 
+# GitHub rejects self-approval, so AUTO is reachable ONLY with a separate reviewer identity. The bool
+# is fail-closed by default ($false): a LOW change that cleared every other gate still goes HUMAN when
+# no reviewer is configured. The caller computes the bool (env token + gh identity != author); the
+# decision only trusts it. This is the load-bearing pin for the reviewer-identity wiring.
+function decRev($rev) {
+  (Get-PromotionDecision -Config $riskCfg -Environment 'staging' -DeterministicTier 'LOW' -ClassifierTier 'LOW' -GateGreen $true -ReviewShip $true -E2EEvidence $true -ReviewerConfigured $rev)
+}
+ok "LOW + all preconditions but NO reviewer identity => HUMAN" ((decRev $false).Decision -eq 'HUMAN')
+ok "the no-reviewer refusal names self-approval (not the AUTO reason)" ((decRev $false).Reason.Contains('self-approval'))
+ok "the SAME LOW change WITH a reviewer identity => AUTO"     ((decRev $true).Decision -eq 'AUTO')
+# Fail-closed default: omitting the arg entirely must not reach AUTO (a stale caller cannot merge).
+ok "an OMITTED reviewer arg fails closed to HUMAN"            ((Get-PromotionDecision -Config $riskCfg -Environment 'staging' -DeterministicTier 'LOW' -ClassifierTier 'LOW' -GateGreen $true -ReviewShip $true -E2EEvidence $true).Decision -eq 'HUMAN')
+
 # The escalate-only merge is computed INSIDE the decision, not handed to it: the function takes the
 # deterministic tier AND the classifier's verdict and max()es them itself, so no caller can pass a
 # single hand-picked (lower) tier to bypass the classifier. These pin that the merge is internal.
 function decMerge($det, $cls) {
-  (Get-PromotionDecision -Config $riskCfg -Environment 'staging' -DeterministicTier $det -ClassifierTier $cls -GateGreen $true -ReviewShip $true -E2EEvidence $true).Decision
+  (Get-PromotionDecision -Config $riskCfg -Environment 'staging' -DeterministicTier $det -ClassifierTier $cls -GateGreen $true -ReviewShip $true -E2EEvidence $true -ReviewerConfigured $true).Decision
 }
 ok "det LOW + classifier HIGH => HUMAN (cannot bypass the classifier)"   ((decMerge 'LOW'  'HIGH')     -eq 'HUMAN')
 ok "det HIGH + classifier LOW => HUMAN (deterministic escalation kept)"  ((decMerge 'HIGH' 'LOW')      -eq 'HUMAN')
@@ -695,7 +729,7 @@ Write-Host "risk: a malformed promotion block REFUSES (it must never silently sk
 # Every one of these is schema-valid-or-unvalidated at runtime and previously reached AUTO, because a
 # degenerate shape made a rule evaluate to "no match" instead of escalating - i.e. it failed OPEN.
 function ShapeDec($json, $tier, $g, $s2, $e) {
-  (Get-PromotionDecision -Config ($json | ConvertFrom-Json) -Environment 'staging' -DeterministicTier $tier -ClassifierTier 'LOW' -GateGreen $g -ReviewShip $s2 -E2EEvidence $e).Decision
+  (Get-PromotionDecision -Config ($json | ConvertFrom-Json) -Environment 'staging' -DeterministicTier $tier -ClassifierTier 'LOW' -GateGreen $g -ReviewShip $s2 -E2EEvidence $e -ReviewerConfigured $true).Decision
 }
 $noPre = '{ "promotion": { "enabled": true, "staging": { "autoMergeAtOrBelow": "low" }, "prod": { "autoMerge": false }, "alwaysHuman": ["**/payments/**"], "moneySignals": ["price"] } }'
 ok "absent preconditions => HUMAN, not 'all met'" ((ShapeDec $noPre 'LOW' $false $false $false) -eq 'HUMAN')
@@ -708,7 +742,7 @@ $strEnabled = '{ "promotion": { "enabled": "false", "staging": { "autoMergeAtOrB
 ok "enabled as the STRING 'false' => HUMAN"      ((ShapeDec $strEnabled 'LOW' $true $true $true) -eq 'HUMAN')
 $floatMax = '{ "promotion": { "enabled": true, "staging": { "autoMergeAtOrBelow": "low" }, "prod": { "autoMerge": false }, "alwaysHuman": ["**/payments/**"], "moneySignals": ["price"], "criteria": { "maxChangedLines": 10.5 }, "preconditions": { "gateGreen": true, "reviewShip": true, "e2eEvidence": true } } }'
 ok "a fractional maxChangedLines => HUMAN"       ((ShapeDec $floatMax 'LOW' $true $true $true) -eq 'HUMAN')
-ok "a well-formed enabled block still AUTOs"     ((Get-PromotionDecision -Config $riskCfg -Environment 'staging' -DeterministicTier 'LOW' -ClassifierTier 'LOW' -GateGreen $true -ReviewShip $true -E2EEvidence $true).Decision -eq 'AUTO')
+ok "a well-formed enabled block still AUTOs"     ((Get-PromotionDecision -Config $riskCfg -Environment 'staging' -DeterministicTier 'LOW' -ClassifierTier 'LOW' -GateGreen $true -ReviewShip $true -E2EEvidence $true -ReviewerConfigured $true).Decision -eq 'AUTO')
 # maxChangedLines must be judged by VALUE, not by concrete .NET type: ConvertFrom-Json yields Int32
 # under Windows PowerShell 5.1 and Int64 under pwsh, so a `-is [int]` check rejected a valid config
 # on pwsh only. CI runs both hosts and caught it; these pin the behaviour on whichever host runs.
@@ -748,6 +782,43 @@ ok "shipped config sets prod.autoMerge false"  ($false -eq (RProp (RProp $shippe
 ok "shipped config ships promotion disabled"   ($false -eq (RProp $shippedPromo 'enabled'))
 $shippedAH = RProp $shippedPromo 'alwaysHuman'
 ok "shipped config guards the money surfaces"  (($null -ne $shippedAH) -and (@($shippedAH).Count -gt 0))
+# The reviewer-identity wiring: the shipped config must NAME an env var for the approver token, or
+# auto-merge can never fire (the decision fails closed on a missing reviewer). The token itself is
+# never committed — only the variable name.
+$shippedRevEnv = RProp (RProp $shippedPromo 'reviewer') 'tokenEnv'
+ok "shipped config names a reviewer token env var" (($shippedRevEnv -is [string]) -and ($shippedRevEnv.Trim().Length -gt 0))
+
+Write-Host "docs: /promote binds its decision to the PR and finalises the audit record"
+# /promote is agent-executed prose, so these three guarantees exist ONLY in the text - there is no
+# function to unit-test. Each closes a gap a fresh-context reviewer called a blocker, so pin them
+# fact-by-fact (never one whole-file match) so a rewrite that drops one goes red:
+#   1. the PR that gets merged is the PR that was classified (head SHA + base branch both bound);
+#   2. the record carries the ACTUAL outcome, not just the pre-action intent;
+#   3. a GitHub App installation token is NOT a usable reviewer identity - `gh api user` (GET /user)
+#      cannot serve one, so the advertised App path always failed closed and was inert. The claim is
+#      disproved; both prose surfaces must stay free of it.
+# Mirror of the bash block. Use .Contains() not -like: a backtick is the wildcard ESCAPE character.
+$promoMd     = Get-Content -LiteralPath (Join-Path $repoRoot 'plugin/commands/promote.md') -Raw
+$promoDoc    = Get-Content -LiteralPath (Join-Path $repoRoot 'docs/promotion.md') -Raw
+$promoSchTxt = Get-Content -LiteralPath (Join-Path $engineDir 'harness.schema.json') -Raw
+$appClaim    = 'a machine user, a second account, or a GitHub App installation token'
+# Pin the DISTINCTIVE §1 requirement text, not the bare field names: `headRefOid` and `baseRefName`
+# each occur ~5 times across promote.md (the gh --json lists, the risk.json template, the §8 re-check),
+# so a bare Contains('headRefOid') still passes with §1's binding block deleted outright. Same class as
+# the [2026-08-06] ratchet about asserting in the right column.
+ok "/promote pins the PR head to the classified HEAD"                               ($promoMd.Contains('headRefOid == $(git rev-parse HEAD)'))
+ok "/promote requires the PR base to be the environment's configured branch"        ($promoMd.Contains('baseRefName == promotion.<env>.branch'))
+ok "/promote's pre-action record starts with a null outcome"                        ($promoMd.Contains('"outcome": null'))
+ok "/promote appends an outcome ledger row after acting"                            ($promoMd.Contains('risk-outcome'))
+ok "docs/promotion.md documents the outcome row"                                    ($promoDoc.Contains('risk-outcome'))
+ok "docs no longer advertise an App installation token as the reviewer identity"    (-not $promoDoc.Contains($appClaim))
+ok "schema no longer advertises an App installation token as the reviewer identity" (-not $promoSchTxt.Contains($appClaim))
+# 4. Observed live 2026-09-06: `gh api user` on a bad token exits non-zero but prints its error body
+#    to STDOUT, so `REVIEWER=$(...)` holds '{"message":"Bad credentials"...}' - non-empty, not equal to
+#    the author, and a naive reading turns that into AUTO. §6.3 must demand the exit status AND a
+#    login-shaped result, or the reviewer gate fails OPEN on an expired token.
+ok "/promote checks gh api user's exit status, not just its output"                 ($promoMd.Contains('exit status'))
+ok "/promote names the stdout-error-body trap that makes a bad token look like a login" ($promoMd.Contains('Bad credentials'))
 
 Write-Host "docs: AGENTS.md is the map, CLAUDE.md is the @AGENTS.md import shim (design-doc 002)"
 # One source of truth: the vendor-neutral map is AGENTS.md; every CLAUDE.md beside an AGENTS.md is a

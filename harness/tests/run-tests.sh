@@ -114,6 +114,14 @@ usage_limit_error 'server returned HTTP 429'      && ok 1 "detects HTTP 429"    
 usage_limit_error 'review complete VERDICT: SHIP' && ok 0 "clean output => false"    || ok 1 "clean output => false"
 usage_limit_error 'processed 429 files'           && ok 0 "stray 429 => false"       || ok 1 "stray 429 => false"
 usage_limit_error ''                              && ok 0 "empty => false"           || ok 1 "empty => false"
+# REGRESSION (same SIGPIPE/pipefail defect as money_signal, found 2026-09-06): $out here is a whole
+# phase transcript, routinely past the 64 KiB pipe buffer. With the old `printf | grep -q` the marker
+# was found, printf died of SIGPIPE, pipefail returned 141, and a genuine usage-limit failure looked
+# clean — so the dispatcher never advanced to the phase fallback. Fails closed, but inert.
+# Marker FIRST, filler after — same ordering rule as the money fixture; see the note there.
+bigout='monthly usage limit reached'$'\n'"$(head -c 200000 /dev/zero | tr '\0' 'x')"
+usage_limit_error "$bigout" && ok 1 "detects a usage limit past the pipe buffer" || ok 0 "detects a usage limit past the pipe buffer"
+unset bigout
 
 echo "sandbox predicate: HARNESS_SANDBOX contract + auto-detect (is_sandboxed, gate.sh)"
 # Each case runs in a SUBSHELL so the env var never leaks into the next case or the rest of the suite.
@@ -158,6 +166,17 @@ ok "$([ "$(hookrc 'git status')"      = "0" ] && echo 1 || echo 0)" "allows git 
 ok "$([ "$(hookrc 'npm test')"        = "0" ] && echo 1 || echo 0)" "allows npm test"
 ok "$([ "$(hookrc 'git push origin feature')" = "0" ] && echo 1 || echo 0)" "allows normal git push"
 ok "$([ "$(hookrc "$lease")" = "0" ] && echo 1 || echo 0)" "ALLOWS git push --force-with-lease (recommended)"
+# The guard still fires when the destructive command is buried in an OVERSIZED payload. These hooks
+# match with `printf '%s' "$scan" | grep -q`, the same shape that failed open in money_signal (2026-09-06)
+# — there, `grep -q` exiting at the first match killed printf with SIGPIPE and `set -o pipefail` returned
+# 141 as the pipeline's status, so the match was thrown away. The hooks are safe today only because they
+# do not set pipefail; adding `set -euo pipefail` to one of them, an obvious-looking hardening, would
+# silently disarm every pattern on any payload past the 64 KiB pipe buffer. Pin the BEHAVIOUR, not the
+# absence of a shell option, so the guard has to keep denying however it is rewritten. Command FIRST so
+# grep matches early — with the match at the end, grep reads everything and the broken form still passes.
+bigcmd="rm -rf / ; $(head -c 200000 /dev/zero | tr '\0' 'x')"
+ok "$([ "$(hookrc "$bigcmd")" = "2" ] && echo 1 || echo 0)" "blocks a destructive command inside a payload larger than the pipe buffer"
+unset bigcmd
 
 echo "block-destructive: work-discard + remote-pipe coverage, false-positive exemptions"
 ok "$([ "$(hookrc 'git checkout .')" = "2" ] && echo 1 || echo 0)" "blocks git checkout . (bare dot)"
@@ -587,6 +606,18 @@ JSON
   ok "$([ "$(tier_of 10 'src/util.ts' 'const t = tax_rate * x')" = "HIGH" ] && echo 1 || echo 0)"   "a money term as a snake_case prefix fires"
   ok "$([ "$(tier_of 10 'src/util.ts' 'const all = prices.map(f)')" = "HIGH" ] && echo 1 || echo 0)" "an inflected money term fires"
   ok "$([ "$(tier_of 10 'src/util.ts' 'a syntax error occurred')" = "LOW" ] && echo 1 || echo 0)"    "a money term MID-word does not fire"
+  # REGRESSION (found 2026-09-06 dogfooding /promote on a real range): the rule must fire on a diff
+  # BIGGER THAN THE PIPE BUFFER. money_signal used `printf '%s' "$text" | grep -q`; grep -q exits at
+  # the first match, printf is still writing 100+ KiB, printf dies of SIGPIPE (141), and this suite
+  # (line 6) and loop.sh/fleet.sh all run `set -o pipefail`, which promotes 141 to the pipeline's
+  # status. Every money term then reported ABSENT — a real payments diff classified LOW and became
+  # auto-mergeable. Every fixture above fits the 64 KiB buffer, which is why they stayed green.
+  # ORDER IS LOAD-BEARING: the money word goes FIRST, then 200 KiB of filler. grep -q exits at the
+  # match, so an early match leaves printf ~200 KiB still to write and it takes the SIGPIPE. Put the
+  # word at the END and grep must read it all, printf finishes, and the BUGGY code passes this test.
+  bigmoney='const p = price * 2'$'\n'"$(head -c 200000 /dev/zero | tr '\0' 'x')"
+  ok "$([ "$(tier_of 10 'src/util.ts' "$bigmoney")" = "HIGH" ] && echo 1 || echo 0)"  "a money signal fires in an added text larger than the pipe buffer"
+  unset bigmoney
   ok "$([ "$(tier_of 10 'harness/harness.config.json' '')" = "HIGH" ] && echo 1 || echo 0)" "editing the policy itself pins HIGH"
   ok "$([ "$(tier_of 10 'plugin/engine/lib/risk.sh' '')" = "HIGH" ] && echo 1 || echo 0)"  "editing the risk lib itself pins HIGH"
   : > "$RF"; : > "$RA"
@@ -598,7 +629,9 @@ JSON
   echo "risk: the promotion decision (prod is never automated)"
   # Single tier => deterministic=$2, classifier=LOW (the identity for max()), so these pin the same
   # outcomes as before the merge moved inside the function.
-  dec_of() { promotion_decision "$RCFG" "$1" "$2" LOW "$3" "$4" "$5" | cut -d'|' -f1; }
+  # Trailing 1 = reviewer held configured, so each case is attributable to the dimension it tests;
+  # the reviewer gate itself is pinned separately below.
+  dec_of() { promotion_decision "$RCFG" "$1" "$2" LOW "$3" "$4" "$5" 1 | cut -d'|' -f1; }
   ok "$([ "$(dec_of staging LOW 1 1 1)" = "AUTO" ] && echo 1 || echo 0)"     "staging + LOW + preconditions met = AUTO"
   # The load-bearing one. Not "defaults to human" — refused before config is read at all.
   ok "$([ "$(dec_of prod LOW 1 1 1)" = "HUMAN" ] && echo 1 || echo 0)"       "prod + LOW is STILL human"
@@ -611,10 +644,21 @@ JSON
   ok "$([ "$(promotion_decision "$RCFG_OFF" staging LOW LOW 1 1 1 | cut -d'|' -f1)" = "HUMAN" ] && echo 1 || echo 0)" "promotion disabled is human"
   ok "$(promotion_decision "$RCFG_OFF" prod LOW LOW 1 1 1 | grep -qF 'prod promotion is always' && echo 1 || echo 0)" "the prod refusal names prod, not config"
 
+  # GitHub rejects self-approval, so AUTO is reachable ONLY with a separate reviewer identity. The 8th
+  # arg is fail-closed by default (0): a LOW change that cleared every other gate still goes HUMAN when
+  # no reviewer is configured. The caller computes the arg (env token + gh identity != author); the
+  # decision only trusts it. Load-bearing pin for the reviewer-identity wiring.
+  dec_rev() { promotion_decision "$RCFG" staging LOW LOW 1 1 1 "$1" | cut -d'|' -f1; }
+  ok "$([ "$(dec_rev 0)" = "HUMAN" ] && echo 1 || echo 0)" "LOW + all preconditions but NO reviewer identity => HUMAN"
+  ok "$(promotion_decision "$RCFG" staging LOW LOW 1 1 1 0 | grep -qF 'self-approval' && echo 1 || echo 0)" "the no-reviewer refusal names self-approval (not the AUTO reason)"
+  ok "$([ "$(dec_rev 1)" = "AUTO" ] && echo 1 || echo 0)"  "the SAME LOW change WITH a reviewer identity => AUTO"
+  # Fail-closed default: omitting the 8th arg entirely must not reach AUTO (a stale caller cannot merge).
+  ok "$([ "$(promotion_decision "$RCFG" staging LOW LOW 1 1 1 | cut -d'|' -f1)" = "HUMAN" ] && echo 1 || echo 0)" "an OMITTED reviewer arg fails closed to HUMAN"
+
   # The escalate-only merge is computed INSIDE the decision, not handed to it: promotion_decision
   # takes the deterministic tier AND the classifier's verdict and max()es them itself, so no caller
   # can pass a single hand-picked (lower) tier to bypass the classifier. These pin it is internal.
-  merge_dec() { promotion_decision "$RCFG" staging "$1" "$2" 1 1 1 | cut -d'|' -f1; }
+  merge_dec() { promotion_decision "$RCFG" staging "$1" "$2" 1 1 1 1 | cut -d'|' -f1; }
   ok "$([ "$(merge_dec LOW HIGH)" = "HUMAN" ] && echo 1 || echo 0)"     "det LOW + classifier HIGH => HUMAN (cannot bypass the classifier)"
   ok "$([ "$(merge_dec HIGH LOW)" = "HUMAN" ] && echo 1 || echo 0)"     "det HIGH + classifier LOW => HUMAN (deterministic escalation kept)"
   ok "$([ "$(merge_dec LOW LOW)" = "AUTO" ] && echo 1 || echo 0)"       "det LOW + classifier LOW => AUTO (both agree low)"
@@ -627,7 +671,7 @@ JSON
   # Every one of these is schema-valid-or-unvalidated at runtime and previously reached AUTO, because a
   # degenerate shape made a rule evaluate to "no match" instead of escalating -- i.e. it failed OPEN.
   SH="$(mktemp)"
-  shape_dec() { printf '%s' "$1" > "$SH"; promotion_decision "$SH" staging "$2" LOW "$3" "$4" "$5" | cut -d'|' -f1; }
+  shape_dec() { printf '%s' "$1" > "$SH"; promotion_decision "$SH" staging "$2" LOW "$3" "$4" "$5" 1 | cut -d'|' -f1; }
   NOPRE='{ "promotion": { "enabled": true, "staging": { "autoMergeAtOrBelow": "low" }, "prod": { "autoMerge": false }, "alwaysHuman": ["**/payments/**"], "moneySignals": ["price"] } }'
   ok "$([ "$(shape_dec "$NOPRE" LOW 0 0 0)" = "HUMAN" ] && echo 1 || echo 0)" "absent preconditions => HUMAN, not 'all met'"
   SCALAR='{ "promotion": { "enabled": true, "staging": { "autoMergeAtOrBelow": "low" }, "prod": { "autoMerge": false }, "alwaysHuman": "**/payments/**", "moneySignals": ["price"], "preconditions": { "gateGreen": true, "reviewShip": true, "e2eEvidence": true } } }'
@@ -665,11 +709,46 @@ JSON
   ok "$([ "$(jq -r '.promotion.prod.autoMerge' "$CFGP")" = "false" ] && echo 1 || echo 0)" "shipped config sets prod.autoMerge false"
   ok "$([ "$(jq -r '.promotion.enabled' "$CFGP")" = "false" ] && echo 1 || echo 0)"        "shipped config ships promotion disabled"
   ok "$([ "$(jq -r '.promotion.alwaysHuman | length' "$CFGP")" -gt 0 ] && echo 1 || echo 0)" "shipped config guards the money surfaces"
+  # The reviewer-identity wiring: the shipped config must NAME an env var for the approver token, or
+  # auto-merge can never fire (the decision fails closed on a missing reviewer). Only the variable
+  # name is committed, never the token.
+  ok "$([ -n "$(jq -r '.promotion.reviewer.tokenEnv // "" ' "$CFGP")" ] && echo 1 || echo 0)" "shipped config names a reviewer token env var"
   ok "$(jq -e '.properties.promotion.required | index("alwaysHuman") and index("moneySignals") and index("preconditions")' "$SCHEMA" >/dev/null && echo 1 || echo 0)" "schema REQUIRES the money keys when present"
   rm -f "$RCFG" "$RCFG_OFF" "$RF" "$RA"
 else
   echo "  (skipping jq-dependent risk classifier tests — jq not installed)"
 fi
+
+echo "docs: /promote binds its decision to the PR and finalises the audit record"
+# /promote is agent-executed prose, so these three guarantees exist ONLY in the text — there is no
+# function to unit-test. Each closes a gap a fresh-context reviewer called a blocker, so pin them
+# fact-by-fact (never one row-wide grep) so a rewrite that drops one goes red:
+#   1. the PR that gets merged is the PR that was classified (head SHA + base branch both bound);
+#   2. the record carries the ACTUAL outcome, not just the pre-action intent;
+#   3. a GitHub App installation token is NOT a usable reviewer identity — `gh api user` (GET /user)
+#      cannot serve one, so the advertised App path always failed closed and was inert. The claim is
+#      disproved; both prose surfaces must stay free of it.
+PROMO_MD="$REPO_ROOT/plugin/commands/promote.md"
+PROMO_DOC="$REPO_ROOT/docs/promotion.md"
+PROMO_SCHEMA="$ENGINE/harness.schema.json"
+APP_CLAIM='a machine user, a second account, or a GitHub App installation token'
+# Pin the DISTINCTIVE §1 requirement text, not the bare field names: `headRefOid` and `baseRefName`
+# each occur ~5 times across promote.md (the gh --json lists, the risk.json template, the §8 re-check),
+# so a bare `grep -qF headRefOid` still passes with §1's binding block deleted outright. Same class as
+# the [2026-08-06] ratchet about asserting in the right column.
+ok "$(grep -qF 'headRefOid == $(git rev-parse HEAD)' "$PROMO_MD" && echo 1 || echo 0)"      "/promote pins the PR head to the classified HEAD"
+ok "$(grep -qF 'baseRefName == promotion.<env>.branch' "$PROMO_MD" && echo 1 || echo 0)"    "/promote requires the PR base to be the environment's configured branch"
+ok "$(grep -qF '"outcome": null' "$PROMO_MD" && echo 1 || echo 0)"   "/promote's pre-action record starts with a null outcome"
+ok "$(grep -qF 'risk-outcome' "$PROMO_MD" && echo 1 || echo 0)"      "/promote appends an outcome ledger row after acting"
+ok "$(grep -qF 'risk-outcome' "$PROMO_DOC" && echo 1 || echo 0)"     "docs/promotion.md documents the outcome row"
+ok "$(! grep -qF "$APP_CLAIM" "$PROMO_DOC" && echo 1 || echo 0)"     "docs no longer advertise an App installation token as the reviewer identity"
+ok "$(! grep -qF "$APP_CLAIM" "$PROMO_SCHEMA" && echo 1 || echo 0)"  "schema no longer advertises an App installation token as the reviewer identity"
+# 4. Observed live 2026-09-06: `gh api user` on a bad token exits non-zero but prints its error body
+#    to STDOUT, so `REVIEWER=$(...)` holds `{"message":"Bad credentials"...}` — non-empty, not equal to
+#    the author, and a naive reading turns that into AUTO. §6.3 must demand the exit status AND a
+#    login-shaped result, or the reviewer gate fails OPEN on an expired token.
+ok "$(grep -qF 'exit status' "$PROMO_MD" && echo 1 || echo 0)"      "/promote checks gh api user's exit status, not just its output"
+ok "$(grep -qF 'Bad credentials' "$PROMO_MD" && echo 1 || echo 0)"  "/promote names the stdout-error-body trap that makes a bad token look like a login"
 
 echo "docs: model-routing skill documents the shipped default routing"
 # The skill is the single source of truth the setup interview reads from, and harness.config.json ships

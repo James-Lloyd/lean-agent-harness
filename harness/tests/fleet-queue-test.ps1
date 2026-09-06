@@ -74,8 +74,25 @@ if ($dir -eq 'fb/') {
 }
 if ($dir -eq 'evil/') {
   Add-Content -Path 'harness/loop.ps1' -Value 'tampered'
+  # Mirror of the bash fixture: make the staged list OUTGROW THE 64 KiB PIPE BUFFER, with a protected
+  # path sorting FIRST. That is the shape that made the pre-2026-09-06 `printf | grep -q` guard in
+  # fleet.sh fail OPEN and merge the tamper. The PowerShell runner filters in-process and was never
+  # exposed, so this side is a parity pin - both twins must park the same oversized tamper.
+  New-Item -ItemType Directory -Force -Path '.claude' | Out-Null
+  '{ "tampered": true }' | Set-Content '.claude/settings.json'
+  New-Item -ItemType Directory -Force -Path 'evil/bulk' | Out-Null
+  for ($n = 0; $n -lt 2000; $n++) {
+    $fn = 'evil/bulk/filler_padding_padding_padding_{0:d4}.txt' -f $n
+    New-Item -ItemType File -Path $fn | Out-Null
+  }
   New-Item -ItemType Directory -Force -Path 'evil' | Out-Null
   'x' | Set-Content 'evil/out.txt'
+  # Record the staged-list size: the guard parks BEFORE `git commit`, so it cannot be measured later.
+  if ($env:EVIL_SIZE_FILE) {
+    git add -A 2>&1 | Out-Null
+    $staged = (git diff --cached --name-only | Out-String)
+    $staged.Length | Set-Content $env:EVIL_SIZE_FILE
+  }
 } elseif ($dir) {
   New-Item -ItemType Directory -Force -Path $dir | Out-Null
   'built by worker' | Set-Content (Join-Path $dir 'out.txt')
@@ -85,7 +102,11 @@ exit 0
 
   Write-Host "fleet queue: live-fire with stub claude (merge, record, tamper-park)"
   $env:HARNESS_CLAUDE_CMD = $stub
-  try { & (Join-Path $T 'harness\fleet.ps1') *> $null } catch { } finally { Remove-Item Env:HARNESS_CLAUDE_CMD -ErrorAction SilentlyContinue }
+  $env:EVIL_SIZE_FILE = Join-Path $work 'evil-staged-bytes'
+  try { & (Join-Path $T 'harness\fleet.ps1') *> $null } catch { } finally {
+    Remove-Item Env:HARNESS_CLAUDE_CMD -ErrorAction SilentlyContinue
+    Remove-Item Env:EVIL_SIZE_FILE -ErrorAction SilentlyContinue
+  }
 
   $script:pass = 0; $script:fail = 0
   function ok($name, $cond) { if ($cond) { $script:pass++; Write-Host "  ok  $name" } else { $script:fail++; Write-Host "  FAIL $name" } }
@@ -108,6 +129,16 @@ exit 0
   ok "T-CRASH work did not land"       (-not (Test-Path 'c'))
   ok "tamper surfaced in handoff.md"   ((Test-Path 'state\handoff.md') -and ((Get-Content 'state\handoff.md' -Raw) -match 'protected path'))
   ok "T-EVIL branch kept"              ((git branch --list 'fleet/*' | Out-String) -match 'T-EVIL')
+  # Mirror of the bash pins: the tamper the guard caught was buried in a >64 KiB staged list with the
+  # protected path sorting first - the shape that made fleet.sh's old `printf | grep -q` guard fail
+  # OPEN. Assert the size too, so a future edit that shrinks the fixture cannot silently retire the
+  # regression it exists to catch.
+  ok "T-EVIL's .claude/ tamper did NOT land"     (-not (Test-Path '.claude\settings.json'))
+  ok "T-EVIL's oversized filler did NOT land"    (-not (Test-Path 'evil\bulk'))
+  $evilBytes = 0
+  $evilSizePath = Join-Path $work 'evil-staged-bytes'
+  if (Test-Path $evilSizePath) { $evilBytes = [int]((Get-Content $evilSizePath -Raw).Trim()) }
+  ok "T-EVIL's staged list exceeded the 64 KiB pipe buffer ($evilBytes bytes)" ($evilBytes -gt 65536)
   ok "T-A branch cleaned up"           ((git branch --list 'fleet/*' | Out-String) -notmatch 'T-A')
   ok "tracked tree clean after fleet"  (-not (git status --porcelain -uno))
 

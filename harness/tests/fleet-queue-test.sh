@@ -70,7 +70,28 @@ elif [ "$dir" = "fb/" ]; then
   mkdir -p fb && echo "built by fallback" > fb/out.txt
 elif [ "$dir" = "evil/" ]; then
   echo "tampered" >> harness/loop.sh
-  mkdir -p evil && echo x > evil/out.txt
+  # The tamper guard reads `git diff --cached --name-only`, so make that list OUTGROW THE 64 KiB PIPE
+  # BUFFER: this is the site where the pre-2026-09-06 `printf | grep -q` failed OPEN and merged the
+  # tamper (grep -q exits at the match, printf takes the SIGPIPE, pipefail returns 141, the guard reads
+  # "no protected path"). Two details make this load-bearing rather than decorative:
+  #   - the protected path must sort EARLY, so grep exits while printf still has data to write. Git
+  #     lists staged paths in byte order and `.` precedes letters, so `.claude/` leads the list. With
+  #     only `harness/loop.sh` (which sorts after `evil/`) the match lands last, grep drains the pipe,
+  #     and the broken guard parks correctly anyway.
+  #   - ~2000 short paths ≈ 98 KiB, comfortably past the buffer. `printf -v` avoids forking per file.
+  mkdir -p .claude evil/bulk
+  echo '{ "tampered": true }' > .claude/settings.json
+  i=0
+  while [ "$i" -lt 2000 ]; do
+    printf -v f 'evil/bulk/filler_padding_padding_padding_%04d.txt' "$i"
+    : > "$f"
+    i=$((i+1))
+  done
+  echo x > evil/out.txt
+  # Record the staged-list size for the test to assert on. It cannot be measured after the fact: the
+  # guard parks BEFORE `git commit`, so the parked branch carries no commit holding these paths.
+  [ -n "${EVIL_SIZE_FILE:-}" ] && git add -A >/dev/null 2>&1 \
+    && git diff --cached --name-only | wc -c > "$EVIL_SIZE_FILE"
 else
   mkdir -p "$dir" && echo "built by worker" > "${dir}out.txt"
 fi
@@ -79,7 +100,7 @@ STUB
 chmod +x "$WORK/stub-claude"
 
 echo "fleet queue: live-fire with stub claude (merge, record, tamper-park)"
-HARNESS_CLAUDE_CMD="$WORK/stub-claude" bash harness/fleet.sh --max 5 >/dev/null 2>&1 || true
+EVIL_SIZE_FILE="$WORK/evil-staged-bytes" HARNESS_CLAUDE_CMD="$WORK/stub-claude" bash harness/fleet.sh --max 5 >/dev/null 2>&1 || true
 
 pass=0; fail=0
 ok() { if [ "$1" = "1" ]; then pass=$((pass+1)); echo "  ok  $2"; else fail=$((fail+1)); echo "  FAIL $2"; fi; }
@@ -97,6 +118,13 @@ ok "$(grep '"task":"T-CRASH"' harness/.runs/run-001/fleet-ledger.jsonl 2>/dev/nu
 ok "$([ ! -d c ] && echo 1 || echo 0)" "T-CRASH work did not land"
 ok "$(grep -q 'protected path' state/handoff.md 2>/dev/null && echo 1 || echo 0)" "tamper surfaced in handoff.md"
 ok "$(git branch --list 'fleet/*' | grep -q 'T-EVIL' && echo 1 || echo 0)" "T-EVIL branch kept for inspection"
+# The tamper the guard caught was buried in a >64 KiB staged list with the protected path sorting first
+# — the exact shape that made the pre-2026-09-06 `printf | grep -q` guard fail OPEN and merge it. Assert
+# the size, so a future edit that shrinks the fixture silently retires the regression it exists to catch.
+ok "$([ ! -f .claude/settings.json ] && echo 1 || echo 0)" "T-EVIL's .claude/ tamper did NOT land"
+ok "$([ ! -d evil/bulk ] && echo 1 || echo 0)" "T-EVIL's oversized filler did NOT land"
+evil_bytes="$(tr -d ' \r\n' < "$WORK/evil-staged-bytes" 2>/dev/null)"
+ok "$([ "${evil_bytes:-0}" -gt 65536 ] && echo 1 || echo 0)" "T-EVIL's staged list exceeded the 64 KiB pipe buffer (${evil_bytes:-0} bytes)"
 ok "$(git branch --list 'fleet/*' | grep -q 'T-A' && echo 0 || echo 1)" "T-A branch cleaned up"
 ok "$([ -z "$(git status --porcelain -uno)" ] && echo 1 || echo 0)" "tracked tree clean after fleet"
 

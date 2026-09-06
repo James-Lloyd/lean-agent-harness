@@ -232,7 +232,11 @@ for i in "${!IDS[@]}"; do
   # Policy tamper guard — must cover everything the worker prompt promises is rejected: specs, the
   # harness engine + config, ALL shared state (a worker marking other tasks done in tasks.json would
   # otherwise merge and be persisted by the runner's own record step), the prompt, and the notes file.
-  if printf '%s\n' "$staged" | grep -qE '^(specs/|\.claude/|harness/|state/|PROMPT\.md$|AGENT_NOTES\.md$)'; then
+  # Here-string, not a pipe: this file runs under `set -o pipefail`, and `printf | grep -q` on a
+  # staged list that outgrows the 64 KiB pipe buffer returns printf's SIGPIPE 141 as the pipeline
+  # status — the guard would report "no protected path touched" and MERGE the tamper. See the note
+  # on money_signal in lib/risk.sh for the full mechanism.
+  if grep -qE '^(specs/|\.claude/|harness/|state/|PROMPT\.md$|AGENT_NOTES\.md$)' <<< "$staged"; then
     park "$id" "$branch" "$wt" "$log" "touched protected path(s)"; PARKED_N=$((PARKED_N+1)); continue
   fi
   # A silent commit failure turns every downstream record fail-open — check it or park (ratchet).

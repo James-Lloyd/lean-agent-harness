@@ -89,3 +89,26 @@ repo that never asked for it. The feature is inert until someone reads `docs/pro
   compare — before the mechanism gets the merge button. Anthropic's shadow mode, adopted wholesale.
 - The human's job moves from reviewing every merge to auditing the classifier's decisions. That is
   the intended trade and it is only safe while the audit record stays complete.
+
+### Found later (2026-09-06, dogfooding the classifier on a real range)
+
+Three of the decisions above turned out to be true only on paper until this date. Recording them here
+because the design was sound and the *implementation* silently was not — the gap between the two is
+the interesting part.
+
+- **"Money pins HIGH unconditionally" was not happening.** `money_signal` matched with
+  `printf | grep -q`, which loses its match to SIGPIPE under `pipefail` once the added text passes the
+  64 KiB pipe buffer. On every real-sized diff the entire money rule was inert, so a payments change
+  would have classified LOW. Twelve unit assertions covered the rule and all passed, because every
+  fixture was one short line. Fixed with here-strings; the regression fixture puts the match first,
+  which is what makes it load-bearing.
+- **"A separate reviewer identity" could be satisfied by a broken token.** `gh api user` exits
+  non-zero on bad credentials but prints its error body to stdout, so the documented capture held a
+  JSON blob that was non-empty and not the author — read as "a separate reviewer resolved". `/promote`
+  §6.3 now requires the exit status and a login-shaped result.
+- **"The audit record stays complete" needed a second write.** The record was written before acting
+  and never updated, so an AUTO whose approve failed left a durable record claiming AUTO. Intent and
+  outcome are now two records.
+
+The pattern across all three: a control that is correct in design, tested at a size or shape that
+never reaches its failure mode, and only wrong against a real input. See the root `AGENTS.md` ratchet.

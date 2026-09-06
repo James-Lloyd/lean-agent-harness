@@ -1,0 +1,35 @@
+{
+  "label": "high-thisbatch",
+  "range": "8d3f218..ac0d59f",
+  "environment": "staging",
+  "deterministicTier": "HIGH",
+  "deterministicReasons": [
+    "self-governance: harness/harness.config.json (policy, guardrails, or CI); self-governance: plugin/commands/promote.md (policy, guardrails, or CI); self-governance: plugin/engine/lib/risk.ps1 (policy, guardrails, or CI); self-governance: plugin/engine/lib/risk.sh (policy, guardrails, or CI)"
+  ],
+  "classifierTier": "HIGH",
+  "classifierProof": "not run in this probe; passed the deterministic tier as the neutral input to the escalate-only max()",
+  "finalTier": "HIGH",
+  "preconditions": {
+    "gateGreen": true,
+    "reviewShip": true,
+    "e2eEvidence": true
+  },
+  "reviewerConfigured": true,
+  "decision": "HUMAN",
+  "reason": "risk tier HIGH exceeds the staging auto-merge threshold",
+  "changedFiles": [
+    "docs/promotion.md",
+    "harness/harness.config.json",
+    "harness/tests/run-tests.ps1",
+    "harness/tests/run-tests.sh",
+    "plugin/.claude-plugin/plugin.json",
+    "plugin/commands/harness-doctor.md",
+    "plugin/commands/promote.md",
+    "plugin/engine/AGENTS.md",
+    "plugin/engine/harness.schema.json",
+    "plugin/engine/lib/risk.ps1",
+    "plugin/engine/lib/risk.sh"
+  ],
+  "changedLines": 228,
+  "outcome": null
+}

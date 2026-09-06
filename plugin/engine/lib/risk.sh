@@ -87,7 +87,10 @@ path_matches_any() {  # $1 path  $2 newline-separated globs
   rx="$(globs_union_regex "$2")"
   [ -n "$rx" ] || return 1
   p="$(normalize_path "$1")"
-  printf '%s' "$p" | grep -qiE "$rx"
+  # Here-string, not a pipe — see the SIGPIPE/pipefail note on money_signal. One path always fits the
+  # pipe buffer, so this site was never wrong; it is written this way so the shape stays consistent
+  # and nobody has to re-derive which call sites are "small enough" to be safe.
+  grep -qiE "$rx" <<< "$p"
 }
 
 # Echo every path in the (already normalized) file list $1 that matches ANY glob in $2. One grep for
@@ -130,8 +133,9 @@ risk_tier_max() {  # $1 tier  $2 tier ; echoes LOW|MEDIUM|HIGH
 risk_verdict() {
   local line
   line="$(grep -E '^[[:space:]]*RISK:' | tail -1 || true)"
-  if printf '%s' "$line" | grep -qE '^[[:space:]]*RISK:[[:space:]]*LOW([[:space:]]|$)'; then echo LOW
-  elif printf '%s' "$line" | grep -qE '^[[:space:]]*RISK:[[:space:]]*MEDIUM([[:space:]]|$)'; then echo MEDIUM
+  # Here-strings, not pipes — see the SIGPIPE/pipefail note on money_signal.
+  if grep -qE '^[[:space:]]*RISK:[[:space:]]*LOW([[:space:]]|$)' <<< "$line"; then echo LOW
+  elif grep -qE '^[[:space:]]*RISK:[[:space:]]*MEDIUM([[:space:]]|$)' <<< "$line"; then echo MEDIUM
   else echo HIGH; fi
 }
 
@@ -150,7 +154,14 @@ money_signal() {  # $1 text  $2 term ; returns 0 if present
   local text="$1" term="$2" esc
   [ -n "$text" ] && [ -n "$term" ] || return 1
   esc="$(printf '%s' "$term" | sed -e 's/[.[\*^$()+?{}|\\]/\\&/g' -e 's/\]/\\]/g')"
-  printf '%s' "$text" | grep -qiE "(^|[^A-Za-z0-9])${esc}"
+  # HERE-STRING, never `printf '%s' "$text" | grep -q`. $text is a whole diff's added lines, so it
+  # exceeds the 64 KiB pipe buffer on any real change. `grep -q` exits at the FIRST match, printf is
+  # still writing, printf dies of SIGPIPE (141) — and under the `set -o pipefail` that loop.sh,
+  # fleet.sh and the test suite all set, 141 becomes the pipeline's status. The match is thrown away
+  # and every money term reports "absent". That failed OPEN on the one rule that must never fail
+  # open: a real payments diff classified LOW. Small fixtures fit the buffer, so the unit tests were
+  # green throughout. A here-string is a temp file, not a pipe, so there is no SIGPIPE to lose.
+  grep -qiE "(^|[^A-Za-z0-9])${esc}" <<< "$text"
 }
 
 # The deterministic classifier — stage 1, and the only stage that can produce LOW. Every criterion is
@@ -285,12 +296,12 @@ promotion_config_shape() {  # $1 config path
 # prod refusal does not read promotion.prod.autoMerge at all. The schema's `const: false` protects a
 # repo that validates its config in CI; this line protects the ones that do not.
 #   $1 config path  $2 env  $3 deterministicTier  $4 classifierTier
-#   $5 gateGreen(1/0)  $6 reviewShip(1/0)  $7 e2eEvidence(1/0)
+#   $5 gateGreen(1/0)  $6 reviewShip(1/0)  $7 e2eEvidence(1/0)  $8 reviewerConfigured(1/0)
 # Takes the deterministic tier AND the classifier's verdict SEPARATELY and computes their max()
 # itself (the escalate-only merge) so a caller cannot substitute a single hand-picked tier.
 # Echoes "AUTO|reason" or "HUMAN|reason". Mirror of Get-PromotionDecision in risk.ps1.
 promotion_decision() {
-  local config="$1" envname="$2" dtier="$3" ctier="$4" gate="${5:-0}" ship="${6:-0}" e2e="${7:-0}"
+  local config="$1" envname="$2" dtier="$3" ctier="$4" gate="${5:-0}" ship="${6:-0}" e2e="${7:-0}" reviewer="${8:-0}"
   local t enabled pre_gate pre_ship pre_e2e threshold
   # TRIM, never `tr -d '[:space:]'`: deleting INTERIOR whitespace made "st aging" match staging in
   # bash while the PS twin's .Trim() correctly rejected it as an unknown environment.
@@ -343,7 +354,15 @@ promotion_decision() {
   if [ "$t" != "LOW" ]; then
     echo "HUMAN|risk tier $t exceeds the staging auto-merge threshold"; return
   fi
-  echo "AUTO|LOW risk, all preconditions met, target staging"
+  # Last gate before AUTO, and fail-closed by default (0): GitHub rejects self-approval, so the
+  # auto-merge is only reachable when a SEPARATE reviewer identity is available to approve the PR. The
+  # caller (/promote) computes this from promotion.reviewer.tokenEnv -> a non-empty token whose gh
+  # identity differs from the PR author; it CANNOT be derived here (env + gh are the caller's), so an
+  # omitted/unresolvable reviewer arrives as 0 and drops to HUMAN, never to the merge path.
+  if [ "$reviewer" != "1" ]; then
+    echo "HUMAN|no separate reviewer identity configured (promotion.reviewer.tokenEnv unset/empty or equals the PR author); GitHub rejects self-approval"; return
+  fi
+  echo "AUTO|LOW risk, all preconditions met, separate reviewer identity available, target staging"
 }
 
 # Collect the raw diff signals for a range. Thin by design — everything decision-shaped lives in the

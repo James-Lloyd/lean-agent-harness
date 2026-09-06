@@ -1,0 +1,26 @@
+{
+  "label": "HIGH money-in-util",
+  "repo": "throwaway consumer-shaped repo (see probe-consumer.sh)",
+  "range": "9246597..87663b6",
+  "environment": "staging",
+  "deterministicTier": "HIGH",
+  "deterministicReasons": [
+    "money signal 'price' in added lines"
+  ],
+  "classifierTier": "HIGH",
+  "classifierProof": "not run in this probe; passed the deterministic tier as the neutral input to the escalate-only max()",
+  "finalTier": "HIGH",
+  "preconditions": {
+    "gateGreen": true,
+    "reviewShip": true,
+    "e2eEvidence": true
+  },
+  "reviewerConfigured": true,
+  "decision": "HUMAN",
+  "reason": "risk tier HIGH exceeds the staging auto-merge threshold",
+  "changedFiles": [
+    "src/util/id.ts"
+  ],
+  "changedLines": 1,
+  "outcome": null
+}

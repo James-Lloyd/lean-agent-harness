@@ -1,0 +1,16 @@
+fixture: 200021 bytes of added text, one money word ('price') at the START
+pipefail is on
+
+--- FIXED (shipped): here-string, no pipe ---
+  tier     : HIGH
+  reasons  : money signal 'price' in added lines
+  decision : HUMAN|risk tier HIGH exceeds the staging auto-merge threshold
+
+--- MUTANT (pre-fix): printf | grep -q ---
+  tier     : LOW
+  reasons  : no escalation criterion tripped
+  decision : AUTO|LOW risk, all preconditions met, separate reviewer identity available, target staging
+
+The mutant classifies a money diff LOW and returns AUTO — the money rule failed OPEN.
+Same fixture under 64 KiB (fits the pipe buffer, so the mutant looks fine):
+  mutant on a SMALL fixture: tier=HIGH  <- why every unit test stayed green

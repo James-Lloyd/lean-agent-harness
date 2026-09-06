@@ -94,3 +94,24 @@ PowerShell 5.1: `powershell harness/tests/run-tests.ps1`; bash needs `jq` on PAT
   stale one from the main checkout. Finish a worktree session by copying it across with a plain `cp` (the
   file is untracked, so the worktree guard permits the write). `git status` calling the tree clean after you
   edited it is the tell.
+- [2026-09-06] Dogfooding a classifier on a REAL range finds what unit fixtures cannot. `/promote`'s
+  money rule passed every unit test and reported no money vocabulary at all in a real 167 KiB diff:
+  `printf '%s' "$text" | grep -q` loses the match to SIGPIPE under `set -o pipefail` once the text
+  passes the 64 KiB pipe buffer (`PIPESTATUS=(141 0)` — grep matched, printf died, pipefail returned
+  141). Fixtures under 64 KiB never reach the failure. When a predicate guards something that matters,
+  run it over a real input before believing the suite. Also: on this repo almost every range is HIGH
+  by design — `RISK_SELF_GOVERN_GLOBS` pins any change to the harness's own policy/guardrail/CI files
+  — so a LOW sample for a promotion dogfood has to be a commit that touches none of its own controls.
+- [2026-09-06] The `printf '%s' "$x" | grep -q` fail-open (see the engine map) also lives in the guard
+  hooks `block-destructive.sh` and `protect-specs.sh`, over the tool payload. They are safe only because
+  none of them sets `pipefail` — so adding `set -euo pipefail` to a guard hook, which looks like pure
+  hardening, would silently disarm every denylist pattern on any payload past 64 KiB. Both suites now
+  assert the BEHAVIOUR (a destructive command buried in a >64 KiB payload must still exit 2), which
+  survives any rewrite; the conversion itself is a fix_plan item, kept out of the promotion PR because
+  block-destructive.sh deserves its own reviewed change.
+- [2026-09-06] `state/PROGRESS.md` and the `<!-- DONE ... -->` annotations in `fix_plan.md` are an
+  APPEND-ONLY LOG: a gate count in them is a fact about the run that happened, not a value to keep
+  current. A repo-wide `sed -i 's/fleet-queue 31\/0/34\/0/'` to update this batch's line silently
+  rewrote four 2026-09-04 entries that were correct as written. Scope the pattern to the line you mean
+  (`sed -i '/DONE 2026-09-06/ s/.../.../'`) and read `git diff` before committing — the corruption is
+  invisible in the file, and only shows up as a diff touching dates you never worked on.
