@@ -519,6 +519,13 @@ ok "allows git status"                 ((hookExit 'git status') -eq 0)
 ok "allows npm test"                   ((hookExit 'npm test') -eq 0)
 ok "allows normal git push"            ((hookExit 'git push origin feature') -eq 0)
 ok "ALLOWS git push --force-with-lease (the recommended form)" ((hookExit $lease) -eq 0)
+# Twin of the bash pin (2026-09-06): the guard must still fire when the destructive command is buried
+# in an OVERSIZED payload. The .sh hook matches with `printf | grep -q`, the shape that failed open in
+# money_signal once the text passed the 64 KiB pipe buffer under pipefail; the .ps1 hook matches
+# in-process and was never exposed. Pin the BEHAVIOUR on both so the guard has to keep denying however
+# either is rewritten. Command first, so a match-early grep cannot drain the pipe and hide the defect.
+$bigCmd = 'rm -rf / ; ' + ('x' * 200000)
+ok "blocks a destructive command inside a payload larger than the pipe buffer" ((hookExit $bigCmd) -eq 2)
 
 Write-Host "block-destructive: work-discard + remote-pipe coverage, false-positive exemptions"
 $checkoutDot = 'git checkout ' + '.'

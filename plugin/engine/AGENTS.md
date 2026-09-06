@@ -101,3 +101,8 @@ Hard-won rules (each traces to a real shipped failure):
   2026-09-06: `money_signal` reported no money vocabulary in a 167 KiB real diff, so a payments change
   would have classified LOW and become auto-mergeable; `usage_limit_error` and fleet's protected-path
   tamper guard carried the same shape. Any predicate over unbounded text gets a >64 KiB regression test.
+  **`plugin/hooks/block-destructive.sh` and `protect-specs.sh` still carry the shape** over the tool
+  payload. They are safe *only* because they set no `pipefail`, which makes adding `set -euo pipefail`
+  to a guard hook — an obvious-looking hardening — a silent disarm of every pattern on a large payload.
+  Both suites now pin the BEHAVIOUR (a destructive command inside a >64 KiB payload must still deny),
+  so the trap is caught however the hook is rewritten; converting the sites is queued in `fix_plan`.

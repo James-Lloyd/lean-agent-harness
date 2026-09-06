@@ -68,6 +68,7 @@ first mutation run "passed" for exactly that reason and is why the fixture now l
 | `probe-consumer.sh` | The same lib over a throwaway repo shaped like a consumer app — a clean LOW, a MEDIUM migration, a money HIGH by path, a money HIGH by content alone. | `probe-consumer.log`, `risk/risk-consumer-*.json`, `ledger-consumer.jsonl` |
 | `probe-identity.sh` | The reviewer gate against a REAL pull request, with real `gh api user` calls, in four token states. | `probe-identity.log` |
 | `mutation-proof.sh` | The money rule's fix is load-bearing. | `mutation-proof.txt` |
+| the `risk-classifier` agent | `/promote` §4 for real on this range: fresh context, confirms HIGH, re-derives it independently, and names an exposure the author missed (the fixes change behaviour for every *consumer* on their next `/plugin update`). | `classifier-verdict.md` |
 
 ### Why the tier samples come from two repos
 
@@ -133,8 +134,8 @@ explicitly. The repo's own config is never written, and promotion stays off.
 
 | Suite | Result |
 |---|---|
-| `run-tests.sh` (bash) | 306 / 0 |
-| `run-tests.ps1` (PowerShell 5.1) | 316 / 0 |
+| `run-tests.sh` (bash) | 307 / 0 |
+| `run-tests.ps1` (PowerShell 5.1) | 317 / 0 |
 | `fleet-queue-test.sh` / `.ps1` | 31 / 0 each |
 | `loop-review-test.sh` / `.ps1` | 16 / 0 each |
 | `run.mjs` dispatcher self-test | folded into both suites |
@@ -142,7 +143,17 @@ explicitly. The repo's own config is never written, and promotion stays off.
 
 New assertions in this batch: 9 prose pins (the PR binding, the outcome record, the retired App
 claim, and the two on §6.3's exit-status requirement); 2 oversized-input regressions for
-`money_signal` and `usage_limit_error`. All mirrored on both twins.
+`money_signal` and `usage_limit_error`; and 1 on the destructive-command guard hook. All mirrored on
+both twins.
+
+That last one is a pin on code this batch does **not** change. `block-destructive.sh` and
+`protect-specs.sh` match the tool payload with the same `printf | grep -q` shape, and they are safe
+today only because neither sets `pipefail` — so adding `set -euo pipefail` to a guard hook, which
+looks like pure hardening, would silently disarm every denylist pattern on a payload past 64 KiB. The
+assertion pins the *behaviour* (a destructive command buried in a 200 KiB payload must still exit 2),
+which survives any rewrite. Converting those call sites is queued in `fix_plan` rather than done here:
+`block-destructive.sh` is the most safety-critical file in the repo and carries about a dozen pattern
+greps with a PowerShell twin, so it deserves its own reviewed change, not a ride on a promotion PR.
 
 One flake worth naming: `fleet-queue-test.sh` reported 30/1 once while `run-tests.sh` was running
 concurrently, and 31/0 on every isolated run of either twin. The suites contend over temp state; run
@@ -156,8 +167,10 @@ them one at a time.
   decision; it deliberately never approves. Arming that needs `promotion.enabled: true`, the reviewer
   token in the promotion runtime, and the repo's "Allow auto-merge" setting — all listed in
   `docs/promotion.md` §3.
-- **The `risk-classifier` agent has still never run inside a real `/promote` invocation.** These
-  probes execute §1, §6, §7 and §9 through the shipped lib, but §4 spawns a fresh-context judge that a
-  script cannot stand in for, so they pass the deterministic tier as the neutral input to the
-  escalate-only `max()` — which can raise nothing and lower nothing. Running the slash command end to
-  end once is carried as a follow-up on the S3 line.
+- **A single `/promote staging` invocation running §3–§5 in one flow.** §4's judge did run for real on
+  this range — see `classifier-verdict.md`, `RISK: HIGH`, fresh context, confirming and independently
+  re-deriving the deterministic tier — but it was driven separately from the probes rather than from
+  inside the command, so the classifier's verdict has not yet flowed through `Get-RiskVerdict` →
+  `Merge-RiskTier` → the decision in one run. The probes pass the deterministic tier as the neutral
+  input to the escalate-only `max()`, which can raise nothing and lower nothing. Carried as a
+  follow-up on the S3 line.

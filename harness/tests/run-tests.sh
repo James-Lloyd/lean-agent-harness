@@ -166,6 +166,17 @@ ok "$([ "$(hookrc 'git status')"      = "0" ] && echo 1 || echo 0)" "allows git 
 ok "$([ "$(hookrc 'npm test')"        = "0" ] && echo 1 || echo 0)" "allows npm test"
 ok "$([ "$(hookrc 'git push origin feature')" = "0" ] && echo 1 || echo 0)" "allows normal git push"
 ok "$([ "$(hookrc "$lease")" = "0" ] && echo 1 || echo 0)" "ALLOWS git push --force-with-lease (recommended)"
+# The guard still fires when the destructive command is buried in an OVERSIZED payload. These hooks
+# match with `printf '%s' "$scan" | grep -q`, the same shape that failed open in money_signal (2026-09-06)
+# — there, `grep -q` exiting at the first match killed printf with SIGPIPE and `set -o pipefail` returned
+# 141 as the pipeline's status, so the match was thrown away. The hooks are safe today only because they
+# do not set pipefail; adding `set -euo pipefail` to one of them, an obvious-looking hardening, would
+# silently disarm every pattern on any payload past the 64 KiB pipe buffer. Pin the BEHAVIOUR, not the
+# absence of a shell option, so the guard has to keep denying however it is rewritten. Command FIRST so
+# grep matches early — with the match at the end, grep reads everything and the broken form still passes.
+bigcmd="rm -rf / ; $(head -c 200000 /dev/zero | tr '\0' 'x')"
+ok "$([ "$(hookrc "$bigcmd")" = "2" ] && echo 1 || echo 0)" "blocks a destructive command inside a payload larger than the pipe buffer"
+unset bigcmd
 
 echo "block-destructive: work-discard + remote-pipe coverage, false-positive exemptions"
 ok "$([ "$(hookrc 'git checkout .')" = "2" ] && echo 1 || echo 0)" "blocks git checkout . (bare dot)"
