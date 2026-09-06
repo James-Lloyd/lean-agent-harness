@@ -78,7 +78,7 @@ PowerShell 5.1: `powershell harness/tests/run-tests.ps1`; bash needs `jq` on PAT
 - [2026-09-05] Inside a worktree session the isolation hook also refuses a reviewer SUBAGENT's `powershell`
   invocations, so a Windows judge can re-run the bash twin live but not the PS twin; CI covers PS. It likewise
   refuses inline `source`/`export` — put multi-step shell in a scratchpad script and run `bash <script>`.
-- [2026-09-05] Under headless `codex exec` (0.144.3) the project `.codex/hooks.json` is NEVER loaded, even with the
+- [2026-09-05 · re-confirmed on 0.153.4, 2026-09-06] Under headless `codex exec` the project `.codex/hooks.json` is NEVER loaded, even with the
   project trusted and `--dangerously-bypass-hook-trust`; only `~/.codex/hooks.json` (codex-setup `--user`) and inline
   `-c 'hooks.PreToolUse=[{matcher="Bash",hooks=[{type="command",command="node \"<run.mjs>\" --codex <hook>",timeout=30}]}]'`
   fire — and only with the bypass flag or prior `/hooks` trust. The inline form is the zero-side-effect way to probe.
@@ -87,8 +87,12 @@ PowerShell 5.1: `powershell harness/tests/run-tests.ps1`; bash needs `jq` on PAT
   running (`hook: PreToolUse Blocked` in the transcript), never by the hook's exit code.
 - [2026-09-05] The npm Codex CLI binary is `node_modules/@openai/codex/node_modules/@openai/codex-win32-x64/vendor/*/bin/codex.exe`
   (not the `codex-code-mode-host.exe` beside it); `grep -a -o` for field names settles docs-vs-installed drift fast
-  (0.144.3 has `AgentRoleToml` but no `default_subagent_model`). An unknown TOML key is a FATAL, silent config-load
-  error that drops the whole project `.codex/` layer — load-test generated config with a one-line `codex exec`.
+  (0.144.3 has `AgentRoleToml` but no `default_subagent_model`). On **0.144.3** an unknown TOML key was a FATAL,
+  silent config-load error that dropped the whole project `.codex/` layer. **Do not generalise that to the
+  installed CLI**: on 0.153.4 `[agents] enabled = true` no longer errors (2026-09-06 re-verification), and the
+  evidence cannot separate "unknown keys are now tolerated" from "`agents.enabled` became a real key" — only a
+  syntactically invalid file was confirmed still fatal. Load-test generated config against the INSTALLED version
+  with a one-line `codex exec`, every time; and note the load only happens at all for a TRUSTED project.
 - [2026-09-05] `state/handoff.md` is GITIGNORED and therefore per-worktree: a handoff written inside a
   worktree cannot land in its PR and dies when the worktree is removed, leaving the next session to read a
   stale one from the main checkout. Finish a worktree session by copying it across with a plain `cp` (the

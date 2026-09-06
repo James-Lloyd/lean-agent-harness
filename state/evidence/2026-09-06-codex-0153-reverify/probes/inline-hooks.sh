@@ -46,9 +46,11 @@ run() {  # $1 = label, $2 = the -c hooks value
   fi
 }
 
-run "PreToolUse inline (no flag)"  "hooks.PreToolUse=[{matcher=\"*\",hooks=[{type=\"command\",command=\"$cmd\",timeout=30}]}]"
-run "PreToolUse inline (+bypass)"  "hooks.PreToolUse=[{matcher=\"*\",hooks=[{type=\"command\",command=\"$cmd\",timeout=30}]}]"
-echo "  (second row above intentionally identical; bypass added below)"
+# Both rows below run WITHOUT the bypass flag (the label used to say "+bypass" on a command that did
+# not pass it -- it misdescribed itself on a re-run). The flag is added in the separate run further
+# down, which is the only one that fires.
+run "PreToolUse inline (no flag)"        "hooks.PreToolUse=[{matcher=\"*\",hooks=[{type=\"command\",command=\"$cmd\",timeout=30}]}]"
+run "PreToolUse inline (no flag, again)" "hooks.PreToolUse=[{matcher=\"*\",hooks=[{type=\"command\",command=\"$cmd\",timeout=30}]}]"
 
 : > "$OUT"
 out="$( (cd "$P" && REC_OUT="$OUT" codex exec --sandbox read-only --dangerously-bypass-hook-trust \

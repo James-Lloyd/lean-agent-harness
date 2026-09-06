@@ -15,7 +15,7 @@ inline with `-c`. Raw output: `results.txt`. Re-runnable probes: `probes/`.
 | # | V5 finding (0.144.3) | 0.153.4 | Action |
 |---|---|---|---|
 | C1a | `[[skills.config]]` requires `enabled`; omitting it is fatal | **HOLDS** — `Error loading config.toml: missing field 'enabled'` | none; generator already emits it |
-| C1b | `[agents] enabled = true` is fatal (`expected struct AgentRoleToml`) | **CHANGED — now accepted, no error** | none needed; generator omits `[agents]`, which is valid on both. Doc must say *why* it is omitted is now compatibility, not necessity |
+| C1b | `[agents] enabled = true` is fatal (`expected struct AgentRoleToml`) | **CHANGED — `enabled = true` now accepted, no error.** `default_subagent_*` was *not* re-sent, so nothing here says whether unknown keys in general are now tolerated | none needed; generator omits `[agents]`, which is valid on both. Doc must say *why* it is omitted is now compatibility, not necessity |
 | C2 | project `.codex/hooks.json` never loads under headless `exec` | **HOLDS** — 0 hook lines, 0 side effects, trusted *and* `--dangerously-bypass-hook-trust` | none |
 | C3 | exit 2 is not a denial; JSON `permissionDecision:"deny"` is | **HOLDS** — exit 2 → `Failed` and the command **ran**; JSON deny → `Blocked` | none; `run.mjs --codex` still correct |
 | C4 | `tool_name` is `Bash`; payload shape as recorded | **HOLDS** — identical key set, still `Bash` | none; `--shell-matcher Bash` default stands |
@@ -38,9 +38,17 @@ Two traps in that, both now recorded:
   `~/.codex/config.toml` does. A control in the same invocation (`-c model="gpt-5-codex"`) *did* take
   effect, so `-c` was working — the trust key specifically is ignored. Without that control I would
   have read "no error" as "not read" a second time.
-* **An untrusted project silently skips its whole `.codex/` layer** — no warning, no diagnostic.
-  `codex doctor` lists only `~/.codex/config.toml` under "config loaded" even when a project config
-  exists, so doctor cannot be used to tell the two states apart.
+* **An untrusted project skips its whole `.codex/` layer with no diagnostic.** Asserted first from a
+  `grep`-filtered probe, which *cannot prove absence* — a `warning:` line would never have reached the
+  output. Re-run unfiltered after review (`results.txt` §5): the full transcript really does contain
+  nothing about the project config, the trust state, or the parse failure. The claim survived; the
+  method that produced it did not, and is now a ratchet.
+* **`codex doctor` cannot tell you which state you are in — but it is not blind either.** With a
+  *valid* project config its Configuration section is identical trusted or untrusted, naming only
+  `~/.codex/config.toml` (`results.txt` §6). With a *broken* one it fails loudly — `✗ config could not
+  be loaded` — but never names the offending file; `codex exec` does. The first draft of this document
+  said flatly that doctor "cannot tell the two states apart", which overstated it, and had no recorded
+  output behind it at all.
 
 This is the same shape as the defect this batch's predecessor ratcheted: a negative result that is
 really "the code never ran". Both probes now carry positive controls.

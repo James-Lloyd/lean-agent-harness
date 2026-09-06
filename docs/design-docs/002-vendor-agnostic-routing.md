@@ -18,9 +18,13 @@ findings are recorded here so this doc stands alone):
   in `~/.codex/hooks.json` or `<repo>/.codex/hooks.json`, with the *same JSON shape* as Claude Code's
   (`matcher` + `{type: "command", command, timeout}`, JSON on stdin, exit 2 = deny). Repo-level hooks
   are **skipped silently under `codex exec`** until the repo is trusted, or with
-  `--dangerously-bypass-hook-trust`. *(V5 live-fire on 0.144.3 disproved both of the last two claims:
-  exit 2 is a hook failure that PROCEEDS, only the JSON `permissionDecision` blocks; and the repo-level
-  file is never loaded headlessly at all — see Consequences.)*
+  `--dangerously-bypass-hook-trust`. *(Both of those last two claims are **disproved**, and on the very
+  version this bullet names: V5 live-fired them on 0.144.3 and the 2026-09-06 re-verification repeated
+  them on **0.153.4** — exit 2 is a hook failure that PROCEEDS, only the JSON `permissionDecision`
+  blocks; and the repo-level file is never loaded headlessly at all, trusted **and** with
+  `--dangerously-bypass-hook-trust`, zero events either way. See Consequences and
+  `state/evidence/2026-09-06-codex-0153-reverify/`. Trust does gate the project `config.toml`, just
+  not the hooks.)*
 - Codex has **custom subagents** (`.codex/agents/*.toml` with `model`, `model_reasoning_effort`,
   `sandbox_mode`), **plugins**, and reads the **Agent Skills** standard from `.agents/skills/` (not
   `.claude/skills/`). Claude Code reads `.claude/skills/` only. Both follow symlinks/junctions.

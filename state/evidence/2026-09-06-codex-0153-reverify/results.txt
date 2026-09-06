@@ -1,4 +1,10 @@
-Recorded output of the four re-verification probes, Codex CLI 0.153.4, Windows 11, 2026-09-06.
+Output of the re-verification probes, Codex CLI 0.153.4, Windows 11, 2026-09-06.
+
+TRANSCRIBED AND CONDENSED from the probe runs, not a raw console capture: long paths are elided and
+the summary lines are reflowed to fit. The error strings, payload key order and timings are verbatim.
+Sections 5 and 6 below ARE verbatim captures (they exist to back claims of silence, which a
+condensed transcript cannot support).
+
 Project under test: the harness worktree (trusted by prefix from `c:\users\<you>\repos\<repo>`).
 Nothing was written to ~/.codex — trust came from the entry already there, hooks were supplied inline.
 
@@ -93,3 +99,78 @@ On 0.144.3 V5 observed a real recursive delete RUN with the hook logging `Failed
 On 0.153.4 that specific command no longer reaches the shell at all. This is a
 Codex-native guardrail, not the harness's, and it must not be mistaken for one:
 the exit-2 fail-open above is still real and still ours to translate.
+
+===============================================================================
+5 — VERBATIM: does an untrusted project WARN about the config it is ignoring?
+    (added after review: the first pass asserted "silently, no warning" from a
+    grep-FILTERED probe, which cannot prove absence. This is the full output,
+    nothing filtered. probes/silence-and-doctor.sh)
+    Untrusted project, .codex/config.toml contains invalid TOML.
+===============================================================================
+Reading additional input from stdin...
+OpenAI Codex v0.153.4
+--------
+workdir: C:\...\Temp\cxproj
+model: gpt-6-astra
+provider: openai
+approval: never
+sandbox: read-only
+reasoning effort: high
+reasoning summaries: none
+session id: 01a077df-e0f1-7cc1-b6dd-2d9830a9a33a
+--------
+user
+reply with exactly: PONG
+codex
+PONG
+tokens used
+3,894
+PONG
+
+  Confirmed: not one line mentions the project config, the trust state, or the
+  parse failure. The run proceeds normally. The claim of silence is now earned.
+
+===============================================================================
+6 — VERBATIM: what `codex doctor` can and cannot tell you
+    (added after review: the doctor claim previously had NO recorded output)
+    probes/silence-and-doctor.sh + probes/doctor-invalid.sh
+===============================================================================
+--- UNTRUSTED project, project config present ---
+Configuration
+  o config       loaded
+      model                    gpt-6-astra . openai
+      cwd                      C:\...\Temp\cxproj
+      config.toml              C:\...\.codex\config.toml
+      config.toml parse        ok
+
+--- TRUSTED project, project config VALID ---
+Configuration
+  o config       loaded
+      model                    gpt-6-astra . openai
+      cwd                      C:\...\codex-0153-reverify
+      config.toml              C:\...\.codex\config.toml
+      config.toml parse        ok
+
+  Identical. Neither names the project file, so doctor cannot distinguish
+  "trusted, project layer active" from "untrusted, project layer ignored" --
+  which is the operator's actual question ("is my generated .codex/ doing
+  anything?").
+
+--- TRUSTED project, project config INVALID (sharper test, added after review) ---
+Configuration
+  x config       config could not be loaded - Fix the reported config error, then rerun codex doctor.
+      feature flags            0 enabled . 0 overridden
+    . failed to load Codex config
+  ...
+  13 ok . 3 notes . 2 warn . 1 fail failed
+
+  grep for the project config path across the whole doctor output: NO MATCH.
+
+  For contrast, the same state under `codex exec`:
+    Error loading config.toml: Error parsing project config file
+    C:\...\codex-0153-reverify\.codex\config.toml: TOML parse error at line 1, column 6
+
+  So doctor is NOT blind to a BROKEN project config -- it fails loudly, but
+  generically, never naming the file. `codex exec` names it. The limitation is
+  narrower than first written: doctor cannot distinguish trusted-with-a-VALID-
+  project-config from untrusted.

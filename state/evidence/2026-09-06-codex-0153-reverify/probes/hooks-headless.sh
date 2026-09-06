@@ -41,10 +41,17 @@ probe() {  # $1 label, rest args
   local out
   out="$( (cd "$P" && HOOK_MARK="$MARK" codex exec --sandbox read-only "$@" \
           "Run the shell command: echo hello-from-codex . Then reply DONE." 2>&1 </dev/null) )"
-  local hooklines fired
+  local hooklines fired toolcalls
   hooklines="$(printf '%s' "$out" | grep -cE '^hook:')"
   fired="$( [ -f "$MARK" ] && tr '\n' ' ' < "$MARK" || echo '<none>')"
-  printf '  %-34s codex `hook:` lines=%-3s   our hook fired: %s\n' "$label" "$hooklines" "$fired"
+  # POSITIVE CONTROL, in the script rather than in prose: a zero above is only meaningful if the run
+  # actually made a tool call. Without this column the probe emits a bare uncontrolled negative, and
+  # "hooks did not fire" is indistinguishable from "nothing ever asked to run a command".
+  toolcalls="$(printf '%s' "$out" | grep -cE 'succeeded in|exited [0-9]+ in')"
+  printf '  %-34s codex `hook:` lines=%-3s tool-calls=%-3s our hook fired: %s\n' \
+    "$label" "$hooklines" "$toolcalls" "$fired"
+  [ "$toolcalls" = 0 ] && printf '    !! NO TOOL CALL — this row proves nothing about hooks\n'
+  return 0
 }
 
 echo "project (trusted): $P"
