@@ -67,6 +67,15 @@ Hard-won rules (each traces to a real shipped failure):
   absent `preconditions` object reached AUTO with a red gate while the audit string still read "all
   preconditions met"; `enabled: "false"` as a string read as ON under PS (non-empty string coerces to
   `$true`).
+- **A `[bool]` PARAMETER is not a strict bool, and it fails the OPPOSITE way to the folklore.** An
+  ASSIGNMENT coerces (`[bool]$x = '0'` is `$true`); parameter BINDING does not — `-Flag "0"` is a
+  `ParameterBindingArgumentTransformationException`. What binding *does* accept is NUMBERS, coercing
+  every nonzero one to `$true`, so `Get-PromotionDecision -ReviewerConfigured 2` / `-1` / `0.5` all
+  returned AUTO where the sh twin's `[ "$reviewer" != "1" ]` returns HUMAN — a fail-OPEN on the last
+  gate before auto-merge. Declare a security-shaped flag UNTYPED and narrow it through an explicit
+  predicate (`Test-RiskStrictTrue`), so only a real `[bool] $true` opens the gate and everything else
+  fails closed the way the twin does. Two fresh-context reviews asserted the string-coercion version
+  and `fix_plan` carried it verbatim for a month; one probe on a real host settled it (2026-09-06).
 - **Never return a collection from a PS function you intend to TYPE-CHECK** — the output pipeline
   unrolls a single-element array to a bare scalar, so `["**/payments/**"]` fails `-is [Array]`.
   `return ,$value` survives assignment but NOT an inline `@(f ...)`, and an ArrayList round-trip does

@@ -71,6 +71,26 @@ function Test-RiskPropIsBool($obj, [string]$name) {
   return ($p.Value -is [bool])
 }
 
+# STRICT truth test for a decision ARGUMENT (the config-property twin is Test-RiskPropIsBool above).
+# A `[bool]` PARAMETER is not the strict thing it looks like, but it does NOT fail the way folklore
+# says either -- this was probed on a real host before it was believed, and the widely-repeated
+# version was backwards:
+#   * strings are REFUSED outright. `-ReviewerConfigured "0"` is a
+#     ParameterBindingArgumentTransformationException, not the silent $true that a `[bool]$x = '0'`
+#     ASSIGNMENT would produce. Assignment coerces; parameter binding does not.
+#   * NUMBERS are accepted and every nonzero one coerces to $true. `-ReviewerConfigured 2`, `-1` and
+#     `0.5` all bound as $true and returned AUTO, where the sh twin's `[ "$reviewer" != "1" ]`
+#     returns HUMAN for all three.
+# That second bullet is the actual fail-OPEN, and it sits on the LAST gate before auto-merge. The
+# four gate flags are therefore declared untyped and read through here: only a real [bool] $true
+# satisfies a gate. Every other value -- any number, any string, $null, any object -- is $false, so
+# an unrecognized argument means HUMAN and never AUTO, matching the sh twin where only the exact
+# string "1" passes. Mutation-verified in run-tests.ps1: restore the [bool] annotations and the
+# numeric assertions there flip to AUTO.
+function Test-RiskStrictTrue($Value) {
+  return ($Value -is [bool] -and $Value)
+}
+
 # Paths whose change governs the promotion policy ITSELF, or the guardrails the policy leans on.
 # HARDCODED, deliberately not config-driven: if the escalation list for "edits to the escalation
 # list" were itself in config, one edit could disarm the whole mechanism and then auto-merge itself.
@@ -329,8 +349,16 @@ function Test-PromotionConfigShape($Promotion) {
 function Get-PromotionDecision {
   param($Config, [string]$Environment,
         [string]$DeterministicTier, [string]$ClassifierTier,
-        [bool]$GateGreen = $false, [bool]$ReviewShip = $false, [bool]$E2EEvidence = $false,
-        [bool]$ReviewerConfigured = $false)
+        $GateGreen = $false, $ReviewShip = $false, $E2EEvidence = $false,
+        $ReviewerConfigured = $false)
+  # Untyped (not [bool]) ON PURPOSE, then narrowed here -- see Test-RiskStrictTrue: a [bool] PARAMETER
+  # coerces every nonzero NUMBER to $true, which fails OPEN on the gates below. Distinct names because
+  # PowerShell variables are case-INSENSITIVE: `$gateGreen = ... $GateGreen` would assign straight back
+  # to the parameter and the narrowing would be a silent no-op.
+  $isGateGreen = Test-RiskStrictTrue $GateGreen
+  $isReviewShip = Test-RiskStrictTrue $ReviewShip
+  $isE2EEvidence = Test-RiskStrictTrue $E2EEvidence
+  $isReviewerConfigured = Test-RiskStrictTrue $ReviewerConfigured
   # Named $envName, not $env: `$env` reads as the environment-variable drive in PowerShell and the
   # shadowing is a trap for the next reader.
   $envName = ("$Environment").Trim().ToLowerInvariant()
@@ -363,13 +391,13 @@ function Get-PromotionDecision {
   # Preconditions gate the AUTO path but are not risk: a HIGH-risk change and an unreviewed change
   # both go to a human, for different reasons, and the audit record must say which.
   $pre = Get-RiskProp $p 'preconditions'
-  if ($true -eq (Get-RiskProp $pre 'gateGreen')   -and -not $GateGreen)   {
+  if ($true -eq (Get-RiskProp $pre 'gateGreen')   -and -not $isGateGreen)   {
     return [pscustomobject]@{ Decision = 'HUMAN'; Reason = 'precondition unmet: project gate is not green' }
   }
-  if ($true -eq (Get-RiskProp $pre 'reviewShip')  -and -not $ReviewShip)  {
+  if ($true -eq (Get-RiskProp $pre 'reviewShip')  -and -not $isReviewShip)  {
     return [pscustomobject]@{ Decision = 'HUMAN'; Reason = 'precondition unmet: no fresh-context review SHIP for this range' }
   }
-  if ($true -eq (Get-RiskProp $pre 'e2eEvidence') -and -not $E2EEvidence) {
+  if ($true -eq (Get-RiskProp $pre 'e2eEvidence') -and -not $isE2EEvidence) {
     return [pscustomobject]@{ Decision = 'HUMAN'; Reason = 'precondition unmet: no end-to-end evidence for this range' }
   }
 
@@ -385,7 +413,7 @@ function Get-PromotionDecision {
   # caller (/promote) computes this bool from promotion.reviewer.tokenEnv -> a non-empty token whose
   # gh identity differs from the PR author; it CANNOT be derived here (env + gh are the caller's), so
   # an omitted/unresolvable reviewer arrives as $false and drops to HUMAN, never to the merge path.
-  if (-not $ReviewerConfigured) {
+  if (-not $isReviewerConfigured) {
     return [pscustomobject]@{ Decision = 'HUMAN'; Reason = 'no separate reviewer identity configured (promotion.reviewer.tokenEnv unset/empty or equals the PR author); GitHub rejects self-approval' }
   }
   return [pscustomobject]@{ Decision = 'AUTO'; Reason = 'LOW risk, all preconditions met, separate reviewer identity available, target staging' }

@@ -1,0 +1,31 @@
+=== MUTANT: the pre-fix [bool] annotations ===
+  host: PowerShell 5.1.26100.9168
+  reviewer = $true   (bool)        -> AUTO
+  reviewer = $false  (bool)        -> HUMAN
+  reviewer = 0       (int)         -> HUMAN
+  reviewer = 1       (int)         -> AUTO
+  reviewer = 2       (int)         -> AUTO
+  reviewer = -1      (int)         -> AUTO
+  reviewer = 0.5     (double)      -> AUTO
+  reviewer = "0"     (string)      -> BINDING ERROR (exception, not a decision)
+  reviewer = "1"     (string)      -> BINDING ERROR (exception, not a decision)
+  reviewer = $null                 -> BINDING ERROR (exception, not a decision)
+  reviewer = @{}     (hash)        -> BINDING ERROR (exception, not a decision)
+
+=== SHIPPED: untyped params narrowed by Test-RiskStrictTrue ===
+  host: PowerShell 5.1.26100.9168
+  reviewer = $true   (bool)        -> AUTO
+  reviewer = $false  (bool)        -> HUMAN
+  reviewer = 0       (int)         -> HUMAN
+  reviewer = 1       (int)         -> HUMAN
+  reviewer = 2       (int)         -> HUMAN
+  reviewer = -1      (int)         -> HUMAN
+  reviewer = 0.5     (double)      -> HUMAN
+  reviewer = "0"     (string)      -> HUMAN
+  reviewer = "1"     (string)      -> HUMAN
+  reviewer = $null                 -> HUMAN
+  reviewer = @{}     (hash)        -> HUMAN
+
+The mutant returns AUTO for 1, 2, -1 and 0.5 -- every nonzero NUMBER opens the last gate
+before auto-merge, where the sh twin (only the exact string '1' passes) returns HUMAN.
+Strings are a BINDING ERROR on the mutant, not the silent AUTO the fix_plan entry claimed.

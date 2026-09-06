@@ -130,6 +130,18 @@ editing** (Claude Code: see CLAUDE.md; anything else: `git worktree add`). Land 
   (`usage_limit_error`, fleet's protected-path check) carried the same shape. Before trusting any
   classifier, sniffer or tamper guard, run it over a real artifact of the size it will really see, and
   leave that oversized case in the suite.
+- [2026-09-06] **A mutation check must make the pre-fix code return a WRONG ANSWER, not throw** — and
+  the premise you are fixing under is a hypothesis until a probe on a real host confirms it. The
+  strict-bool task sat in `fix_plan` for a month asserting that a `[bool]` param coerces `"0"` to
+  `$true` and reaches AUTO; two fresh-context reviews had said so. Probing it showed the opposite —
+  strings are *refused* by the binder, and it is nonzero NUMBERS that coerce. The fix was still
+  needed, but the regression tests written from the stated premise pinned the wrong thing: against
+  the pre-fix code a string argument raises a binding exception, so those assertions would have gone
+  red on an ERROR rather than on a fail-open, proving nothing about the gate. Run the new assertion
+  against the pre-fix code and check the failure is a wrong VALUE; if it is a stack trace, you have
+  tested the type system, not the guard. Corollary: a semantics claim inherited from a review or a
+  plan entry gets probed before it is written into a comment, or you ship a correct patch that
+  teaches the next reader something false.
 
 ## Nested context
 Subsystems carry their own `AGENTS.md` next to their code (in this repo: `plugin/engine/` holds the

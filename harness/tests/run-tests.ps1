@@ -711,6 +711,34 @@ ok "the SAME LOW change WITH a reviewer identity => AUTO"     ((decRev $true).De
 # Fail-closed default: omitting the arg entirely must not reach AUTO (a stale caller cannot merge).
 ok "an OMITTED reviewer arg fails closed to HUMAN"            ((Get-PromotionDecision -Config $riskCfg -Environment 'staging' -DeterministicTier 'LOW' -ClassifierTier 'LOW' -GateGreen $true -ReviewShip $true -E2EEvidence $true).Decision -eq 'HUMAN')
 
+# STRICT flags on all four gates. A `[bool]` PARAMETER is not the strict thing it looks like, and the
+# way it fails is the OPPOSITE of the folklore this entry sat in fix_plan under for two reviews:
+# strings are REFUSED (a ParameterBindingArgumentTransformationException -- assignment coerces,
+# parameter binding does not), while NUMBERS are accepted and every nonzero one becomes $true. So
+# `-ReviewerConfigured 2` / `-1` / `0.5` returned AUTO where the sh twin returns HUMAN. THE NUMERIC
+# CASES ARE THE LOAD-BEARING ONES: restore the [bool] annotations and they flip to AUTO, which is a
+# wrong ANSWER. The string/$null cases below flip to a thrown exception instead -- worth pinning (a
+# mis-typed caller now gets a decision on both twins rather than a stack trace) but they do NOT
+# discriminate a fail-open on their own, so they are not the regression proof.
+foreach ($nv in @(2, -1, 0.5)) {
+  ok "a nonzero-NUMBER reviewer arg ($nv) fails closed to HUMAN" ((decRev $nv).Decision -eq 'HUMAN')
+}
+foreach ($sv in @('0', 'false', 'no', 'off', 'true', '1')) {
+  ok "a stringly-typed reviewer arg '$sv' fails closed to HUMAN" ((decRev $sv).Decision -eq 'HUMAN')
+}
+ok 'a $null reviewer arg fails closed to HUMAN'               ((decRev $null).Decision -eq 'HUMAN')
+ok "a real boolean reviewer arg still reaches AUTO"           ((decRev $true).Decision -eq 'AUTO')
+# The same strictness on the three preconditions, each isolated with the other two and the reviewer
+# held at a real $true, so a HUMAN here is attributable to the flag under test. Numeric again, so
+# each one is a genuine mutation check rather than an exception check.
+function decPre($g, $s, $e) {
+  (Get-PromotionDecision -Config $riskCfg -Environment 'staging' -DeterministicTier 'LOW' -ClassifierTier 'LOW' -GateGreen $g -ReviewShip $s -E2EEvidence $e -ReviewerConfigured $true).Decision
+}
+ok "a nonzero-NUMBER gateGreen (2) fails closed to HUMAN"     ((decPre 2 $true $true) -eq 'HUMAN')
+ok "a nonzero-NUMBER reviewShip (2) fails closed to HUMAN"    ((decPre $true 2 $true) -eq 'HUMAN')
+ok "a nonzero-NUMBER e2eEvidence (2) fails closed to HUMAN"   ((decPre $true $true 2) -eq 'HUMAN')
+ok "three real boolean preconditions still reach AUTO"        ((decPre $true $true $true) -eq 'AUTO')
+
 # The escalate-only merge is computed INSIDE the decision, not handed to it: the function takes the
 # deterministic tier AND the classifier's verdict and max()es them itself, so no caller can pass a
 # single hand-picked (lower) tier to bypass the classifier. These pin that the merge is internal.

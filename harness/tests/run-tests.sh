@@ -655,6 +655,23 @@ JSON
   # Fail-closed default: omitting the 8th arg entirely must not reach AUTO (a stale caller cannot merge).
   ok "$([ "$(promotion_decision "$RCFG" staging LOW LOW 1 1 1 | cut -d'|' -f1)" = "HUMAN" ] && echo 1 || echo 0)" "an OMITTED reviewer arg fails closed to HUMAN"
 
+  # STRICT flags, mirroring the PS twin. bash was ALREADY strict here (only the exact "1" passes) --
+  # the twin was not: a `[bool]` PARAMETER refuses strings outright but accepts NUMBERS, coercing
+  # every nonzero one to $true, so `-ReviewerConfigured 2` / `-1` / `0.5` reached AUTO on PowerShell
+  # while this returns HUMAN for all three. These assertions exist so the twins' COVERAGE is
+  # symmetrical: the property is pinned on the side that had the defect AND on the side that defines
+  # the correct behaviour. The numeric values are carried over from the PS block deliberately -- this
+  # is the twin that says what the right answer is.
+  for sv in 0 2 -1 0.5 false no off true; do
+    ok "$([ "$(dec_rev "$sv")" = "HUMAN" ] && echo 1 || echo 0)" "a non-'1' reviewer arg '$sv' fails closed to HUMAN"
+  done
+  # Each precondition isolated, the other two and the reviewer held at 1, so a HUMAN is attributable.
+  dec_pre() { promotion_decision "$RCFG" staging LOW LOW "$1" "$2" "$3" 1 | cut -d'|' -f1; }
+  ok "$([ "$(dec_pre 2 1 1)" = "HUMAN" ] && echo 1 || echo 0)" "a non-'1' gateGreen arg (2) fails closed to HUMAN"
+  ok "$([ "$(dec_pre 1 2 1)" = "HUMAN" ] && echo 1 || echo 0)" "a non-'1' reviewShip arg (2) fails closed to HUMAN"
+  ok "$([ "$(dec_pre 1 1 2)" = "HUMAN" ] && echo 1 || echo 0)" "a non-'1' e2eEvidence arg (2) fails closed to HUMAN"
+  ok "$([ "$(dec_pre 1 1 1)" = "AUTO" ] && echo 1 || echo 0)"  "three '1' preconditions still reach AUTO"
+
   # The escalate-only merge is computed INSIDE the decision, not handed to it: promotion_decision
   # takes the deterministic tier AND the classifier's verdict and max()es them itself, so no caller
   # can pass a single hand-picked (lower) tier to bypass the classifier. These pin it is internal.
