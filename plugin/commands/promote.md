@@ -160,6 +160,11 @@ hand-picked lower tier cannot slip through) and encodes the prod refusal, disabl
 no-reviewer-identity refusals. An unknown/omitted classifier tier ranks HIGH and an absent/false
 reviewer boolean drops to HUMAN — both fail closed. Keep the returned Decision and Reason for §7/§8.
 
+The four flags must be **real booleans** (`$true`/`$false`; bash `1`/`0`), not stand-ins. Both twins
+now treat anything else as false and drop to HUMAN, so `-ReviewerConfigured 1` (the *number*) is not
+a way to say yes — it used to be, because a `[bool]` parameter coerced every nonzero number to
+`$true`, which is exactly the fail-open that was closed in plugin 0.3.8.
+
 ### 7. Write the audit record BEFORE acting
 Every automated approval must be attributable after the fact, so the record is written whether the
 outcome is AUTO or HUMAN, and it is written *first* (before §8 acts).

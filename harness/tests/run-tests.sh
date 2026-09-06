@@ -166,17 +166,50 @@ ok "$([ "$(hookrc 'git status')"      = "0" ] && echo 1 || echo 0)" "allows git 
 ok "$([ "$(hookrc 'npm test')"        = "0" ] && echo 1 || echo 0)" "allows npm test"
 ok "$([ "$(hookrc 'git push origin feature')" = "0" ] && echo 1 || echo 0)" "allows normal git push"
 ok "$([ "$(hookrc "$lease")" = "0" ] && echo 1 || echo 0)" "ALLOWS git push --force-with-lease (recommended)"
-# The guard still fires when the destructive command is buried in an OVERSIZED payload. These hooks
-# match with `printf '%s' "$scan" | grep -q`, the same shape that failed open in money_signal (2026-09-06)
-# — there, `grep -q` exiting at the first match killed printf with SIGPIPE and `set -o pipefail` returned
-# 141 as the pipeline's status, so the match was thrown away. The hooks are safe today only because they
-# do not set pipefail; adding `set -euo pipefail` to one of them, an obvious-looking hardening, would
-# silently disarm every pattern on any payload past the 64 KiB pipe buffer. Pin the BEHAVIOUR, not the
-# absence of a shell option, so the guard has to keep denying however it is rewritten. Command FIRST so
-# grep matches early — with the match at the end, grep reads everything and the broken form still passes.
+# The guard still fires when the destructive command is buried in an OVERSIZED payload. Kept as a
+# plain smoke test of the size path — but note it is a SINGLE line, and a single line can never
+# reproduce the SIGPIPE fail-open (see the multi-line block below for why). It passes against the
+# broken form too, so it is not the regression proof it reads like.
 bigcmd="rm -rf / ; $(head -c 200000 /dev/zero | tr '\0' 'x')"
 ok "$([ "$(hookrc "$bigcmd")" = "2" ] && echo 1 || echo 0)" "blocks a destructive command inside a payload larger than the pipe buffer"
 unset bigcmd
+
+# THE regression proof for the here-string conversion (2026-09-06). Two things have to be true at
+# once before `printf '%s' "$scan" | grep -q` can throw a match away, and the fixture above has
+# neither:
+#   1. grep must be able to exit EARLY, and grep cannot match until it has read a whole LINE. With
+#      200 KB and no newline it must consume everything before it can match, printf finishes writing,
+#      and no SIGPIPE ever happens. The bulk has to come AFTER a newline.
+#   2. `set -o pipefail` must be on, so the pipeline inherits printf's 141 instead of grep's 0. The
+#      hooks deliberately set no shell options, which is the ONLY reason the old form was safe --
+#      and which made adding `set -euo pipefail` to a guard hook, an obvious-looking hardening, a
+#      silent disarm of every pattern on a large payload.
+# So: multi-line payload, run against a COPY of the hook with pipefail injected. Of the two
+# assertions below, the SECOND is the discriminator — measured against the pre-conversion hook it
+# returns 0 (ALLOWED: a real `rm -rf /` runs) and against the shipped one 2. The first returns 2 for
+# both, because the hooks set no shell options and so were never exposed as shipped; it is coverage
+# of the multi-line shape, not proof. Pin the BEHAVIOUR, not the absence of a shell option, so the
+# guard has to keep denying however it is rewritten.
+if command -v jq >/dev/null 2>&1; then   # needs jq to encode real newlines into the JSON payload
+  mlcmd="$(mktemp)"; mlpay="$(mktemp)"; pfhook="$(mktemp)"
+  { printf 'rm -rf /\n'
+    awk 'BEGIN{for(i=0;i<4000;i++) printf "filler line %d xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\n", i}'
+  } > "$mlcmd"
+  jq -n --rawfile c "$mlcmd" '{tool_name:"Bash", tool_input:{command:$c}}' > "$mlpay"
+  # head/tail rather than `sed '2i ...'` — the `i` form without a backslash-newline is a GNU
+  # extension and this suite has to run on BSD/macOS sed too (engine AGENTS.md).
+  { head -1 "$HOOKS/block-destructive.sh"
+    echo 'set -euo pipefail'
+    tail -n +2 "$HOOKS/block-destructive.sh"
+  } > "$pfhook"
+  rc_plain="$(bash "$HOOKS/block-destructive.sh" < "$mlpay" >/dev/null 2>&1; echo $?)"
+  rc_pf="$(bash "$pfhook" < "$mlpay" >/dev/null 2>&1; echo $?)"
+  ok "$([ "$rc_plain" = "2" ] && echo 1 || echo 0)" "blocks a destructive command in a MULTI-LINE oversized payload (got '$rc_plain')"
+  ok "$([ "$rc_pf" = "2" ] && echo 1 || echo 0)"    "...and still blocks it with 'set -euo pipefail' injected into the hook (got '$rc_pf')"
+  rm -f "$mlcmd" "$mlpay" "$pfhook"
+else
+  echo "  (skipping the multi-line oversized-payload proof — jq not installed)"
+fi
 
 echo "block-destructive: work-discard + remote-pipe coverage, false-positive exemptions"
 ok "$([ "$(hookrc 'git checkout .')" = "2" ] && echo 1 || echo 0)" "blocks git checkout . (bare dot)"
@@ -230,6 +263,51 @@ if command -v jq >/dev/null 2>&1; then
       | HARNESS_LOCK_SPECS="$2" bash "$HOOKS/protect-specs.sh" >/dev/null 2>&1; echo $?
   }
   ok "$([ "$(specrc_nb 'specs/nb.ipynb' '1')" = "2" ] && echo 1 || echo 0)" "blocks specs/*.ipynb via notebook_path when locked"
+
+  # The DEGRADED (no-jq) branch is the one that greps the raw payload, and it is the highest-cost
+  # site of the here-string conversion: its failure lets an edit to specs/ — the immutable contract —
+  # through. CI never enters it, because jq is always installed and the whole block above is gated on
+  # `command -v jq`. So force it with `env -i PATH=...`, and pair it with the pipefail-injected copy
+  # the way block-destructive is pinned. Measured against the pre-conversion hook this returns 0
+  # (ALLOWED); against the shipped one, 2. Multi-line payload with the specs/ path EARLY: on a single
+  # line grep must read everything before it can match and printf never takes SIGPIPE, so a one-line
+  # fixture passes against the broken form too.
+  # A PATH of "/usr/bin:/bin" is NOT enough to force it: on Linux jq lives in /usr/bin, so the proof
+  # silently skipped on the Linux CI job and only ever ran on Windows — the very "branch the suite
+  # never enters" problem this test exists to fix, one level up. Build a PATH that provably lacks jq
+  # instead: a temp dir holding exec wrappers for just the commands the degraded branch uses (`cat`
+  # and `grep`; everything else it touches is a bash builtin). bash itself is invoked by absolute
+  # path, since PATH no longer resolves it.
+  nojq_bin="$(mktemp -d)"; bash_abs="$(command -v bash)"
+  for _c in cat grep; do
+    printf '#!%s\nexec %s "$@"\n' "$bash_abs" "$(command -v "$_c")" > "$nojq_bin/$_c"
+    chmod +x "$nojq_bin/$_c"
+  done
+  if [ -z "$(env -i PATH="$nojq_bin" "$bash_abs" -c 'command -v jq' 2>/dev/null)" ]; then
+    pspay="$(mktemp)"; pshook="$(mktemp)"
+    { printf '{"tool_name":"Write","tool_input":{"file_path":"specs/000-overview.md"}}\n'
+      awk 'BEGIN{for(i=0;i<4000;i++) printf "{\"filler\": \"line %d xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\"}\n", i}'
+    } > "$pspay"
+    { head -1 "$HOOKS/protect-specs.sh"
+      echo 'set -euo pipefail'
+      tail -n +2 "$HOOKS/protect-specs.sh"
+    } > "$pshook"
+    psrc_plain="$(env -i PATH="$nojq_bin" HARNESS_LOCK_SPECS=1 "$bash_abs" "$HOOKS/protect-specs.sh" < "$pspay" >/dev/null 2>&1; echo $?)"
+    psrc_pf="$(env -i PATH="$nojq_bin" HARNESS_LOCK_SPECS=1 "$bash_abs" "$pshook" < "$pspay" >/dev/null 2>&1; echo $?)"
+    # Positive control: the SAME forced environment on a NON-spec path must be allowed. Without it a
+    # hook that died early for an unrelated reason (a missing command in the stripped PATH) would
+    # look like a pass, since "denied" and "crashed" are both non-zero.
+    ctlpay="$(mktemp)"
+    printf '{"tool_name":"Write","tool_input":{"file_path":"src/app.ts"}}\n' > "$ctlpay"
+    psrc_ctl="$(env -i PATH="$nojq_bin" HARNESS_LOCK_SPECS=1 "$bash_abs" "$HOOKS/protect-specs.sh" < "$ctlpay" >/dev/null 2>&1; echo $?)"
+    ok "$([ "$psrc_ctl" = "0" ] && echo 1 || echo 0)"   "protect-specs degraded (no jq) still ALLOWS a non-spec path (control, got '$psrc_ctl')"
+    ok "$([ "$psrc_plain" = "2" ] && echo 1 || echo 0)" "protect-specs degraded (no jq) blocks specs/ in a MULTI-LINE oversized payload (got '$psrc_plain')"
+    ok "$([ "$psrc_pf" = "2" ] && echo 1 || echo 0)"    "...and still blocks it with 'set -euo pipefail' injected (got '$psrc_pf')"
+    rm -f "$pspay" "$pshook" "$ctlpay"
+  else
+    echo "  (skipping the degraded protect-specs proof — jq is still reachable from the stripped PATH)"
+  fi
+  rm -rf "$nojq_bin"
 else
   echo "  (skipping protect-specs tests — jq not installed)"
 fi
@@ -655,6 +733,23 @@ JSON
   # Fail-closed default: omitting the 8th arg entirely must not reach AUTO (a stale caller cannot merge).
   ok "$([ "$(promotion_decision "$RCFG" staging LOW LOW 1 1 1 | cut -d'|' -f1)" = "HUMAN" ] && echo 1 || echo 0)" "an OMITTED reviewer arg fails closed to HUMAN"
 
+  # STRICT flags, mirroring the PS twin. bash was ALREADY strict here (only the exact "1" passes) --
+  # the twin was not: a `[bool]` PARAMETER refuses strings outright but accepts NUMBERS, coercing
+  # every nonzero one to $true, so `-ReviewerConfigured 2` / `-1` / `0.5` reached AUTO on PowerShell
+  # while this returns HUMAN for all three. These assertions exist so the twins' COVERAGE is
+  # symmetrical: the property is pinned on the side that had the defect AND on the side that defines
+  # the correct behaviour. The numeric values are carried over from the PS block deliberately -- this
+  # is the twin that says what the right answer is.
+  for sv in 0 2 -1 0.5 false no off true; do
+    ok "$([ "$(dec_rev "$sv")" = "HUMAN" ] && echo 1 || echo 0)" "a non-'1' reviewer arg '$sv' fails closed to HUMAN"
+  done
+  # Each precondition isolated, the other two and the reviewer held at 1, so a HUMAN is attributable.
+  dec_pre() { promotion_decision "$RCFG" staging LOW LOW "$1" "$2" "$3" 1 | cut -d'|' -f1; }
+  ok "$([ "$(dec_pre 2 1 1)" = "HUMAN" ] && echo 1 || echo 0)" "a non-'1' gateGreen arg (2) fails closed to HUMAN"
+  ok "$([ "$(dec_pre 1 2 1)" = "HUMAN" ] && echo 1 || echo 0)" "a non-'1' reviewShip arg (2) fails closed to HUMAN"
+  ok "$([ "$(dec_pre 1 1 2)" = "HUMAN" ] && echo 1 || echo 0)" "a non-'1' e2eEvidence arg (2) fails closed to HUMAN"
+  ok "$([ "$(dec_pre 1 1 1)" = "AUTO" ] && echo 1 || echo 0)"  "three '1' preconditions still reach AUTO"
+
   # The escalate-only merge is computed INSIDE the decision, not handed to it: promotion_decision
   # takes the deterministic tier AND the classifier's verdict and max()es them itself, so no caller
   # can pass a single hand-picked (lower) tier to bypass the classifier. These pin it is internal.
@@ -868,6 +963,20 @@ if command -v jq >/dev/null 2>&1; then
   printf 'node_modules/\r\n.codex/\r\n' > "$CSP/.gitignore"
   bash "$CS" --project-root "$CSP" >/dev/null 2>&1 || true
   ok "$([ "$(tr -d '\r' < "$CSP/.gitignore" | grep -cx '\.codex/')" = "1" ] && echo 1 || echo 0)" "CRLF .gitignore already containing .codex/ is left alone (no duplicate)"
+  # This presence check is the one SIGPIPE site in a file that itself sets `pipefail`, so as
+  # `tr -d '\r' < "$gi" | grep -qx` it could fail for real rather than only after someone hardened
+  # it: grep exits at the match, tr dies of SIGPIPE, the pipeline reports 141, the guard reads
+  # "absent" and appends `.codex/` AGAIN, every run. The fixtures above are a few bytes and pass
+  # against the broken form. SIZE IS MEASURED, NOT ASSUMED: this shape does NOT turn over at the
+  # 64 KiB pipe buffer the way `printf | grep` does — an external producer plus grep's own read
+  # buffer absorbs far more. Measured on Git Bash 5.3.9: 114 KB still returns PIPESTATUS=(0 0), and
+  # 289 KB returns (141 0). 10000 lines sits above that, with `.codex/` on line 1 so grep can exit
+  # while tr is still writing.
+  { printf '.codex/\n'
+    awk 'BEGIN{for(i=0;i<10000;i++) printf "build/artifact-%d/**/*.tmp\n", i}'
+  } > "$CSP/.gitignore"
+  bash "$CS" --project-root "$CSP" >/dev/null 2>&1 || true
+  ok "$([ "$(grep -cx '\.codex/' "$CSP/.gitignore")" = "1" ] && echo 1 || echo 0)" "an OVERSIZED .gitignore already containing .codex/ is left alone (no duplicate append)"
   # Cross-twin parity: where powershell.exe exists (Windows dev box), the PS twin must call the bash-generated set fresh.
   if command -v powershell.exe >/dev/null 2>&1; then
     if powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$ENGINE/codex-setup.ps1" -ProjectRoot "$(cygpath -w "$CSP" 2>/dev/null || printf '%s' "$CSP")" -Check >/dev/null 2>&1; then xt=0; else xt=1; fi

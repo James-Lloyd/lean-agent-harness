@@ -51,25 +51,25 @@ deny() {  # $1 = why
 # only destination-position / in-place / redirect forms are blocked.
 if [ -n "${HARNESS_LOCK_SPECS:-}" ]; then
   # (a) any redirect aimed at specs/ — with or without a space (`>specs/x`, `>> "specs/x"`)
-  printf '%s' "$scan" | grep -iEq '>>?[[:space:]]*["'\'']?specs/' \
+  grep -iEq '>>?[[:space:]]*["'\'']?specs/' <<< "$scan" \
     && deny "writing to specs/ while the loop holds the spec-lock (specs are the immutable contract)"
   # (b) commands that delete/move/create/overwrite a specs/ path anywhere in their args
-  printf '%s' "$scan" | grep -iEq '\b(rm|mv|tee|truncate|touch|install|ln)\b[^|]*[[:space:]"'\''=/]specs/' \
+  grep -iEq '\b(rm|mv|tee|truncate|touch|install|ln)\b[^|]*[[:space:]"'\''=/]specs/' <<< "$scan" \
     && deny "writing to specs/ while the loop holds the spec-lock (specs are the immutable contract)"
   # (c) sed only in-place (-i/--in-place); plain `sed -n ... specs/x` is a legitimate ranged READ
-  printf '%s' "$scan" | grep -iEq '\bsed\b[^|]*[[:space:]](-[a-zA-Z]*i[a-zA-Z]*|--in-place)\b[^|]*specs/' \
+  grep -iEq '\bsed\b[^|]*[[:space:]](-[a-zA-Z]*i[a-zA-Z]*|--in-place)\b[^|]*specs/' <<< "$scan" \
     && deny "in-place sed on specs/ while the loop holds the spec-lock"
   # (d) dd only when specs/ is the output; cp/Copy-Item only when specs/ is in destination position
-  printf '%s' "$scan" | grep -iEq '\bdd\b[^|]*\bof=[[:space:]]*["'\'']?specs/' \
+  grep -iEq '\bdd\b[^|]*\bof=[[:space:]]*["'\'']?specs/' <<< "$scan" \
     && deny "writing to specs/ while the loop holds the spec-lock (specs are the immutable contract)"
-  printf '%s' "$scan" | grep -iEq '\bcp\b[^|]*[[:space:]]["'\'']?specs/[^[:space:]|;&]*["'\'']?[[:space:]]*(\||;|&|$)' \
+  grep -iEq '\bcp\b[^|]*[[:space:]]["'\'']?specs/[^[:space:]|;&]*["'\'']?[[:space:]]*(\||;|&|$)' <<< "$scan" \
     && deny "copying into specs/ while the loop holds the spec-lock"
-  printf '%s' "$scan" | grep -iEq '\bcp\b[^|]*[[:space:]]-t[[:space:]=]*["'\'']?specs/' \
+  grep -iEq '\bcp\b[^|]*[[:space:]]-t[[:space:]=]*["'\'']?specs/' <<< "$scan" \
     && deny "copying into specs/ while the loop holds the spec-lock"
   # (e) PowerShell cmdlet writers (the PowerShell tool can run on POSIX via pwsh)
-  printf '%s' "$scan" | grep -iEq '\b(Set-Content|Add-Content|Clear-Content|Out-File|Remove-Item|Move-Item|New-Item)\b[^|]*[[:space:]"'\''=/]specs[/\\]' \
+  grep -iEq '\b(Set-Content|Add-Content|Clear-Content|Out-File|Remove-Item|Move-Item|New-Item)\b[^|]*[[:space:]"'\''=/]specs[/\\]' <<< "$scan" \
     && deny "writing to specs/ while the loop holds the spec-lock (specs are the immutable contract)"
-  printf '%s' "$scan" | grep -iEq '\bCopy-Item\b[^|]*(-Destination[[:space:]]+["'\'']?specs[/\\]|[[:space:]]["'\'']?specs[/\\][^[:space:]|;&]*[[:space:]]*(\||;|&|$))' \
+  grep -iEq '\bCopy-Item\b[^|]*(-Destination[[:space:]]+["'\'']?specs[/\\]|[[:space:]]["'\'']?specs[/\\][^[:space:]|;&]*[[:space:]]*(\||;|&|$))' <<< "$scan" \
     && deny "copying into specs/ while the loop holds the spec-lock"
 fi
 
@@ -97,12 +97,12 @@ declare -a pats=(
 
 for entry in "${pats[@]}"; do
   rx="${entry%%@@*}"; why="${entry##*@@}"
-  if printf '%s' "$scan" | grep -iEq "$rx"; then deny "$why"; fi
+  if grep -iEq "$rx" <<< "$scan"; then deny "$why"; fi
 done
 
 # Secrets-read pattern, on the template-exempt copy. `.key`/`credentials` are bounded so ordinary source
 # files (src/api.key.ts, docs/credentials-rotation.md) don't false-positive; real key files still match.
-if printf '%s' "$scan_env" | grep -iEq '(cat|less|more|head|tail|sort|grep|xxd|od|base64|strings|gc|get-content|type)[[:space:]][^|]*(\.env|credentials([^-a-zA-Z0-9_]|$)|id_rsa|id_ed25519|\.pem|\.key([^.a-zA-Z0-9]|$)|\.pfx|\.p12|\.npmrc|\.pgpass)'; then
+if grep -iEq '(cat|less|more|head|tail|sort|grep|xxd|od|base64|strings|gc|get-content|type)[[:space:]][^|]*(\.env|credentials([^-a-zA-Z0-9_]|$)|id_rsa|id_ed25519|\.pem|\.key([^.a-zA-Z0-9]|$)|\.pfx|\.p12|\.npmrc|\.pgpass)' <<< "$scan_env"; then
   deny "reading secrets/credentials"
 fi
 exit 0

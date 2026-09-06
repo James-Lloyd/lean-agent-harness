@@ -520,12 +520,20 @@ ok "allows npm test"                   ((hookExit 'npm test') -eq 0)
 ok "allows normal git push"            ((hookExit 'git push origin feature') -eq 0)
 ok "ALLOWS git push --force-with-lease (the recommended form)" ((hookExit $lease) -eq 0)
 # Twin of the bash pin (2026-09-06): the guard must still fire when the destructive command is buried
-# in an OVERSIZED payload. The .sh hook matches with `printf | grep -q`, the shape that failed open in
+# in an OVERSIZED payload. The .sh hook matched with `printf | grep -q`, the shape that failed open in
 # money_signal once the text passed the 64 KiB pipe buffer under pipefail; the .ps1 hook matches
-# in-process and was never exposed. Pin the BEHAVIOUR on both so the guard has to keep denying however
-# either is rewritten. Command first, so a match-early grep cannot drain the pipe and hide the defect.
+# in-process with -match and was never exposed. Pin the BEHAVIOUR on both so the guard has to keep
+# denying however either is rewritten.
 $bigCmd = 'rm -rf / ; ' + ('x' * 200000)
 ok "blocks a destructive command inside a payload larger than the pipe buffer" ((hookExit $bigCmd) -eq 2)
+# MULTI-LINE oversized twin. On the bash side this shape is the whole regression proof -- grep cannot
+# match until it has read a complete line, so only a payload whose bulk follows a newline can make
+# grep exit early and leave printf to die of SIGPIPE; the single-line fixture above passes against
+# the broken form too. PowerShell's -match takes the whole string at once and `[^|]*` spans newlines,
+# so this side cannot fail that way -- it is pinned here so both twins cover the same input shapes
+# and a future rewrite of either cannot quietly lose the multi-line case.
+$mlCmd = "rm -rf /`n" + ((0..3999 | ForEach-Object { "filler line $_ xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" }) -join "`n")
+ok "blocks a destructive command in a MULTI-LINE oversized payload" ((hookExit $mlCmd) -eq 2)
 
 Write-Host "block-destructive: work-discard + remote-pipe coverage, false-positive exemptions"
 $checkoutDot = 'git checkout ' + '.'
@@ -710,6 +718,34 @@ ok "the no-reviewer refusal names self-approval (not the AUTO reason)" ((decRev 
 ok "the SAME LOW change WITH a reviewer identity => AUTO"     ((decRev $true).Decision -eq 'AUTO')
 # Fail-closed default: omitting the arg entirely must not reach AUTO (a stale caller cannot merge).
 ok "an OMITTED reviewer arg fails closed to HUMAN"            ((Get-PromotionDecision -Config $riskCfg -Environment 'staging' -DeterministicTier 'LOW' -ClassifierTier 'LOW' -GateGreen $true -ReviewShip $true -E2EEvidence $true).Decision -eq 'HUMAN')
+
+# STRICT flags on all four gates. A `[bool]` PARAMETER is not the strict thing it looks like, and the
+# way it fails is the OPPOSITE of the folklore this entry sat in fix_plan under for two reviews:
+# strings are REFUSED (a ParameterBindingArgumentTransformationException -- assignment coerces,
+# parameter binding does not), while NUMBERS are accepted and every nonzero one becomes $true. So
+# `-ReviewerConfigured 2` / `-1` / `0.5` returned AUTO where the sh twin returns HUMAN. THE NUMERIC
+# CASES ARE THE LOAD-BEARING ONES: restore the [bool] annotations and they flip to AUTO, which is a
+# wrong ANSWER. The string/$null cases below flip to a thrown exception instead -- worth pinning (a
+# mis-typed caller now gets a decision on both twins rather than a stack trace) but they do NOT
+# discriminate a fail-open on their own, so they are not the regression proof.
+foreach ($nv in @(2, -1, 0.5)) {
+  ok "a nonzero-NUMBER reviewer arg ($nv) fails closed to HUMAN" ((decRev $nv).Decision -eq 'HUMAN')
+}
+foreach ($sv in @('0', 'false', 'no', 'off', 'true', '1')) {
+  ok "a stringly-typed reviewer arg '$sv' fails closed to HUMAN" ((decRev $sv).Decision -eq 'HUMAN')
+}
+ok 'a $null reviewer arg fails closed to HUMAN'               ((decRev $null).Decision -eq 'HUMAN')
+ok "a real boolean reviewer arg still reaches AUTO"           ((decRev $true).Decision -eq 'AUTO')
+# The same strictness on the three preconditions, each isolated with the other two and the reviewer
+# held at a real $true, so a HUMAN here is attributable to the flag under test. Numeric again, so
+# each one is a genuine mutation check rather than an exception check.
+function decPre($g, $s, $e) {
+  (Get-PromotionDecision -Config $riskCfg -Environment 'staging' -DeterministicTier 'LOW' -ClassifierTier 'LOW' -GateGreen $g -ReviewShip $s -E2EEvidence $e -ReviewerConfigured $true).Decision
+}
+ok "a nonzero-NUMBER gateGreen (2) fails closed to HUMAN"     ((decPre 2 $true $true) -eq 'HUMAN')
+ok "a nonzero-NUMBER reviewShip (2) fails closed to HUMAN"    ((decPre $true 2 $true) -eq 'HUMAN')
+ok "a nonzero-NUMBER e2eEvidence (2) fails closed to HUMAN"   ((decPre $true $true 2) -eq 'HUMAN')
+ok "three real boolean preconditions still reach AUTO"        ((decPre $true $true $true) -eq 'AUTO')
 
 # The escalate-only merge is computed INSIDE the decision, not handed to it: the function takes the
 # deterministic tier AND the classifier's verdict and max()es them itself, so no caller can pass a

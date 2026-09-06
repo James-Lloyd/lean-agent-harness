@@ -54,8 +54,8 @@ engine_hook_ref() {  # $1 command -> echoes the engine-hook basename it referenc
   # NOT matched as the engine hook it embeds (else its wiring would be stripped silently).
   local cmd="$1" b
   for b in "${ENGINE_HOOK_NAMES[@]}"; do
-    if printf '%s' "$cmd" | grep -Eq "(^|[^A-Za-z0-9_.-])${b}\.(ps1|sh)([^A-Za-z0-9_.-]|\$)"; then echo "$b"; return 0; fi
-    if printf '%s' "$cmd" | grep -Eq "run\.mjs[\"']?[[:space:]]+${b}([^A-Za-z0-9_.-]|\$)"; then echo "$b"; return 0; fi
+    if grep -Eq "(^|[^A-Za-z0-9_.-])${b}\.(ps1|sh)([^A-Za-z0-9_.-]|\$)" <<< "$cmd"; then echo "$b"; return 0; fi
+    if grep -Eq "run\.mjs[\"']?[[:space:]]+${b}([^A-Za-z0-9_.-]|\$)" <<< "$cmd"; then echo "$b"; return 0; fi
   done
   return 0
 }
@@ -72,7 +72,7 @@ add_item() {  # $1 repoPath, $2 pluginPath
   else class="DIFFERS"; fi
   display="${repo#"$PROJECT_ROOT"/}"
   ITEMS+=("$class"$'\t'"$display"$'\t'"$repo"$'\t'"$plugin")
-  if [ "$class" = "DIFFERS" ] && printf '%s' "$display" | grep -Eq '(^|/)\.claude/hooks/'; then
+  if [ "$class" = "DIFFERS" ] && grep -Eq '(^|/)\.claude/hooks/' <<< "$display"; then
     local base; base="$(basename "$repo")"; base="${base%.*}"
     DIFFERS_HOOKS+=("$base")
   fi
@@ -195,7 +195,10 @@ if [ -f "$settings" ]; then
     [ -n "$cmd" ] || continue
     ref="$(engine_hook_ref "$cmd")"
     [ -n "$ref" ] || continue
-    reffile="$(printf '%s' "$cmd" | grep -Eo "${ref}\.(ps1|sh)" | head -1 || true)"   # no-match grep must not kill migrate under pipefail (engine AGENTS.md rule)
+    # here-string, not `printf | grep`; the `| head -1` that remains is benign (head consumes grep's
+    # first line, so an early SIGPIPE cannot discard a match that was already emitted) and the
+    # `|| true` keeps a no-match grep from killing migrate under pipefail (engine AGENTS.md rule).
+    reffile="$(grep -Eo "${ref}\.(ps1|sh)" <<< "$cmd" | head -1 || true)"
     if [ -n "$reffile" ] && [ ! -e "$PROJECT_ROOT/.claude/hooks/$reffile" ]; then
       STRIP_FILES+=("$reffile")
     else

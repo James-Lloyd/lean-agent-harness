@@ -1,0 +1,13 @@
+=== live `printf | grep` sites remaining under plugin/hooks/ ===
+  none
+
+=== exit codes  (2 = DENIED, guard fired | 0 = ALLOWED, guard failed OPEN) ===
+  payload / hook                         MUTANT     SHIPPED
+  multi-line 195 KB, hook as-is          2          2
+  multi-line 195 KB, +pipefail           0          2
+  SINGLE-line 200 KB, +pipefail          2          2
+
+Row 2 is the defect: the mutant ALLOWS a real 'rm -rf /'. Row 1 shows why it was latent rather
+than live (the hooks set no shell options). Row 3 shows why the fixture shipped in PR #16 could
+not have caught it: on one line grep must read all 200 KB before it can match, so printf never
+takes SIGPIPE and the broken hook denies correctly.

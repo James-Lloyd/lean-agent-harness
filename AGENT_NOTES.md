@@ -102,13 +102,17 @@ PowerShell 5.1: `powershell harness/tests/run-tests.ps1`; bash needs `jq` on PAT
   run it over a real input before believing the suite. Also: on this repo almost every range is HIGH
   by design — `RISK_SELF_GOVERN_GLOBS` pins any change to the harness's own policy/guardrail/CI files
   — so a LOW sample for a promotion dogfood has to be a commit that touches none of its own controls.
-- [2026-09-06] The `printf '%s' "$x" | grep -q` fail-open (see the engine map) also lives in the guard
-  hooks `block-destructive.sh` and `protect-specs.sh`, over the tool payload. They are safe only because
-  none of them sets `pipefail` — so adding `set -euo pipefail` to a guard hook, which looks like pure
-  hardening, would silently disarm every denylist pattern on any payload past 64 KiB. Both suites now
-  assert the BEHAVIOUR (a destructive command buried in a >64 KiB payload must still exit 2), which
-  survives any rewrite; the conversion itself is a fix_plan item, kept out of the promotion PR because
-  block-destructive.sh deserves its own reviewed change.
+- [2026-09-06 · SUPERSEDED 2026-09-06 by the conversion] This note used to say the
+  `printf '%s' "$x" | grep -q` fail-open *still lives* in `block-destructive.sh` / `protect-specs.sh`,
+  that the hooks are safe only because none of them sets `pipefail`, and that the conversion was a
+  pending `fix_plan` item. All three stopped being true when the 16 sites were converted to
+  here-strings — see `plugin/engine/AGENTS.md` for the current rule. It also offered the wrong safety
+  net: the ">64 KiB payload must still exit 2" assertion it pointed at was a SINGLE-line fixture, and
+  a single line cannot reproduce the failure (grep must read a whole line before it can match, so it
+  consumes all 200 KB, printf finishes writing, and no SIGPIPE happens). It passed against the broken
+  hook too. Kept as a marker rather than deleted because it is the text that seeded the stale claim,
+  and because the *pattern* is the lesson: when you close a task, the note that justified it is the
+  surface most likely left asserting the defect still exists.
 - [2026-09-06] `state/PROGRESS.md` and the `<!-- DONE ... -->` annotations in `fix_plan.md` are an
   APPEND-ONLY LOG: a gate count in them is a fact about the run that happened, not a value to keep
   current. A repo-wide `sed -i 's/fleet-queue 31\/0/34\/0/'` to update this batch's line silently

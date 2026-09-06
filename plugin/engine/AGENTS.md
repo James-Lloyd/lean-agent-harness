@@ -67,6 +67,15 @@ Hard-won rules (each traces to a real shipped failure):
   absent `preconditions` object reached AUTO with a red gate while the audit string still read "all
   preconditions met"; `enabled: "false"` as a string read as ON under PS (non-empty string coerces to
   `$true`).
+- **A `[bool]` PARAMETER is not a strict bool, and it fails the OPPOSITE way to the folklore.** An
+  ASSIGNMENT coerces (`[bool]$x = '0'` is `$true`); parameter BINDING does not — `-Flag "0"` is a
+  `ParameterBindingArgumentTransformationException`. What binding *does* accept is NUMBERS, coercing
+  every nonzero one to `$true`, so `Get-PromotionDecision -ReviewerConfigured 2` / `-1` / `0.5` all
+  returned AUTO where the sh twin's `[ "$reviewer" != "1" ]` returns HUMAN — a fail-OPEN on the last
+  gate before auto-merge. Declare a security-shaped flag UNTYPED and narrow it through an explicit
+  predicate (`Test-RiskStrictTrue`), so only a real `[bool] $true` opens the gate and everything else
+  fails closed the way the twin does. Two fresh-context reviews asserted the string-coercion version
+  and `fix_plan` carried it verbatim for a month; one probe on a real host settled it (2026-09-06).
 - **Never return a collection from a PS function you intend to TYPE-CHECK** — the output pipeline
   unrolls a single-element array to a bare scalar, so `["**/payments/**"]` fails `-is [Array]`.
   `return ,$value` survives assignment but NOT an inline `@(f ...)`, and an ArrayList round-trip does
@@ -101,15 +110,31 @@ Hard-won rules (each traces to a real shipped failure):
   2026-09-06: `money_signal` reported no money vocabulary in a 167 KiB real diff, so a payments change
   would have classified LOW and become auto-mergeable; `usage_limit_error` and fleet's protected-path
   tamper guard carried the same shape. Any predicate over unbounded text gets a >64 KiB regression test.
-  **`plugin/hooks/block-destructive.sh` and `protect-specs.sh` still carry the shape** over the tool
-  payload. They are safe *only* because they set no `pipefail`, which makes adding `set -euo pipefail`
-  to a guard hook — an obvious-looking hardening — a silent disarm of every pattern on a large payload.
-  Both suites now pin the BEHAVIOUR (a destructive command inside a >64 KiB payload must still deny),
-  so the trap is caught however the hook is rewritten; converting the sites is queued in `fix_plan`.
+  **Converted everywhere as of 2026-09-06** — `plugin/hooks/block-destructive.sh` (10 sites),
+  `protect-specs.sh`, `migrate.sh` and `codex-setup.sh` all use here-strings now, so the hooks no
+  longer depend on setting no shell options to stay armed. Before that, adding `set -euo pipefail` to
+  a guard hook — an obvious-looking hardening — silently disarmed every pattern on a large payload;
+  measured, that hook exited **0** on a 195 KB multi-line payload carrying a real `rm -rf /`.
+  `codex-setup.sh`'s `tr -d '\r' < "$gi" | grep -qx` was the one site that could fail without anyone
+  hardening anything, because that file *does* set `pipefail` — it read "`.codex/` absent" and
+  re-appended the line on every run. **But the turnover point is NOT the 64 KiB pipe buffer, and
+  assuming it was cost an hour**: with an external producer (`tr`) rather than the `printf` builtin,
+  grep's own read buffer absorbs far more. Measured on Git Bash 5.3.9: 114 KB still gives
+  `PIPESTATUS=(0 0)`; 289 KB gives `(141 0)`. A 114 KB regression fixture built on the "past 64 KiB"
+  assumption passed against the broken code. Every producer/consumer pair has its own threshold —
+  bisect it, do not inherit the number from a sibling defect.
+  Both suites pin the BEHAVIOUR — including against a copy of the hook with `pipefail` injected — so
+  the trap stays caught however the hook is rewritten.
 - **A fix applied to N call sites gets its regression test at every site that failed OPEN, not only at
   the site where it was discovered.** The SIGPIPE fix above landed at three places; `money_signal` and
   `usage_limit_error` each got a >64 KiB assertion straight away, while fleet's protected-path guard —
   the site whose failure MERGED a worker's tamper of `specs/` — got the fix and no test, and only
   picked one up in review. Rank the sites by what their failure costs, and test the worst one first.
-  The test must also reproduce the failure: for this defect the match has to sort EARLY in the
-  oversized input, or grep drains the pipe, printf exits cleanly and the broken code passes.
+  The test must also reproduce the failure, and for this defect that takes TWO things, not one.
+  (i) The match must sort EARLY, or grep drains the pipe, printf exits cleanly and the broken code
+  passes. (ii) The bulk must follow a **newline** — grep cannot match until it has read a complete
+  line, so a single 200 KB line forces it to consume everything before it can exit, and again no
+  SIGPIPE happens. The hook fixture written for this in PR #16 was one long line and therefore
+  passed against the broken form too: it read like a regression test and pinned only the happy path.
+  A fixture that cannot fail is worse than no fixture, because it retires the question. Run every new
+  guard assertion against the PRE-fix code and confirm it actually goes red.

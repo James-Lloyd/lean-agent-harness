@@ -130,6 +130,41 @@ editing** (Claude Code: see CLAUDE.md; anything else: `git worktree add`). Land 
   (`usage_limit_error`, fleet's protected-path check) carried the same shape. Before trusting any
   classifier, sniffer or tamper guard, run it over a real artifact of the size it will really see, and
   leave that oversized case in the suite.
+- [2026-09-06] **A mutation check must make the pre-fix code return a WRONG ANSWER, not throw** — and
+  the premise you are fixing under is a hypothesis until a probe on a real host confirms it. The
+  strict-bool task sat in `fix_plan` for a month asserting that a `[bool]` param coerces `"0"` to
+  `$true` and reaches AUTO; two fresh-context reviews had said so. Probing it showed the opposite —
+  strings are *refused* by the binder, and it is nonzero NUMBERS that coerce. The fix was still
+  needed, but the regression tests written from the stated premise pinned the wrong thing: against
+  the pre-fix code a string argument raises a binding exception, so those assertions would have gone
+  red on an ERROR rather than on a fail-open, proving nothing about the gate. Run the new assertion
+  against the pre-fix code and check the failure is a wrong VALUE; if it is a stack trace, you have
+  tested the type system, not the guard. Corollary: a semantics claim inherited from a review or a
+  plan entry gets probed before it is written into a comment, or you ship a correct patch that
+  teaches the next reader something false.
+- [2026-09-06] **Closing a `fix_plan` item greps `AGENT_NOTES.md` and `state/` for the task's own WHY
+  text** — the note that justified the task is the surface most likely left asserting the defect still
+  exists. The here-string conversion corrected `plugin/engine/AGENTS.md` and design-doc 001 but left
+  `AGENT_NOTES.md` saying, present tense, that the hooks still carry the fail-open, that they are safe
+  only because they set no `pipefail`, and that the conversion was still queued — and pointing at the
+  single-line fixture that same change had just proved was false comfort. Found by the fresh-context
+  reviewer, not by the doc sweep that preceded it, because the sweep grepped for the *code* pattern
+  and the stale note describes it in prose.
+- [2026-09-06] **A buffer threshold is bisected per producer/consumer pair, never inherited from a
+  sibling defect** — and a regression test for a branch the suite cannot reach by default is written
+  with that environment forced. `money_signal`'s `printf | grep` turns over at 64 KiB; the visually
+  identical `tr < file | grep -qx` in `codex-setup.sh` still returns `PIPESTATUS=(0 0)` at 114 KB and
+  only fails at 289 KB, because an external producer plus grep's own read buffer absorbs far more. A
+  114 KB fixture written from the inherited 64 KiB figure passed against the broken code. Separately,
+  `protect-specs.sh`'s degraded no-jq branch — the highest-cost site of the four, since its failure
+  admits an edit to `specs/` — was untestable in CI because the whole block is gated on
+  `command -v jq` and jq is always installed. **Forcing it took two attempts, and the first repeated
+  the defect:** `env -i PATH=/usr/bin:/bin` looks jq-free but on Linux jq IS in `/usr/bin`, so the
+  proof skipped on the Linux job and ran only on Windows — visible in the CI log, invisible in the
+  exit status. Point `PATH` at a temp dir of exec wrappers for only the commands the branch needs.
+  And give a forced-environment test a POSITIVE CONTROL: "denied" and "crashed" are both non-zero, so
+  without one, a hook dying on a missing command reads as a pass. "The suite is green" says nothing
+  about a branch it never entered — and "the assertion passed" says nothing if it never ran.
 
 ## Nested context
 Subsystems carry their own `AGENTS.md` next to their code (in this repo: `plugin/engine/` holds the
