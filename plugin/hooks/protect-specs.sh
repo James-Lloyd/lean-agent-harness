@@ -10,7 +10,7 @@ payload="$(cat)"
 if ! command -v jq >/dev/null 2>&1; then
   # Degraded mode (no jq): scan the raw payload for a specs/ path — fail toward blocking, not open
   # (same fail-direction as block-destructive.sh's degraded mode; the two protect the same contract).
-  if printf '%s' "$payload" | grep -iEq '"(file_path|notebook_path)"[[:space:]]*:[[:space:]]*"[^"]*specs/'; then
+  if grep -iEq '"(file_path|notebook_path)"[[:space:]]*:[[:space:]]*"[^"]*specs/' <<< "$payload"; then
     echo "BLOCKED by harness guardrail: specs/ is immutable while the loop runs (HARNESS_LOCK_SPECS is set)." >&2
     echo "Specs are the contract - not a place to record what you built. If a spec is wrong, stop and write the question to state/handoff.md under 'Needs human decision'." >&2
     exit 2

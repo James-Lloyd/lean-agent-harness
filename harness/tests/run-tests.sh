@@ -166,17 +166,50 @@ ok "$([ "$(hookrc 'git status')"      = "0" ] && echo 1 || echo 0)" "allows git 
 ok "$([ "$(hookrc 'npm test')"        = "0" ] && echo 1 || echo 0)" "allows npm test"
 ok "$([ "$(hookrc 'git push origin feature')" = "0" ] && echo 1 || echo 0)" "allows normal git push"
 ok "$([ "$(hookrc "$lease")" = "0" ] && echo 1 || echo 0)" "ALLOWS git push --force-with-lease (recommended)"
-# The guard still fires when the destructive command is buried in an OVERSIZED payload. These hooks
-# match with `printf '%s' "$scan" | grep -q`, the same shape that failed open in money_signal (2026-09-06)
-# — there, `grep -q` exiting at the first match killed printf with SIGPIPE and `set -o pipefail` returned
-# 141 as the pipeline's status, so the match was thrown away. The hooks are safe today only because they
-# do not set pipefail; adding `set -euo pipefail` to one of them, an obvious-looking hardening, would
-# silently disarm every pattern on any payload past the 64 KiB pipe buffer. Pin the BEHAVIOUR, not the
-# absence of a shell option, so the guard has to keep denying however it is rewritten. Command FIRST so
-# grep matches early — with the match at the end, grep reads everything and the broken form still passes.
+# The guard still fires when the destructive command is buried in an OVERSIZED payload. Kept as a
+# plain smoke test of the size path — but note it is a SINGLE line, and a single line can never
+# reproduce the SIGPIPE fail-open (see the multi-line block below for why). It passes against the
+# broken form too, so it is not the regression proof it reads like.
 bigcmd="rm -rf / ; $(head -c 200000 /dev/zero | tr '\0' 'x')"
 ok "$([ "$(hookrc "$bigcmd")" = "2" ] && echo 1 || echo 0)" "blocks a destructive command inside a payload larger than the pipe buffer"
 unset bigcmd
+
+# THE regression proof for the here-string conversion (2026-09-06). Two things have to be true at
+# once before `printf '%s' "$scan" | grep -q` can throw a match away, and the fixture above has
+# neither:
+#   1. grep must be able to exit EARLY, and grep cannot match until it has read a whole LINE. With
+#      200 KB and no newline it must consume everything before it can match, printf finishes writing,
+#      and no SIGPIPE ever happens. The bulk has to come AFTER a newline.
+#   2. `set -o pipefail` must be on, so the pipeline inherits printf's 141 instead of grep's 0. The
+#      hooks deliberately set no shell options, which is the ONLY reason the old form was safe --
+#      and which made adding `set -euo pipefail` to a guard hook, an obvious-looking hardening, a
+#      silent disarm of every pattern on a large payload.
+# So: multi-line payload, run against a COPY of the hook with pipefail injected. Of the two
+# assertions below, the SECOND is the discriminator — measured against the pre-conversion hook it
+# returns 0 (ALLOWED: a real `rm -rf /` runs) and against the shipped one 2. The first returns 2 for
+# both, because the hooks set no shell options and so were never exposed as shipped; it is coverage
+# of the multi-line shape, not proof. Pin the BEHAVIOUR, not the absence of a shell option, so the
+# guard has to keep denying however it is rewritten.
+if command -v jq >/dev/null 2>&1; then   # needs jq to encode real newlines into the JSON payload
+  mlcmd="$(mktemp)"; mlpay="$(mktemp)"; pfhook="$(mktemp)"
+  { printf 'rm -rf /\n'
+    awk 'BEGIN{for(i=0;i<4000;i++) printf "filler line %d xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\n", i}'
+  } > "$mlcmd"
+  jq -n --rawfile c "$mlcmd" '{tool_name:"Bash", tool_input:{command:$c}}' > "$mlpay"
+  # head/tail rather than `sed '2i ...'` — the `i` form without a backslash-newline is a GNU
+  # extension and this suite has to run on BSD/macOS sed too (engine AGENTS.md).
+  { head -1 "$HOOKS/block-destructive.sh"
+    echo 'set -euo pipefail'
+    tail -n +2 "$HOOKS/block-destructive.sh"
+  } > "$pfhook"
+  rc_plain="$(bash "$HOOKS/block-destructive.sh" < "$mlpay" >/dev/null 2>&1; echo $?)"
+  rc_pf="$(bash "$pfhook" < "$mlpay" >/dev/null 2>&1; echo $?)"
+  ok "$([ "$rc_plain" = "2" ] && echo 1 || echo 0)" "blocks a destructive command in a MULTI-LINE oversized payload (got '$rc_plain')"
+  ok "$([ "$rc_pf" = "2" ] && echo 1 || echo 0)"    "...and still blocks it with 'set -euo pipefail' injected into the hook (got '$rc_pf')"
+  rm -f "$mlcmd" "$mlpay" "$pfhook"
+else
+  echo "  (skipping the multi-line oversized-payload proof — jq not installed)"
+fi
 
 echo "block-destructive: work-discard + remote-pipe coverage, false-positive exemptions"
 ok "$([ "$(hookrc 'git checkout .')" = "2" ] && echo 1 || echo 0)" "blocks git checkout . (bare dot)"

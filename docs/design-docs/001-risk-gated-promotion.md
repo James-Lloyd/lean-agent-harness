@@ -101,7 +101,13 @@ the interesting part.
   64 KiB pipe buffer. On every real-sized diff the entire money rule was inert, so a payments change
   would have classified LOW. Twelve unit assertions covered the rule and all passed, because every
   fixture was one short line. Fixed with here-strings; the regression fixture puts the match first,
-  which is what makes it load-bearing.
+  which is *part* of what makes it load-bearing. The full condition took a second pass to state
+  (2026-09-06): the match must come first **and** the bulk must follow a NEWLINE, because grep cannot
+  match until it has read a complete line — given 200 KB on one line it must consume all of it before
+  it can exit, printf finishes writing, and no SIGPIPE occurs. The money fixture satisfies both by
+  accident of shape (`const p = price * 2\n` then filler). The guard-hook fixture written in the same
+  batch satisfied only the first, was a single 200 KB line, and therefore passed against the broken
+  form too — it read like a regression test while pinning only the happy path.
 - **"A separate reviewer identity" could be satisfied by a broken token.** `gh api user` exits
   non-zero on bad credentials but prints its error body to stdout, so the documented capture held a
   JSON blob that was non-empty and not the author — read as "a separate reviewer resolved". `/promote`

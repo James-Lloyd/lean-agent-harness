@@ -520,12 +520,20 @@ ok "allows npm test"                   ((hookExit 'npm test') -eq 0)
 ok "allows normal git push"            ((hookExit 'git push origin feature') -eq 0)
 ok "ALLOWS git push --force-with-lease (the recommended form)" ((hookExit $lease) -eq 0)
 # Twin of the bash pin (2026-09-06): the guard must still fire when the destructive command is buried
-# in an OVERSIZED payload. The .sh hook matches with `printf | grep -q`, the shape that failed open in
+# in an OVERSIZED payload. The .sh hook matched with `printf | grep -q`, the shape that failed open in
 # money_signal once the text passed the 64 KiB pipe buffer under pipefail; the .ps1 hook matches
-# in-process and was never exposed. Pin the BEHAVIOUR on both so the guard has to keep denying however
-# either is rewritten. Command first, so a match-early grep cannot drain the pipe and hide the defect.
+# in-process with -match and was never exposed. Pin the BEHAVIOUR on both so the guard has to keep
+# denying however either is rewritten.
 $bigCmd = 'rm -rf / ; ' + ('x' * 200000)
 ok "blocks a destructive command inside a payload larger than the pipe buffer" ((hookExit $bigCmd) -eq 2)
+# MULTI-LINE oversized twin. On the bash side this shape is the whole regression proof -- grep cannot
+# match until it has read a complete line, so only a payload whose bulk follows a newline can make
+# grep exit early and leave printf to die of SIGPIPE; the single-line fixture above passes against
+# the broken form too. PowerShell's -match takes the whole string at once and `[^|]*` spans newlines,
+# so this side cannot fail that way -- it is pinned here so both twins cover the same input shapes
+# and a future rewrite of either cannot quietly lose the multi-line case.
+$mlCmd = "rm -rf /`n" + ((0..3999 | ForEach-Object { "filler line $_ xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" }) -join "`n")
+ok "blocks a destructive command in a MULTI-LINE oversized payload" ((hookExit $mlCmd) -eq 2)
 
 Write-Host "block-destructive: work-discard + remote-pipe coverage, false-positive exemptions"
 $checkoutDot = 'git checkout ' + '.'
