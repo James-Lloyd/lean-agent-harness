@@ -1,0 +1,95 @@
+Recorded output of the four re-verification probes, Codex CLI 0.153.4, Windows 11, 2026-09-06.
+Project under test: the harness worktree (trusted by prefix from `c:\users\<you>\repos\<repo>`).
+Nothing was written to ~/.codex — trust came from the entry already there, hooks were supplied inline.
+
+===============================================================================
+C1 — is <project>/.codex/config.toml read, and which keys are fatal?
+     probes/worktree-trusted-test.sh  (trusted project)
+===============================================================================
+1. SHIPPED config (should be clean either way)
+  as generated                           model: gpt-6-astra     <no config error>
+
+2. V5's two fatal shapes — if the file is read, these MUST error
+  skills.config WITHOUT enabled                                 Error loading config.toml: missing field `enabled`
+  [agents] enabled = true                model: gpt-6-astra     <no config error>
+
+3. syntactically invalid TOML — any parser must reject
+  invalid toml                                                  Error loading config.toml: Error parsing project config file
+                                                                C:\...\codex-0153-reverify\.codex\config.toml:
+                                                                TOML parse error at line 1, column 6
+
+4. observable override — model set in the PROJECT config
+  project config sets model              model: gpt-5-codex     <no config error>
+
+--- the same file in an UNTRUSTED project (probes/is-project-config-read.sh, /tmp/cxproj) ---
+  baseline: no project config at all      model: gpt-6-astra
+  A. project config sets model            model: gpt-6-astra      <- override ignored
+  A2. model at top level                  model: gpt-6-astra      <- override ignored
+  B. syntactically INVALID toml           model: gpt-6-astra      <- NO error at all
+
+  Inline trust does NOT substitute for a persisted entry: with
+  -c projects.'c:\users\<you>\appdata\local\temp\<tmpdir>'.trust_level="trusted"
+  the invalid TOML still produced no error, while a control -c model="gpt-5-codex"
+  in the same invocation DID change the header (so -c itself was working).
+
+===============================================================================
+C2 — is the project .codex/hooks.json loaded under headless `codex exec`?
+     probes/hooks-headless.sh  (trusted project; hook commands rewritten to a
+     recording hook that always allows)
+===============================================================================
+  headless, no flag                  codex `hook:` lines=0     our hook fired: <none>
+  headless, +bypass-hook-trust       codex `hook:` lines=0     our hook fired: <none>
+
+  POSITIVE CONTROL — the same prompt really does make a tool call:
+    exec "C:\WINDOWS\System32\WindowsPowerShell\v1.0\powershell.exe" -Command 'echo hello-from-codex'
+     succeeded in 236ms:
+    hello-from-codex
+  So the zero above is "hooks did not fire", not "no tool call happened".
+
+===============================================================================
+C4 — tool_name and payload shape (probes/inline-hooks.sh)
+===============================================================================
+  PreToolUse inline (no flag)    payloads=0   codex-hook-lines=0
+  PreToolUse inline (no flag)    payloads=0   codex-hook-lines=0
+  with --dangerously-bypass      payloads=1   codex-hook-lines=2
+      event=PreToolUse  tool_name="Bash"
+      keys=session_id,turn_id,transcript_path,cwd,hook_event_name,model,
+           permission_mode,tool_name,tool_input,tool_use_id
+
+  Inline hooks fire ONLY with --dangerously-bypass-hook-trust.
+  tool_name is still "Bash" even though Codex executes via powershell.exe.
+
+===============================================================================
+C3 — denial mechanism (probes/denial-mechanism-clean.sh)
+     Probe command is a harmless `echo "DROP TABLE probe_marker_42"` whose TEXT
+     matches block-destructive's destructive-SQL pattern, so the mechanism is
+     isolated from destructiveness and the control can discriminate.
+===============================================================================
+  CONTROL: no hook                   exec-results=1    codex-hook-lines:
+  hook exits 2 + stderr              exec-results=1    codex-hook-lines: hook: PreToolUse hook: PreToolUse Failed
+  hook returns JSON deny             exec-results=0    codex-hook-lines: hook: PreToolUse hook: PreToolUse Blocked
+  run.mjs --codex block-destructive  exec-results=0    codex-hook-lines: hook: PreToolUse hook: PreToolUse Blocked
+
+  exec-results>0 means the tool call RAN. Exit 2 is still fail-open; the JSON
+  permissionDecision:"deny" still blocks; run.mjs --codex still translates correctly.
+
+===============================================================================
+INCIDENTAL — Codex 0.153.4 has its own command policy
+===============================================================================
+Two destructive probes could not discriminate because Codex refused the command
+itself, before any hook mattered:
+
+  'rm -rf .codex/doomed'
+    -> powershell.exe: Remove-Item : A parameter cannot be found that matches
+       parameter name 'rf'.  (exited 1; nothing deleted)
+
+  'Remove-Item -Recurse -Force .codex/doomed'
+    -> ERROR codex_core::tools::router: error=exec_command failed:
+       CreateProcess { message: "Rejected(\"...powershell.exe -Command
+       'Remove-Item -Recurse -Force .codex/doomed'` rejected: blocked by policy\")" }
+       codex: "The exact command was attempted but blocked by policy before execution."
+
+On 0.144.3 V5 observed a real recursive delete RUN with the hook logging `Failed`.
+On 0.153.4 that specific command no longer reaches the shell at all. This is a
+Codex-native guardrail, not the harness's, and it must not be mistaken for one:
+the exit-2 fail-open above is still real and still ours to translate.

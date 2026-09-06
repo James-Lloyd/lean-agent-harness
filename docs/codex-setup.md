@@ -1,7 +1,18 @@
 # Running the harness under OpenAI Codex CLI — `codex-setup`
 
-**Read this first — verified live against Codex CLI 0.144.3 in slice V5 (2026-09-05,
-`state/evidence/2026-09-05-vendor-agnostic-refit-v5/`):**
+**Read this first — verified live against Codex CLI 0.144.3 (slice V5, 2026-09-05,
+`state/evidence/2026-09-05-vendor-agnostic-refit-v5/`) and re-verified against **0.153.4**
+(2026-09-06, `state/evidence/2026-09-06-codex-0153-reverify/`). Every point below still holds on
+0.153.4 and the generator needed no change; the one finding that moved, and one new Codex-native
+behaviour, are called out in the section further down.**
+
+> **Trust is the precondition for everything project-level.** An **untrusted** project silently skips
+> its whole `.codex/` layer — no warning, and `codex doctor` reports only `~/.codex/config.toml` under
+> "config loaded", so it cannot tell the two states apart. Trust means a persisted
+> `[projects.'<lowercase windows path>'] trust_level = "trusted"` in `~/.codex/config.toml`; it is
+> **prefix-based** (a worktree inherits its repo's entry), and an inline
+> `-c projects.'…'.trust_level="trusted"` does **not** work. If the generated `.codex/` appears to do
+> nothing, check trust before suspecting the file.
 
 - Under headless `codex exec` the repository's `.codex/hooks.json` is **never loaded** — not with
   `[projects.'<path>'] trust_level = "trusted"`, not with `--dangerously-bypass-hook-trust`, not both
@@ -28,7 +39,7 @@
 
 | File | Content | Why generated, not committed |
 |---|---|---|
-| `.codex/config.toml` | `[features] hooks = true`; `[[skills.config]] path = <plugin>/skills` + `enabled = true` so Codex reads the harness skills (Agent Skills standard). **No `[agents]` block**: verified live on Codex 0.144.3 (slice V5), `[agents]` is a table of agent *roles* there, so the `enabled`/`default_subagent_*` keys V3 emitted were rejected as a malformed role — and any config-load error kills the *whole* `.codex/` layer silently (the run continues on `~/.codex/config.toml` alone). Per-agent model/effort lives in `agents/<name>.toml` | the plugin lives in the per-machine cache (`~/.claude/plugins/…`), so the path is absolute and local — a committed absolute path dies on the next device (ratchet 2026-07-30) |
+| `.codex/config.toml` | `[features] hooks = true`; `[[skills.config]] path = <plugin>/skills` + `enabled = true` so Codex reads the harness skills (Agent Skills standard). **No `[agents]` block**: verified live on Codex 0.144.3 (slice V5), `[agents]` is a table of agent *roles* there, so the `enabled`/`default_subagent_*` keys V3 emitted were rejected as a malformed role — and any config-load error kills the *whole* `.codex/` layer silently (the run continues on `~/.codex/config.toml` alone). **0.153.4 accepts the block** (re-verified 2026-09-06), so omitting it is now a compatibility choice rather than a necessity: one artifact stays valid on both. Per-agent model/effort lives in `agents/<name>.toml` | the plugin lives in the per-machine cache (`~/.claude/plugins/…`), so the path is absolute and local — a committed absolute path dies on the next device (ratchet 2026-07-30) |
 | `.codex/hooks.json` | four of the five harness guard hooks routed through the same `run.mjs` dispatcher and hook bodies Claude Code uses: `protect-specs`, `format-and-check`, `session-start` under matcher `*`; `block-destructive` under the **shell-tool matcher** only (`--shell-matcher`, see below). `lock-config` has no Codex event (`ConfigChange`) | same absolute-path reason |
 | `.codex/agents/<name>.toml` | one Codex custom agent per plugin agent: `model`/`model_reasoning_effort` from that phase's **effective** codex settings (`models.<phase>.codex{}` over `models.codex`), `sandbox_mode = "read-only"` for the judges (reviewer, evaluator, risk-classifier, explorer) and `"workspace-write"` for the writers, `developer_instructions` = the agent's body | the body is plugin content: regenerate on `/plugin update` rather than fork it |
 | `.codex/.harness-stamp.json` | plugin version + a sha256 of every input (config, hook manifest, agent files, plugin root) | lets `--check` say **fresh / STALE / NOT generated** deterministically; `/harness-doctor` check 12 runs it |
@@ -94,7 +105,32 @@ key) — merge by hand in that case.
 - **Agent TOML keys** (`developer_instructions`, `model_reasoning_effort`, `sandbox_mode`) exist as
   strings in the 0.144.3 binary (`AgentRoleToml`), but whether `.codex/agents/*.toml` files are
   auto-discovered was not exercised in V5 — the second reviewer ran through `codex exec`, not a spawned
-  agent. Re-check on upgrade.
+  agent. Still unexercised on 0.153.4 for the same reason; needs the `codex agents` path.
+
+## Re-verified on Codex CLI 0.153.4 (2026-09-06)
+
+Full record: `state/evidence/2026-09-06-codex-0153-reverify/` (raw output in `results.txt`,
+re-runnable probes in `probes/`). Nothing was written to `~/.codex`; trust came from the existing
+`[projects.'c:\users\<you>\repos\<repo>']` entry and hooks were supplied inline with `-c`.
+
+| V5 finding | 0.153.4 |
+|---|---|
+| `[[skills.config]]` requires `enabled` | **holds** — still `Error loading config.toml: missing field 'enabled'` |
+| `[agents] enabled = true` is fatal | **changed — now accepted** |
+| project `.codex/hooks.json` never loads headless | **holds** — 0 hook events, trusted *and* with `--dangerously-bypass-hook-trust` |
+| exit 2 is not a denial; JSON `permissionDecision:"deny"` is | **holds** — exit 2 logged `Failed` and the command **ran**; JSON deny logged `Blocked` |
+| `tool_name` is `Bash`, payload shape as recorded | **holds** — identical keys, still `Bash` (even though Codex executes via `powershell.exe` on Windows) |
+
+**The generator needs no change for 0.153.4.** The `[agents]` omission is now a *compatibility*
+choice rather than a necessity: 0.144.3 rejects the block, 0.153.4 accepts it, so emitting nothing
+keeps one artifact valid on both. Per-agent model/effort continues to live in `agents/<name>.toml`.
+
+**New on 0.153.4 — Codex has its own command policy.** `Remove-Item -Recurse -Force …` is refused
+before execution (`CreateProcess … rejected: blocked by policy`), where 0.144.3 let a real recursive
+delete run with our hook merely logging `Failed`. Do not mistake this for the harness guard: the
+exit-2 fail-open is unchanged and still ours to translate. Note too that on Windows Codex runs shell
+commands through `powershell.exe`, so a Unix-form `rm -rf` fails on syntax rather than being blocked —
+a probe using it looks like a successful denial and proves nothing.
 
 ## What stays Claude-only
 
