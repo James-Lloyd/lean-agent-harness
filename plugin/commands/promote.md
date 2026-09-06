@@ -50,11 +50,13 @@ miss is a precondition failure, not a risk tier — say so):
   promotion could approve and merge a PR whose base is `main`: "prod is never automated" bypassed
   through the PR's target branch rather than through this command's environment argument.
 
-Carry `number` and `headRefOid` forward. §7 records both, and §8 acts on **that PR number** — never
-on "the current branch's PR" resolved a second time.
+Carry all three forward as `PR_NUM`, `PR_HEAD` and `BASE_REF` (the PR's `number`, `headRefOid` and
+`baseRefName`). §7 records them, and §8 acts on **that PR number** — never on "the current branch's
+PR" resolved a second time.
 
-Then the range, measured against the PR's own base. Same ladder as `/review`, and for the same
-reason (a bare `git diff` misses committed hunks):
+Then the range, measured against the PR's own base — `BASE_REF` from the binding above, not a
+hardcoded `main`. Same ladder as `/review`, and for the same reason (a bare `git diff` misses
+committed hunks):
 ```
 BASE=$(git merge-base HEAD "origin/$BASE_REF" 2>/dev/null || git rev-parse HEAD~1)
 ```
@@ -122,7 +124,7 @@ fails, the boolean is **false** and the decision drops to HUMAN.
    echo the token, never write it to `risk.json`, the ledger, or a PR comment.**
 3. Resolve the two identities and require they differ:
    `REVIEWER=$(GH_TOKEN=$tok gh api user --jq .login)` and
-   `AUTHOR=$(gh pr view <n> --json author --jq .author.login)` (author resolved with the *ambient*
+   `AUTHOR=$(gh pr view "$PR_NUM" --json author --jq .author.login)` (author resolved with the *ambient*
    token, not the reviewer token). Any failure, or `REVIEWER == AUTHOR` ⇒ reviewer **false** (reason:
    *reviewer identity equals author*). This pre-empts the self-approval rejection instead of
    discovering it at approve time.
@@ -183,13 +185,13 @@ a resolved separate reviewer identity):
    why (name the reviewer identity, never its token). A bare "approved by automation" is not an audit
    trail.
 2. **Re-check the binding immediately before approving.** Time passed during §4's classifier run, so
-   re-read `gh pr view <n> --json headRefOid,baseRefName,state` and require the same three bindings
+   re-read `gh pr view "$PR_NUM" --json headRefOid,baseRefName,state` and require the same three bindings
    §1 established (open, `headRefOid` still `== HEAD`, base still the configured target). A push
    landed since classification ⇒ HUMAN, reason *PR moved after classification*. Never approve a head
    you did not classify.
 3. Approve and merge **as the reviewer identity**, on the PR number carried from §1, scoping its
-   token to only these two calls: `GH_TOKEN=$tok gh pr review <n> --approve` then
-   `GH_TOKEN=$tok gh pr merge <n> --auto --squash`.
+   token to only these two calls: `GH_TOKEN=$tok gh pr review "$PR_NUM" --approve` then
+   `GH_TOKEN=$tok gh pr merge "$PR_NUM" --auto --squash`.
    **Re-read the token from its env var in the SAME shell invocation as these two calls** — shell
    state does not survive between separate command runs, so a `$tok` captured back in §6 is empty
    here and the approve would silently run unauthenticated. If the approve call does not succeed,
