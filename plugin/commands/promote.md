@@ -29,13 +29,25 @@ approval is **logged with the signals it used** so any decision is attributable 
 
 ## Procedure
 
+### 0. Probe `gh` first — a probe failure is HUMAN, never merge
+Before any `gh` call at all — the §1 binding and the §6 identity resolution both need one — probe:
+`gh --version`, `gh auth status`, and that a PR exists for this branch (`gh pr view --json number`).
+Any failure ⇒ the HUMAN path, saying which probe failed. `gh` missing or unauthenticated is the
+common one, and it must never degrade into "classify locally and merge anyway" — there is no merge
+without a resolved PR.
+
+**GitHub rejects self-approval.** §6 pre-empts this by requiring the reviewer login to differ from the
+author before AUTO is even possible. If a self-approval rejection still surfaces at approve time
+(e.g. the env var was pointed at the author's own token), treat it as HUMAN and say so plainly; never
+fall through to `gh pr merge` on an approval that did not land.
+
 ### 1. Bind to the PR, then resolve the range
 A promotion decision is about **one specific pull request**, so resolve that PR first and pin the
 classified range to it. Classifying a local range and then merging whatever PR happens to be open is
 the failure this step exists to prevent — the tier would describe one tree and the merge would land
 another.
 
-Run the §9 probes first, then:
+Run the §0 probes first, then:
 ```
 gh pr view --json number,state,headRefOid,baseRefName,author
 ```
@@ -181,14 +193,17 @@ there is no run in progress, create `harness/.runs/promote-$(date +%Y%m%dT%H%M%S
 ### 8. Act
 **On `AUTO`** (only ever reachable for staging + LOW + all preconditions met + `promotion.enabled` +
 a resolved separate reviewer identity):
-1. Post a structured comment on the PR, criterion by criterion — each check, whether it passed, and
+1. **Re-check the binding before anything else.** Time passed during §4's classifier run, so re-read
+   `gh pr view "$PR_NUM" --json headRefOid,baseRefName,state` and require the same three bindings §1
+   established: still open, `headRefOid` still `== $PR_HEAD` (the head you classified, not whatever
+   local `HEAD` is now), base still the configured target. A push landed since classification ⇒
+   HUMAN, reason *PR moved after classification*. Never approve a head you did not classify.
+   This is step 1, not step 2, so the re-check gates the comment as well as the approval — post an
+   AUTO-shaped comment first and a moved PR gets that comment immediately followed by an ESCALATED
+   one, which reads as two contradictory decisions on the same PR.
+2. Post a structured comment on the PR, criterion by criterion — each check, whether it passed, and
    why (name the reviewer identity, never its token). A bare "approved by automation" is not an audit
    trail.
-2. **Re-check the binding immediately before approving.** Time passed during §4's classifier run, so
-   re-read `gh pr view "$PR_NUM" --json headRefOid,baseRefName,state` and require the same three bindings
-   §1 established (open, `headRefOid` still `== HEAD`, base still the configured target). A push
-   landed since classification ⇒ HUMAN, reason *PR moved after classification*. Never approve a head
-   you did not classify.
 3. Approve and merge **as the reviewer identity**, on the PR number carried from §1, scoping its
    token to only these two calls: `GH_TOKEN=$tok gh pr review "$PR_NUM" --approve` then
    `GH_TOKEN=$tok gh pr merge "$PR_NUM" --auto --squash`.
@@ -227,17 +242,6 @@ now has to finish. Then append a second ledger line so the run log carries the s
 ```
 Never overwrite the first ledger line — intent and outcome are two rows, and the pair is the trail.
 Redact nothing but the token; a failure reason with no detail is not an audit record either.
-
-### 9. Probe failures are HUMAN, not merge
-Before any `gh` call (including the §1 binding and the §6 identity resolution), probe: `gh --version`,
-`gh auth status`, and that a PR exists for this branch (`gh pr view --json number`). Any failure ⇒ the
-HUMAN path, saying which probe failed. `gh` missing or unauthenticated is the common one, and it must
-never degrade into "classify locally and merge anyway" — there is no merge without a resolved PR.
-
-**GitHub rejects self-approval.** §6 pre-empts this by requiring the reviewer login to differ from the
-author before AUTO is even possible. If a self-approval rejection still surfaces at approve time
-(e.g. the env var was pointed at the author's own token), treat it as HUMAN and say so plainly; never
-fall through to `gh pr merge` on an approval that did not land.
 
 ## Output
 The final tier, the decision, and every reason that produced it — the same content as the audit

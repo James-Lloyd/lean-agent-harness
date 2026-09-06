@@ -802,8 +802,12 @@ $promoMd     = Get-Content -LiteralPath (Join-Path $repoRoot 'plugin/commands/pr
 $promoDoc    = Get-Content -LiteralPath (Join-Path $repoRoot 'docs/promotion.md') -Raw
 $promoSchTxt = Get-Content -LiteralPath (Join-Path $engineDir 'harness.schema.json') -Raw
 $appClaim    = 'a machine user, a second account, or a GitHub App installation token'
-ok "/promote pins the PR head to the classified HEAD (headRefOid)"                  ($promoMd.Contains('headRefOid'))
-ok "/promote requires the PR base to be the environment's configured branch"        ($promoMd.Contains('baseRefName'))
+# Pin the DISTINCTIVE §1 requirement text, not the bare field names: `headRefOid` and `baseRefName`
+# each occur ~5 times across promote.md (the gh --json lists, the risk.json template, the §8 re-check),
+# so a bare Contains('headRefOid') still passes with §1's binding block deleted outright. Same class as
+# the [2026-08-06] ratchet about asserting in the right column.
+ok "/promote pins the PR head to the classified HEAD"                               ($promoMd.Contains('headRefOid == $(git rev-parse HEAD)'))
+ok "/promote requires the PR base to be the environment's configured branch"        ($promoMd.Contains('baseRefName == promotion.<env>.branch'))
 ok "/promote's pre-action record starts with a null outcome"                        ($promoMd.Contains('"outcome": null'))
 ok "/promote appends an outcome ledger row after acting"                            ($promoMd.Contains('risk-outcome'))
 ok "docs/promotion.md documents the outcome row"                                    ($promoDoc.Contains('risk-outcome'))

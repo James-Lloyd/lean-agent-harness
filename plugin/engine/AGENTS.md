@@ -106,3 +106,10 @@ Hard-won rules (each traces to a real shipped failure):
   to a guard hook — an obvious-looking hardening — a silent disarm of every pattern on a large payload.
   Both suites now pin the BEHAVIOUR (a destructive command inside a >64 KiB payload must still deny),
   so the trap is caught however the hook is rewritten; converting the sites is queued in `fix_plan`.
+- **A fix applied to N call sites gets its regression test at every site that failed OPEN, not only at
+  the site where it was discovered.** The SIGPIPE fix above landed at three places; `money_signal` and
+  `usage_limit_error` each got a >64 KiB assertion straight away, while fleet's protected-path guard —
+  the site whose failure MERGED a worker's tamper of `specs/` — got the fix and no test, and only
+  picked one up in review. Rank the sites by what their failure costs, and test the worst one first.
+  The test must also reproduce the failure: for this defect the match has to sort EARLY in the
+  oversized input, or grep drains the pipe, printf exits cleanly and the broken code passes.

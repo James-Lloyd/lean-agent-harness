@@ -732,8 +732,12 @@ PROMO_MD="$REPO_ROOT/plugin/commands/promote.md"
 PROMO_DOC="$REPO_ROOT/docs/promotion.md"
 PROMO_SCHEMA="$ENGINE/harness.schema.json"
 APP_CLAIM='a machine user, a second account, or a GitHub App installation token'
-ok "$(grep -qF 'headRefOid' "$PROMO_MD" && echo 1 || echo 0)"        "/promote pins the PR head to the classified HEAD (headRefOid)"
-ok "$(grep -qF 'baseRefName' "$PROMO_MD" && echo 1 || echo 0)"       "/promote requires the PR base to be the environment's configured branch"
+# Pin the DISTINCTIVE §1 requirement text, not the bare field names: `headRefOid` and `baseRefName`
+# each occur ~5 times across promote.md (the gh --json lists, the risk.json template, the §8 re-check),
+# so a bare `grep -qF headRefOid` still passes with §1's binding block deleted outright. Same class as
+# the [2026-08-06] ratchet about asserting in the right column.
+ok "$(grep -qF 'headRefOid == $(git rev-parse HEAD)' "$PROMO_MD" && echo 1 || echo 0)"      "/promote pins the PR head to the classified HEAD"
+ok "$(grep -qF 'baseRefName == promotion.<env>.branch' "$PROMO_MD" && echo 1 || echo 0)"    "/promote requires the PR base to be the environment's configured branch"
 ok "$(grep -qF '"outcome": null' "$PROMO_MD" && echo 1 || echo 0)"   "/promote's pre-action record starts with a null outcome"
 ok "$(grep -qF 'risk-outcome' "$PROMO_MD" && echo 1 || echo 0)"      "/promote appends an outcome ledger row after acting"
 ok "$(grep -qF 'risk-outcome' "$PROMO_DOC" && echo 1 || echo 0)"     "docs/promotion.md documents the outcome row"

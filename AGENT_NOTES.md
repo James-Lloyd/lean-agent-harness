@@ -109,3 +109,9 @@ PowerShell 5.1: `powershell harness/tests/run-tests.ps1`; bash needs `jq` on PAT
   assert the BEHAVIOUR (a destructive command buried in a >64 KiB payload must still exit 2), which
   survives any rewrite; the conversion itself is a fix_plan item, kept out of the promotion PR because
   block-destructive.sh deserves its own reviewed change.
+- [2026-09-06] `state/PROGRESS.md` and the `<!-- DONE ... -->` annotations in `fix_plan.md` are an
+  APPEND-ONLY LOG: a gate count in them is a fact about the run that happened, not a value to keep
+  current. A repo-wide `sed -i 's/fleet-queue 31\/0/34\/0/'` to update this batch's line silently
+  rewrote four 2026-09-04 entries that were correct as written. Scope the pattern to the line you mean
+  (`sed -i '/DONE 2026-09-06/ s/.../.../'`) and read `git diff` before committing — the corruption is
+  invisible in the file, and only shows up as a diff touching dates you never worked on.

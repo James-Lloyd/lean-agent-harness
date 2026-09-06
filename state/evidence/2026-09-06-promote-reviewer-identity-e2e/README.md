@@ -5,8 +5,8 @@ Branch `worktree-s3-reviewer-identity`, rebased onto `main` at `8d3f218`, plugin
 This is the evidence the 2026-09-05 shadow review demanded. Both judges had reviewed the wiring
 against `2a6cf25..d8b5200` and split: the Fable 5.1 primary said SHIP with one should-fix ("the batch
 records no evidence artifacts"), and the Codex `gpt-5.6-sol` second said REJECT with four blockers.
-This batch answers all five, and the dogfooding that produced the answers turned up a sixth thing
-nobody had asked about — two live fail-opens, one in the money rule and one in the reviewer gate the
+This batch answers all five. The dogfooding that produced the answers then turned up two things
+nobody had asked about: a live fail-open in the money rule, and another in the reviewer gate this
 batch was written to add.
 
 ## What the batch does
@@ -26,7 +26,7 @@ batch was written to add.
 5. **Fixes a fail-open found while producing this evidence** — see below.
 6. **Records the end-to-end evidence** (Codex blocker 4 / the primary's should-fix): this directory.
 
-## The fail-open
+## Fail-open 1 — the money rule
 
 Running the shipped classifier over a real range of this repo, the money rule reported **no money
 vocabulary at all** in a 167 KiB diff that contains `price` 28 times, `tax` 31 times and `stripe`
@@ -64,11 +64,12 @@ first mutation run "passed" for exactly that reason and is why the fixture now l
 
 | Probe | What it proves | Artifacts |
 |---|---|---|
-| `probe-classify.sh` | The shipped lib over five real ranges of THIS repo: LOW/MEDIUM/HIGH tiers, each with a §7 `risk.json` and a `risk` ledger row. | `probe-classify.log`, `risk/*.json`, `ledger.jsonl` |
+| `probe-classify.sh` | The shipped lib over five real ranges of THIS repo: LOW/MEDIUM/HIGH tiers, each with a `risk.json` and a `risk` ledger row. | `probe-classify.log`, `risk/*.json`, `ledger.jsonl` |
 | `probe-consumer.sh` | The same lib over a throwaway repo shaped like a consumer app — a clean LOW, a MEDIUM migration, a money HIGH by path, a money HIGH by content alone. | `probe-consumer.log`, `risk/risk-consumer-*.json`, `ledger-consumer.jsonl` |
 | `probe-identity.sh` | The reviewer gate against a REAL pull request, with real `gh api user` calls, in four token states. | `probe-identity.log` |
 | `mutation-proof.sh` | The money rule's fix is load-bearing. | `mutation-proof.txt` |
 | the `risk-classifier` agent | `/promote` §4 for real on this range: fresh context, confirms HIGH, re-derives it independently, and names an exposure the author missed (the fixes change behaviour for every *consumer* on their next `/plugin update`). | `classifier-verdict.md` |
+| the `reviewer` agent | Fresh-context review of the batch: SHIP, no blockers, 4 should-fix and 5 nits. It independently re-ran the mutation proof and the suite. All four should-fix are applied — including the one that mattered most, a fixed site that failed OPEN and had no regression test. | `review-verdict.md` |
 
 ### Why the tier samples come from two repos
 
@@ -100,7 +101,7 @@ classified HEAD (BOUND), but its base is `main` while `promotion.staging.branch`
 (MISMATCH). A `/promote staging` run against it can never reach AUTO. That is the new base-branch
 check doing its job on a live PR.
 
-### The second fail-open, found by this probe
+### Fail-open 2 — the reviewer gate, found by this probe's own first run
 
 The first run of the identity probe returned **AUTO for an invalid token**. `/promote` §6.3 said
 `REVIEWER=$(GH_TOKEN=$tok gh api user --jq .login)` and "any failure ⇒ reviewer false", but on a bad
@@ -136,7 +137,7 @@ explicitly. The repo's own config is never written, and promotion stays off.
 |---|---|
 | `run-tests.sh` (bash) | 307 / 0 |
 | `run-tests.ps1` (PowerShell 5.1) | 317 / 0 |
-| `fleet-queue-test.sh` / `.ps1` | 31 / 0 each |
+| `fleet-queue-test.sh` / `.ps1` | 34 / 0 each |
 | `loop-review-test.sh` / `.ps1` | 16 / 0 each |
 | `run.mjs` dispatcher self-test | folded into both suites |
 | shell syntax check (`bash -n`, every `.sh`) | all OK |
