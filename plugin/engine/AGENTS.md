@@ -115,8 +115,14 @@ Hard-won rules (each traces to a real shipped failure):
   longer depend on setting no shell options to stay armed. Before that, adding `set -euo pipefail` to
   a guard hook — an obvious-looking hardening — silently disarmed every pattern on a large payload;
   measured, that hook exited **0** on a 195 KB multi-line payload carrying a real `rm -rf /`.
-  `codex-setup.sh`'s `tr -d '\r' < "$gi" | grep -qx` was the one site already live (that file *does*
-  set `pipefail`): past the buffer it read "`.codex/` absent" and re-appended the line on every run.
+  `codex-setup.sh`'s `tr -d '\r' < "$gi" | grep -qx` was the one site that could fail without anyone
+  hardening anything, because that file *does* set `pipefail` — it read "`.codex/` absent" and
+  re-appended the line on every run. **But the turnover point is NOT the 64 KiB pipe buffer, and
+  assuming it was cost an hour**: with an external producer (`tr`) rather than the `printf` builtin,
+  grep's own read buffer absorbs far more. Measured on Git Bash 5.3.9: 114 KB still gives
+  `PIPESTATUS=(0 0)`; 289 KB gives `(141 0)`. A 114 KB regression fixture built on the "past 64 KiB"
+  assumption passed against the broken code. Every producer/consumer pair has its own threshold —
+  bisect it, do not inherit the number from a sibling defect.
   Both suites pin the BEHAVIOUR — including against a copy of the hook with `pipefail` injected — so
   the trap stays caught however the hook is rewritten.
 - **A fix applied to N call sites gets its regression test at every site that failed OPEN, not only at

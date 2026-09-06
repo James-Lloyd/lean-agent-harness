@@ -34,11 +34,24 @@ one-line change that would have disarmed every pattern.
 
 ## Two findings the task line did not anticipate
 
-**1. `codex-setup.sh:162` was already live, not latent.** It ran
+**1. `codex-setup.sh:162` could fail without anyone hardening anything.** It ran
 `tr -d '\r' < "$gi" | grep -qx '\.codex/'` inside an `if !` guard, in a file that *does* set
-`pipefail`. On a `.gitignore` past the pipe buffer, `grep -qx` exits at the match, `tr` dies of
-SIGPIPE, the pipeline reports 141, the guard concludes "`.codex/` absent" — and appends it again, on
-every run.
+`pipefail`. `grep -qx` exits at the match, `tr` dies of SIGPIPE, the pipeline reports 141, the guard
+concludes "`.codex/` absent" — and appends it again, on every run.
+
+The size it takes is **not** the 64 KiB pipe buffer, and the first draft of this document said it was.
+With an external producer (`tr`) instead of the `printf` builtin, grep's own read buffer absorbs much
+more. Bisected on Git Bash 5.3.9:
+
+| `.gitignore` | `tr \| grep -qx` PIPESTATUS |
+|---|---|
+| 114 KB | `(0 0)` — no failure |
+| 289 KB | `(141 0)` — **fail-open** |
+
+The first regression fixture written here was 114 KB, chosen from the "past 64 KiB" figure carried
+over from `money_signal`, and it passed against the broken code. The shipped fixture is 10 000 lines
+/ 289 KB, verified to append a duplicate on the mutant and not on the shipped script. Every
+producer/consumer pair has its own threshold; it has to be bisected, not inherited.
 
 **2. The regression fixture shipped in PR #16 could not have caught this.** Row 3 above: it was a
 single 200 KB line, and it denies on the broken hook too. Reproducing the fail-open needs **two**
@@ -74,17 +87,43 @@ future rewrite of either twin cannot quietly lose the case.
 
 ## Behavioural equivalence of the swap
 
-`<<<` appends a trailing newline where `printf '%s'` did not. This does not change any match: grep is
-line-oriented and treats end-of-input as end-of-line either way, so the `$`-anchored alternations
-(`(\||;|&|$)`) behave identically. An empty `$scan` yields no match under both forms.
+`<<<` appends a trailing newline where `printf '%s'` did not. For every pattern at these 16 sites
+that changes no match: grep is line-oriented and treats end-of-input as end-of-line either way, so the
+`$`-anchored alternations (`(\||;|&|$)`) behave identically.
+
+**The swap is not equivalent in general, though**, and the first draft of this document claimed it was.
+The forms differ on empty input, because `<<<` supplies one empty *line* where `printf '%s' ""`
+supplies no input at all:
+
+```
+printf '' | grep -Eq 'a*'   -> 1   (no line to match)
+grep -Eq 'a*' <<< ""        -> 0   (one empty line, and 'a*' matches it)
+```
+
+So any pattern that can match the empty string flips from "no match" to "match". None of the 16
+converted sites uses such a pattern — every one requires literal text — and in `block-destructive.sh`
+lines 19 and 34 guarantee `$scan` is non-empty regardless. The conversion is safe here; the general
+claim is not, and a future site with a `*`-quantified pattern must not lean on this section.
 
 ## Gate
 
 | suite | result |
 |---|---|
-| `harness/tests/run-tests.sh` | **321 / 0** |
-| `harness/tests/run-tests.ps1` | **333 / 0** |
+| `harness/tests/run-tests.sh` | **324 / 0** (321 at the tick, +3 from the review fixes) |
+| `harness/tests/run-tests.ps1` | **333 / 0** (unchanged — the review fixes were sh-side and docs) |
 | `bash -n` over all 26 shell scripts | clean |
+
+The three added by the fresh-context review are the ones that make the other two converted files
+load-bearing rather than merely changed:
+
+* `protect-specs degraded (no jq) blocks specs/ in a MULTI-LINE oversized payload` — and the same
+  with `pipefail` injected. Pre-fix that second one exits **0**, admitting a write to `specs/`. The
+  branch is unreachable in CI (the whole block is gated on `command -v jq`), so it is forced with
+  `env -i PATH=/usr/bin:/bin`.
+* `an OVERSIZED .gitignore already containing .codex/ is left alone` — 289 KB, verified to append a
+  duplicate on the mutant and not on the shipped script, with a positive control confirming the step
+  actually runs (`codex-setup.sh` resolves `PLUGIN_ROOT` from its own directory, so a mutant copied
+  to `/tmp` silently exits before ever reaching the check).
 
 `plugin/.claude-plugin/plugin.json` 0.3.8 → **0.3.9** — shipped hook behaviour changed, so the version
 moves in the same diff (2026-08-12 ratchet).

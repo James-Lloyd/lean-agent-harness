@@ -263,6 +263,33 @@ if command -v jq >/dev/null 2>&1; then
       | HARNESS_LOCK_SPECS="$2" bash "$HOOKS/protect-specs.sh" >/dev/null 2>&1; echo $?
   }
   ok "$([ "$(specrc_nb 'specs/nb.ipynb' '1')" = "2" ] && echo 1 || echo 0)" "blocks specs/*.ipynb via notebook_path when locked"
+
+  # The DEGRADED (no-jq) branch is the one that greps the raw payload, and it is the highest-cost
+  # site of the here-string conversion: its failure lets an edit to specs/ — the immutable contract —
+  # through. CI never enters it, because jq is always installed and the whole block above is gated on
+  # `command -v jq`. So force it with `env -i PATH=...`, and pair it with the pipefail-injected copy
+  # the way block-destructive is pinned. Measured against the pre-conversion hook this returns 0
+  # (ALLOWED); against the shipped one, 2. Multi-line payload with the specs/ path EARLY: on a single
+  # line grep must read everything before it can match and printf never takes SIGPIPE, so a one-line
+  # fixture passes against the broken form too.
+  nojq_path="/usr/bin:/bin"
+  if [ -z "$(env -i PATH="$nojq_path" sh -c 'command -v jq' 2>/dev/null)" ]; then
+    pspay="$(mktemp)"; pshook="$(mktemp)"
+    { printf '{"tool_name":"Write","tool_input":{"file_path":"specs/000-overview.md"}}\n'
+      awk 'BEGIN{for(i=0;i<4000;i++) printf "{\"filler\": \"line %d xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\"}\n", i}'
+    } > "$pspay"
+    { head -1 "$HOOKS/protect-specs.sh"
+      echo 'set -euo pipefail'
+      tail -n +2 "$HOOKS/protect-specs.sh"
+    } > "$pshook"
+    psrc_plain="$(env -i PATH="$nojq_path" HARNESS_LOCK_SPECS=1 bash "$HOOKS/protect-specs.sh" < "$pspay" >/dev/null 2>&1; echo $?)"
+    psrc_pf="$(env -i PATH="$nojq_path" HARNESS_LOCK_SPECS=1 bash "$pshook" < "$pspay" >/dev/null 2>&1; echo $?)"
+    ok "$([ "$psrc_plain" = "2" ] && echo 1 || echo 0)" "protect-specs degraded (no jq) blocks specs/ in a MULTI-LINE oversized payload (got '$psrc_plain')"
+    ok "$([ "$psrc_pf" = "2" ] && echo 1 || echo 0)"    "...and still blocks it with 'set -euo pipefail' injected (got '$psrc_pf')"
+    rm -f "$pspay" "$pshook"
+  else
+    echo "  (skipping the degraded protect-specs proof — jq is reachable from a bare PATH)"
+  fi
 else
   echo "  (skipping protect-specs tests — jq not installed)"
 fi
@@ -918,6 +945,20 @@ if command -v jq >/dev/null 2>&1; then
   printf 'node_modules/\r\n.codex/\r\n' > "$CSP/.gitignore"
   bash "$CS" --project-root "$CSP" >/dev/null 2>&1 || true
   ok "$([ "$(tr -d '\r' < "$CSP/.gitignore" | grep -cx '\.codex/')" = "1" ] && echo 1 || echo 0)" "CRLF .gitignore already containing .codex/ is left alone (no duplicate)"
+  # This presence check is the one SIGPIPE site in a file that itself sets `pipefail`, so as
+  # `tr -d '\r' < "$gi" | grep -qx` it could fail for real rather than only after someone hardened
+  # it: grep exits at the match, tr dies of SIGPIPE, the pipeline reports 141, the guard reads
+  # "absent" and appends `.codex/` AGAIN, every run. The fixtures above are a few bytes and pass
+  # against the broken form. SIZE IS MEASURED, NOT ASSUMED: this shape does NOT turn over at the
+  # 64 KiB pipe buffer the way `printf | grep` does — an external producer plus grep's own read
+  # buffer absorbs far more. Measured on Git Bash 5.3.9: 114 KB still returns PIPESTATUS=(0 0), and
+  # 289 KB returns (141 0). 10000 lines sits above that, with `.codex/` on line 1 so grep can exit
+  # while tr is still writing.
+  { printf '.codex/\n'
+    awk 'BEGIN{for(i=0;i<10000;i++) printf "build/artifact-%d/**/*.tmp\n", i}'
+  } > "$CSP/.gitignore"
+  bash "$CS" --project-root "$CSP" >/dev/null 2>&1 || true
+  ok "$([ "$(grep -cx '\.codex/' "$CSP/.gitignore")" = "1" ] && echo 1 || echo 0)" "an OVERSIZED .gitignore already containing .codex/ is left alone (no duplicate append)"
   # Cross-twin parity: where powershell.exe exists (Windows dev box), the PS twin must call the bash-generated set fresh.
   if command -v powershell.exe >/dev/null 2>&1; then
     if powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$ENGINE/codex-setup.ps1" -ProjectRoot "$(cygpath -w "$CSP" 2>/dev/null || printf '%s' "$CSP")" -Check >/dev/null 2>&1; then xt=0; else xt=1; fi
