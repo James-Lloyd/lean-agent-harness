@@ -109,17 +109,27 @@ claim is not, and a future site with a `*`-quantified pattern must not lean on t
 
 | suite | result |
 |---|---|
-| `harness/tests/run-tests.sh` | **324 / 0** (321 at the tick, +3 from the review fixes) |
+| `harness/tests/run-tests.sh` | **325 / 0** (321 at the tick, +4 from the review fixes) |
 | `harness/tests/run-tests.ps1` | **333 / 0** (unchanged — the review fixes were sh-side and docs) |
 | `bash -n` over all 26 shell scripts | clean |
 
-The three added by the fresh-context review are the ones that make the other two converted files
+The four added by the fresh-context review are the ones that make the other two converted files
 load-bearing rather than merely changed:
 
 * `protect-specs degraded (no jq) blocks specs/ in a MULTI-LINE oversized payload` — and the same
-  with `pipefail` injected. Pre-fix that second one exits **0**, admitting a write to `specs/`. The
-  branch is unreachable in CI (the whole block is gated on `command -v jq`), so it is forced with
-  `env -i PATH=/usr/bin:/bin`.
+  with `pipefail` injected. Pre-fix that second one exits **0**, admitting a write to `specs/`.
+
+  Forcing that branch took two attempts, and the first was the same defect one level up. `env -i
+  PATH=/usr/bin:/bin` looks like it strips jq, but on Linux **jq lives in `/usr/bin`** — so the proof
+  silently skipped on the Linux CI job and ran only on Windows. Caught by reading the CI log rather
+  than the exit status: `(skipping the degraded protect-specs proof — jq is reachable from a bare
+  PATH)`. It now builds a temp dir holding exec wrappers for only the commands the degraded branch
+  uses (`cat`, `grep` — everything else it touches is a bash builtin) and points `PATH` at that,
+  invoking bash by absolute path since `PATH` no longer resolves it. That is jq-free on any host.
+
+  It also carries a **positive control** — the same forced environment on a non-spec path must exit
+  `0`. Without one, a hook that died early for an unrelated reason (a command missing from the
+  stripped `PATH`) would look like a pass, because "denied" and "crashed" are both non-zero.
 * `an OVERSIZED .gitignore already containing .codex/ is left alone` — 289 KB, verified to append a
   duplicate on the mutant and not on the shipped script, with a positive control confirming the step
   actually runs (`codex-setup.sh` resolves `PLUGIN_ROOT` from its own directory, so a mutant copied

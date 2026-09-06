@@ -158,8 +158,13 @@ editing** (Claude Code: see CLAUDE.md; anything else: `git worktree add`). Land 
   114 KB fixture written from the inherited 64 KiB figure passed against the broken code. Separately,
   `protect-specs.sh`'s degraded no-jq branch — the highest-cost site of the four, since its failure
   admits an edit to `specs/` — was untestable in CI because the whole block is gated on
-  `command -v jq` and jq is always installed; forcing it with `env -i PATH=/usr/bin:/bin` showed the
-  pre-fix hook exiting 0. "The suite is green" says nothing about a branch it never entered.
+  `command -v jq` and jq is always installed. **Forcing it took two attempts, and the first repeated
+  the defect:** `env -i PATH=/usr/bin:/bin` looks jq-free but on Linux jq IS in `/usr/bin`, so the
+  proof skipped on the Linux job and ran only on Windows — visible in the CI log, invisible in the
+  exit status. Point `PATH` at a temp dir of exec wrappers for only the commands the branch needs.
+  And give a forced-environment test a POSITIVE CONTROL: "denied" and "crashed" are both non-zero, so
+  without one, a hook dying on a missing command reads as a pass. "The suite is green" says nothing
+  about a branch it never entered — and "the assertion passed" says nothing if it never ran.
 
 ## Nested context
 Subsystems carry their own `AGENTS.md` next to their code (in this repo: `plugin/engine/` holds the

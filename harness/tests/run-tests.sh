@@ -272,8 +272,18 @@ if command -v jq >/dev/null 2>&1; then
   # (ALLOWED); against the shipped one, 2. Multi-line payload with the specs/ path EARLY: on a single
   # line grep must read everything before it can match and printf never takes SIGPIPE, so a one-line
   # fixture passes against the broken form too.
-  nojq_path="/usr/bin:/bin"
-  if [ -z "$(env -i PATH="$nojq_path" sh -c 'command -v jq' 2>/dev/null)" ]; then
+  # A PATH of "/usr/bin:/bin" is NOT enough to force it: on Linux jq lives in /usr/bin, so the proof
+  # silently skipped on the Linux CI job and only ever ran on Windows — the very "branch the suite
+  # never enters" problem this test exists to fix, one level up. Build a PATH that provably lacks jq
+  # instead: a temp dir holding exec wrappers for just the commands the degraded branch uses (`cat`
+  # and `grep`; everything else it touches is a bash builtin). bash itself is invoked by absolute
+  # path, since PATH no longer resolves it.
+  nojq_bin="$(mktemp -d)"; bash_abs="$(command -v bash)"
+  for _c in cat grep; do
+    printf '#!%s\nexec %s "$@"\n' "$bash_abs" "$(command -v "$_c")" > "$nojq_bin/$_c"
+    chmod +x "$nojq_bin/$_c"
+  done
+  if [ -z "$(env -i PATH="$nojq_bin" "$bash_abs" -c 'command -v jq' 2>/dev/null)" ]; then
     pspay="$(mktemp)"; pshook="$(mktemp)"
     { printf '{"tool_name":"Write","tool_input":{"file_path":"specs/000-overview.md"}}\n'
       awk 'BEGIN{for(i=0;i<4000;i++) printf "{\"filler\": \"line %d xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\"}\n", i}'
@@ -282,14 +292,22 @@ if command -v jq >/dev/null 2>&1; then
       echo 'set -euo pipefail'
       tail -n +2 "$HOOKS/protect-specs.sh"
     } > "$pshook"
-    psrc_plain="$(env -i PATH="$nojq_path" HARNESS_LOCK_SPECS=1 bash "$HOOKS/protect-specs.sh" < "$pspay" >/dev/null 2>&1; echo $?)"
-    psrc_pf="$(env -i PATH="$nojq_path" HARNESS_LOCK_SPECS=1 bash "$pshook" < "$pspay" >/dev/null 2>&1; echo $?)"
+    psrc_plain="$(env -i PATH="$nojq_bin" HARNESS_LOCK_SPECS=1 "$bash_abs" "$HOOKS/protect-specs.sh" < "$pspay" >/dev/null 2>&1; echo $?)"
+    psrc_pf="$(env -i PATH="$nojq_bin" HARNESS_LOCK_SPECS=1 "$bash_abs" "$pshook" < "$pspay" >/dev/null 2>&1; echo $?)"
+    # Positive control: the SAME forced environment on a NON-spec path must be allowed. Without it a
+    # hook that died early for an unrelated reason (a missing command in the stripped PATH) would
+    # look like a pass, since "denied" and "crashed" are both non-zero.
+    ctlpay="$(mktemp)"
+    printf '{"tool_name":"Write","tool_input":{"file_path":"src/app.ts"}}\n' > "$ctlpay"
+    psrc_ctl="$(env -i PATH="$nojq_bin" HARNESS_LOCK_SPECS=1 "$bash_abs" "$HOOKS/protect-specs.sh" < "$ctlpay" >/dev/null 2>&1; echo $?)"
+    ok "$([ "$psrc_ctl" = "0" ] && echo 1 || echo 0)"   "protect-specs degraded (no jq) still ALLOWS a non-spec path (control, got '$psrc_ctl')"
     ok "$([ "$psrc_plain" = "2" ] && echo 1 || echo 0)" "protect-specs degraded (no jq) blocks specs/ in a MULTI-LINE oversized payload (got '$psrc_plain')"
     ok "$([ "$psrc_pf" = "2" ] && echo 1 || echo 0)"    "...and still blocks it with 'set -euo pipefail' injected (got '$psrc_pf')"
-    rm -f "$pspay" "$pshook"
+    rm -f "$pspay" "$pshook" "$ctlpay"
   else
-    echo "  (skipping the degraded protect-specs proof — jq is reachable from a bare PATH)"
+    echo "  (skipping the degraded protect-specs proof — jq is still reachable from the stripped PATH)"
   fi
+  rm -rf "$nojq_bin"
 else
   echo "  (skipping protect-specs tests — jq not installed)"
 fi
