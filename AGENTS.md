@@ -122,6 +122,14 @@ editing** (Claude Code: see CLAUDE.md; anything else: `git worktree add`). Land 
   When a live-fire disproves a fact, sweep the generated artifacts' own runtime output and help text too, not
   just the docs — an operator reads the tool's stdout, not the design doc (the generator kept printing the
   disproved claim as its last line; caught in review).
+- [2026-09-06] **A guardrail predicate is not verified until it has run over a REAL input at real size.**
+  Unit fixtures are small by nature, and a whole class of shell defect only appears past a buffer
+  boundary. `/promote`'s money rule — the one rule the design says must never fail open — passed twelve
+  green assertions while reporting no money vocabulary whatsoever in a real 167 KiB diff, because
+  `printf | grep -q` loses its match to SIGPIPE under `pipefail` above 64 KiB. Two sibling guards
+  (`usage_limit_error`, fleet's protected-path check) carried the same shape. Before trusting any
+  classifier, sniffer or tamper guard, run it over a real artifact of the size it will really see, and
+  leave that oversized case in the suite.
 
 ## Nested context
 Subsystems carry their own `AGENTS.md` next to their code (in this repo: `plugin/engine/` holds the

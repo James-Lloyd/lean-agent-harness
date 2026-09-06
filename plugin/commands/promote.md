@@ -29,10 +29,34 @@ approval is **logged with the signals it used** so any decision is attributable 
 
 ## Procedure
 
-### 1. Resolve the range
-Same ladder as `/review`, and for the same reason (a bare `git diff` misses committed hunks):
+### 1. Bind to the PR, then resolve the range
+A promotion decision is about **one specific pull request**, so resolve that PR first and pin the
+classified range to it. Classifying a local range and then merging whatever PR happens to be open is
+the failure this step exists to prevent — the tier would describe one tree and the merge would land
+another.
+
+Run the §9 probes first, then:
 ```
-BASE=$(git merge-base HEAD main 2>/dev/null || git rev-parse HEAD~1)
+gh pr view --json number,state,headRefOid,baseRefName,author
+```
+Three bindings must hold. **Any miss ⇒ HUMAN**, recorded as *PR binding failed: <which>* (a binding
+miss is a precondition failure, not a risk tier — say so):
+- **Exactly one OPEN PR for this branch.** No PR, a closed/merged one, or an ambiguous match ⇒ HUMAN.
+- **`headRefOid == $(git rev-parse HEAD)`.** The PR's head must be the commit you are about to
+  classify. If someone pushed while you were classifying, the tier you computed no longer describes
+  the PR ⇒ HUMAN.
+- **`baseRefName == promotion.<env>.branch`** from `harness.config.json` (`staging.branch` for
+  `staging`, `prod.branch` for `prod`). Anything else ⇒ HUMAN. Without this check a `staging`
+  promotion could approve and merge a PR whose base is `main`: "prod is never automated" bypassed
+  through the PR's target branch rather than through this command's environment argument.
+
+Carry `number` and `headRefOid` forward. §7 records both, and §8 acts on **that PR number** — never
+on "the current branch's PR" resolved a second time.
+
+Then the range, measured against the PR's own base. Same ladder as `/review`, and for the same
+reason (a bare `git diff` misses committed hunks):
+```
+BASE=$(git merge-base HEAD "origin/$BASE_REF" 2>/dev/null || git rev-parse HEAD~1)
 ```
 If `BASE == HEAD`, fall back to `git rev-parse harness-reviewed`. If that is also missing or equal,
 **stop and ask the human for a range** — never promote an empty diff.
@@ -116,17 +140,26 @@ reviewer boolean drops to HUMAN — both fail closed. Keep the returned Decision
 Every automated approval must be attributable after the fact, so the record is written whether the
 outcome is AUTO or HUMAN, and it is written *first* (before §8 acts).
 
+What §7 records is **intent**: the decision the function returned, before anything was attempted.
+What actually happened is a separate field, written by §8a after acting. Never let one field carry
+both — a record that says `AUTO` and stops is indistinguishable from a merge that succeeded.
+
 Write `state/evidence/<task-id>/risk.json`:
 ```json
 { "range": "<BASE>..<HEAD>", "environment": "staging|prod",
+  "pr": { "number": 0, "headRefOid": "<sha, == HEAD>", "baseRefName": "<the configured target>" },
   "deterministicTier": "LOW|MEDIUM|HIGH", "deterministicReasons": ["..."],
   "classifierTier": "LOW|MEDIUM|HIGH", "classifierProof": "<its escalation lines, verbatim>",
   "finalTier": "LOW|MEDIUM|HIGH",
   "preconditions": { "gateGreen": true, "reviewShip": true, "e2eEvidence": true },
   "reviewerConfigured": true, "reviewerIdentity": "<the reviewer login, never its token>",
   "decision": "AUTO|HUMAN", "reason": "<the decision function's reason string>",
-  "changedFiles": ["..."], "changedLines": 0 }
+  "changedFiles": ["..."], "changedLines": 0,
+  "outcome": null }
 ```
+`outcome` starts `null` and is filled in by §8a. A record left with `outcome: null` means the run
+died mid-act — treat it as unresolved, never as a completed AUTO.
+
 Then append one line to the current run's `harness/.runs/<runId>/ledger.jsonl` (newest run dir; if
 there is no run in progress, create `harness/.runs/promote-$(date +%Y%m%dT%H%M%S)/`):
 ```json
@@ -139,8 +172,14 @@ a resolved separate reviewer identity):
 1. Post a structured comment on the PR, criterion by criterion — each check, whether it passed, and
    why (name the reviewer identity, never its token). A bare "approved by automation" is not an audit
    trail.
-2. Approve and merge **as the reviewer identity**, scoping its token to only these two calls:
-   `GH_TOKEN=$tok gh pr review <n> --approve` then `GH_TOKEN=$tok gh pr merge <n> --auto --squash`.
+2. **Re-check the binding immediately before approving.** Time passed during §4's classifier run, so
+   re-read `gh pr view <n> --json headRefOid,baseRefName,state` and require the same three bindings
+   §1 established (open, `headRefOid` still `== HEAD`, base still the configured target). A push
+   landed since classification ⇒ HUMAN, reason *PR moved after classification*. Never approve a head
+   you did not classify.
+3. Approve and merge **as the reviewer identity**, on the PR number carried from §1, scoping its
+   token to only these two calls: `GH_TOKEN=$tok gh pr review <n> --approve` then
+   `GH_TOKEN=$tok gh pr merge <n> --auto --squash`.
    **Re-read the token from its env var in the SAME shell invocation as these two calls** — shell
    state does not survive between separate command runs, so a `$tok` captured back in §6 is empty
    here and the approve would silently run unauthenticated. If the approve call does not succeed,
@@ -157,10 +196,31 @@ a resolved separate reviewer identity):
 4. **Do not merge. Do not approve.** Not even "it's obviously fine" — that judgement is the thing
    this command exists to remove.
 
+### 8a. Finalise the record with what actually happened
+§7 recorded the *intended* decision. Now record the *outcome*, on **every** path — AUTO that merged,
+AUTO that failed at approve, AUTO that approved but could not merge, and plain HUMAN. Without this
+the durable record says `AUTO` for a promotion that never landed, which is exactly the attribution
+failure the audit trail exists to prevent.
+
+Fill in `outcome` in the same `risk.json`:
+```json
+"outcome": { "approved": true, "merged": false, "actual": "AUTO|HUMAN",
+             "error": "<verbatim gh failure, or null>" }
+```
+`actual` is what the run really did, and it can differ from `decision`: an AUTO whose approve or
+merge failed ends as `"actual": "HUMAN"` with the failure in `error`, because that is what a human
+now has to finish. Then append a second ledger line so the run log carries the same fact:
+```json
+{"iter":0,"result":"risk-outcome","tier":"LOW","decision":"AUTO","actual":"HUMAN","approved":true,"merged":false,"env":"staging"}
+```
+Never overwrite the first ledger line — intent and outcome are two rows, and the pair is the trail.
+Redact nothing but the token; a failure reason with no detail is not an audit record either.
+
 ### 9. Probe failures are HUMAN, not merge
-Before any `gh` call (including the §6 identity resolution), probe: `gh --version`, `gh auth status`,
-and that a PR exists for this branch (`gh pr view --json number`). Any failure ⇒ the HUMAN path,
-saying which probe failed.
+Before any `gh` call (including the §1 binding and the §6 identity resolution), probe: `gh --version`,
+`gh auth status`, and that a PR exists for this branch (`gh pr view --json number`). Any failure ⇒ the
+HUMAN path, saying which probe failed. `gh` missing or unauthenticated is the common one, and it must
+never degrade into "classify locally and merge anyway" — there is no merge without a resolved PR.
 
 **GitHub rejects self-approval.** §6 pre-empts this by requiring the reviewer login to differ from the
 author before AUTO is even possible. If a self-approval rejection still surfaces at approve time

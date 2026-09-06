@@ -87,7 +87,10 @@ path_matches_any() {  # $1 path  $2 newline-separated globs
   rx="$(globs_union_regex "$2")"
   [ -n "$rx" ] || return 1
   p="$(normalize_path "$1")"
-  printf '%s' "$p" | grep -qiE "$rx"
+  # Here-string, not a pipe — see the SIGPIPE/pipefail note on money_signal. One path always fits the
+  # pipe buffer, so this site was never wrong; it is written this way so the shape stays consistent
+  # and nobody has to re-derive which call sites are "small enough" to be safe.
+  grep -qiE "$rx" <<< "$p"
 }
 
 # Echo every path in the (already normalized) file list $1 that matches ANY glob in $2. One grep for
@@ -130,8 +133,9 @@ risk_tier_max() {  # $1 tier  $2 tier ; echoes LOW|MEDIUM|HIGH
 risk_verdict() {
   local line
   line="$(grep -E '^[[:space:]]*RISK:' | tail -1 || true)"
-  if printf '%s' "$line" | grep -qE '^[[:space:]]*RISK:[[:space:]]*LOW([[:space:]]|$)'; then echo LOW
-  elif printf '%s' "$line" | grep -qE '^[[:space:]]*RISK:[[:space:]]*MEDIUM([[:space:]]|$)'; then echo MEDIUM
+  # Here-strings, not pipes — see the SIGPIPE/pipefail note on money_signal.
+  if grep -qE '^[[:space:]]*RISK:[[:space:]]*LOW([[:space:]]|$)' <<< "$line"; then echo LOW
+  elif grep -qE '^[[:space:]]*RISK:[[:space:]]*MEDIUM([[:space:]]|$)' <<< "$line"; then echo MEDIUM
   else echo HIGH; fi
 }
 
@@ -150,7 +154,14 @@ money_signal() {  # $1 text  $2 term ; returns 0 if present
   local text="$1" term="$2" esc
   [ -n "$text" ] && [ -n "$term" ] || return 1
   esc="$(printf '%s' "$term" | sed -e 's/[.[\*^$()+?{}|\\]/\\&/g' -e 's/\]/\\]/g')"
-  printf '%s' "$text" | grep -qiE "(^|[^A-Za-z0-9])${esc}"
+  # HERE-STRING, never `printf '%s' "$text" | grep -q`. $text is a whole diff's added lines, so it
+  # exceeds the 64 KiB pipe buffer on any real change. `grep -q` exits at the FIRST match, printf is
+  # still writing, printf dies of SIGPIPE (141) — and under the `set -o pipefail` that loop.sh,
+  # fleet.sh and the test suite all set, 141 becomes the pipeline's status. The match is thrown away
+  # and every money term reports "absent". That failed OPEN on the one rule that must never fail
+  # open: a real payments diff classified LOW. Small fixtures fit the buffer, so the unit tests were
+  # green throughout. A here-string is a temp file, not a pipe, so there is no SIGPIPE to lose.
+  grep -qiE "(^|[^A-Za-z0-9])${esc}" <<< "$text"
 }
 
 # The deterministic classifier — stage 1, and the only stage that can produce LOW. Every criterion is

@@ -94,3 +94,11 @@ PowerShell 5.1: `powershell harness/tests/run-tests.ps1`; bash needs `jq` on PAT
   stale one from the main checkout. Finish a worktree session by copying it across with a plain `cp` (the
   file is untracked, so the worktree guard permits the write). `git status` calling the tree clean after you
   edited it is the tell.
+- [2026-09-06] Dogfooding a classifier on a REAL range finds what unit fixtures cannot. `/promote`'s
+  money rule passed every unit test and reported no money vocabulary at all in a real 167 KiB diff:
+  `printf '%s' "$text" | grep -q` loses the match to SIGPIPE under `set -o pipefail` once the text
+  passes the 64 KiB pipe buffer (`PIPESTATUS=(141 0)` — grep matched, printf died, pipefail returned
+  141). Fixtures under 64 KiB never reach the failure. When a predicate guards something that matters,
+  run it over a real input before believing the suite. Also: on this repo almost every range is HIGH
+  by design — `RISK_SELF_GOVERN_GLOBS` pins any change to the harness's own policy/guardrail/CI files
+  — so a LOW sample for a promotion dogfood has to be a commit that touches none of its own controls.

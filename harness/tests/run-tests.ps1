@@ -171,6 +171,12 @@ ok "detects 'too many requests'"  (Test-UsageLimitError '429 Too Many Requests')
 ok "clean output => false"        (-not (Test-UsageLimitError 'review complete. VERDICT: SHIP'))
 ok "stray 429 tokens => false"    (-not (Test-UsageLimitError 'processed 429 files successfully'))
 ok "empty output => false"        (-not (Test-UsageLimitError ''))
+# Twin of the bash regression (2026-09-06): the sh side matched with `printf | grep -q`, which loses a
+# real match to SIGPIPE + pipefail once the transcript outgrows the 64 KiB pipe buffer. PowerShell
+# matches in-process with no pipe, so this side was never wrong - the assertion exists so the twins
+# are pinned to the SAME behaviour on a large input and a future rewrite toward a pipe goes red here too.
+$bigOut = "monthly usage limit reached`n" + ('x' * 200000)
+ok "detects a usage limit past the pipe buffer" (Test-UsageLimitError $bigOut)
 
 Write-Host "sandbox predicate: HARNESS_SANDBOX contract + auto-detect (Test-Sandboxed, gate.ps1)"
 # Save/restore HARNESS_SANDBOX around each case in a finally so no state leaks into the rest of the suite.
@@ -632,6 +638,12 @@ ok "a money signal in added text pins HIGH"    ((riskOf @('src/util.ts') 10 'con
 ok "a money term as a snake_case prefix fires"  ((riskOf @('src/util.ts') 10 'const t = tax_rate * x') -eq 'HIGH')
 ok "an inflected money term fires"             ((riskOf @('src/util.ts') 10 'const all = prices.map(f)') -eq 'HIGH')
 ok "a money term MID-word does not fire"       ((riskOf @('src/util.ts') 10 'a syntax error occurred') -eq 'LOW')
+# Twin of the bash regression (found 2026-09-06 dogfooding /promote on a real range): the sh side's
+# `printf | grep -q` lost a real match to SIGPIPE + pipefail once the added text outgrew the 64 KiB
+# pipe buffer, so a real payments diff classified LOW. PowerShell matches in-process, so this side was
+# never wrong - the assertion pins both twins to the same answer on a big diff.
+$bigMoney = "const p = price * 2`n" + ('x' * 200000)
+ok "a money signal fires in an added text larger than the pipe buffer" ((riskOf @('src/util.ts') 10 $bigMoney) -eq 'HIGH')
 ok "editing the policy itself pins HIGH"       ((riskOf @('harness/harness.config.json') 10 '') -eq 'HIGH')
 ok "editing the risk lib itself pins HIGH"     ((riskOf @('plugin/engine/lib/risk.sh') 10 '') -eq 'HIGH')
 ok "an empty diff fails closed to HIGH"        ((riskOf @() 0 '') -eq 'HIGH')
@@ -768,6 +780,28 @@ ok "shipped config guards the money surfaces"  (($null -ne $shippedAH) -and (@($
 # never committed — only the variable name.
 $shippedRevEnv = RProp (RProp $shippedPromo 'reviewer') 'tokenEnv'
 ok "shipped config names a reviewer token env var" (($shippedRevEnv -is [string]) -and ($shippedRevEnv.Trim().Length -gt 0))
+
+Write-Host "docs: /promote binds its decision to the PR and finalises the audit record"
+# /promote is agent-executed prose, so these three guarantees exist ONLY in the text - there is no
+# function to unit-test. Each closes a gap a fresh-context reviewer called a blocker, so pin them
+# fact-by-fact (never one whole-file match) so a rewrite that drops one goes red:
+#   1. the PR that gets merged is the PR that was classified (head SHA + base branch both bound);
+#   2. the record carries the ACTUAL outcome, not just the pre-action intent;
+#   3. a GitHub App installation token is NOT a usable reviewer identity - `gh api user` (GET /user)
+#      cannot serve one, so the advertised App path always failed closed and was inert. The claim is
+#      disproved; both prose surfaces must stay free of it.
+# Mirror of the bash block. Use .Contains() not -like: a backtick is the wildcard ESCAPE character.
+$promoMd     = Get-Content -LiteralPath (Join-Path $repoRoot 'plugin/commands/promote.md') -Raw
+$promoDoc    = Get-Content -LiteralPath (Join-Path $repoRoot 'docs/promotion.md') -Raw
+$promoSchTxt = Get-Content -LiteralPath (Join-Path $engineDir 'harness.schema.json') -Raw
+$appClaim    = 'a machine user, a second account, or a GitHub App installation token'
+ok "/promote pins the PR head to the classified HEAD (headRefOid)"                  ($promoMd.Contains('headRefOid'))
+ok "/promote requires the PR base to be the environment's configured branch"        ($promoMd.Contains('baseRefName'))
+ok "/promote's pre-action record starts with a null outcome"                        ($promoMd.Contains('"outcome": null'))
+ok "/promote appends an outcome ledger row after acting"                            ($promoMd.Contains('risk-outcome'))
+ok "docs/promotion.md documents the outcome row"                                    ($promoDoc.Contains('risk-outcome'))
+ok "docs no longer advertise an App installation token as the reviewer identity"    (-not $promoDoc.Contains($appClaim))
+ok "schema no longer advertises an App installation token as the reviewer identity" (-not $promoSchTxt.Contains($appClaim))
 
 Write-Host "docs: AGENTS.md is the map, CLAUDE.md is the @AGENTS.md import shim (design-doc 002)"
 # One source of truth: the vendor-neutral map is AGENTS.md; every CLAUDE.md beside an AGENTS.md is a

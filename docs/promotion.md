@@ -56,8 +56,14 @@ finds money-shaped paths your globs miss, but it cannot know your domain's names
 
 **GitHub rejects self-approval.** If the token that opens the PR is the token that calls
 `gh pr review --approve`, the approval fails — always, not intermittently. Auto-approval therefore
-needs a second identity: a machine user, a second account, or a GitHub App installation token, with
-**write** access to the repo.
+needs a second identity with **write** access to the repo: a machine user or a second account,
+holding a fine-grained PAT.
+
+**Not a GitHub App installation token.** `/promote` identifies the reviewer with `gh api user`
+(`GET /user`), and GitHub documents that endpoint for user access tokens and PATs only — an
+installation token gets `Resource not accessible by integration`. The identity step would fail, the
+reviewer boolean would be false, and every promotion would drop to HUMAN. It fails *closed*, so it
+is safe, but it is also inert: do not wire an App installation token here expecting auto-merge.
 
 You wire it in one place — a config key naming the environment variable that holds that identity's
 token:
@@ -85,9 +91,9 @@ Setting it up in a repo (do this once, and keep the token OUT of the committed c
 only names the variable):
 
 1. Create the reviewer account/machine user and add it as a **write** collaborator.
-2. Generate a token for it (fine-grained PAT: Contents + Pull requests write, or an App installation
-   token). Put it in the promotion runtime as `HARNESS_PROMOTE_REVIEWER_TOKEN` — a CI secret for the
-   headless/nightly path, or your shell env for an interactive run.
+2. Generate a fine-grained PAT for it (Contents + Pull requests: write). Put it in the promotion
+   runtime as `HARNESS_PROMOTE_REVIEWER_TOKEN` — a CI secret for the headless/nightly path, or your
+   shell env for an interactive run. Not an App installation token, per the note above.
 3. Turn on the repo's **Settings → General → Allow auto-merge** (else `gh pr merge --auto` errors).
 4. In an interactive Claude session the auto-mode classifier blocks the write-ish `gh` calls —
    `gh pr merge`, `gh pr review`, and the reviewer-identity probe `gh api user` (blocking that last
@@ -108,13 +114,26 @@ gate + a review SHIP + e2e evidence.
 
 Every run writes the record *before* it acts, whether the outcome is AUTO or HUMAN:
 
-- `state/evidence/<task-id>/risk.json` — the range, both tiers, every rule that fired, the
-  classifier's proof text, the preconditions, the decision and its reason.
+- `state/evidence/<task-id>/risk.json` — the range, the PR it is bound to (number, head SHA, base
+  branch), both tiers, every rule that fired, the classifier's proof text, the preconditions, the
+  decision and its reason.
 - one `{"result":"risk", …}` line in `harness/.runs/<runId>/ledger.jsonl`.
 - a structured PR comment, criterion by criterion.
 
+Then, after acting, it writes what actually happened — the `outcome` object in the same `risk.json`
+and a second `{"result":"risk-outcome", …}` ledger line, on every path. Intent and outcome are two
+records because they genuinely differ: an AUTO whose approve call fails ends as a HUMAN, and a
+record that stopped at `"decision": "AUTO"` would claim a merge that never happened. A `risk.json`
+still carrying `"outcome": null` means the run died mid-act; it is unresolved, not a completed AUTO.
+
 The point is attributability after the fact: for any merge, you can reconstruct which signals the
-decision used. A bare "approved by automation" is not an audit trail.
+decision used, which PR head they described, and whether the approval actually landed. A bare
+"approved by automation" is not an audit trail.
+
+**The decision is bound to the PR.** `/promote` resolves the PR first and refuses to act unless its
+head commit is the one classified and its base branch is the environment's configured target. That
+is what stops a `staging` run from approving a PR aimed at `main`, or from merging a head that was
+pushed after the classifier ran.
 
 ## Governance: changing the policy is not a config tweak
 
@@ -134,10 +153,11 @@ Treat a model swap for the classifier the same way — it is a policy change, no
 
 ## Failure modes, all of which are HUMAN
 
-`gh` missing or unauthenticated · no PR for the branch · **no separate reviewer identity configured
-(`reviewer.tokenEnv` empty/unset)** · **the reviewer identity equals the PR author** · self-approval
-rejected · the classifier could not run · an unparseable `RISK:` line · an empty diff · any unmet
-precondition · an unknown environment · `enabled: false`.
+`gh` missing or unauthenticated · no PR for the branch · **the PR's head is not the classified
+commit** · **the PR targets a branch other than the environment's configured one** · **no separate
+reviewer identity configured (`reviewer.tokenEnv` empty/unset)** · **the reviewer identity equals the
+PR author** · self-approval rejected · the classifier could not run · an unparseable `RISK:` line ·
+an empty diff · any unmet precondition · an unknown environment · `enabled: false`.
 
 None of them merge. If you ever see a promotion path that fails toward the merge, that is a bug and
 a `/ratchet` rule.

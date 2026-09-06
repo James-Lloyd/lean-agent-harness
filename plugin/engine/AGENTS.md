@@ -93,3 +93,11 @@ Hard-won rules (each traces to a real shipped failure):
   the SAME diff** — the PS twin's `param()` block is self-documenting, so the bash `#  $1 … $N` header
   is the one surface that silently goes stale (found in review of `promotion_decision`'s new
   `$8 reviewerConfigured`: PS declared it, the sh header still stopped at `$7`).
+- **`printf '%s' "$big" | grep -q` is a fail-open under `set -o pipefail`** — `grep -q` exits at the
+  first match while printf is still writing, printf dies of SIGPIPE (141), and pipefail promotes 141
+  to the pipeline's status, so a text that DOES match reports "absent". It only bites past the 64 KiB
+  pipe buffer, so small unit fixtures stay green while every real input fails. Use a here-string
+  (`grep -q PATTERN <<< "$text"`) at every site, not just the ones that look big. Found live
+  2026-09-06: `money_signal` reported no money vocabulary in a 167 KiB real diff, so a payments change
+  would have classified LOW and become auto-mergeable; `usage_limit_error` and fleet's protected-path
+  tamper guard carried the same shape. Any predicate over unbounded text gets a >64 KiB regression test.

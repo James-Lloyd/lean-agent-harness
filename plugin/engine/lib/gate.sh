@@ -12,8 +12,9 @@ GATE_FAILED_STEP=""
 review_verdict() {
   local line
   line="$(grep -E '^[[:space:]]*VERDICT:' | tail -1 || true)"
-  if printf '%s' "$line" | grep -qE '^[[:space:]]*VERDICT:[[:space:]]*SHIP([[:space:]]|$)'; then echo SHIP
-  elif printf '%s' "$line" | grep -qE '^[[:space:]]*VERDICT:[[:space:]]*REJECT([[:space:]]|$)'; then echo REJECT
+  # Here-strings, not pipes — see the SIGPIPE/pipefail note on usage_limit_error.
+  if grep -qE '^[[:space:]]*VERDICT:[[:space:]]*SHIP([[:space:]]|$)' <<< "$line"; then echo SHIP
+  elif grep -qE '^[[:space:]]*VERDICT:[[:space:]]*REJECT([[:space:]]|$)' <<< "$line"; then echo REJECT
   else echo NONE; fi
 }
 
@@ -30,8 +31,8 @@ evaluator_verdict() {  # $1 = failBelow ; reads the evaluator text on stdin
   local fail_below="$1" text line verdict scores n
   text="$(cat)"
   line="$(printf '%s\n' "$text" | grep -E '^[[:space:]]*VERDICT:' | tail -1 || true)"
-  if printf '%s' "$line" | grep -qE '^[[:space:]]*VERDICT:[[:space:]]*PASS([[:space:]]|$)'; then verdict=PASS
-  elif printf '%s' "$line" | grep -qE '^[[:space:]]*VERDICT:[[:space:]]*FAIL([[:space:]]|$)'; then verdict=FAIL
+  if grep -qE '^[[:space:]]*VERDICT:[[:space:]]*PASS([[:space:]]|$)' <<< "$line"; then verdict=PASS
+  elif grep -qE '^[[:space:]]*VERDICT:[[:space:]]*FAIL([[:space:]]|$)' <<< "$line"; then verdict=FAIL
   else echo NONE; return; fi
   # Belt-and-braces: any per-criterion score below the hard threshold overrides a PASS summary => FAIL.
   # Extract each `N/10` numerator (loop in THIS shell via a for over cmd-subst, so `return` returns from
@@ -144,8 +145,14 @@ phase_second_effort() {  # $1 config path  $2 phase
 # reserved for forward-compat (S3 passes it) and not yet decisive. bash 3.2 / BSD-grep safe (no \b).
 usage_limit_error() {  # $1 output text  $2 exit code (reserved) ; return 0 if a usage/limit marker present
   local out="$1"
-  printf '%s' "$out" | grep -qiE 'usage[ _-]?limit|rate[ _-]?limit|quota|overloaded|too many requests' && return 0
-  printf '%s' "$out" | grep -qiE '(http|status|error|code)[^0-9]{0,6}429' && return 0
+  # HERE-STRINGS, never `printf '%s' "$out" | grep -q`. $out is a whole phase transcript and routinely
+  # exceeds the 64 KiB pipe buffer: `grep -q` exits at the first match while printf is still writing,
+  # printf dies of SIGPIPE (141), and under the `set -o pipefail` loop.sh and fleet.sh both set, 141
+  # becomes the pipeline's status — so a transcript that DOES carry a usage-limit marker reports none
+  # and the dispatcher never advances to the phase fallback. Same defect class as money_signal in
+  # risk.sh, which failed open; this one fails closed but leaves the fallback silently inert.
+  grep -qiE 'usage[ _-]?limit|rate[ _-]?limit|quota|overloaded|too many requests' <<< "$out" && return 0
+  grep -qiE '(http|status|error|code)[^0-9]{0,6}429' <<< "$out" && return 0
   return 1
 }
 

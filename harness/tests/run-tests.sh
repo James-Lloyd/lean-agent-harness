@@ -114,6 +114,14 @@ usage_limit_error 'server returned HTTP 429'      && ok 1 "detects HTTP 429"    
 usage_limit_error 'review complete VERDICT: SHIP' && ok 0 "clean output => false"    || ok 1 "clean output => false"
 usage_limit_error 'processed 429 files'           && ok 0 "stray 429 => false"       || ok 1 "stray 429 => false"
 usage_limit_error ''                              && ok 0 "empty => false"           || ok 1 "empty => false"
+# REGRESSION (same SIGPIPE/pipefail defect as money_signal, found 2026-09-06): $out here is a whole
+# phase transcript, routinely past the 64 KiB pipe buffer. With the old `printf | grep -q` the marker
+# was found, printf died of SIGPIPE, pipefail returned 141, and a genuine usage-limit failure looked
+# clean — so the dispatcher never advanced to the phase fallback. Fails closed, but inert.
+# Marker FIRST, filler after — same ordering rule as the money fixture; see the note there.
+bigout='monthly usage limit reached'$'\n'"$(head -c 200000 /dev/zero | tr '\0' 'x')"
+usage_limit_error "$bigout" && ok 1 "detects a usage limit past the pipe buffer" || ok 0 "detects a usage limit past the pipe buffer"
+unset bigout
 
 echo "sandbox predicate: HARNESS_SANDBOX contract + auto-detect (is_sandboxed, gate.sh)"
 # Each case runs in a SUBSHELL so the env var never leaks into the next case or the rest of the suite.
@@ -587,6 +595,18 @@ JSON
   ok "$([ "$(tier_of 10 'src/util.ts' 'const t = tax_rate * x')" = "HIGH" ] && echo 1 || echo 0)"   "a money term as a snake_case prefix fires"
   ok "$([ "$(tier_of 10 'src/util.ts' 'const all = prices.map(f)')" = "HIGH" ] && echo 1 || echo 0)" "an inflected money term fires"
   ok "$([ "$(tier_of 10 'src/util.ts' 'a syntax error occurred')" = "LOW" ] && echo 1 || echo 0)"    "a money term MID-word does not fire"
+  # REGRESSION (found 2026-09-06 dogfooding /promote on a real range): the rule must fire on a diff
+  # BIGGER THAN THE PIPE BUFFER. money_signal used `printf '%s' "$text" | grep -q`; grep -q exits at
+  # the first match, printf is still writing 100+ KiB, printf dies of SIGPIPE (141), and this suite
+  # (line 6) and loop.sh/fleet.sh all run `set -o pipefail`, which promotes 141 to the pipeline's
+  # status. Every money term then reported ABSENT — a real payments diff classified LOW and became
+  # auto-mergeable. Every fixture above fits the 64 KiB buffer, which is why they stayed green.
+  # ORDER IS LOAD-BEARING: the money word goes FIRST, then 200 KiB of filler. grep -q exits at the
+  # match, so an early match leaves printf ~200 KiB still to write and it takes the SIGPIPE. Put the
+  # word at the END and grep must read it all, printf finishes, and the BUGGY code passes this test.
+  bigmoney='const p = price * 2'$'\n'"$(head -c 200000 /dev/zero | tr '\0' 'x')"
+  ok "$([ "$(tier_of 10 'src/util.ts' "$bigmoney")" = "HIGH" ] && echo 1 || echo 0)"  "a money signal fires in an added text larger than the pipe buffer"
+  unset bigmoney
   ok "$([ "$(tier_of 10 'harness/harness.config.json' '')" = "HIGH" ] && echo 1 || echo 0)" "editing the policy itself pins HIGH"
   ok "$([ "$(tier_of 10 'plugin/engine/lib/risk.sh' '')" = "HIGH" ] && echo 1 || echo 0)"  "editing the risk lib itself pins HIGH"
   : > "$RF"; : > "$RA"
@@ -687,6 +707,27 @@ JSON
 else
   echo "  (skipping jq-dependent risk classifier tests — jq not installed)"
 fi
+
+echo "docs: /promote binds its decision to the PR and finalises the audit record"
+# /promote is agent-executed prose, so these three guarantees exist ONLY in the text — there is no
+# function to unit-test. Each closes a gap a fresh-context reviewer called a blocker, so pin them
+# fact-by-fact (never one row-wide grep) so a rewrite that drops one goes red:
+#   1. the PR that gets merged is the PR that was classified (head SHA + base branch both bound);
+#   2. the record carries the ACTUAL outcome, not just the pre-action intent;
+#   3. a GitHub App installation token is NOT a usable reviewer identity — `gh api user` (GET /user)
+#      cannot serve one, so the advertised App path always failed closed and was inert. The claim is
+#      disproved; both prose surfaces must stay free of it.
+PROMO_MD="$REPO_ROOT/plugin/commands/promote.md"
+PROMO_DOC="$REPO_ROOT/docs/promotion.md"
+PROMO_SCHEMA="$ENGINE/harness.schema.json"
+APP_CLAIM='a machine user, a second account, or a GitHub App installation token'
+ok "$(grep -qF 'headRefOid' "$PROMO_MD" && echo 1 || echo 0)"        "/promote pins the PR head to the classified HEAD (headRefOid)"
+ok "$(grep -qF 'baseRefName' "$PROMO_MD" && echo 1 || echo 0)"       "/promote requires the PR base to be the environment's configured branch"
+ok "$(grep -qF '"outcome": null' "$PROMO_MD" && echo 1 || echo 0)"   "/promote's pre-action record starts with a null outcome"
+ok "$(grep -qF 'risk-outcome' "$PROMO_MD" && echo 1 || echo 0)"      "/promote appends an outcome ledger row after acting"
+ok "$(grep -qF 'risk-outcome' "$PROMO_DOC" && echo 1 || echo 0)"     "docs/promotion.md documents the outcome row"
+ok "$(! grep -qF "$APP_CLAIM" "$PROMO_DOC" && echo 1 || echo 0)"     "docs no longer advertise an App installation token as the reviewer identity"
+ok "$(! grep -qF "$APP_CLAIM" "$PROMO_SCHEMA" && echo 1 || echo 0)"  "schema no longer advertises an App installation token as the reviewer identity"
 
 echo "docs: model-routing skill documents the shipped default routing"
 # The skill is the single source of truth the setup interview reads from, and harness.config.json ships
