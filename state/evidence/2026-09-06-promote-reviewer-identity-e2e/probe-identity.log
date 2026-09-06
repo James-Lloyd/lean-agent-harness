@@ -1,0 +1,36 @@
+=== §9 probes (any failure => HUMAN, never merge) ===
+gh version 2.92.0 (2026-04-28)
+  ✓ Logged in to github.com account James-Lloyd (keyring)
+  - Active account: true
+  - Token scopes: 'gist', 'project', 'read:org', 'repo', 'workflow'
+  ✓ Logged in to github.com account jl-pr-reviewer (keyring)
+  - Active account: false
+  - Token scopes: 'gist', 'read:org', 'repo'
+
+=== §1 bind to the PR ===
+PR #16  state=OPEN  author=James-Lloyd
+  head binding : PR 0dc2c8f2281f vs local HEAD 0dc2c8f2281f  => BOUND
+  base binding : PR base "main" vs promotion.staging.branch "staging" => MISMATCH => HUMAN
+  => binding FAILED (this run can never reach AUTO)
+
+=== §6 the reviewer-identity gate, four real token states, same LOW range ===
+(the author of PR #16 is James-Lloyd — that is what each resolved login is compared against)
+
+1. env var unset             reviewer=0  login=<none>           reviewer identity not configured
+    decision: HUMAN|no separate reviewer identity configured (promotion.reviewer.tokenEnv unset/empty or equals the PR author); GitHub rejects self-approval
+
+2. invalid token             reviewer=0  login=<none>           reviewer identity could not be resolved (gh api user exit 1)
+    decision: HUMAN|no separate reviewer identity configured (promotion.reviewer.tokenEnv unset/empty or equals the PR author); GitHub rejects self-approval
+
+3. the author's own token    reviewer=0  login=James-Lloyd      reviewer identity equals author
+    decision: HUMAN|no separate reviewer identity configured (promotion.reviewer.tokenEnv unset/empty or equals the PR author); GitHub rejects self-approval
+
+4. the separate reviewer     reviewer=1  login=jl-pr-reviewer   separate reviewer identity resolved
+    decision: AUTO|LOW risk, all preconditions met, separate reviewer identity available, target staging
+
+=== gh-unavailable fails closed ===
+  gh --version on a stripped PATH: state/evidence/2026-09-06-promote-reviewer-identity-e2e/probe-identity.sh: line 98: gh: command not found
+  => probe fails => HUMAN path, and §6 never runs (no identity, no approve, no merge)
+
+=== nothing was approved or merged ===
+{"mergedAt":null,"reviewCount":0,"reviewDecision":"","state":"OPEN"}

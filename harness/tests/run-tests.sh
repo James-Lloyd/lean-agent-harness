@@ -728,6 +728,12 @@ ok "$(grep -qF 'risk-outcome' "$PROMO_MD" && echo 1 || echo 0)"      "/promote a
 ok "$(grep -qF 'risk-outcome' "$PROMO_DOC" && echo 1 || echo 0)"     "docs/promotion.md documents the outcome row"
 ok "$(! grep -qF "$APP_CLAIM" "$PROMO_DOC" && echo 1 || echo 0)"     "docs no longer advertise an App installation token as the reviewer identity"
 ok "$(! grep -qF "$APP_CLAIM" "$PROMO_SCHEMA" && echo 1 || echo 0)"  "schema no longer advertises an App installation token as the reviewer identity"
+# 4. Observed live 2026-09-06: `gh api user` on a bad token exits non-zero but prints its error body
+#    to STDOUT, so `REVIEWER=$(...)` holds `{"message":"Bad credentials"...}` — non-empty, not equal to
+#    the author, and a naive reading turns that into AUTO. §6.3 must demand the exit status AND a
+#    login-shaped result, or the reviewer gate fails OPEN on an expired token.
+ok "$(grep -qF 'exit status' "$PROMO_MD" && echo 1 || echo 0)"      "/promote checks gh api user's exit status, not just its output"
+ok "$(grep -qF 'Bad credentials' "$PROMO_MD" && echo 1 || echo 0)"  "/promote names the stdout-error-body trap that makes a bad token look like a login"
 
 echo "docs: model-routing skill documents the shipped default routing"
 # The skill is the single source of truth the setup interview reads from, and harness.config.json ships

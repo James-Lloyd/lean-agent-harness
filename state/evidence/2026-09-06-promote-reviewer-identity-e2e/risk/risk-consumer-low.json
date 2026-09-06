@@ -1,0 +1,26 @@
+{
+  "label": "LOW docs-only",
+  "repo": "throwaway consumer-shaped repo (see probe-consumer.sh)",
+  "range": "4be72f8..ccc3a3c",
+  "environment": "staging",
+  "deterministicTier": "LOW",
+  "deterministicReasons": [
+    "no escalation criterion tripped"
+  ],
+  "classifierTier": "LOW",
+  "classifierProof": "not run in this probe; passed the deterministic tier as the neutral input to the escalate-only max()",
+  "finalTier": "LOW",
+  "preconditions": {
+    "gateGreen": true,
+    "reviewShip": true,
+    "e2eEvidence": true
+  },
+  "reviewerConfigured": true,
+  "decision": "AUTO",
+  "reason": "LOW risk, all preconditions met, separate reviewer identity available, target staging",
+  "changedFiles": [
+    "docs/guide.md"
+  ],
+  "changedLines": 2,
+  "outcome": null
+}

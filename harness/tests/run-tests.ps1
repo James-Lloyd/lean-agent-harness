@@ -802,6 +802,12 @@ ok "/promote appends an outcome ledger row after acting"                        
 ok "docs/promotion.md documents the outcome row"                                    ($promoDoc.Contains('risk-outcome'))
 ok "docs no longer advertise an App installation token as the reviewer identity"    (-not $promoDoc.Contains($appClaim))
 ok "schema no longer advertises an App installation token as the reviewer identity" (-not $promoSchTxt.Contains($appClaim))
+# 4. Observed live 2026-09-06: `gh api user` on a bad token exits non-zero but prints its error body
+#    to STDOUT, so `REVIEWER=$(...)` holds '{"message":"Bad credentials"...}' - non-empty, not equal to
+#    the author, and a naive reading turns that into AUTO. §6.3 must demand the exit status AND a
+#    login-shaped result, or the reviewer gate fails OPEN on an expired token.
+ok "/promote checks gh api user's exit status, not just its output"                 ($promoMd.Contains('exit status'))
+ok "/promote names the stdout-error-body trap that makes a bad token look like a login" ($promoMd.Contains('Bad credentials'))
 
 Write-Host "docs: AGENTS.md is the map, CLAUDE.md is the @AGENTS.md import shim (design-doc 002)"
 # One source of truth: the vendor-neutral map is AGENTS.md; every CLAUDE.md beside an AGENTS.md is a

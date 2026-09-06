@@ -1,0 +1,23 @@
+throwaway consumer repo, classified by the shipped lib + shipped globs
+
+LOW docs-only          files=docs/guide.md,                   tier=LOW    (expected LOW   ) OK
+    why: no escalation criterion tripped
+    decision: AUTO|LOW risk, all preconditions met, separate reviewer identity available, target staging
+
+MEDIUM migration       files=db/migrations/002_add_index.sql, tier=MEDIUM (expected MEDIUM) OK
+    why: migrations: db/migrations/002_add_index.sql
+    decision: HUMAN|risk tier MEDIUM exceeds the staging auto-merge threshold
+
+HIGH checkout+money    files=src/checkout/pricing.ts,         tier=HIGH   (expected HIGH  ) OK
+    why: alwaysHuman path: src/checkout/pricing.ts; money signal 'amount' in added lines; money signal 'charge' in added lines; money signal 'refund' in added lines; money signal 'tax' in added lines
+    decision: HUMAN|risk tier HIGH exceeds the staging auto-merge threshold
+
+HIGH money-in-util     files=src/util/id.ts,                  tier=HIGH   (expected HIGH  ) OK
+    why: money signal 'price' in added lines
+    decision: HUMAN|risk tier HIGH exceeds the staging auto-merge threshold
+
+ledger rows:
+{"iter":0,"result":"risk","tier":"LOW","decision":"AUTO","env":"staging","path":"claude","usedFallback":false}
+{"iter":0,"result":"risk","tier":"MEDIUM","decision":"HUMAN","env":"staging","path":"claude","usedFallback":false}
+{"iter":0,"result":"risk","tier":"HIGH","decision":"HUMAN","env":"staging","path":"claude","usedFallback":false}
+{"iter":0,"result":"risk","tier":"HIGH","decision":"HUMAN","env":"staging","path":"claude","usedFallback":false}

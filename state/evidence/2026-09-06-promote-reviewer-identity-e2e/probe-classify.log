@@ -1,0 +1,30 @@
+shipped   promotion.enabled = false
+shadow    promotion.enabled = true
+staging   branch            = staging
+
+low-docs           0da5b00..553b9b0  lines=5     tier=LOW    reviewer=1  =>  AUTO
+    why: no escalation criterion tripped
+    decision reason: LOW risk, all preconditions met, separate reviewer identity available, target staging
+
+medium-size        9cdd976..85b8965  lines=5850  tier=HIGH   reviewer=1  =>  HUMAN
+    why: money signal 'price' in added lines; money signal 'amount' in added lines; money signal 'currency' in added lines; money signal 'charge' in added lines; money signal 'refund' in added lines; money signal 'payout' in added lines; money signal 'invoice' in added lines; money signal 'tax' in added lines; money signal 'discount' in added lines; money signal 'balance' in added lines; money signal 'stripe' in added lines; money signal 'paypal' in added lines; money signal 'adyen' in added lines; money signal 'braintree' in added lines; 5850 changed lines (limit 1000)
+    decision reason: risk tier HIGH exceeds the staging auto-merge threshold
+
+high-money         997c5a8..7a1ebe6  lines=2674  tier=HIGH   reviewer=1  =>  HUMAN
+    why: self-governance: harness/harness.config.json (policy, guardrails, or CI); self-governance: plugin/agents/risk-classifier.md (policy, guardrails, or CI); self-governance: plugin/commands/promote.md (policy, guardrails, or CI); self-governance: plugin/engine/lib/risk.ps1 (policy, guardrails, or CI); self-governance: plugin/engine/lib/risk.sh (policy, guardrails, or CI); self-governance: plugin/skills/risk-tiering/SKILL.md (policy, guardrails, or CI); money signal 'price' in added lines; money signal 'amount' in added lines; money signal 'currency' in added lines; money signal 'charge' in added lines; money signal 'refund' in added lines; money signal 'payout' in added lines; money signal 'invoice' in added lines; money signal 'tax' in added lines; money signal 'discount' in added lines; money signal 'balance' in added lines; money signal 'stripe' in added lines; money signal 'paypal' in added lines; money signal 'adyen' in added lines; money signal 'braintree' in added lines; 2674 changed lines (limit 1000)
+    decision reason: risk tier HIGH exceeds the staging auto-merge threshold
+
+low-noreviewer     0da5b00..553b9b0  lines=5     tier=LOW    reviewer=0  =>  HUMAN
+    why: no escalation criterion tripped
+    decision reason: no separate reviewer identity configured (promotion.reviewer.tokenEnv unset/empty or equals the PR author); GitHub rejects self-approval
+
+high-thisbatch     8d3f218..ac0d59f  lines=228   tier=HIGH   reviewer=1  =>  HUMAN
+    why: self-governance: harness/harness.config.json (policy, guardrails, or CI); self-governance: plugin/commands/promote.md (policy, guardrails, or CI); self-governance: plugin/engine/lib/risk.ps1 (policy, guardrails, or CI); self-governance: plugin/engine/lib/risk.sh (policy, guardrails, or CI)
+    decision reason: risk tier HIGH exceeds the staging auto-merge threshold
+
+ledger rows written to <repo>/harness/.runs/promote-20260906T110745/ledger.jsonl (copied to the evidence dir):
+{"iter":0,"result":"risk","tier":"LOW","decision":"AUTO","env":"staging","path":"claude","usedFallback":false}
+{"iter":0,"result":"risk","tier":"HIGH","decision":"HUMAN","env":"staging","path":"claude","usedFallback":false}
+{"iter":0,"result":"risk","tier":"HIGH","decision":"HUMAN","env":"staging","path":"claude","usedFallback":false}
+{"iter":0,"result":"risk","tier":"LOW","decision":"HUMAN","env":"staging","path":"claude","usedFallback":false}
+{"iter":0,"result":"risk","tier":"HIGH","decision":"HUMAN","env":"staging","path":"claude","usedFallback":false}

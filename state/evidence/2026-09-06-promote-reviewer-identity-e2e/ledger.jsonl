@@ -1,0 +1,5 @@
+{"iter":0,"result":"risk","tier":"LOW","decision":"AUTO","env":"staging","path":"claude","usedFallback":false}
+{"iter":0,"result":"risk","tier":"HIGH","decision":"HUMAN","env":"staging","path":"claude","usedFallback":false}
+{"iter":0,"result":"risk","tier":"HIGH","decision":"HUMAN","env":"staging","path":"claude","usedFallback":false}
+{"iter":0,"result":"risk","tier":"LOW","decision":"HUMAN","env":"staging","path":"claude","usedFallback":false}
+{"iter":0,"result":"risk","tier":"HIGH","decision":"HUMAN","env":"staging","path":"claude","usedFallback":false}

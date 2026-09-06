@@ -127,6 +127,16 @@ fails, the boolean is **false** and the decision drops to HUMAN.
    *reviewer identity equals author*). This pre-empts the self-approval rejection instead of
    discovering it at approve time.
 
+   **Check the exit status, and do not treat a non-empty capture as success.** On a bad or expired
+   token `gh api user` exits non-zero but prints its error body to **stdout**, so `$REVIEWER` ends up
+   holding `{ "message": "Bad credentials", ... }` — a non-empty string that is not the author, which
+   a naive reading turns into "a separate reviewer resolved" and then into AUTO. Observed live on
+   2026-09-06 while dogfooding this section. So: keep the exit status, require it to be zero, **and**
+   require the captured login to look like one (`^[A-Za-z0-9](-?[A-Za-z0-9])*$`, no whitespace, no
+   braces). Either check failing ⇒ reviewer **false**, reason *reviewer identity could not be
+   resolved*. Two checks rather than one because the shapes fail differently: a network error gives a
+   non-zero exit with empty output, a 401 gives a non-zero exit with output that parses.
+
 Then call `Get-PromotionDecision` / `promotion_decision` with the environment, the **deterministic
 tier and the classifier tier as two separate arguments** (PS `-DeterministicTier`/`-ClassifierTier`;
 bash positional `$3`/`$4`), the three precondition booleans, and **the reviewer boolean** (PS

@@ -1,0 +1,25 @@
+{
+  "label": "low-docs",
+  "range": "0da5b00..553b9b0",
+  "environment": "staging",
+  "deterministicTier": "LOW",
+  "deterministicReasons": [
+    "no escalation criterion tripped"
+  ],
+  "classifierTier": "LOW",
+  "classifierProof": "not run in this probe; passed the deterministic tier as the neutral input to the escalate-only max()",
+  "finalTier": "LOW",
+  "preconditions": {
+    "gateGreen": true,
+    "reviewShip": true,
+    "e2eEvidence": true
+  },
+  "reviewerConfigured": true,
+  "decision": "AUTO",
+  "reason": "LOW risk, all preconditions met, separate reviewer identity available, target staging",
+  "changedFiles": [
+    "AGENT_NOTES.md"
+  ],
+  "changedLines": 5,
+  "outcome": null
+}
