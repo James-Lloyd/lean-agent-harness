@@ -110,8 +110,16 @@ claim is not, and a future site with a `*`-quantified pattern must not lean on t
 | suite | result |
 |---|---|
 | `harness/tests/run-tests.sh` | **325 / 0** (321 at the tick, +4 from the review fixes) |
+| — same suite on the Linux CI runner | **324 / 0** |
 | `harness/tests/run-tests.ps1` | **333 / 0** (unchanged — the review fixes were sh-side and docs) |
 | `bash -n` over all 26 shell scripts | clean |
+
+The Linux runner is one lower for a pre-existing reason, not a skip introduced here: diffing the
+assertion labels between a local run and the CI log, the only difference is `cross-twin: PS -Check
+calls the bash-generated set fresh (digest parity)`, which needs PowerShell and cannot run on that
+runner. All four assertions added by this change execute on Linux — verified in the run log, not
+inferred from the total, since a count that merely *looks* right is how the skipped-branch problem
+below stayed invisible in the first place.
 
 The four added by the fresh-context review are the ones that make the other two converted files
 load-bearing rather than merely changed:
