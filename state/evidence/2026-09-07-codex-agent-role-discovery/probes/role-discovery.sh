@@ -40,6 +40,10 @@ echo "=== date:        $(date -u +%Y-%m-%dT%H:%M:%SZ)"
 echo
 
 run() {  # run(label, prompt)
+  if [ -n "${PROBE_SKIP_MODEL:-}" ]; then
+    echo "--- codex exec [$1] SKIPPED (PROBE_SKIP_MODEL set - this is a real model call)"
+    return 0
+  fi
   echo "--- codex exec [$1]"
   timeout 300 codex exec --sandbox read-only -C "$ROOT" "$2" 2>&1
   echo "--- exit=$? [$1]"

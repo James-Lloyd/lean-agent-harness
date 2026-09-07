@@ -1,0 +1,58 @@
+=== project root: /c/Users/<you>/Repos/<repo>/.claude/worktrees/codex-agent-role-discovery
+=== codex:        codex-cli 0.153.4
+=== date:         2026-09-07T19:15:23Z
+
+=== L1: role file IS in .codex/agents (discovered). Token expected.
+--- occurrences of the token anywhere under .codex:
+1
+Reading additional input from stdin...
+OpenAI Codex v0.153.4
+--------
+workdir: C:\Users\<you>\Repos\<repo>\.claude\worktrees\codex-agent-role-discovery
+model: gpt-6-astra
+provider: openai
+approval: never
+sandbox: read-only
+reasoning effort: high
+reasoning summaries: none
+session id: 01a07d4b-f183-7321-b638-bbe9c379d8ba
+--------
+user
+Do not read any files and do not use any tool other than spawning an agent. Spawn the agent role named probeSpawn, ask it to identify itself, and report its reply VERBATIM. If no such role exists, reply NO-SUCH-ROLE.
+codex
+I’ll spawn the `probeSpawn` role and relay its reply verbatim.
+
+codex
+PLUGH-CONTROL-TOKEN-8823
+tokens used
+14,792
+PLUGH-CONTROL-TOKEN-8823
+--- exit=0 [L1]
+
+=== L2: SAME file, moved to .codex/agents-off (NOT discovered). Token must NOT return.
+--- .codex/agents is empty:
+0
+--- the token is still on disk, one directory over:
+1
+Reading additional input from stdin...
+OpenAI Codex v0.153.4
+--------
+workdir: C:\Users\<you>\Repos\<repo>\.claude\worktrees\codex-agent-role-discovery
+model: gpt-6-astra
+provider: openai
+approval: never
+sandbox: read-only
+reasoning effort: high
+reasoning summaries: none
+session id: 01a07d4c-6056-7f53-9a45-296324bf581d
+--------
+user
+Do not read any files and do not use any tool other than spawning an agent. Spawn the agent role named probeSpawn, ask it to identify itself, and report its reply VERBATIM. If no such role exists, reply NO-SUCH-ROLE.
+codex
+NO-SUCH-ROLE
+tokens used
+8,340
+NO-SUCH-ROLE
+--- exit=0 [L2]
+
+=== round 4b complete.

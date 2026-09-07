@@ -6,6 +6,14 @@
 # Convention, matching state/evidence/2026-09-06-codex-0153-reverify/results.txt:
 #   <home>\repos\<this repo>  ->  \users\<you>\repos\<repo>   (either slash, either case)
 #
+# THE DOUBLED-BACKSLASH ARM IS NOT OPTIONAL. Codex prints some paths JSON-escaped —
+#   Refusing to create helper binaries under temporary dir "C:\\Users\\<you>\\AppData\\..."
+# — and `Users\\<user>` matches NEITHER a single-separator scrub rule NOR the repo's
+# pre-commit denylist, whose `[Uu]sers[/\\]<name>` character class consumes exactly one
+# separator and then expects the name. Both this scrubber and that guard missed it, and a real
+# username reached a commit in a public repo. Scrub every escaping the tool actually
+# emits, not the one that happened to be in the first transcript you looked at.
+#
 # The patterns are DERIVED from $HOME and the repo path at runtime rather than written out,
 # because a scrub script containing the literal it scrubs for is itself unstageable — the
 # guard reads staged CONTENT, and does not care that the file is the fix.
@@ -33,9 +41,10 @@ case "$top" in *".claude/worktrees/"*) repo="$(basename "${top%%/.claude/worktre
 repo="${HARNESS_SCRUB_REPO:-${repo:-}}"
 if [ -z "$repo" ]; then echo "scrub-paths: cannot derive the repo name; set HARNESS_SCRUB_REPO" >&2; exit 1; fi
 
-for f in results-raw.txt results-visible.txt results-visible-real.txt \
-         results-round2.txt results-round3.txt \
-         results-round2-assertions.txt results-round3-assertions.txt; do
+# GLOB, never a hand-maintained list. The list form already failed once: rounds 4 and 4b were
+# written after it and were not added, so a fresh transcript with the username in it sat
+# unscrubbed while this script reported success on the seven files it did know about.
+for f in results-*.txt; do
   [ -f "$f" ] || continue
   sed -i \
     -e "s|[Uu]sers/$user/[Rr]epos/$repo|Users/<you>/Repos/<repo>|g" \
@@ -43,6 +52,7 @@ for f in results-raw.txt results-visible.txt results-visible-real.txt \
     -e "s|[Uu]sers\\\\$user\\\\[Rr]epos\\\\$repo|Users\\\\<you>\\\\Repos\\\\<repo>|g" \
     -e "s|[Uu]sers/$user|Users/<you>|g" \
     -e "s|[Uu]sers\\\\$user|Users\\\\<you>|g" \
+    -e "s|\\([/\\\\]\\{1,\\}\\)$user|\\1<you>|g" \
     "$f"
   echo "scrubbed $f"
 done

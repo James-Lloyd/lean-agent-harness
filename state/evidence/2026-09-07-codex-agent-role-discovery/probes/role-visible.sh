@@ -23,6 +23,10 @@ echo "=== date:        $(date -u +%Y-%m-%dT%H:%M:%SZ)"
 echo
 
 run() {
+  if [ -n "${PROBE_SKIP_MODEL:-}" ]; then
+    echo "--- codex exec [$1] SKIPPED (PROBE_SKIP_MODEL set - this is a real model call)"
+    return 0
+  fi
   echo "--- codex exec [$1]"
   timeout 300 codex exec --sandbox read-only -C "$ROOT" "$2" 2>&1
   echo "--- exit=$? [$1]"
@@ -50,9 +54,11 @@ run "E" "$LIST_PROMPT"
 # ---------------------------------------------- arm F: the REAL generated set
 # SUPERSEDED — do not re-run this arm expecting an answer. As written it omits HARNESS_ENGINE,
 # so the wrapper falls through to the installed plugin cache and dies with "engine not found"
-# before Codex is ever invoked. Kept verbatim because results-visible.txt is its transcript.
-# The working version is role-visible-real.sh. Left here, un-fixed, so the committed script and
-# the committed output still correspond.
+# before Codex is ever invoked. The working version is role-visible-real.sh.
+# This arm HAS since been given the existence guard below, so it no longer matches
+# results-visible.txt line for line: that transcript predates the guard and shows both the old
+# fallback wording and the wasted model call that followed it. Script and transcript diverge on
+# purpose — the transcript is the record of the failure, the script is what a re-run should do.
 rm -rf .codex
 echo "=== ARM F: generate the real .codex via the harness wrapper, then list roles"
 bash harness/codex-setup.sh

@@ -184,6 +184,20 @@ editing** (Claude Code: see CLAUDE.md; anything else: `git worktree add`). Land 
   read only the first 30 lines). The citation requirement is what converts "a filtered view cannot
   prove silence" from a lesson people nod at into one the artifact enforces.
 
+- [2026-09-07] A path/secret scrubber, and the guard behind it, are proven against **every escaping
+  the tool actually emits** (`/`, `\`, `\\`), not just the one that happened to be in the transcript
+  you looked at. Codex prints some paths JSON-escaped, and `Users\\<name>` matches neither a
+  single-separator scrub rule nor the pre-commit denylist, whose character class consumes one
+  separator and then expects the name. Both missed it and a real username reached a commit in a
+  public repo. The proof fixture carries every form, and asserts on the **username itself** — an
+  assertion that reuses the guard's own pattern inherits the guard's blind spot.
+- [2026-09-07] A documented cost switch is honoured by **every** script the doc points at, or the doc
+  names the ones it does not cover. "Set `PROBE_SKIP_MODEL=1` to run only the free parts" was false
+  for seven of nine paid arms, so anyone re-running the probes cheaply would have paid for all of
+  them. Prove it with a stub on `PATH` that fails loudly when the paid path is taken, plus a negative
+  control that fires when the switch is off — otherwise the proof passes on a script that never calls
+  the tool at all.
+
 ## Nested context
 Subsystems carry their own `AGENTS.md` next to their code (in this repo: `plugin/engine/` holds the
 engine's PS-5.1/twin-parity rules). When working in a subsystem, its local map applies too.

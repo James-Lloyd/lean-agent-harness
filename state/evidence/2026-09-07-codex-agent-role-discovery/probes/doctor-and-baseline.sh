@@ -3,7 +3,8 @@
 # measured with no committed artifact behind them, which is a class this repo has already
 # ratcheted once. This script produces the artifacts.
 #
-#   G1  `codex doctor` is silent about a broken role that `codex exec` warns about.
+#   G1  HYPOTHESIS, DISPROVED BELOW: `codex doctor` is silent about a broken role that
+#       `codex exec` warns about. It is not — see the note under this list.
 #       Round 1 asserted this in six surfaces citing "run 1", whose output was never
 #       committed — and attributed it to the DECLARED-missing-file role, while the prose
 #       attributed it to the DISCOVERED-malformed one. Different claims. G1 runs doctor
