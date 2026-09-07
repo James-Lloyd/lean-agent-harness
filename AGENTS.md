@@ -165,6 +165,15 @@ editing** (Claude Code: see CLAUDE.md; anything else: `git worktree add`). Land 
   And give a forced-environment test a POSITIVE CONTROL: "denied" and "crashed" are both non-zero, so
   without one, a hook dying on a missing command reads as a pass. "The suite is green" says nothing
   about a branch it never entered — and "the assertion passed" says nothing if it never ran.
+- [2026-09-06] **A claim of SILENCE is earned only by a probe that captured the FULL output** — a
+  filtered `grep` cannot prove absence, and a re-verification banner names *which* claims were
+  re-measured instead of saying "everything still holds". Both halves came from one review of the
+  Codex 0.153.4 pass: "an untrusted project skips its config silently, no warning" was asserted from a
+  probe that piped the run through `grep -E '^(model|ERROR|error)'`, so a `warning:` line would never
+  have been seen; and the doc banner claimed "every point below still holds" while the section beneath
+  it recorded the one point that had *changed*, alongside several never re-run at all. Re-running
+  unfiltered did vindicate the silence claim — that is luck, not method. Capture everything, then
+  assert; and when re-verifying against a new version, state per claim which version it rests on.
 
 ## Nested context
 Subsystems carry their own `AGENTS.md` next to their code (in this repo: `plugin/engine/` holds the
