@@ -123,3 +123,23 @@ PowerShell 5.1: `powershell harness/tests/run-tests.ps1`; bash needs `jq` on PAT
   rewrote four 2026-09-04 entries that were correct as written. Scope the pattern to the line you mean
   (`sed -i '/DONE 2026-09-06/ s/.../.../'`) and read `git diff` before committing — the corruption is
   invisible in the file, and only shows up as a diff touching dates you never worked on.
+- [2026-09-07] **Probing a foreign tool: the oracle must be able to fail, and silence is only evidence
+  next to a control that speaks.** The question "does Codex auto-discover `.codex/agents/*.toml`" cannot
+  be answered with a well-formed role file, because a file that loaded and a file that was never read
+  both look like nothing happening. It is answered with a DELIBERATELY MALFORMED one: the loader's own
+  error names the path it read. Same shape as the guard-probe rule from 2026-09-06 — a probe that
+  cannot discriminate is not a probe. Two facts fell out of doing it that way, both worth keeping:
+  `codex doctor` printed nothing for a broken role that `codex exec` warned about (second time doctor
+  has failed to answer "is my `.codex/` doing anything"), and a malformed role file is a WARNING, not
+  a fatal — unlike the V3 `config.toml` defects it degrades silently and does not take the layer down.
+- [2026-09-07] **Never pipe a probe script through `head`.** Run 1 of the role-discovery probe was
+  piped `| tee results.txt | head -120`; head closed the pipe at line 120, tee took SIGPIPE, and the
+  script died two arms early — with a zero-ish exit and a results file that looked merely short. Same
+  SIGPIPE family as the guard-hook fail-open, self-inflicted this time. Redirect to a file and read the
+  file. Doubly so when each arm is a real model call: a truncated run costs the tokens and keeps none
+  of the answer.
+- [2026-09-07] A bare `harness/codex-setup.sh` inside a worktree dies with "lean-agent-harness engine
+  not found" — nothing auto-sets `HARNESS_ENGINE`, so the wrapper falls through to the
+  `~/.claude/plugins` cache, which on this machine is **0.2.9 (2026-08-12)** and predates codex-setup
+  entirely. Export `HARNESS_ENGINE=<worktree>/plugin/engine` first, as the suites do. The E2-flip note
+  called this out for `loop.ps1`; it applies to every wrapper.
