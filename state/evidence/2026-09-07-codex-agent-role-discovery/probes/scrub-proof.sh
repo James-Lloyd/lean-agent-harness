@@ -26,6 +26,12 @@ case "$top" in *".claude/worktrees/"*) repo="$(basename "${top%%/.claude/worktre
   printf 'project root: /c/Users/%s/Repos/%s/.claude/worktrees/x\n' "$user" "$repo"
   printf 'workdir: C:\\Users\\%s\\Repos\\%s\\.claude\n' "$user" "$repo"
   printf "trust: [projects.'c:\\\\users\\\\%s\\\\repos\\\\%s']\\n" "$user" "$repo"
+  # The JSON-escaped form Codex really emits. Absent from this fixture at first, which is
+  # precisely why a real username shipped: the proof only planted the escapings the scrubber
+  # already handled, so it passed while the guard was being evaded.
+  printf 'refusing: "C:\\\\Users\\\\%s\\\\AppData\\\\Local\\\\Temp\\\\"\n' "$user"
+  # And a triple, because "the escaping the tool emits today" is not a closed set.
+  printf 'triple: C:\\\\\\Users\\\\\\%s\\\\\\AppData\n' "$user"
 } > "$work/results-raw.txt"
 
 echo "--- fixture before:"
@@ -36,9 +42,12 @@ cat "$work/results-raw.txt"
 echo "--- fixture after:"
 cat "$work/results-raw.txt"
 
-# The assertion is the repo's own guard pattern, not a restatement of the sed script.
-if grep -naiE "[Uu]sers[/\\\\]$user" "$work/results-raw.txt"; then
-  echo "FAIL: a home path survived the scrub"
+# Assert on the username itself, not on the repo guard's pattern. Using the guard pattern
+# here was the flaw that let the leak through: it matches ONE separator, so the doubled
+# form is invisible to it, and a proof that borrows the guard's blind spot cannot see past
+# it either. Any occurrence of the username in a path-ish context is a failure.
+if grep -naiF "$user" "$work/results-raw.txt"; then
+  echo "FAIL: the username survived the scrub in at least one escaping"
   exit 1
 fi
 if ! grep -q '<you>' "$work/results-raw.txt"; then

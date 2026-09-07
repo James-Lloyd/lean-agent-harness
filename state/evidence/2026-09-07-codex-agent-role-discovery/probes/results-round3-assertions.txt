@@ -7,7 +7,7 @@
 
 === H2: CODEX_HOME UNDER the system temp dir - does Codex refuse to place helpers?
 --- CODEX_HOME=/tmp/codex-home-tempdir-probe
-1:WARNING: proceeding, even though we could not create PATH aliases: Refusing to create helper binaries under temporary dir "C:\\Users\\james\\AppData\\Local\\Temp\\" (codex_home: AbsolutePathBuf("C:\\Users\\james\\AppData\\Local\\Temp\\codex-home-tempdir-probe"))
+1:WARNING: proceeding, even though we could not create PATH aliases: Refusing to create helper binaries under temporary dir "C:\\Users\\<you>\\AppData\\Local\\Temp\\" (codex_home: AbsolutePathBuf("C:\\Users\\<you>\\AppData\\Local\\Temp\\codex-home-tempdir-probe"))
 (MATCHED - the refusal reproduces)
 
 === round 3 complete.

@@ -1,0 +1,10 @@
+--- role-discovery.sh
+--- role-visible.sh
+    (exited non-zero; that alone is not a failure here)
+--- role-visible-real.sh
+--- doctor-and-baseline.sh
+--- spawn-and-tempdir.sh
+--- spawn-control.sh
+PASS: no script invoked 'codex exec' under PROBE_SKIP_MODEL=1
+--- negative control: same stub, PROBE_SKIP_MODEL unset
+PASS: the stub does detect a paid arm when the switch is off

@@ -43,8 +43,10 @@ echo "=== H1: spawn a DISCOVERED role and look for a token that lives only in it
 if [ -n "${PROBE_SKIP_MODEL:-}" ]; then echo "(skipped: PROBE_SKIP_MODEL set - this arm is a real model call)"; else
 echo "--- state on disk (no [agents] block, one role file):"
 ls .codex/agents/
-echo "--- the token appears in exactly this many places on disk under .codex:"
-grep -rc "XYZZY-ROLE-TOKEN-4417" .codex/agents/probeSpawn.toml
+echo "--- files under .codex containing the token (expected: 1):"
+grep -rl "XYZZY-ROLE-TOKEN-4417" .codex | wc -l   # was `grep -rc <one named file>`, which
+                                                  # counts LINES in a file it was handed, and
+                                                  # so could not have detected a second copy
 echo
 timeout 420 codex exec --sandbox read-only -C "$ROOT" \
   "Spawn the agent role named probeSpawn, ask it to identify itself, and report its reply VERBATIM. If you cannot spawn it, reply CANNOT-SPAWN and say why." 2>&1

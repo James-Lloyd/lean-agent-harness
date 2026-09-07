@@ -167,9 +167,14 @@ change.
 
 **And a discovered role really runs.** A role file whose `developer_instructions` carry a token that
 exists nowhere else on disk was spawned by name from a plain `codex exec` session, and the token came
-back verbatim (`probes/results-round3.txt`). A returned name only proves the model can say a name; a
-returned token that lives solely inside the role file proves the file's instructions reached the
-sub-agent.
+back verbatim (`probes/results-round3.txt`). A returned name only proves the model can say a name.
+
+**And the delivery mechanism is the loader, not a file read.** The first spawn arm did not forbid
+file reads, so a parent that simply opened the role file would have produced the same transcript. The
+control (`probes/results-round4b.txt`) separates them: with reads forbidden, the role in
+`.codex/agents/` returns its token, and the **same file moved one directory over** to
+`.codex/agents-off/` — still on disk, still readable — returns `NO-SUCH-ROLE`. Discovery is what
+delivers the role.
 
 *Do not read the surrounding names as a built-in role list.* Asked to enumerate its roles with no
 project `.codex/` at all, the model answered `general-purpose` twice; in other arms it volunteered
@@ -199,7 +204,9 @@ about it are worth keeping:
   normally. Unlike the V3 `config.toml` defects, a bad role file degrades silently — it does not take
   the `.codex/` layer down with it, and nothing but the warning line says the role is missing.
 - **`[agents.<name>]` in `config.toml` is a separate, additive mechanism**, and a weaker one. It
-  takes `description`, `config_file` and `nickname_candidates`; a `config_file` pointing at a missing
+  takes `description`, `config_file` and `nickname_candidates` — the three fields the installed
+  binary's own deserializer names (`struct AgentRoleToml with 3 elements`, captured in
+  `probes/results-round4.txt`); a `config_file` pointing at a missing
   path warns at load (`must point to an existing file at …`), but declaring the *malformed* file that
   way produced no warning at all — the content is validated on the discovery path, not the
   declaration path. The harness does not use declarations, and on this evidence should not start.

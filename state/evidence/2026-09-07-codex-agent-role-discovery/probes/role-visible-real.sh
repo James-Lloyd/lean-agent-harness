@@ -44,7 +44,11 @@ head -8 .codex/agents/reviewer.toml
 echo
 
 echo "=== codex exec [F]"
-timeout 300 codex exec --sandbox read-only -C "$ROOT" \
-  "Do not use any tools and do not read any files. List the names of the agent roles you can spawn, one name per line, nothing else. If you cannot spawn agents at all, reply NO-AGENTS." 2>&1
-echo "--- exit=$? [F]"
+if [ -n "${PROBE_SKIP_MODEL:-}" ]; then
+  echo "SKIPPED (PROBE_SKIP_MODEL set - this is a real model call)"
+else
+  timeout 300 codex exec --sandbox read-only -C "$ROOT" \
+    "Do not use any tools and do not read any files. List the names of the agent roles you can spawn, one name per line, nothing else. If you cannot spawn agents at all, reply NO-AGENTS." 2>&1
+  echo "--- exit=$? [F]"
+fi
 echo "=== probe complete. .codex/ holds the REAL generated set; it is gitignored."

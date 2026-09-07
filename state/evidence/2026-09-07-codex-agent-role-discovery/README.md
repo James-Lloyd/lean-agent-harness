@@ -45,11 +45,12 @@ failed attempt), `probes/results-visible-real.txt` (F), `probes/results-round2.t
 Probes are re-runnable, but the arms that call `codex exec` are real model calls — set
 `PROBE_SKIP_MODEL=1` to run only the free parts, and do not loop them.
 
-*Reading `results-round2.txt`: ignore the `(no matching lines)` at line 58 and read the 20 matching
-lines above it.* That is the raw first run, and the line is the very defect described below — a
-`grep` whose `||` fallback fires because `codex doctor` exited non-zero under `pipefail`, not because
-the grep failed. The corrected pass/fail logic and its output are in `results-round2-assertions.txt`,
-which prints `(MATCHED)`.
+*Reading `results-round2.txt` and `results-round3.txt`: both raw files end an assertion with a
+verdict line that contradicts the matching lines printed directly above it — `(no matching lines)` in
+round 2, `(no refusal line …)` in round 3.* Those are the raw first runs, and the contradiction is the very defect
+described below — a `grep` whose `||` fallback fires because `codex doctor` exited non-zero under
+`pipefail`, not because the grep failed. Read the matching lines, not the verdict. The corrected
+logic and its output are in the two `*-assertions.txt` files, which print `(MATCHED …)`.
 
 ## Method note — why a *malformed* file
 
@@ -77,11 +78,28 @@ the seven generated ones — those never appear in the empty baseline — so the
 corroborating, not load-bearing. The load-bearing evidence is the loader's own warning (arm B) and
 the spawn token (arm H1).
 
-**"Spawnable" was an inference; now it is measured.** No round-1 arm spawned anything, and an
-enumeration of names is not use — which matters because G3 then showed the model will produce names
-for roles that do not exist. Arm H1 closes it properly: a discovered, undeclared role was spawned by
-name and returned `XYZZY-ROLE-TOKEN-4417`, a string that exists in exactly one file on disk, its own
-`developer_instructions`. A name can be invented; that token cannot.
+**"Spawnable" was an inference; now it is measured — twice.** No round-1 arm spawned anything, and an
+enumeration of names is not use, which matters because G3 showed the model will produce names for
+roles that do not exist. Arm H1 spawned a discovered, undeclared role and got back
+`XYZZY-ROLE-TOKEN-4417`, a string in exactly one file on disk. A name can be invented; that token
+cannot. But H1 alone still did not prove the loader delivered it — its prompt did not forbid file
+reads, and the role file sat in the cwd, so a parent that read it gives an identical transcript.
+
+Round 4b (`probes/results-round4b.txt`) closes that. Reads forbidden, one role file, two placements:
+
+| Arm | Role file at | Reply |
+|---|---|---|
+| L1 | `.codex/agents/` (discovered) | `PLUGH-CONTROL-TOKEN-8823` |
+| L2 | `.codex/agents-off/` (same bytes, undiscovered, still on disk) | `NO-SUCH-ROLE` |
+
+The token is present on disk in both arms and comes back in only one. Discovery is the delivery
+mechanism.
+
+**On the fix_plan clause "one transcript shows a generated agent role in use":** it is closed by
+three arms together, not by any one. Arm B shows the loader reads an undeclared file; arm F shows the
+*generated* seven reach a session; L1/L2 show a discovered role genuinely runs and does so via
+discovery. No single arm both spawns and uses a file the generator itself wrote — the spawn probes
+use a hand-written role so the token can be unique.
 
 **Six SQLite databases, not five,** under a redirected `CODEX_HOME` (arm G2).
 
@@ -91,7 +109,8 @@ name and returned `XYZZY-ROLE-TOKEN-4417`, a string that exists in exactly one f
    normally. Unlike the V3 `config.toml` defects (which killed the whole project layer), a bad role
    file degrades silently: the role is simply absent, and only the warning line says so.
 2. **`[agents.<name>]` in `config.toml` is a separate, weaker mechanism.** `AgentRoleToml` takes
-   `description`, `config_file`, `nickname_candidates`. A missing `config_file` warns; a *malformed*
+   `description`, `config_file`, `nickname_candidates` — the binary's own deserializer error says
+   `struct AgentRoleToml with 3 elements` and names them (`probes/results-round4.txt`). A missing `config_file` warns; a *malformed*
    declared file does not (arm C). The harness does not use declarations and, on this evidence,
    should not start.
 
