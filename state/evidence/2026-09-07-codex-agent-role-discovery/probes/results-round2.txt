@@ -1,0 +1,104 @@
+=== project root: /c/Users/<you>/Repos/<repo>/.claude/worktrees/codex-agent-role-discovery
+=== codex:        codex-cli 0.153.4
+=== date:         2026-09-07T18:29:49Z
+
+=== G1: does 'codex doctor' report the malformed UNDECLARED role that 'codex exec' warned about?
+--- state on disk:
+probeB.toml
+# no [agents] block - exactly what codex-setup generates
+--- codex doctor (full Notes + Configuration sections, unfiltered head):
+Codex Doctor v0.153.4 · windows-x86_64
+
+Notes
+   ⚠ security     Microsoft Defender can interfere with Codex. Verify Codex exclusions.
+   ⚠ git          this worktree is not on a Windows Dev Drive; moving it to a trusted Dev Drive can significantly improve repository and filesystem performance - create a trusted Windows Dev Drive for source repositories: https://learn.microsoft.com/en-us/windows/dev-drive/
+   ⚠ config       config loaded
+─────────────────────────────────────────────────────────────
+
+Environment
+  ✓ system       en-GB
+      os                       Windows 10.0.26200 (Windows 11 Core) [64-bit]
+      OS language              en-GB
+      LANG                     en_US.UTF-8
+      VISUAL                   not set
+      EDITOR                   not set
+  ✓ disk         sufficient free disk space (51.0 GiB)
+      warning threshold        5.0 GiB
+      failure threshold        1.0 GiB
+      CODEX_HOME available     51.0 GiB
+      worktree available       51.0 GiB
+--- grep the FULL doctor output for any mention of the role (this is the assertion):
+93:      rollout DB malformed file names 0
+121:      startup warning          Ignoring malformed agent role definition: agent role file at C:\Users\<you>\Repos\<repo>\.claude\worktrees\codex-agent-role-discovery\.codex\agents\probeB.toml must define `developer_instructions`
+
+=== G2: does CODEX_HOME redirect the user-level layer?
+--- codex doctor with CODEX_HOME=/c/Users/<you>/Repos/<repo>/.claude/worktrees/codex-agent-role-discovery/.codex-home-probe :
+6:   ✗ auth         no Codex credentials were found - Run codex login or provide an API key through a supported auth env var.
+20:      CODEX_HOME available     50.8 GiB
+76:      CODEX_HOME               C:\Users\<you>\Repos\<repo>\.claude\worktrees\codex-agent-role-discovery\.codex-home-probe (dir)
+77:      log dir                  C:\Users\<you>\Repos\<repo>\.claude\worktrees\codex-agent-role-discovery\.codex-home-probe\log (missing)
+78:      sqlite home              C:\Users\<you>\Repos\<repo>\.claude\worktrees\codex-agent-role-discovery\.codex-home-probe (dir)
+79:      state DB                 C:\Users\<you>\Repos\<repo>\.claude\worktrees\codex-agent-role-discovery\.codex-home-probe\state_5.sqlite (missing) · integrity skipped (missing)
+80:      log DB                   C:\Users\<you>\Repos\<repo>\.claude\worktrees\codex-agent-role-discovery\.codex-home-probe\logs_2.sqlite (missing) · integrity skipped (missing)
+81:      goals DB                 C:\Users\<you>\Repos\<repo>\.claude\worktrees\codex-agent-role-discovery\.codex-home-probe\goals_1.sqlite (missing) · integrity skipped (missing)
+82:      memories DB              C:\Users\<you>\Repos\<repo>\.claude\worktrees\codex-agent-role-discovery\.codex-home-probe\memories_1.sqlite (missing) · integrity skipped (missing)
+85:      queue DB                 C:\Users\<you>\Repos\<repo>\.claude\worktrees\codex-agent-role-discovery\.codex-home-probe\queue_1.sqlite (missing)
+86:      queue DB integrity       skipped (missing)
+87:      thread history DB        C:\Users\<you>\Repos\<repo>\.claude\worktrees\codex-agent-role-discovery\.codex-home-probe\thread_history_1.sqlite (missing)
+88:      thread history DB integrity skipped (missing)
+89:  ✓ threads      no rollout/state DB inventory to compare
+96:      rollout DB rows          skipped (state DB missing)
+105:  ✗ auth         no Codex credentials were found — Run codex login or provide an API key through a supported auth env var.
+106:      auth storage mode        File
+107:      auth file                C:\Users\<you>\Repos\<repo>\.claude\worktrees\codex-agent-role-discovery\.codex-home-probe\auth.json
+122:      log directory            $HOME\AppData\Local\Codex/Logs
+148:      auth mode                none
+151:      handshake transport error http 401 Unauthorized: Some("")
+153:      reachability mode        ChatGPT auth
+(no matching lines)
+--- count of user-level SQLite DBs reported under the new home:
+6
+
+=== G3: baseline role list with NO project .codex at all, asked TWICE
+--- run 1:
+Reading additional input from stdin...
+OpenAI Codex v0.153.4
+--------
+workdir: C:\Users\<you>\Repos\<repo>\.claude\worktrees\codex-agent-role-discovery
+model: gpt-6-astra
+provider: openai
+approval: never
+sandbox: read-only
+reasoning effort: high
+reasoning summaries: none
+session id: 01a07d22-6d64-7480-af2b-7f24d73a94fe
+--------
+user
+Do not use any tools and do not read any files. List the names of the agent roles you can spawn, one name per line, nothing else. If you cannot spawn agents at all, reply NO-AGENTS.
+codex
+general-purpose
+tokens used
+8,051
+general-purpose
+--- run 2 (same prompt, same empty state - is the answer stable?):
+Reading additional input from stdin...
+OpenAI Codex v0.153.4
+--------
+workdir: C:\Users\<you>\Repos\<repo>\.claude\worktrees\codex-agent-role-discovery
+model: gpt-6-astra
+provider: openai
+approval: never
+sandbox: read-only
+reasoning effort: high
+reasoning summaries: none
+session id: 01a07d22-a67b-7993-a935-402e35a37f52
+--------
+user
+Do not use any tools and do not read any files. List the names of the agent roles you can spawn, one name per line, nothing else. If you cannot spawn agents at all, reply NO-AGENTS.
+codex
+general-purpose
+tokens used
+8,111
+general-purpose
+
+=== round 2 complete.

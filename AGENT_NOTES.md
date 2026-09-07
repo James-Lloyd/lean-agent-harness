@@ -123,3 +123,40 @@ PowerShell 5.1: `powershell harness/tests/run-tests.ps1`; bash needs `jq` on PAT
   rewrote four 2026-09-04 entries that were correct as written. Scope the pattern to the line you mean
   (`sed -i '/DONE 2026-09-06/ s/.../.../'`) and read `git diff` before committing — the corruption is
   invisible in the file, and only shows up as a diff touching dates you never worked on.
+- [2026-09-07] **Probing a foreign tool: the oracle must be able to fail, and silence is only evidence
+  next to a control that speaks.** The question "does Codex auto-discover `.codex/agents/*.toml`" cannot
+  be answered with a well-formed role file, because a file that loaded and a file that was never read
+  both look like nothing happening. It is answered with a DELIBERATELY MALFORMED one: the loader's own
+  error names the path it read. Same shape as the guard-probe rule from 2026-09-06 — a probe that
+  cannot discriminate is not a probe. Two things fell out of doing it that way. A malformed role file
+  is a WARNING, not a fatal — unlike the V3 `config.toml` defects it degrades silently and does not
+  take the layer down. And an enumeration is not proof of use: asked to name its roles with no
+  project `.codex/` at all, the model still produced a plausible name, so the only sound evidence
+  that a role RUNS is a token that exists nowhere but inside that role's own instructions coming
+  back from a spawn.
+- [2026-09-07] **A filtered view cannot prove silence — and this is the second time, one day apart.**
+  The 2026-09-06 note says a `grep`-narrowed transcript cannot support "no warning was printed". The
+  very next session asserted, in six surfaces, that `codex doctor` is blind to a malformed agent role
+  — from a probe that piped doctor through `sed -n '1,30p'`. Doctor reports it fine, as a
+  `startup warning` field at line 121. The claim died only because a fresh-context reviewer refused
+  an assertion whose cited file did not contain it. Reading the ratchet is not the same as applying
+  it: the guard that actually worked was structural (cite the file and line, or do not write the
+  claim), not memory.
+- [2026-09-07] **`cmd | grep -q … || echo "(none)"` lies under `set -o pipefail` when `cmd` exits
+  non-zero.** The pipeline's status becomes the failure, so the `||` fallback fires even though grep
+  MATCHED — printing the match and "(none found)" underneath it. Hit twice in one session: once as a
+  review finding on `grep … || echo "(none - roles are undeclared)"` firing over a MISSING file, and
+  once by hand an hour later, on `codex doctor` (which exits non-zero on its auth check) piped into
+  grep. Capture into a variable first, then assert on the variable. Assert that the file exists
+  before spending a model call on what it contains.
+- [2026-09-07] **Never pipe a probe script through `head`.** Run 1 of the role-discovery probe was
+  piped `| tee results.txt | head -120`; head closed the pipe at line 120, tee took SIGPIPE, and the
+  script died two arms early — with a zero-ish exit and a results file that looked merely short. Same
+  SIGPIPE family as the guard-hook fail-open, self-inflicted this time. Redirect to a file and read the
+  file. Doubly so when each arm is a real model call: a truncated run costs the tokens and keeps none
+  of the answer.
+- [2026-09-07] A bare `harness/codex-setup.sh` inside a worktree dies with "lean-agent-harness engine
+  not found" — nothing auto-sets `HARNESS_ENGINE`, so the wrapper falls through to the
+  `~/.claude/plugins` cache, which on this machine is **0.2.9 (2026-08-12)** and predates codex-setup
+  entirely. Export `HARNESS_ENGINE=<worktree>/plugin/engine` first, as the suites do. The E2-flip note
+  called this out for `loop.ps1`; it applies to every wrapper.
