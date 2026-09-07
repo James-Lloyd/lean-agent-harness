@@ -21,13 +21,21 @@ user="${HARNESS_SCRUB_USER:-$(basename "$HOME")}"   # the OS username, as it app
 # checkout root), never from `git rev-parse`: the scrubber must run anywhere, including on a
 # copy in a temp dir, which is how scrub-proof.sh exercises it. The git version died there
 # with "fatal: not a git repository" — caught by that proof, not by review.
-top="$(cd "$(dirname "$0")/../../../.." && pwd)"
-repo="$(basename "$top")"
+# Resolved from the CURRENT directory, which the cd above has already set to probes/. Using
+# "$(dirname "$0")/../../../.." here instead is a bug: after that cd, a RELATIVE $0 no longer
+# resolves, and the script dies with "cd: .../probes/../../../..: No such file or directory".
+# The `|| true` matters too — under scrub-proof.sh this script runs from a temp dir where the
+# walk-up lands nowhere, and both values come from the env overrides anyway.
+top="$(cd ../../../.. 2>/dev/null && pwd || true)"
+repo="${top:+$(basename "$top")}"
 # A worktree lives at <repo>/.claude/worktrees/<name>, so walk up to the real repo name.
 case "$top" in *".claude/worktrees/"*) repo="$(basename "${top%%/.claude/worktrees/*}")";; esac
-repo="${HARNESS_SCRUB_REPO:-$repo}"
+repo="${HARNESS_SCRUB_REPO:-${repo:-}}"
+if [ -z "$repo" ]; then echo "scrub-paths: cannot derive the repo name; set HARNESS_SCRUB_REPO" >&2; exit 1; fi
 
-for f in results-raw.txt results-visible.txt results-visible-real.txt; do
+for f in results-raw.txt results-visible.txt results-visible-real.txt \
+         results-round2.txt results-round3.txt \
+         results-round2-assertions.txt results-round3-assertions.txt; do
   [ -f "$f" ] || continue
   sed -i \
     -e "s|[Uu]sers/$user/[Rr]epos/$repo|Users/<you>/Repos/<repo>|g" \

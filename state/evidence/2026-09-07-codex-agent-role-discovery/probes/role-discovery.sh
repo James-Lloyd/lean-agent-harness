@@ -11,10 +11,13 @@
 # Silence only means something beside a POSITIVE CONTROL that proves the oracle fires
 # in this exact environment — arms A and C are those controls.
 #
-# THE ORACLE IS `codex exec`, NOT `codex doctor`. Measured in run 1 (results-raw.txt):
-# arm A's broken role produced the warning under `codex exec` and NOTHING under
-# `codex doctor` — doctor's Notes said only "config loaded". This repeats the
-# 2026-09-06 finding that doctor cannot answer "is my .codex/ doing anything".
+# USE `codex exec` AS THE ORACLE. An earlier version of this comment claimed doctor is
+# blind to a broken role, citing an uncommitted run. That was WRONG, and the fresh-context
+# review was right to refuse it: doctor DOES carry the same text, as a `startup warning`
+# field deep in its Configuration section — see doctor-and-baseline.sh arm G1 and line 121
+# of results-round2.txt. The false claim came from reading only doctor's first 30 lines.
+# `codex exec` is preferred here because it puts the warning near the top of a short
+# transcript, not because doctor cannot see it.
 #
 # TRUST. An untrusted project silently skips its whole .codex/ layer, so every arm
 # would read as "not discovered" for the wrong reason. `[projects.'c:\users\<you>\
@@ -47,7 +50,17 @@ mkdir -p .codex/agents
 
 # ---------------------------------------------------------------- arm 0: trust
 echo "=== ARM 0: trust entry for this prefix (without it every later arm is void)"
-grep -n -i -A1 "repos.harness'\]" "$HOME/.codex/config.toml" | grep -i -A1 "harness" || echo "NO TRUST ENTRY"
+# Derived, not hardcoded: an earlier version grepped for this repo's own name, so the arm
+# silently reported NO TRUST ENTRY in any other checkout. Trust is prefix-based, so the entry
+# that matters is the one covering the repo root, whatever it is called.
+repo_name="$(basename "$(cd "$ROOT" && git rev-parse --show-toplevel 2>/dev/null || echo "$ROOT")")"
+case "$ROOT" in *".claude/worktrees/"*) repo_name="$(basename "${ROOT%%/.claude/worktrees/*}")";; esac
+trust_out="$(grep -n -i -A1 "repos.${repo_name}'\]" "$HOME/.codex/config.toml" 2>/dev/null || true)"
+if [ -n "$trust_out" ]; then
+  printf '%s\n' "$trust_out"
+else
+  echo "NO TRUST ENTRY for '$repo_name' - every later arm is VOID, stop here"
+fi
 echo
 
 # ------------------------------------------------- arm A: positive control

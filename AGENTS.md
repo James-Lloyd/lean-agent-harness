@@ -175,6 +175,15 @@ editing** (Claude Code: see CLAUDE.md; anything else: `git worktree add`). Land 
   unfiltered did vindicate the silence claim — that is luck, not method. Capture everything, then
   assert; and when re-verifying against a new version, state per claim which version it rests on.
 
+- [2026-09-07] A fact about a foreign tool quoted in prose **names the results file and line that
+  holds it**, and the re-runnable probe **contains the arm that produced it**. A claim whose only
+  home is a script comment saying "measured in run 1" is unverified, however true it feels. Found
+  twice: the `codex doctor` claim was overstated in the 0.153.4 re-verify, then restated in six
+  surfaces by the agent-role probe on the strength of an uncommitted run — and when the arm was
+  finally written, the claim turned out to be **false** (doctor does report it; the original had
+  read only the first 30 lines). The citation requirement is what converts "a filtered view cannot
+  prove silence" from a lesson people nod at into one the artifact enforces.
+
 ## Nested context
 Subsystems carry their own `AGENTS.md` next to their code (in this repo: `plugin/engine/` holds the
 engine's PS-5.1/twin-parity rules). When working in a subsystem, its local map applies too.

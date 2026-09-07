@@ -91,3 +91,6 @@ Unchanged from the V5 list, both belonging to the queued Codex-hooks follow-up:
   `_shell_matcher_note` top-level keys) fires — needs a machine-wide write;
 * whether `.codex/agents/*.toml` are auto-discovered by a spawned Codex agent — `codex exec` does not
   spawn one, so this needs the `codex agents` path.
+  **SETTLED 2026-09-07 → `state/evidence/2026-09-07-codex-agent-role-discovery/`. They are
+  auto-discovered, and the method guess here was wrong: `codex agents` is a session browser, and a
+  plain `codex exec` both surfaces the loader's warning and will spawn a discovered role on request.**

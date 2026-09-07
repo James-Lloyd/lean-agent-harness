@@ -48,13 +48,26 @@ echo "=== ARM E: well-formed role file, UNDECLARED (the shape codex-setup emits)
 run "E" "$LIST_PROMPT"
 
 # ---------------------------------------------- arm F: the REAL generated set
+# SUPERSEDED — do not re-run this arm expecting an answer. As written it omits HARNESS_ENGINE,
+# so the wrapper falls through to the installed plugin cache and dies with "engine not found"
+# before Codex is ever invoked. Kept verbatim because results-visible.txt is its transcript.
+# The working version is role-visible-real.sh. Left here, un-fixed, so the committed script and
+# the committed output still correspond.
 rm -rf .codex
 echo "=== ARM F: generate the real .codex via the harness wrapper, then list roles"
 bash harness/codex-setup.sh
+# ASSERT BEFORE SPENDING. The original form was `grep … || echo "(none - confirms undeclared)"`,
+# which prints the reassuring line when the file is MISSING, because grep's "No such file" also
+# exits non-zero. It did exactly that below, and the script then paid for a model call that could
+# not answer anything. A control that speaks when nothing happened is worse than no control.
+if [ ! -f .codex/config.toml ]; then
+  echo "FAIL: the generator produced no .codex/config.toml - not spending a model call"
+  exit 1
+fi
 echo "--- generated agent role files:"
 ls .codex/agents/
 echo "--- [agents] blocks in the generated config.toml (expected: none):"
-grep -n "^\[agents" .codex/config.toml || echo "(none - confirms the roles are undeclared)"
+grep -n "^\[agents" .codex/config.toml || echo "(none present in a file that EXISTS - roles are undeclared)"
 echo
 run "F" "$LIST_PROMPT"
 

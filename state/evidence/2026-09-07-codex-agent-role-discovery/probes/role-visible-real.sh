@@ -26,11 +26,18 @@ rm -rf .codex
 echo "=== generate the real .codex via the harness wrapper"
 bash harness/codex-setup.sh
 echo
+# ASSERT BEFORE SPENDING — `grep … || echo "(none)"` also fires when the file is MISSING, since
+# grep's "No such file" exits non-zero too. In role-visible.sh that printed a reassuring line over
+# a generator that had failed, and the script went on to pay for a useless model call.
+if [ ! -f .codex/config.toml ] || [ ! -d .codex/agents ]; then
+  echo "FAIL: the generator produced no .codex - not spending a model call"
+  exit 1
+fi
 echo "--- generated agent role files:"
 ls .codex/agents/
 echo
 echo "--- [agents] blocks in the generated config.toml (expected: none):"
-grep -n "^\[agents" .codex/config.toml || echo "(none - the generated roles are UNDECLARED)"
+grep -n "^\[agents" .codex/config.toml || echo "(none present in a file that EXISTS - roles are UNDECLARED)"
 echo
 echo "--- head of one generated role file:"
 head -8 .codex/agents/reviewer.toml

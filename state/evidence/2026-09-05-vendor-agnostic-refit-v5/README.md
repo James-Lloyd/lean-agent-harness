@@ -150,6 +150,7 @@ message, verbatim, through Codex.
   Codex docs show a top-level `description` key, so tolerance is likely. Check: a `--user` install must
   show `hook: SessionStart` in the next transcript.
 - `.codex/agents/*.toml` auto-discovery: the second reviewer ran through `codex exec`, not a spawned agent.
+  **SETTLED 2026-09-07 → `state/evidence/2026-09-07-codex-agent-role-discovery/` (they are auto-discovered).**
 
 ## Gate
 bash `harness/tests/run-tests.sh` and PS 5.1 `run-tests.ps1` totals are in the PROGRESS line for this

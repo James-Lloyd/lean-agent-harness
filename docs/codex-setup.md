@@ -7,9 +7,9 @@
 `state/evidence/2026-09-06-codex-0153-reverify/`): four hold, and the `[agents]` fatality **changed**.
 The generator needed no code change. **Not re-run on 0.153.4** — so still carrying V5's evidence
 only: the user-level hook path and its `--dangerously-bypass-hook-trust` requirement, `--user`'s
-tolerance of the `_generated_by` / `_shell_matcher_note` keys, the `--check` digest, and agent-TOML
-discovery. Nothing was written to `~/.codex` in the re-verification, so the user-level path could not
-have been exercised. Which claim rests on which version is spelled out in the 0.153.4 section below.
+tolerance of the `_generated_by` / `_shell_matcher_note` keys, and the `--check` digest. Nothing was
+written to `~/.codex` in the re-verification, so the user-level path could not have been exercised.
+**Agent-TOML discovery left that list on 2026-09-07** — measured on 0.153.4, see "Agent roles" below. Which claim rests on which version is spelled out in the 0.153.4 section below.
 
 > **Trust is the precondition for everything project-level.** An **untrusted** project skips its whole
 > `.codex/` layer with no diagnostic of any kind — verified against a full unfiltered transcript, not
@@ -113,13 +113,15 @@ key) — merge by hand in that case.
   `hook: SessionStart` line in a transcript, suspect these keys first.
   **This does not actually need a machine-wide write** — `CODEX_HOME` redirects the whole user-level
   layer, so a throwaway home holding the generated `hooks.json` exercises the same code path and leaves
-  the real `~/.codex` untouched. Measured 2026-09-07 with `CODEX_HOME` set to an empty directory:
-  `codex doctor` reported every user-level path (config, log dir, all five SQLite DBs) under the new
-  home, and the only failure was `✗ auth  no Codex credentials were found`. Two consequences for whoever
-  runs it: the throwaway home needs credentials (a copied `auth.json`, or an API key through a supported
-  auth env var — copying a live token into a scratch directory is the operator's call, not the agent's),
-  and it must **not** sit under the system temp dir, which draws `Refusing to create helper binaries
-  under temporary dir`. This is why the item is still open rather than blocked.
+  the real `~/.codex` untouched. Measured 2026-09-07 with `CODEX_HOME` set to an empty directory
+  (`probes/results-round2.txt`, arm G2): `codex doctor` reported every user-level path under the new
+  home — config, log dir, `auth.json`, and six SQLite databases — and the only failure was
+  `✗ auth  no Codex credentials were found — Run codex login or provide an API key through a supported
+  auth env var`. Two consequences for whoever runs it. The throwaway home needs credentials, so either
+  a copied `auth.json` or that API key env var — **copying a live token into a scratch directory is the
+  operator's call, not the agent's**. And it must not sit under the system temp dir: with the home under
+  `%TEMP%`, Codex emits `Refusing to create helper binaries under temporary dir` and proceeds without
+  PATH aliases (`probes/results-round3.txt`, arm H2). This is why the item is still open rather than blocked.
 - **No `ConfigChange` event** in Codex; the harness's `lock-config` hook has no Codex twin. The loop's
   config hash pin still catches a mid-run config edit after the fact.
 - **`.codex/agents/*.toml` — VERIFIED auto-discovered and visible** (0.153.4, 2026-09-07; see
@@ -160,8 +162,20 @@ prefix-based and so covers a worktree under it.
 **`.codex/agents/*.toml` is a discovered directory, not a manifest.** A role file needs no entry in
 `config.toml`: the generator emits seven files and no `[agents]` block, and a real `codex exec`
 session listed all seven — `doc-gardener`, `evaluator`, `explorer`, `generator`, `planner`,
-`reviewer`, `risk-classifier` — as roles it can spawn, beside the built-in `default` and `worker`.
-The generated shape is therefore correct as it stands and needs no change.
+`reviewer`, `risk-classifier`. The generated shape is therefore correct as it stands and needs no
+change.
+
+**And a discovered role really runs.** A role file whose `developer_instructions` carry a token that
+exists nowhere else on disk was spawned by name from a plain `codex exec` session, and the token came
+back verbatim (`probes/results-round3.txt`). A returned name only proves the model can say a name; a
+returned token that lives solely inside the role file proves the file's instructions reached the
+sub-agent.
+
+*Do not read the surrounding names as a built-in role list.* Asked to enumerate its roles with no
+project `.codex/` at all, the model answered `general-purpose` twice; in other arms it volunteered
+`default`, `explorer` and `worker` with no such files present. The enumeration is partly
+confabulated, so the load-bearing evidence is the loader's own warning and the spawn token, not the
+list.
 
 The oracle was a **deliberately malformed** role file, because a well-formed one that is silently
 ignored looks exactly like one that loaded. A file carrying `name` and `description` but no
@@ -175,9 +189,12 @@ warning: Ignoring malformed agent role definition: agent role file at
 That is the loader reading a file it was never pointed at, which is the whole finding. Three things
 about it are worth keeping:
 
-- **`codex doctor` cannot see this.** The same broken role produced the warning under `codex exec`
-  and nothing at all under `codex doctor`, whose Notes said only `config loaded`. This is the second
-  time doctor has failed to answer "is my `.codex/` doing anything" (the first was 2026-09-06).
+- **`codex doctor` DOES report a broken role — and the first draft of this section said it did
+  not.** Under the malformed-and-undeclared state, doctor carries the same text as a `startup
+  warning` field deep in its Configuration section (line 121 of `probes/results-round2.txt`). The
+  false claim came from reading only the first 30 lines of doctor's output — this repo's own ratchet
+  that a filtered view cannot prove silence, reproduced a day after it was written. Doctor still
+  does not raise it in the Notes summary at the top, so it is easy to miss, but it is not blind.
 - **A malformed role is a warning, not a fatal.** The session ran to completion and answered
   normally. Unlike the V3 `config.toml` defects, a bad role file degrades silently — it does not take
   the `.codex/` layer down with it, and nothing but the warning line says the role is missing.
