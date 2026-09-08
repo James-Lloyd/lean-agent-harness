@@ -66,15 +66,14 @@ $blocked = @(
   @{ rx = '\bmkfs';                                                  why = 'filesystem format' },
   # PowerShell-tool destructive forms (this hook also matches the PowerShell tool, not just Bash).
   @{ rx = '\bRemove-Item\b[^|]*-(Recurse|Force)';                    why = 'recursive/force Remove-Item' },
-  # The switch must be a SWITCH, not a path, and findable in any position. `[^|]*` before it so flag
-  # order cannot smuggle a delete past an adjacent-only match; the trailing class so an absolute PATH
-  # cannot impersonate it (`rmdir /srv/cache` under pwsh on POSIX). The class MUST include `/` `;`
-  # `&` `"` and not whitespace alone — cmd.exe accepts CONCATENATED switches, so `rd /s/q x` ends the
-  # switch with `/`, and a trailing switch can be followed straight by `&&`. Live-fire in real
-  # cmd.exe: `rd /s/q <dir>` deleted a populated tree past a whitespace-only boundary. `[qs/]*` on
-  # the rd arm absorbs a leading `/q` so `/q/s` is caught. Keep in step with the .sh twin.
-  @{ rx = '\b(rd|rmdir)\b[^|]*\s/[qs/]*s([\s;&"/]|$)';               why = 'recursive rmdir (/s)' },
-  @{ rx = '\bdel\b[^|]*\s/[a-z]*[sq]([\s;&"/]|$)';                   why = 'recursive/quiet del' },
+  # Matched against cmd.exe's switch GRAMMAR, not a boundary character — a switch is a run of
+  # one-letter `/x` segments that may sit anywhere, so `rd /s/q x`, `rd x /s`, `del /f/s/q x` and
+  # `rd/s/q x` (no space at all) are all accepted by the parser and all destructive. The optional
+  # preamble catches the no-space form, the segment runs catch any flag order, and matching only
+  # real one-letter segments keeps `rmdir /srv/cache` allowed under pwsh on POSIX. `/sq` is
+  # deliberately unmatched: cmd.exe refuses it, live-fired. Keep in step with the .sh twin.
+  @{ rx = '\b(rd|rmdir)\b([^|]*\s)?(/[a-z])*/s(/[a-z])*([\s;&"]|$)'; why = 'recursive rmdir (/s)' },
+  @{ rx = '\bdel\b([^|]*\s)?(/[a-z])*/[sq](/[a-z])*([\s;&"]|$)';     why = 'recursive/quiet del' },
   @{ rx = '\b(Format-Volume|Clear-Disk|Clear-Content)\b';           why = 'disk/file wipe (PowerShell)' },
   # Block unsafe force-push but ALLOW the recommended --force-with-lease (+ --force-if-includes).
   @{ rx = 'git\s+push\s+.*(-f(\s|$)|--force(?!-with-lease|-if-includes)|\s\+[^\s]+:)'; why = 'force-push (use --force-with-lease)' },

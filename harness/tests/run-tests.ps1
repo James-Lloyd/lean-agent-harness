@@ -544,6 +544,20 @@ ok "blocks rd with concatenated switches, other order"  ((hookExit "rd $swq$sw C
 ok "blocks del with concatenated switches (/s/q)"       ((hookExit "del $sw$swq C:\temp\x") -eq 2)
 ok "blocks a concatenated-switch delete wrapped in cmd /c" ((hookExit "cmd /c rd $sw$swq C:\temp\x") -eq 2)
 ok "blocks a trailing switch followed straight by &&"   ((hookExit "rd C:\temp\x $sw&&echo done") -eq 2)
+# Switch run LED BY ANOTHER FLAG, and the no-space form. Live-fired: `del /f/s/q <dir>\*` really
+# deleted files at depth and `rd/s/q <dir>` really removed a tree. Missed by every generation of
+# this pattern before the grammar rewrite.
+ok "blocks del with the recursive switch led by another flag (/f/s/q)" ((hookExit "del $swf$sw$swq C:\temp\x") -eq 2)
+ok "blocks del /a/s/q (different leading flag)"         ((hookExit "del /a$sw$swq C:\temp\x") -eq 2)
+ok "blocks del /f/q (quiet switch not first in the run)" ((hookExit "del $swf$swq C:\temp\f.txt") -eq 2)
+ok "blocks rd with NO space between command and switch"    ((hookExit "rd$sw$swq C:\temp\x") -eq 2)
+ok "blocks rmdir with NO space between command and switch" ((hookExit "rmdir$sw$swq C:\temp\x") -eq 2)
+# Two-letter switch TOKENS are refused by cmd.exe itself, live-fired in both orders.
+ok "ALLOWS the two-letter token /sq (cmd.exe refuses it)"  ((hookExit "rd ${sw}q C:\temp\x") -eq 0)
+ok "ALLOWS the two-letter token /qs (cmd.exe refuses it)"  ((hookExit "rd ${swq}s C:\temp\x") -eq 0)
+# The false-positive family the boundary-character generation created.
+ok "ALLOWS a command mentioning del beside a /logs/ path"  ((hookExit 'node del.js --out /logs/') -eq 0)
+ok "ALLOWS rmdir /s/build (cmd.exe: 'Invalid switch')"     ((hookExit 'rmdir /s/build') -eq 0)
 # Negative controls. The three POSIX-path cases are the ones a fresh-context review caught: an
 # absolute path whose first segment starts with the switch letter is NOT a switch, and this cmdlet
 # surface is reachable on POSIX via pwsh, where /srv /sys /storage are ordinary roots.

@@ -86,22 +86,27 @@ declare -a pats=(
   # POSIX via pwsh, and this hook is also the one Codex loads under its shell-tool matcher, so a
   # cross-platform agent can reach them from the .sh side. Twins of the .ps1 entries — keep in step.
   '\bRemove-Item\b[^|]*-(Recurse|Force)@@recursive/force Remove-Item'
-  # The switch must be a SWITCH, not a path, and must be findable in any position:
-  #   `[^|]*` before it   — flag order cannot smuggle a delete past an adjacent-only match
-  #                         (`rmdir /q /s x`, `del /f /s x`, `rd <path> /s` are all real).
-  #   the trailing class  — stops an absolute PATH from impersonating the switch. Without it
-  #                         `rmdir /srv/cache`, `rd /storage/tmp` were denied on POSIX, where
-  #                         /srv /sys /sbin /snap /share are ordinary roots and rmdir cannot even
-  #                         delete a non-empty directory.
-  # The class must include `/` `;` `&` and `"`, NOT whitespace alone: cmd.exe accepts CONCATENATED
-  # switches, so `rd /s/q x` and `del /s/q x` end the switch with `/`, and a trailing switch can be
-  # followed straight by `&&` or `;`. A whitespace-only boundary let all of those through — verified
-  # by live-fire in real cmd.exe, where `rd /s/q <dir>` deleted a populated tree. `[qs/]*` on the rd
-  # arm absorbs a leading `/q` so `/q/s` is caught too. `del`'s `[a-z]*` is deliberately NOT widened
-  # to `[a-z/]*`: `/` in the boundary already catches `/s/q` and `/q/s`, and widening it would start
-  # denying ordinary POSIX paths like `del … /tmp/logs`.
-  '\b(rd|rmdir)\b[^|]*[[:space:]]/[qs/]*s([[:space:];&"/]|$)@@recursive rmdir (/s)'
-  '\bdel\b[^|]*[[:space:]]/[a-z]*[sq]([[:space:];&"/]|$)@@recursive/quiet del'
+  # These match cmd.exe's actual switch GRAMMAR, not a boundary character. Three earlier attempts
+  # each failed by reasoning about where the switch usually sits instead of what the parser accepts:
+  # an adjacent-only match missed `rmdir /q /s x`; adding a space-or-end boundary to stop a POSIX
+  # path impersonating the switch (`rmdir /srv/cache`) let CONCATENATED switches through; and a
+  # boundary class containing `/` still missed a run whose first letter is neither s nor q.
+  # All of those were live-fired in real cmd.exe and really deleted populated trees.
+  #
+  # The grammar: a switch is a run of one-letter `/x` segments, optionally preceded by other
+  # arguments, and it may sit anywhere — `rd /s/q x`, `rd x /s`, `del /f/s/q x`, `rd/s/q x` (no
+  # space at all) are all accepted and all destructive. So:
+  #   ([^|]*[[:space:]])?   optional preamble — OPTIONAL, so `rd/s/q x` is caught; cannot span `|`
+  #   (/[a-z])*             switch segments before the one that matters (`/f`, `/a`, `/q`)
+  #   /s   or  /[sq]        the segment that makes it destructive
+  #   (/[a-z])*             trailing segments (`/q`, `/f`)
+  #   ([[:space:];&"]|$)    end of the switch run
+  # A two-letter segment like `/sq` is deliberately NOT matched: cmd.exe refuses it
+  # ("Parameter format not correct"), live-fired both orders, target survived. Matching only what
+  # the parser accepts is what keeps `rmdir /srv/cache` and `rd /storage/tmp` allowed on POSIX,
+  # where those are ordinary roots and rmdir cannot even delete a non-empty directory.
+  '\b(rd|rmdir)\b([^|]*[[:space:]])?(/[a-z])*/s(/[a-z])*([[:space:];&"]|$)@@recursive rmdir (/s)'
+  '\bdel\b([^|]*[[:space:]])?(/[a-z])*/[sq](/[a-z])*([[:space:];&"]|$)@@recursive/quiet del'
   '\b(Format-Volume|Clear-Disk|Clear-Content)\b@@disk/file wipe (PowerShell)'
   'git[[:space:]]+push[[:space:]].*(-f([[:space:]]|$)|--force([[:space:]]|$|[^-])|[[:space:]]\+[^[:space:]]+:)@@force-push (use --force-with-lease)'
   'git[[:space:]]+reset[[:space:]]+--hard@@discarding work via reset --hard'

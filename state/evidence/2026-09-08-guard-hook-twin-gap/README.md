@@ -34,14 +34,14 @@ Full captured output, unfiltered: **`results-2026-09-08.txt`**. Per arm:
 
 | Arm | What it runs | Result |
 |-----|--------------|--------|
-| 1 | the `.sh` hook at the pre-fix commit `1621ae7` | all seventeen destructive cases `rc=0` **ALLOWED** (`results-2026-09-08.txt` lines 2–10, 12–13, 15–20) |
-| 2 | the `.sh` hook after the fix | all seventeen `rc=2` **DENIED** (lines 31–39, 41–42, 44–49); the six controls still `rc=0` (lines 51–56) |
-| 2b | one new pattern in a 190,920-byte multi-line payload, and again against a copy of the hook with `set -euo pipefail` injected | **DENIED** both ways; the same-size benign control **ALLOWED** (lines 60–62) |
-| 3 | the `.ps1` twin, same cases | identical to arm 2, case for case (lines 65–88) |
+| 1 | the `.sh` hook at the pre-fix commit `1621ae7` | all twenty-two destructive cases `rc=0` **ALLOWED** (`results-2026-09-08.txt` lines 2–10, 12–13, 15–20, 22–26) |
+| 2 | the `.sh` hook after the fix | all twenty-two `rc=2` **DENIED** (lines 40–48, 50–51, 53–58, 60–64); the eight controls still `rc=0` (lines 66–73) |
+| 2b | one new pattern in a 190,920-byte multi-line payload, and again against a copy of the hook with `set -euo pipefail` injected | **DENIED** both ways; the same-size benign control **ALLOWED** (lines 78–80) |
+| 3 | the `.ps1` twin, same cases | identical to arm 2, case for case (lines 83–113) |
 
 Arm 1 is pinned to the commit SHA, not to `origin/main`. Defaulting it to a branch would have made
 the proof self-falsifying: once this change merges, `origin/main` *is* the fixed hook, arm 1 would
-print seventeen DENIED lines, and the committed results file would contradict the script that claims to
+print twenty-two DENIED lines, and the committed results file would contradict the script that claims to
 produce it.
 
 **Arm 1 is the one that matters.** Against the pre-fix hook these commands return a wrong *value* — a
@@ -57,7 +57,7 @@ fixture puts its bulk *after* a newline, because grep cannot exit early until it
 line, and only an early exit can make the writer die of SIGPIPE. The benign control at the same size
 is what stops "DENIED" from merely proving that something in a 190 KB payload trips the guard.
 
-## What the fresh-context reviews changed — it took two rounds, and round 1's fix was itself wrong
+## What the fresh-context reviews changed — three rounds, and each fix was itself wrong
 
 **Round 1.** The first version shipped the two cmd.exe patterns as the `.ps1` had always written
 them, matching the switch *adjacent* to the command. A fresh-context review measured that shape
@@ -90,18 +90,45 @@ populated three-level tree and `del /s/q <dir>\*` deleted files at two depths, b
 whose entire purpose was to *close* a guard gap was one review away from shipping a **net loss of
 coverage** on the most safety-critical file in the repo.
 
-The fix is a character *class* rather than whitespace — `([[:space:];&"/]|$)` — plus `[qs/]*` on the
-`rd` arm so a leading `/q` is absorbed. `del`'s `[a-z]*` is deliberately **not** widened to
-`[a-z/]*`: the `/` in the boundary already catches `/s/q` and `/q/s`, and widening it would start
-denying ordinary POSIX paths like `del … /tmp/logs`. All seventeen destructive forms deny on both
-twins; all six controls still pass.
+Round 2's answer was to make the boundary a character *class* — `([[:space:];&"/]|$)` — plus `[qs/]*`
+on the `rd` arm. That is the third wrong answer, and a third review live-fired past it as well.
 
-Two ratchets in `AGENTS.md` came out of this, and the second is the expensive one. Probe a new
-denylist pattern against the real command vocabulary of the platform it will run on before writing
-down what it costs — the false-positive list below was first assembled from prose examples, and a
-list built that way always undercounts. **And a fix for an over-block is itself a loosening, so it
-gets differentially diffed against its predecessor over every form the old pattern caught.** A
-pattern that is merely *better reasoned* than the one it replaces is not therefore safer.
+**Round 3, and the reason this section exists.** The character class is a strict improvement over
+round 2 and loses nothing, which the third review confirmed mechanically over a 12,960-form corpus.
+But it is still reasoning about *where the switch usually sits*, and two more real destructive forms
+walk past it — both pre-existing, missed by every generation including the long-shipped `.ps1`:
+
+```
+del /f/s/q <dir>\*    a switch run led by another flag; the canonical Windows build-script idiom
+rd/s/q <dir>          no space at all between the command word and the switch
+```
+
+Both live-fired: the first deleted files at two depths, the second removed a populated tree. And the
+`/` in the boundary class had meanwhile created a *new* false-positive family — any text carrying the
+word `del` next to a path segment ending in `s` or `q`, so `node del.js --out /logs/` and
+`git log -- del /docs/` were denied.
+
+**The rule that finally works is written against cmd.exe's switch grammar, not against a boundary
+character.** A switch is a run of one-letter `/x` segments, it may sit anywhere in the command, and
+the separating space is optional:
+
+```
+\b(rd|rmdir)\b([^|]*[[:space:]])?(/[a-z])*/s(/[a-z])*([[:space:];&"]|$)
+\bdel\b([^|]*[[:space:]])?(/[a-z])*/[sq](/[a-z])*([[:space:];&"]|$)
+```
+
+The negatives were live-fired too, which is what licenses the narrowness: `rd /sq`, `rd /qs` and
+`rd /s/build` are all **refused by cmd.exe itself** — *"Parameter format not correct"*, *"Invalid
+switch"*, target survived in every case — so matching them would buy no coverage and cost
+over-blocking. Twenty-two destructive forms now deny on both twins; eight controls pass.
+
+Three ratchets in `AGENTS.md` came out of this, and they get progressively more expensive. Probe a
+new denylist pattern against the platform's real command vocabulary before writing down what it
+costs. **A fix for an over-block is itself a loosening, so it gets differentially diffed against its
+predecessor over every form the old pattern caught** — a pattern that is merely *better reasoned* is
+not therefore safer. **And write the rule against the foreign shell's GRAMMAR**: enumerate the token
+forms its parser accepts and live-fire each, positives and negatives, so boundary characters and flag
+order fall out as consequences instead of being guessed at. Three attempts were spent guessing.
 
 ## One shared false positive, kept deliberately
 
@@ -109,8 +136,12 @@ Prose containing the literal `del /s` — for instance `echo the del /s switch i
 denied on the bash side too. It was already denied by the `.ps1` twin (arm 3, last line), so this is
 the twins converging, not a new defect. The commit-message scrub covers the common real case
 (`git commit -m "… del /s …"` is scrubbed before the patterns run). Narrowing *this* one would mean
-refusing to deny a genuine `del /s` typed as the first thing on a line, so it stays. It is the only
-one left: the three POSIX-path over-blocks above were real and were fixed, not accepted.
+refusing to deny a genuine `del /s` typed as the first thing on a line, so it stays.
+
+It is the only one left, and unlike the earlier claim to that effect this one is measured rather than
+recalled: the three POSIX-path over-blocks were fixed, and so was the `del`-beside-a-path family that
+round 2's boundary class introduced. Both are pinned as negative controls in both suites, which is
+what stops the accounting drifting again the next time the pattern moves.
 
 It bit immediately and is worth knowing about: the first attempt to write *this change's own commit
 message* was denied, because the message quotes the pattern it adds. The workaround is the one
@@ -136,8 +167,8 @@ probing of the two hooks on identical payloads.
 
 | Suite | Before | After |
 |-------|--------|-------|
-| bash `run-tests.sh` | 325 / 0 | **346 / 0** |
-| PowerShell 5.1 `run-tests.ps1` | 333 / 0 | **353 / 0** |
+| bash `run-tests.sh` | 325 / 0 | **355 / 0** |
+| PowerShell 5.1 `run-tests.ps1` | 333 / 0 | **362 / 0** |
 
 Fifteen new assertions on the bash side, fourteen on the PowerShell side: nine denials, two
 flag-order denials, and four negative controls (a bare `Remove-Item` with no destructive flag, plus

@@ -218,10 +218,17 @@ editing** (Claude Code: see CLAUDE.md; anything else: `git worktree add`). Land 
   of those were denied by the crude original and allowed by the careful replacement, including
   `cmd /c rd /s/q <dir>` — the exact phrasing an agent uses from the Bash tool on Windows, live-fired
   and confirmed to delete a populated tree. A branch whose purpose was to CLOSE a guard gap was one
-  review away from shipping a net loss of coverage. Probe a foreign shell's pattern against that
-  shell's own PARSER, not against how the flag is usually written; make the boundary a character
-  CLASS (`[[:space:];&"/]`) rather than whitespace; and pin the negative controls as well as the
-  denials.
+  review away from shipping a net loss of coverage. **(d) The rule that finally worked is written
+  against the foreign shell's switch GRAMMAR, not against a boundary character.** Widening the
+  boundary to a class was the third wrong answer, and a third review live-fired past it too: a run
+  led by another flag (`del /f/s/q x`, the canonical Windows build-script idiom) and the no-space
+  form (`rd/s/q x`) both deleted real files, and the class had meanwhile created a fresh
+  false-positive family (any text with the word `del` beside a path segment ending in s or q).
+  Enumerate the token forms the parser actually accepts — a switch is a run of one-letter `/x`
+  segments, positioned anywhere, optionally with no separating space — and live-fire each; boundary
+  characters and flag order fall out of that as consequences rather than being the rule. Live-fire
+  the negatives too: `/sq`, `/qs` and `/s/build` are all REFUSED by cmd.exe, so matching them would
+  buy nothing and cost over-blocking. Pin the negative controls as well as the denials.
 
 ## Nested context
 Subsystems carry their own `AGENTS.md` next to their code (in this repo: `plugin/engine/` holds the

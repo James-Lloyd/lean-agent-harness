@@ -16,10 +16,16 @@ $cases = @(
   # whitespace-only trailing boundary let them all through; these are the regression pins.
   'rd /s/q C:\temp\x', 'rmdir /s/q C:\temp\x', 'rd /q/s C:\temp\x', 'del /s/q C:\temp\*',
   'cmd /c rd /s/q C:\temp\x', 'rd C:\temp\x /s&&echo done',
+  # Switch run led by another flag, and no space at all — live-fired, these really delete.
+  'del /f/s/q C:\temp\*', 'del /a/s/q C:\temp\*', 'del /f/q C:\temp\f.txt',
+  'rd/s/q C:\temp\x', 'rmdir/s/q C:\temp\x',
   # controls — must be ALLOWED. The three /s-prefixed paths are SF1: POSIX roots, reachable here
   # because the PowerShell tool runs on POSIX via pwsh.
   'git status', 'npm test', "$RI stale.tmp",
   'rmdir /srv/cache', 'rmdir /sys/fs/cgroup/x', 'rd /storage/tmp',
+  # Two-letter switch tokens: cmd.exe REFUSES these, live-fired both orders, target survived.
+  'rd /sq C:\temp\x', 'rd /qs C:\temp\x',
+  # Deliberate shared false positive — DENIED by design on both twins.
   'echo the del /s switch is documented'
 )
 foreach ($c in $cases) {

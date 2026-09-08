@@ -44,6 +44,12 @@ run "rd /q/s C:\\\\temp\\\\x"      "rd /q/s C:\\\\temp\\\\x"
 run "del /s/q C:\\\\temp\\\\*"     "del /s/q C:\\\\temp\\\\*"
 run "cmd /c rd /s/q C:\\\\temp\\\\x" "cmd /c rd /s/q C:\\\\temp\\\\x"
 run "rd C:\\\\temp\\\\x /s&&echo done" "rd C:\\\\temp\\\\x /s&&echo done"
+echo "--- switch run led by another flag, and no space at all (live-fired: these really delete) ---"
+run "del /f/s/q C:\\\\temp\\\\*"   "del /f/s/q C:\\\\temp\\\\*"
+run "del /a/s/q C:\\\\temp\\\\*"   "del /a/s/q C:\\\\temp\\\\*"
+run "del /f/q C:\\\\temp\\\\f.txt" "del /f/q C:\\\\temp\\\\f.txt"
+run "rd/s/q C:\\\\temp\\\\x"       "rd/s/q C:\\\\temp\\\\x"
+run "rmdir/s/q C:\\\\temp\\\\x"    "rmdir/s/q C:\\\\temp\\\\x"
 echo "--- controls (must stay ALLOWED) ---"
 # SF1: POSIX absolute paths beginning with the switch letter. rmdir cannot delete a non-empty
 # directory on POSIX, and /srv /sys /sbin /snap /share /storage are ordinary roots.
@@ -53,4 +59,9 @@ run "rd /storage/tmp"            "rd /storage/tmp"
 run "git status"                 "git status"
 run "npm test"                   "npm test"
 run "$RI stale.tmp"              "$RI stale.tmp"
+# Two-letter switch tokens: cmd.exe REFUSES these ("Parameter format not correct", live-fired both
+# orders, target survived), so not matching them costs no real coverage and avoids over-blocking.
+run "rd /sq C:\\\\temp\\\\x"       "rd /sq C:\\\\temp\\\\x"
+run "rd /qs C:\\\\temp\\\\x"       "rd /qs C:\\\\temp\\\\x"
+echo "--- deliberate shared false positive: DENIED by design, on BOTH twins ---"
 run "docs mention del /s only"   "echo the del /s switch is documented"

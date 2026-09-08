@@ -200,6 +200,23 @@ ok "$([ "$(hookrc "rd $swq${sw} C:/temp/x")"     = "2" ] && echo 1 || echo 0)" "
 ok "$([ "$(hookrc "del $sw${swq} C:/temp/x")"    = "2" ] && echo 1 || echo 0)" "blocks del with concatenated switches (/s/q)"
 ok "$([ "$(hookrc "cmd /c rd $sw${swq} C:/temp/x")" = "2" ] && echo 1 || echo 0)" "blocks a concatenated-switch delete wrapped in cmd /c (how an agent phrases it)"
 ok "$([ "$(hookrc "rd C:/temp/x ${sw}&&echo done")" = "2" ] && echo 1 || echo 0)" "blocks a trailing switch followed straight by && (no whitespace after)"
+# A switch run LED BY ANOTHER FLAG, and the no-space form. Both were live-fired: `del /f/s/q <dir>\*`
+# is the canonical Windows build-script idiom and really deleted files at depth, and `rd/s/q <dir>`
+# really removed a tree. Every generation of this pattern before the grammar rewrite missed them.
+ok "$([ "$(hookrc "del ${swf}${sw}${swq} C:/temp/x")" = "2" ] && echo 1 || echo 0)" "blocks del with the recursive switch led by another flag (/f/s/q)"
+ok "$([ "$(hookrc "del /a${sw}${swq} C:/temp/x")"     = "2" ] && echo 1 || echo 0)" "blocks del /a/s/q (different leading flag)"
+ok "$([ "$(hookrc "del ${swf}${swq} C:/temp/f.txt")"  = "2" ] && echo 1 || echo 0)" "blocks del /f/q (quiet switch not first in the run)"
+ok "$([ "$(hookrc "rd${sw}${swq} C:/temp/x")"         = "2" ] && echo 1 || echo 0)" "blocks rd with NO space between command and switch"
+ok "$([ "$(hookrc "rmdir${sw}${swq} C:/temp/x")"      = "2" ] && echo 1 || echo 0)" "blocks rmdir with NO space between command and switch"
+# Two-letter switch TOKENS are refused by cmd.exe itself ("Parameter format not correct", live-fired
+# in both orders, target survived), so matching them would only over-block. Pinned so a future
+# widening of the pattern has to justify itself against the parser rather than against intuition.
+ok "$([ "$(hookrc "rd ${sw}q C:/temp/x")"             = "0" ] && echo 1 || echo 0)" "ALLOWS the two-letter token /sq (cmd.exe refuses it; not executable)"
+ok "$([ "$(hookrc "rd ${swq}s C:/temp/x")"            = "0" ] && echo 1 || echo 0)" "ALLOWS the two-letter token /qs (cmd.exe refuses it; not executable)"
+# The false-positive family the boundary-character generation created: any text carrying the word
+# `del` plus a path whose first segment ends in s or q. The grammar match does not see these.
+ok "$([ "$(hookrc 'node del.js --out /logs/')"        = "0" ] && echo 1 || echo 0)" "ALLOWS a command mentioning del beside a /logs/ path"
+ok "$([ "$(hookrc 'rmdir /s/build')"                  = "0" ] && echo 1 || echo 0)" "ALLOWS rmdir /s/build (cmd.exe: 'Invalid switch - build'; not executable)"
 # Negative controls. Two kinds, and the second kind is the one a review caught: an absolute POSIX
 # path whose first segment starts with the switch letter is NOT a switch. /srv /sys /sbin /snap
 # /share /storage are ordinary roots, this hook is the one that runs on POSIX, and rmdir there
