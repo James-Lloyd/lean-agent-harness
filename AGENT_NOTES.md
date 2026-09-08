@@ -19,7 +19,12 @@ PowerShell 5.1: `powershell harness/tests/run-tests.ps1`; bash needs `jq` on PAT
 ## Environment quirks
 - The block-destructive PreToolUse hook scans the whole Bash command line — a commit message that
   *mentions* a trigger phrase (`reset --hard`, …) gets blocked. Write the message to a file and use
-  `git commit -F <file>`.
+  `git commit -F <file>`. As of 2026-09-08 the bash twin also carries the PowerShell/cmd.exe forms
+  the `.ps1` always had, so the trigger list now includes `Remove-Item` with `-Recurse`/`-Force`,
+  `rd`/`rmdir` with `/s`, the cmd.exe quiet/recursive delete switches, and
+  `Format-Volume`/`Clear-Disk`/`Clear-Content` — on POSIX as well as Windows. Prose that merely
+  quotes one of those is denied on both twins; that false positive is deliberate parity, not a bug
+  (`state/evidence/2026-09-08-guard-hook-twin-gap/`).
 - Local `.git/hooks/pre-commit` privacy guard blocks private project names / personal email from
   entering this PUBLIC repo — write clean.
 - One agent session per working tree — two concurrent sessions on one repo collide.
