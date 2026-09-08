@@ -1,0 +1,158 @@
+=== ARM 1: pre-fix .sh (from 1621ae7) — every case must read ALLOWED ===
+Remove-Item -Recurse -Force .                  rc=0  ALLOWED
+Remove-Item -Force build                       rc=0  ALLOWED
+rmdir /s /q build                              rc=0  ALLOWED
+rd /s /q build                                 rc=0  ALLOWED
+del /s *.log                                   rc=0  ALLOWED
+del /q *.log                                   rc=0  ALLOWED
+Format-Volume -DriveLetter D                   rc=0  ALLOWED
+Clear-Disk -Number 1                           rc=0  ALLOWED
+Clear-Content notes.txt                        rc=0  ALLOWED
+--- flag-order forms: real recursive deletes an adjacent-only match misses (SF3) ---
+rmdir /q /s build                              rc=0  ALLOWED
+del /f /s *.log                                rc=0  ALLOWED
+--- CONCATENATED and CHAINED switches: cmd.exe accepts these; live-fire confirmed ---
+rd /s/q C:\\temp\\x                            rc=0  ALLOWED
+rmdir /s/q C:\\temp\\x                         rc=0  ALLOWED
+rd /q/s C:\\temp\\x                            rc=0  ALLOWED
+del /s/q C:\\temp\\*                           rc=0  ALLOWED
+cmd /c rd /s/q C:\\temp\\x                     rc=0  ALLOWED
+rd C:\\temp\\x /s&&echo done                   rc=0  ALLOWED
+--- switch run led by another flag, and no space at all (live-fired: these really delete) ---
+del /f/s/q C:\\temp\\*                         rc=0  ALLOWED
+del /a/s/q C:\\temp\\*                         rc=0  ALLOWED
+del /f/q C:\\temp\\f.txt                       rc=0  ALLOWED
+rd/s/q C:\\temp\\x                             rc=0  ALLOWED
+rmdir/s/q C:\\temp\\x                          rc=0  ALLOWED
+--- switch run ended by > ) or , : cmd.exe terminators a space-list boundary misses ---
+rd C:\\temp\\x /s/q>nul                        rc=0  ALLOWED
+rmdir C:\\temp\\x /s/q>nul                     rc=0  ALLOWED
+(rd C:\\temp\\x /s/q)                          rc=0  ALLOWED
+if exist C:\\temp\\x (rd C:\\temp\\x /s/q)     rc=0  ALLOWED
+rd C:\\temp\\x /s/q,                           rc=0  ALLOWED
+del C:\\temp\\*.txt /s/q>nul                   rc=0  ALLOWED
+del C:\\temp\\*.txt /f/s/q>nul                 rc=0  ALLOWED
+--- erase: a full cmd.exe synonym for del, missed by EVERY generation (live-fired) ---
+erase /f/s/q C:\\temp\\*.txt                   rc=0  ALLOWED
+erase /s C:\\temp\\*.txt                       rc=0  ALLOWED
+--- controls (must stay ALLOWED) ---
+rmdir /srv/cache                               rc=0  ALLOWED
+rmdir /sys/fs/cgroup/x                         rc=0  ALLOWED
+rd /storage/tmp                                rc=0  ALLOWED
+git status                                     rc=0  ALLOWED
+npm test                                       rc=0  ALLOWED
+Remove-Item stale.tmp                          rc=0  ALLOWED
+rd /sq C:\\temp\\x                             rc=0  ALLOWED
+rd /qs C:\\temp\\x                             rc=0  ALLOWED
+--- deliberate shared false positive: DENIED by design, on BOTH twins ---
+docs mention del /s only                       rc=0  ALLOWED
+
+=== ARM 2: post-fix .sh (working tree) — every destructive case must read DENIED ===
+Remove-Item -Recurse -Force .                  rc=2  DENIED
+Remove-Item -Force build                       rc=2  DENIED
+rmdir /s /q build                              rc=2  DENIED
+rd /s /q build                                 rc=2  DENIED
+del /s *.log                                   rc=2  DENIED
+del /q *.log                                   rc=2  DENIED
+Format-Volume -DriveLetter D                   rc=2  DENIED
+Clear-Disk -Number 1                           rc=2  DENIED
+Clear-Content notes.txt                        rc=2  DENIED
+--- flag-order forms: real recursive deletes an adjacent-only match misses (SF3) ---
+rmdir /q /s build                              rc=2  DENIED
+del /f /s *.log                                rc=2  DENIED
+--- CONCATENATED and CHAINED switches: cmd.exe accepts these; live-fire confirmed ---
+rd /s/q C:\\temp\\x                            rc=2  DENIED
+rmdir /s/q C:\\temp\\x                         rc=2  DENIED
+rd /q/s C:\\temp\\x                            rc=2  DENIED
+del /s/q C:\\temp\\*                           rc=2  DENIED
+cmd /c rd /s/q C:\\temp\\x                     rc=2  DENIED
+rd C:\\temp\\x /s&&echo done                   rc=2  DENIED
+--- switch run led by another flag, and no space at all (live-fired: these really delete) ---
+del /f/s/q C:\\temp\\*                         rc=2  DENIED
+del /a/s/q C:\\temp\\*                         rc=2  DENIED
+del /f/q C:\\temp\\f.txt                       rc=2  DENIED
+rd/s/q C:\\temp\\x                             rc=2  DENIED
+rmdir/s/q C:\\temp\\x                          rc=2  DENIED
+--- switch run ended by > ) or , : cmd.exe terminators a space-list boundary misses ---
+rd C:\\temp\\x /s/q>nul                        rc=2  DENIED
+rmdir C:\\temp\\x /s/q>nul                     rc=2  DENIED
+(rd C:\\temp\\x /s/q)                          rc=2  DENIED
+if exist C:\\temp\\x (rd C:\\temp\\x /s/q)     rc=2  DENIED
+rd C:\\temp\\x /s/q,                           rc=2  DENIED
+del C:\\temp\\*.txt /s/q>nul                   rc=2  DENIED
+del C:\\temp\\*.txt /f/s/q>nul                 rc=2  DENIED
+--- erase: a full cmd.exe synonym for del, missed by EVERY generation (live-fired) ---
+erase /f/s/q C:\\temp\\*.txt                   rc=2  DENIED
+erase /s C:\\temp\\*.txt                       rc=2  DENIED
+--- controls (must stay ALLOWED) ---
+rmdir /srv/cache                               rc=0  ALLOWED
+rmdir /sys/fs/cgroup/x                         rc=0  ALLOWED
+rd /storage/tmp                                rc=0  ALLOWED
+git status                                     rc=0  ALLOWED
+npm test                                       rc=0  ALLOWED
+Remove-Item stale.tmp                          rc=0  ALLOWED
+rd /sq C:\\temp\\x                             rc=0  ALLOWED
+rd /qs C:\\temp\\x                             rc=0  ALLOWED
+--- deliberate shared false positive: DENIED by design, on BOTH twins ---
+docs mention del /s only                       rc=2  DENIED
+
+=== ARM 2b: a NEW pattern at real size, with pipefail injected ===
+oversized multi-line, plain                    rc=2  DENIED
+oversized multi-line, pipefail                 rc=2  DENIED
+CONTROL: oversized, nothing destructive        rc=0  ALLOWED
+
+=== ARM 3: the .ps1 twin — must agree with ARM 2 case for case ===
+Remove-Item -Recurse -Force .                  rc=2  DENIED
+Remove-Item -Force build                       rc=2  DENIED
+rmdir /s /q build                              rc=2  DENIED
+rd /s /q build                                 rc=2  DENIED
+del /s *.log                                   rc=2  DENIED
+del /q *.log                                   rc=2  DENIED
+Format-Volume -DriveLetter D                   rc=2  DENIED
+Clear-Disk -Number 1                           rc=2  DENIED
+Clear-Content notes.txt                        rc=2  DENIED
+rmdir /q /s build                              rc=2  DENIED
+del /f /s *.log                                rc=2  DENIED
+rd /s/q C:\temp\x                              rc=2  DENIED
+rmdir /s/q C:\temp\x                           rc=2  DENIED
+rd /q/s C:\temp\x                              rc=2  DENIED
+del /s/q C:\temp\*                             rc=2  DENIED
+cmd /c rd /s/q C:\temp\x                       rc=2  DENIED
+rd C:\temp\x /s&&echo done                     rc=2  DENIED
+del /f/s/q C:\temp\*                           rc=2  DENIED
+del /a/s/q C:\temp\*                           rc=2  DENIED
+del /f/q C:\temp\f.txt                         rc=2  DENIED
+rd/s/q C:\temp\x                               rc=2  DENIED
+rmdir/s/q C:\temp\x                            rc=2  DENIED
+rd C:\temp\x /s/q>nul                          rc=2  DENIED
+rmdir C:\temp\x /s/q>nul                       rc=2  DENIED
+(rd C:\temp\x /s/q)                            rc=2  DENIED
+if exist C:\temp\x (rd C:\temp\x /s/q)         rc=2  DENIED
+rd C:\temp\x /s/q,                             rc=2  DENIED
+del C:\temp\*.txt /s/q>nul                     rc=2  DENIED
+del C:\temp\*.txt /f/s/q>nul                   rc=2  DENIED
+erase /f/s/q C:\temp\*.txt                     rc=2  DENIED
+erase /s C:\temp\*.txt                         rc=2  DENIED
+git status                                     rc=0  ALLOWED
+npm test                                       rc=0  ALLOWED
+Remove-Item stale.tmp                          rc=0  ALLOWED
+rmdir /srv/cache                               rc=0  ALLOWED
+rmdir /sys/fs/cgroup/x                         rc=0  ALLOWED
+rd /storage/tmp                                rc=0  ALLOWED
+rd /sq C:\temp\x                               rc=0  ALLOWED
+rd /qs C:\temp\x                               rc=0  ALLOWED
+echo the del /s switch is documented           rc=2  DENIED
+
+=== ARM 4: THE DIFFERENTIAL — nothing a predecessor denied may be allowed now ===
+corpus: 1834 unique forms
+  gen 0 (1621ae7, ps1): denies 348
+  gen 1 (59f23d6, sh): denies 348
+  gen 2 (f17e051, sh): denies 200
+  gen 3 (7a021be, sh): denies 563
+  gen 4 (WORKTREE, sh): denies 1368
+
+GAINED (denied now, allowed by every predecessor): 857
+LOST   (denied by some predecessor, allowed now):  128
+       of which adjudicated by live-fire (refused by cmd.exe, or a deliberate FP removal): all
+
+PASS: every loss against a predecessor has a recorded live-fire verdict.

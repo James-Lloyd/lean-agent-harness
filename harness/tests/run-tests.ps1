@@ -519,6 +519,64 @@ ok "allows git status"                 ((hookExit 'git status') -eq 0)
 ok "allows npm test"                   ((hookExit 'npm test') -eq 0)
 ok "allows normal git push"            ((hookExit 'git push origin feature') -eq 0)
 ok "ALLOWS git push --force-with-lease (the recommended form)" ((hookExit $lease) -eq 0)
+# Twin of the bash block added 2026-09-08 when the .sh hook gained these four patterns. Only
+# Remove-Item was asserted here before, so three of the four .ps1 patterns shipped unpinned; a
+# rewrite of either hook now has to keep all four denying on both sides.
+$psFv = 'Format' + '-Volume'; $psCd = 'Clear' + '-Disk'; $psCc = 'Clear' + '-Content'
+$psrmF = 'Remove' + '-Item ' + '-Force build'
+$sw = '/' + 's'; $swq = '/' + 'q'; $swf = '/' + 'f'   # cmd.exe switches, split like the bash twin
+ok "blocks Remove-Item -Force (Force alone, no Recurse)" ((hookExit $psrmF) -eq 2)
+ok "blocks rmdir /s (cmd.exe recursive)"                 ((hookExit "rmdir $sw $swq build") -eq 2)
+ok "blocks rd /s (cmd.exe recursive, short alias)"       ((hookExit "rd $sw $swq build") -eq 2)
+ok "blocks del /s (cmd.exe recursive delete)"            ((hookExit "del $sw *.log") -eq 2)
+ok "blocks del /q (cmd.exe quiet delete)"                ((hookExit "del $swq *.log") -eq 2)
+ok "blocks Format-Volume"                                ((hookExit "$psFv -DriveLetter D") -eq 2)
+ok "blocks Clear-Disk"                                   ((hookExit "$psCd -Number 1") -eq 2)
+ok "blocks Clear-Content"                                ((hookExit "$psCc notes.txt") -eq 2)
+# Flag ORDER must not smuggle a recursive delete past an adjacent-only match. Both are real.
+ok "blocks rmdir with the recursive switch in second position" ((hookExit "rmdir $swq $sw build") -eq 2)
+ok "blocks del with the recursive switch in second position"   ((hookExit "del $swf $sw *.log") -eq 2)
+# CONCATENATED switches: cmd.exe accepts them and they really delete (live-fired on Windows 11).
+# A whitespace-only trailing boundary allows every one, a NET LOSS against the pattern it replaced.
+ok "blocks rd with concatenated switches (/s/q)"        ((hookExit "rd $sw$swq C:\temp\x") -eq 2)
+ok "blocks rmdir with concatenated switches (/s/q)"     ((hookExit "rmdir $sw$swq C:\temp\x") -eq 2)
+ok "blocks rd with concatenated switches, other order"  ((hookExit "rd $swq$sw C:\temp\x") -eq 2)
+ok "blocks del with concatenated switches (/s/q)"       ((hookExit "del $sw$swq C:\temp\x") -eq 2)
+ok "blocks a concatenated-switch delete wrapped in cmd /c" ((hookExit "cmd /c rd $sw$swq C:\temp\x") -eq 2)
+ok "blocks a trailing switch followed straight by &&"   ((hookExit "rd C:\temp\x $sw&&echo done") -eq 2)
+# Switch run LED BY ANOTHER FLAG, and the no-space form. Live-fired: `del /f/s/q <dir>\*` really
+# deleted files at depth and `rd/s/q <dir>` really removed a tree. Missed by every generation of
+# this pattern before the grammar rewrite.
+ok "blocks del with the recursive switch led by another flag (/f/s/q)" ((hookExit "del $swf$sw$swq C:\temp\x") -eq 2)
+ok "blocks del /a/s/q (different leading flag)"         ((hookExit "del /a$sw$swq C:\temp\x") -eq 2)
+ok "blocks del /f/q (quiet switch not first in the run)" ((hookExit "del $swf$swq C:\temp\f.txt") -eq 2)
+ok "blocks rd with NO space between command and switch"    ((hookExit "rd$sw$swq C:\temp\x") -eq 2)
+ok "blocks rmdir with NO space between command and switch" ((hookExit "rmdir$sw$swq C:\temp\x") -eq 2)
+# The switch run also ends at > ) and , — a terminator LIST is always short by something, and these
+# two spellings are the most idiomatic batch there is. Live-fired: both deleted populated trees.
+ok "blocks a switch run ended by > (rd ... >nul)"      ((hookExit "rd C:\temp\x $sw$swq>nul") -eq 2)
+ok "blocks a switch run ended by > (rmdir ... >nul)"   ((hookExit "rmdir C:\temp\x $sw$swq>nul") -eq 2)
+ok "blocks a switch run ended by ) (parenthesised)"    ((hookExit "(rd C:\temp\x $sw$swq)") -eq 2)
+ok "blocks the if-exist guarded delete (idiomatic batch)" ((hookExit "if exist C:\temp\x (rd C:\temp\x $sw$swq)") -eq 2)
+ok "blocks a switch run ended by a comma"              ((hookExit "rd C:\temp\x $sw$swq,") -eq 2)
+ok "blocks del with a switch run ended by >"           ((hookExit "del C:\temp\x $sw$swq>nul") -eq 2)
+ok "blocks del /f/s/q ended by > (led by a flag AND redirected)" ((hookExit "del C:\temp\x $swf$sw$swq>nul") -eq 2)
+# `erase` is a full cmd.exe synonym for `del`, uncovered by EVERY generation including this .ps1.
+ok "blocks erase /f/s/q (del's cmd.exe synonym)"       ((hookExit "erase $swf$sw$swq C:\temp\x") -eq 2)
+ok "blocks erase /s"                                   ((hookExit "erase $sw C:\temp\x") -eq 2)
+# Two-letter switch TOKENS are refused by cmd.exe itself, live-fired in both orders.
+ok "ALLOWS the two-letter token /sq (cmd.exe refuses it)"  ((hookExit "rd ${sw}q C:\temp\x") -eq 0)
+ok "ALLOWS the two-letter token /qs (cmd.exe refuses it)"  ((hookExit "rd ${swq}s C:\temp\x") -eq 0)
+# The false-positive family the boundary-character generation created.
+ok "ALLOWS a command mentioning del beside a /logs/ path"  ((hookExit 'node del.js --out /logs/') -eq 0)
+ok "ALLOWS rmdir /s/build (cmd.exe: 'Invalid switch')"     ((hookExit 'rmdir /s/build') -eq 0)
+# Negative controls. The three POSIX-path cases are the ones a fresh-context review caught: an
+# absolute path whose first segment starts with the switch letter is NOT a switch, and this cmdlet
+# surface is reachable on POSIX via pwsh, where /srv /sys /storage are ordinary roots.
+ok "ALLOWS a bare Remove-Item with no -Recurse/-Force"   ((hookExit ('Remove' + '-Item stale.tmp')) -eq 0)
+ok "ALLOWS rmdir on a POSIX path starting with the switch letter (/srv)" ((hookExit 'rmdir /srv/cache') -eq 0)
+ok "ALLOWS rmdir /sys/... (POSIX path, not a switch)"    ((hookExit 'rmdir /sys/fs/cgroup/x') -eq 0)
+ok "ALLOWS rd on a POSIX path starting with the switch letter (/storage)" ((hookExit 'rd /storage/tmp') -eq 0)
 # Twin of the bash pin (2026-09-06): the guard must still fire when the destructive command is buried
 # in an OVERSIZED payload. The .sh hook matched with `printf | grep -q`, the shape that failed open in
 # money_signal once the text passed the 64 KiB pipe buffer under pipefail; the .ps1 hook matches

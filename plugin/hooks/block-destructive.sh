@@ -82,6 +82,42 @@ declare -a pats=(
   '\b(shred|truncate[[:space:]]+-s[[:space:]]*0)\b@@file shredding/truncation'
   '\bdd\b[^|]*[[:space:]]of=@@raw disk write via dd'
   '\bmkfs@@filesystem format'
+  # PowerShell-tool / cmd.exe destructive forms. These are NOT bash-only: the PowerShell tool runs on
+  # POSIX via pwsh, and this hook is also the one Codex loads under its shell-tool matcher, so a
+  # cross-platform agent can reach them from the .sh side. Twins of the .ps1 entries — keep in step.
+  '\bRemove-Item\b[^|]*-(Recurse|Force)@@recursive/force Remove-Item'
+  # These match cmd.exe's actual switch GRAMMAR, not a boundary character. Three earlier attempts
+  # each failed by reasoning about where the switch usually sits instead of what the parser accepts:
+  # an adjacent-only match missed `rmdir /q /s x`; adding a space-or-end boundary to stop a POSIX
+  # path impersonating the switch (`rmdir /srv/cache`) let CONCATENATED switches through; and a
+  # boundary class containing `/` still missed a run whose first letter is neither s nor q.
+  # All of those were live-fired in real cmd.exe and really deleted populated trees.
+  #
+  # The grammar: a switch is a run of one-letter `/x` segments, optionally preceded by other
+  # arguments, and it may sit anywhere — `rd /s/q x`, `rd x /s`, `del /f/s/q x`, `rd/s/q x` (no
+  # space at all) are all accepted and all destructive. So:
+  #   ([^|]*[[:space:]])?   optional preamble — OPTIONAL, so `rd/s/q x` is caught; cannot span `|`
+  #   (/[a-z])*             switch segments before the one that matters (`/f`, `/a`, `/q`)
+  #   /s   or  /[sq]        the segment that makes it destructive
+  #   (/[a-z])*             trailing segments (`/q`, `/f`)
+  #   ([^a-zA-Z/]|$)        end of the switch run — expressed as "not a continuation", NOT as a list
+  #                         of terminators. A terminator LIST is always short: cmd.exe also ends a
+  #                         run at `>`, `)` and `,`, so `rd x /s/q>nul` and `if exist x (rd x /s/q)`
+  #                         — the two most idiomatic batch spellings there are — escaped a
+  #                         space/;/&/" list, live-fired and confirmed to delete populated trees.
+  #                         A one-letter segment simply must not be followed by another LETTER (that
+  #                         would be a multi-letter token cmd refuses) or by `/` (already consumed
+  #                         by the segment run). Write `a-zA-Z` explicitly rather than trusting a
+  #                         negated class to fold under case-insensitive matching.
+  # A two-letter segment like `/sq` is deliberately NOT matched: cmd.exe refuses it
+  # ("Parameter format not correct"), live-fired both orders, target survived. Matching only what
+  # the parser accepts is what keeps `rmdir /srv/cache` and `rd /storage/tmp` allowed on POSIX,
+  # where those are ordinary roots and rmdir cannot even delete a non-empty directory.
+  '\b(rd|rmdir)\b([^|]*[[:space:]])?(/[a-z])*/s(/[a-z])*([^a-zA-Z/]|$)@@recursive rmdir (/s)'
+  # `erase` is a full cmd.exe synonym for `del`, uncovered by every earlier generation of this
+  # pattern. Live-fired: `erase /f/s/q <dir>\*.txt` took three files to zero.
+  '\b(del|erase)\b([^|]*[[:space:]])?(/[a-z])*/[sq](/[a-z])*([^a-zA-Z/]|$)@@recursive/quiet del'
+  '\b(Format-Volume|Clear-Disk|Clear-Content)\b@@disk/file wipe (PowerShell)'
   'git[[:space:]]+push[[:space:]].*(-f([[:space:]]|$)|--force([[:space:]]|$|[^-])|[[:space:]]\+[^[:space:]]+:)@@force-push (use --force-with-lease)'
   'git[[:space:]]+reset[[:space:]]+--hard@@discarding work via reset --hard'
   'git[[:space:]]+clean\b[^|]*(-[a-z]*f[a-z]*([[:space:]]|$)|--force)@@git clean force'

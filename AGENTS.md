@@ -198,6 +198,57 @@ editing** (Claude Code: see CLAUDE.md; anything else: `git worktree add`). Land 
   control that fires when the switch is off — otherwise the proof passes on a script that never calls
   the tool at all.
 
+- [2026-09-08] **A new denylist pattern is probed against the REAL command vocabulary of the platform
+  it will run on, before "the false positives are X" is written down.** Porting the `.ps1` guard's
+  cmd.exe patterns to the `.sh` twin carried the switch matched ADJACENT to the command, which on
+  POSIX denies `rmdir /srv/cache`, `rmdir /sys/...`, `rd /storage/...` — `/srv /sys /sbin /snap
+  /share /storage` are ordinary roots, and the `.sh` hook is the one that actually runs there. The
+  same shape also MISSED `rmdir /q /s x` and `del /f /s x`, real recursive deletes with the flags in
+  the other order: one pattern, wrong in both directions, and the shipped `.ps1` had carried both
+  defects for months because only one of its four patterns was ever asserted. Two corollaries. (a)
+  The twin whose BEHAVIOUR is correct is not therefore the twin whose TESTS are good — when closing a
+  parity gap, count the assertions on both sides, not just the patterns. (b) A false-positive list
+  assembled from prose examples will always undercount; the author's list named one FP (prose quoting
+  a switch) and a differential probe over real commands found three more that mattered far more.
+  **(c) And the fix for an over-block is itself a loosening, so it gets DIFFERENTIALLY DIFFED against
+  the pattern it replaces, over every form the OLD one caught.** The obvious repair here — require a
+  space-or-end boundary after the switch, so a path cannot impersonate it — shipped a real BYPASS and
+  was caught only by a second review: cmd.exe accepts CONCATENATED switches, so `rd /s/q x` and
+  `del /s/q x` end the switch with `/`, and a trailing switch can be followed straight by `&&`. All
+  of those were denied by the crude original and allowed by the careful replacement, including
+  `cmd /c rd /s/q <dir>` — the exact phrasing an agent uses from the Bash tool on Windows, live-fired
+  and confirmed to delete a populated tree. A branch whose purpose was to CLOSE a guard gap was one
+  review away from shipping a net loss of coverage. **(d) The rule that finally worked is written
+  against the foreign shell's switch GRAMMAR, not against a boundary character.** Widening the
+  boundary to a class was the third wrong answer, and a third review live-fired past it too: a run
+  led by another flag (`del /f/s/q x`, the canonical Windows build-script idiom) and the no-space
+  form (`rd/s/q x`) both deleted real files, and the class had meanwhile created a fresh
+  false-positive family (any text with the word `del` beside a path segment ending in s or q).
+  Enumerate the token forms the parser actually accepts — a switch is a run of one-letter `/x`
+  segments, positioned anywhere, optionally with no separating space — and live-fire each; boundary
+  characters and flag order fall out of that as consequences rather than being the rule. Live-fire
+  the negatives too: `/sq`, `/qs` and `/s/build` are all REFUSED by cmd.exe, so matching them would
+  buy nothing and cost over-blocking. Pin the negative controls as well as the denials.
+  **(e) Express a token boundary as "NOT A CONTINUATION", never as a list of terminators — a list is
+  always short by something.** Even written against the grammar, the run-END was first spelled
+  `([[:space:];&"]|$)`, and cmd.exe also ends a switch run at `>`, `)` and `,`: `rd x /s/q>nul` and
+  `if exist x (rd x /s/q)`, two of the most idiomatic batch spellings there are, walked straight
+  through and deleted their targets. The predecessor had caught them only BY ACCIDENT (its class
+  contained `/`, so it matched at a multi-segment run's inner separator and never reached the end),
+  so removing `/` on sound grammatical grounds silently removed the accident too — which is exactly
+  why clause (c)'s differential is not optional. `([^a-zA-Z/]|$)` has no list to be short by.
+  **(f) The differential is a DELIVERABLE, not a habit**: ship the machine-checked set "denied by the
+  predecessor, allowed by this one" as a committed evidence arm. Four rounds running, the round that
+  skipped it is the round that regressed — including the round whose own diff added clause (c).
+  **(g) That arm's own dismissal filter is an EXACT WHOLE-LINE allowlist of measured cases, never a
+  substring regex, and each positive control is asserted PRESENT in the corpus it filters and DENIED
+  by the current rule — not merely that it survives the filter.** A substring dismissal (`/logs/`,
+  `/srv/`) silently grows its reach as the corpus grows, so the filter built to catch the next
+  regression becomes the thing that hides it. And a control that only proves the filter can speak
+  proves nothing about whether the corpus can accuse: measured on the first version of this arm,
+  gutting the corpus from 1,342 forms to 334 left every control green and the arm still exiting 0.
+  Adding the presence assertion immediately caught a control string the corpus had never generated.
+
 ## Nested context
 Subsystems carry their own `AGENTS.md` next to their code (in this repo: `plugin/engine/` holds the
 engine's PS-5.1/twin-parity rules). When working in a subsystem, its local map applies too.

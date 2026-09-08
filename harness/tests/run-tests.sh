@@ -166,6 +166,81 @@ ok "$([ "$(hookrc 'git status')"      = "0" ] && echo 1 || echo 0)" "allows git 
 ok "$([ "$(hookrc 'npm test')"        = "0" ] && echo 1 || echo 0)" "allows npm test"
 ok "$([ "$(hookrc 'git push origin feature')" = "0" ] && echo 1 || echo 0)" "allows normal git push"
 ok "$([ "$(hookrc "$lease")" = "0" ] && echo 1 || echo 0)" "ALLOWS git push --force-with-lease (recommended)"
+# PowerShell-tool / cmd.exe destructive forms — the twin gap closed 2026-09-08. The .ps1 hook has
+# carried these four since it shipped; the .sh hook did not, and it is the one Codex loads under its
+# shell-tool matcher and the one /harness-init installs on POSIX (where the PowerShell tool still
+# runs via pwsh). Measured against the pre-fix .sh every case below returned 0 — ALLOWED, a wrong
+# VALUE rather than an error, which is what makes these a real regression proof and not a test of
+# the pattern syntax. Fixtures — including the cmd.exe switches — are built from fragments so this
+# suite's own text does not trip the guard watching the agent that edits it. The three POSIX-path
+# controls below are deliberately left verbatim: they must NOT match, so they are safe to write out,
+# and seeing them whole is the point.
+psrm="Remove""-Item"; psfv="Format""-Volume"; pscd="Clear""-Disk"; pscc="Clear""-Content"
+sw="/""s"; swq="/""q"; swf="/""f"    # the cmd.exe switches, split for the same reason
+ok "$([ "$(hookrc "$psrm -Recurse -Force .")"   = "2" ] && echo 1 || echo 0)" "blocks Remove-Item -Recurse -Force (PowerShell form)"
+ok "$([ "$(hookrc "$psrm -Force build")"        = "2" ] && echo 1 || echo 0)" "blocks Remove-Item -Force (Force alone, no Recurse)"
+ok "$([ "$(hookrc "rmdir $sw $swq build")"      = "2" ] && echo 1 || echo 0)" "blocks rmdir /s (cmd.exe recursive)"
+ok "$([ "$(hookrc "rd $sw $swq build")"         = "2" ] && echo 1 || echo 0)" "blocks rd /s (cmd.exe recursive, short alias)"
+ok "$([ "$(hookrc "del $sw *.log")"             = "2" ] && echo 1 || echo 0)" "blocks del /s (cmd.exe recursive delete)"
+ok "$([ "$(hookrc "del $swq *.log")"            = "2" ] && echo 1 || echo 0)" "blocks del /q (cmd.exe quiet delete)"
+ok "$([ "$(hookrc "$psfv -DriveLetter D")"      = "2" ] && echo 1 || echo 0)" "blocks Format-Volume"
+ok "$([ "$(hookrc "$pscd -Number 1")"           = "2" ] && echo 1 || echo 0)" "blocks Clear-Disk"
+ok "$([ "$(hookrc "$pscc notes.txt")"           = "2" ] && echo 1 || echo 0)" "blocks Clear-Content"
+# The switch is found in ANY position, so flag ORDER cannot smuggle a recursive delete past an
+# adjacent-only match. Both of these are real recursive deletes and both were missed before.
+ok "$([ "$(hookrc "rmdir $swq $sw build")"      = "2" ] && echo 1 || echo 0)" "blocks rmdir with the recursive switch in second position"
+ok "$([ "$(hookrc "del $swf $sw *.log")"        = "2" ] && echo 1 || echo 0)" "blocks del with the recursive switch in second position"
+# CONCATENATED switches. cmd.exe accepts them, and `rd /s/q <dir>` deleted a populated tree in a
+# live-fire on Windows 11. A whitespace-only trailing boundary — the obvious way to stop a POSIX
+# path impersonating a switch — silently allows every one of these, which is a NET LOSS against the
+# adjacent-only pattern it replaced. That regression shipped once here; these are its pins.
+ok "$([ "$(hookrc "rd $sw${swq} C:/temp/x")"     = "2" ] && echo 1 || echo 0)" "blocks rd with concatenated switches (/s/q)"
+ok "$([ "$(hookrc "rmdir $sw${swq} C:/temp/x")"  = "2" ] && echo 1 || echo 0)" "blocks rmdir with concatenated switches (/s/q)"
+ok "$([ "$(hookrc "rd $swq${sw} C:/temp/x")"     = "2" ] && echo 1 || echo 0)" "blocks rd with concatenated switches, other order (/q/s)"
+ok "$([ "$(hookrc "del $sw${swq} C:/temp/x")"    = "2" ] && echo 1 || echo 0)" "blocks del with concatenated switches (/s/q)"
+ok "$([ "$(hookrc "cmd /c rd $sw${swq} C:/temp/x")" = "2" ] && echo 1 || echo 0)" "blocks a concatenated-switch delete wrapped in cmd /c (how an agent phrases it)"
+ok "$([ "$(hookrc "rd C:/temp/x ${sw}&&echo done")" = "2" ] && echo 1 || echo 0)" "blocks a trailing switch followed straight by && (no whitespace after)"
+# A switch run LED BY ANOTHER FLAG, and the no-space form. Both were live-fired: `del /f/s/q <dir>\*`
+# is the canonical Windows build-script idiom and really deleted files at depth, and `rd/s/q <dir>`
+# really removed a tree. Every generation of this pattern before the grammar rewrite missed them.
+ok "$([ "$(hookrc "del ${swf}${sw}${swq} C:/temp/x")" = "2" ] && echo 1 || echo 0)" "blocks del with the recursive switch led by another flag (/f/s/q)"
+ok "$([ "$(hookrc "del /a${sw}${swq} C:/temp/x")"     = "2" ] && echo 1 || echo 0)" "blocks del /a/s/q (different leading flag)"
+ok "$([ "$(hookrc "del ${swf}${swq} C:/temp/f.txt")"  = "2" ] && echo 1 || echo 0)" "blocks del /f/q (quiet switch not first in the run)"
+ok "$([ "$(hookrc "rd${sw}${swq} C:/temp/x")"         = "2" ] && echo 1 || echo 0)" "blocks rd with NO space between command and switch"
+ok "$([ "$(hookrc "rmdir${sw}${swq} C:/temp/x")"      = "2" ] && echo 1 || echo 0)" "blocks rmdir with NO space between command and switch"
+# The switch run also ends at `>`, `)` and `,`. A boundary written as a LIST of terminators is always
+# short by something: a space/;/&/quote list let these through, and `rd x /s/q>nul` and
+# `if exist x (rd x /s/q)` are the two most idiomatic batch spellings there are. Live-fired, both
+# deleted populated trees. Hence the boundary is "not a continuation" rather than a terminator list.
+ok "$([ "$(hookrc "rd C:/temp/x ${sw}${swq}>nul")"    = "2" ] && echo 1 || echo 0)" "blocks a switch run ended by > (rd ... >nul)"
+ok "$([ "$(hookrc "rmdir C:/temp/x ${sw}${swq}>nul")" = "2" ] && echo 1 || echo 0)" "blocks a switch run ended by > (rmdir ... >nul)"
+ok "$([ "$(hookrc "(rd C:/temp/x ${sw}${swq})")"      = "2" ] && echo 1 || echo 0)" "blocks a switch run ended by ) (parenthesised block)"
+ok "$([ "$(hookrc "if exist C:/temp/x (rd C:/temp/x ${sw}${swq})")" = "2" ] && echo 1 || echo 0)" "blocks the if-exist guarded delete (idiomatic batch)"
+ok "$([ "$(hookrc "rd C:/temp/x ${sw}${swq},")"       = "2" ] && echo 1 || echo 0)" "blocks a switch run ended by a comma"
+ok "$([ "$(hookrc "del C:/temp/x ${sw}${swq}>nul")"   = "2" ] && echo 1 || echo 0)" "blocks del with a switch run ended by >"
+ok "$([ "$(hookrc "del C:/temp/x ${swf}${sw}${swq}>nul")" = "2" ] && echo 1 || echo 0)" "blocks del /f/s/q ended by > (led by another flag AND redirected)"
+# `erase` is a full cmd.exe synonym for `del` and was uncovered by EVERY generation of this pattern,
+# including the long-shipped .ps1. Live-fired: it took three files to zero.
+ok "$([ "$(hookrc "erase ${swf}${sw}${swq} C:/temp/x")" = "2" ] && echo 1 || echo 0)" "blocks erase /f/s/q (del's cmd.exe synonym)"
+ok "$([ "$(hookrc "erase ${sw} C:/temp/x")"            = "2" ] && echo 1 || echo 0)" "blocks erase /s"
+# Two-letter switch TOKENS are refused by cmd.exe itself ("Parameter format not correct", live-fired
+# in both orders, target survived), so matching them would only over-block. Pinned so a future
+# widening of the pattern has to justify itself against the parser rather than against intuition.
+ok "$([ "$(hookrc "rd ${sw}q C:/temp/x")"             = "0" ] && echo 1 || echo 0)" "ALLOWS the two-letter token /sq (cmd.exe refuses it; not executable)"
+ok "$([ "$(hookrc "rd ${swq}s C:/temp/x")"            = "0" ] && echo 1 || echo 0)" "ALLOWS the two-letter token /qs (cmd.exe refuses it; not executable)"
+# The false-positive family the boundary-character generation created: any text carrying the word
+# `del` plus a path whose first segment ends in s or q. The grammar match does not see these.
+ok "$([ "$(hookrc 'node del.js --out /logs/')"        = "0" ] && echo 1 || echo 0)" "ALLOWS a command mentioning del beside a /logs/ path"
+ok "$([ "$(hookrc 'rmdir /s/build')"                  = "0" ] && echo 1 || echo 0)" "ALLOWS rmdir /s/build (cmd.exe: 'Invalid switch - build'; not executable)"
+# Negative controls. Two kinds, and the second kind is the one a review caught: an absolute POSIX
+# path whose first segment starts with the switch letter is NOT a switch. /srv /sys /sbin /snap
+# /share /storage are ordinary roots, this hook is the one that runs on POSIX, and rmdir there
+# cannot even delete a non-empty directory — so denying these would break real, harmless commands.
+ok "$([ "$(hookrc "$psrm stale.tmp")"           = "0" ] && echo 1 || echo 0)" "ALLOWS a bare Remove-Item with no -Recurse/-Force"
+ok "$([ "$(hookrc 'rmdir /srv/cache')"          = "0" ] && echo 1 || echo 0)" "ALLOWS rmdir on a POSIX path starting with the switch letter (/srv)"
+ok "$([ "$(hookrc 'rmdir /sys/fs/cgroup/x')"    = "0" ] && echo 1 || echo 0)" "ALLOWS rmdir /sys/... (POSIX path, not a switch)"
+ok "$([ "$(hookrc 'rd /storage/tmp')"           = "0" ] && echo 1 || echo 0)" "ALLOWS rd on a POSIX path starting with the switch letter (/storage)"
+unset psrm psfv pscd pscc sw swq swf
 # The guard still fires when the destructive command is buried in an OVERSIZED payload. Kept as a
 # plain smoke test of the size path — but note it is a SINGLE line, and a single line can never
 # reproduce the SIGPIPE fail-open (see the multi-line block below for why). It passes against the
