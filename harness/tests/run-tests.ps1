@@ -552,6 +552,15 @@ ok "blocks del /a/s/q (different leading flag)"         ((hookExit "del /a$sw$sw
 ok "blocks del /f/q (quiet switch not first in the run)" ((hookExit "del $swf$swq C:\temp\f.txt") -eq 2)
 ok "blocks rd with NO space between command and switch"    ((hookExit "rd$sw$swq C:\temp\x") -eq 2)
 ok "blocks rmdir with NO space between command and switch" ((hookExit "rmdir$sw$swq C:\temp\x") -eq 2)
+# The switch run also ends at > ) and , — a terminator LIST is always short by something, and these
+# two spellings are the most idiomatic batch there is. Live-fired: both deleted populated trees.
+ok "blocks a switch run ended by > (rd ... >nul)"      ((hookExit "rd C:\temp\x $sw$swq>nul") -eq 2)
+ok "blocks a switch run ended by > (rmdir ... >nul)"   ((hookExit "rmdir C:\temp\x $sw$swq>nul") -eq 2)
+ok "blocks a switch run ended by ) (parenthesised)"    ((hookExit "(rd C:\temp\x $sw$swq)") -eq 2)
+ok "blocks the if-exist guarded delete (idiomatic batch)" ((hookExit "if exist C:\temp\x (rd C:\temp\x $sw$swq)") -eq 2)
+ok "blocks a switch run ended by a comma"              ((hookExit "rd C:\temp\x $sw$swq,") -eq 2)
+ok "blocks del with a switch run ended by >"           ((hookExit "del C:\temp\x $sw$swq>nul") -eq 2)
+ok "blocks del /f/s/q ended by > (led by a flag AND redirected)" ((hookExit "del C:\temp\x $swf$sw$swq>nul") -eq 2)
 # Two-letter switch TOKENS are refused by cmd.exe itself, live-fired in both orders.
 ok "ALLOWS the two-letter token /sq (cmd.exe refuses it)"  ((hookExit "rd ${sw}q C:\temp\x") -eq 0)
 ok "ALLOWS the two-letter token /qs (cmd.exe refuses it)"  ((hookExit "rd ${swq}s C:\temp\x") -eq 0)

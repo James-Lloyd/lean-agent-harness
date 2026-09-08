@@ -76,3 +76,9 @@ elif command -v powershell >/dev/null 2>&1; then
 else
   echo "  (skipped: no pwsh/powershell on PATH — arm 3 needs a PowerShell host)"
 fi
+
+echo
+echo "=== ARM 4: THE DIFFERENTIAL — nothing a predecessor denied may be allowed now ==="
+# AGENTS.md 2026-09-08 (f). Three of this task's four pattern generations shipped a regression, and
+# each regressing round is one that had not computed this set. It is an arm, not a habit.
+bash "$here/differential.sh"

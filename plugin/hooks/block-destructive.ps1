@@ -72,8 +72,12 @@ $blocked = @(
   # preamble catches the no-space form, the segment runs catch any flag order, and matching only
   # real one-letter segments keeps `rmdir /srv/cache` allowed under pwsh on POSIX. `/sq` is
   # deliberately unmatched: cmd.exe refuses it, live-fired. Keep in step with the .sh twin.
-  @{ rx = '\b(rd|rmdir)\b([^|]*\s)?(/[a-z])*/s(/[a-z])*([\s;&"]|$)'; why = 'recursive rmdir (/s)' },
-  @{ rx = '\bdel\b([^|]*\s)?(/[a-z])*/[sq](/[a-z])*([\s;&"]|$)';     why = 'recursive/quiet del' },
+  # The run-end is "not a continuation", NOT a terminator list: cmd.exe also ends a switch run at
+  # `>`, `)` and `,`, so `rd x /s/q>nul` and `if exist x (rd x /s/q)` escaped a space/;/&/" list —
+  # live-fired, both deleted populated trees. `a-zA-Z` written out rather than trusting a negated
+  # class to fold under IgnoreCase.
+  @{ rx = '\b(rd|rmdir)\b([^|]*\s)?(/[a-z])*/s(/[a-z])*([^a-zA-Z/]|$)'; why = 'recursive rmdir (/s)' },
+  @{ rx = '\bdel\b([^|]*\s)?(/[a-z])*/[sq](/[a-z])*([^a-zA-Z/]|$)';     why = 'recursive/quiet del' },
   @{ rx = '\b(Format-Volume|Clear-Disk|Clear-Content)\b';           why = 'disk/file wipe (PowerShell)' },
   # Block unsafe force-push but ALLOW the recommended --force-with-lease (+ --force-if-includes).
   @{ rx = 'git\s+push\s+.*(-f(\s|$)|--force(?!-with-lease|-if-includes)|\s\+[^\s]+:)'; why = 'force-push (use --force-with-lease)' },

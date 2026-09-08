@@ -229,6 +229,17 @@ editing** (Claude Code: see CLAUDE.md; anything else: `git worktree add`). Land 
   characters and flag order fall out of that as consequences rather than being the rule. Live-fire
   the negatives too: `/sq`, `/qs` and `/s/build` are all REFUSED by cmd.exe, so matching them would
   buy nothing and cost over-blocking. Pin the negative controls as well as the denials.
+  **(e) Express a token boundary as "NOT A CONTINUATION", never as a list of terminators — a list is
+  always short by something.** Even written against the grammar, the run-END was first spelled
+  `([[:space:];&"]|$)`, and cmd.exe also ends a switch run at `>`, `)` and `,`: `rd x /s/q>nul` and
+  `if exist x (rd x /s/q)`, two of the most idiomatic batch spellings there are, walked straight
+  through and deleted their targets. The predecessor had caught them only BY ACCIDENT (its class
+  contained `/`, so it matched at a multi-segment run's inner separator and never reached the end),
+  so removing `/` on sound grammatical grounds silently removed the accident too — which is exactly
+  why clause (c)'s differential is not optional. `([^a-zA-Z/]|$)` has no list to be short by.
+  **(f) The differential is a DELIVERABLE, not a habit**: ship the machine-checked set "denied by the
+  predecessor, allowed by this one" as a committed evidence arm. Four rounds running, the round that
+  skipped it is the round that regressed — including the round whose own diff added clause (c).
 
 ## Nested context
 Subsystems carry their own `AGENTS.md` next to their code (in this repo: `plugin/engine/` holds the

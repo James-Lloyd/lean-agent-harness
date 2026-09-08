@@ -208,6 +208,17 @@ ok "$([ "$(hookrc "del /a${sw}${swq} C:/temp/x")"     = "2" ] && echo 1 || echo 
 ok "$([ "$(hookrc "del ${swf}${swq} C:/temp/f.txt")"  = "2" ] && echo 1 || echo 0)" "blocks del /f/q (quiet switch not first in the run)"
 ok "$([ "$(hookrc "rd${sw}${swq} C:/temp/x")"         = "2" ] && echo 1 || echo 0)" "blocks rd with NO space between command and switch"
 ok "$([ "$(hookrc "rmdir${sw}${swq} C:/temp/x")"      = "2" ] && echo 1 || echo 0)" "blocks rmdir with NO space between command and switch"
+# The switch run also ends at `>`, `)` and `,`. A boundary written as a LIST of terminators is always
+# short by something: a space/;/&/quote list let these through, and `rd x /s/q>nul` and
+# `if exist x (rd x /s/q)` are the two most idiomatic batch spellings there are. Live-fired, both
+# deleted populated trees. Hence the boundary is "not a continuation" rather than a terminator list.
+ok "$([ "$(hookrc "rd C:/temp/x ${sw}${swq}>nul")"    = "2" ] && echo 1 || echo 0)" "blocks a switch run ended by > (rd ... >nul)"
+ok "$([ "$(hookrc "rmdir C:/temp/x ${sw}${swq}>nul")" = "2" ] && echo 1 || echo 0)" "blocks a switch run ended by > (rmdir ... >nul)"
+ok "$([ "$(hookrc "(rd C:/temp/x ${sw}${swq})")"      = "2" ] && echo 1 || echo 0)" "blocks a switch run ended by ) (parenthesised block)"
+ok "$([ "$(hookrc "if exist C:/temp/x (rd C:/temp/x ${sw}${swq})")" = "2" ] && echo 1 || echo 0)" "blocks the if-exist guarded delete (idiomatic batch)"
+ok "$([ "$(hookrc "rd C:/temp/x ${sw}${swq},")"       = "2" ] && echo 1 || echo 0)" "blocks a switch run ended by a comma"
+ok "$([ "$(hookrc "del C:/temp/x ${sw}${swq}>nul")"   = "2" ] && echo 1 || echo 0)" "blocks del with a switch run ended by >"
+ok "$([ "$(hookrc "del C:/temp/x ${swf}${sw}${swq}>nul")" = "2" ] && echo 1 || echo 0)" "blocks del /f/s/q ended by > (led by another flag AND redirected)"
 # Two-letter switch TOKENS are refused by cmd.exe itself ("Parameter format not correct", live-fired
 # in both orders, target survived), so matching them would only over-block. Pinned so a future
 # widening of the pattern has to justify itself against the parser rather than against intuition.

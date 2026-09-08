@@ -50,6 +50,15 @@ run "del /a/s/q C:\\\\temp\\\\*"   "del /a/s/q C:\\\\temp\\\\*"
 run "del /f/q C:\\\\temp\\\\f.txt" "del /f/q C:\\\\temp\\\\f.txt"
 run "rd/s/q C:\\\\temp\\\\x"       "rd/s/q C:\\\\temp\\\\x"
 run "rmdir/s/q C:\\\\temp\\\\x"    "rmdir/s/q C:\\\\temp\\\\x"
+echo "--- switch run ended by > ) or , : cmd.exe terminators a space-list boundary misses ---"
+# The two most idiomatic batch spellings there are. Both live-fired and DELETED populated trees.
+run "rd C:\\\\temp\\\\x /s/q>nul"    "rd C:\\\\temp\\\\x /s/q>nul"
+run "rmdir C:\\\\temp\\\\x /s/q>nul" "rmdir C:\\\\temp\\\\x /s/q>nul"
+run "(rd C:\\\\temp\\\\x /s/q)"      "(rd C:\\\\temp\\\\x /s/q)"
+run "if exist C:\\\\temp\\\\x (rd C:\\\\temp\\\\x /s/q)" "if exist C:\\\\temp\\\\x (rd C:\\\\temp\\\\x /s/q)"
+run "rd C:\\\\temp\\\\x /s/q,"       "rd C:\\\\temp\\\\x /s/q,"
+run "del C:\\\\temp\\\\*.txt /s/q>nul"   "del C:\\\\temp\\\\*.txt /s/q>nul"
+run "del C:\\\\temp\\\\*.txt /f/s/q>nul" "del C:\\\\temp\\\\*.txt /f/s/q>nul"
 echo "--- controls (must stay ALLOWED) ---"
 # SF1: POSIX absolute paths beginning with the switch letter. rmdir cannot delete a non-empty
 # directory on POSIX, and /srv /sys /sbin /snap /share /storage are ordinary roots.

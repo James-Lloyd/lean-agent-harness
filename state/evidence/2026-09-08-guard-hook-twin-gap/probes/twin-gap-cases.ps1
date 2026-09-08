@@ -19,6 +19,10 @@ $cases = @(
   # Switch run led by another flag, and no space at all — live-fired, these really delete.
   'del /f/s/q C:\temp\*', 'del /a/s/q C:\temp\*', 'del /f/q C:\temp\f.txt',
   'rd/s/q C:\temp\x', 'rmdir/s/q C:\temp\x',
+  # Switch run ended by > ) or , — cmd.exe terminators a space-list boundary misses. Live-fired.
+  'rd C:\temp\x /s/q>nul', 'rmdir C:\temp\x /s/q>nul', '(rd C:\temp\x /s/q)',
+  'if exist C:\temp\x (rd C:\temp\x /s/q)', 'rd C:\temp\x /s/q,',
+  'del C:\temp\*.txt /s/q>nul', 'del C:\temp\*.txt /f/s/q>nul',
   # controls — must be ALLOWED. The three /s-prefixed paths are SF1: POSIX roots, reachable here
   # because the PowerShell tool runs on POSIX via pwsh.
   'git status', 'npm test', "$RI stale.tmp",

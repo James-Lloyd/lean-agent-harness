@@ -100,13 +100,21 @@ declare -a pats=(
   #   (/[a-z])*             switch segments before the one that matters (`/f`, `/a`, `/q`)
   #   /s   or  /[sq]        the segment that makes it destructive
   #   (/[a-z])*             trailing segments (`/q`, `/f`)
-  #   ([[:space:];&"]|$)    end of the switch run
+  #   ([^a-zA-Z/]|$)        end of the switch run — expressed as "not a continuation", NOT as a list
+  #                         of terminators. A terminator LIST is always short: cmd.exe also ends a
+  #                         run at `>`, `)` and `,`, so `rd x /s/q>nul` and `if exist x (rd x /s/q)`
+  #                         — the two most idiomatic batch spellings there are — escaped a
+  #                         space/;/&/" list, live-fired and confirmed to delete populated trees.
+  #                         A one-letter segment simply must not be followed by another LETTER (that
+  #                         would be a multi-letter token cmd refuses) or by `/` (already consumed
+  #                         by the segment run). Write `a-zA-Z` explicitly rather than trusting a
+  #                         negated class to fold under case-insensitive matching.
   # A two-letter segment like `/sq` is deliberately NOT matched: cmd.exe refuses it
   # ("Parameter format not correct"), live-fired both orders, target survived. Matching only what
   # the parser accepts is what keeps `rmdir /srv/cache` and `rd /storage/tmp` allowed on POSIX,
   # where those are ordinary roots and rmdir cannot even delete a non-empty directory.
-  '\b(rd|rmdir)\b([^|]*[[:space:]])?(/[a-z])*/s(/[a-z])*([[:space:];&"]|$)@@recursive rmdir (/s)'
-  '\bdel\b([^|]*[[:space:]])?(/[a-z])*/[sq](/[a-z])*([[:space:];&"]|$)@@recursive/quiet del'
+  '\b(rd|rmdir)\b([^|]*[[:space:]])?(/[a-z])*/s(/[a-z])*([^a-zA-Z/]|$)@@recursive rmdir (/s)'
+  '\bdel\b([^|]*[[:space:]])?(/[a-z])*/[sq](/[a-z])*([^a-zA-Z/]|$)@@recursive/quiet del'
   '\b(Format-Volume|Clear-Disk|Clear-Content)\b@@disk/file wipe (PowerShell)'
   'git[[:space:]]+push[[:space:]].*(-f([[:space:]]|$)|--force([[:space:]]|$|[^-])|[[:space:]]\+[^[:space:]]+:)@@force-push (use --force-with-lease)'
   'git[[:space:]]+reset[[:space:]]+--hard@@discarding work via reset --hard'

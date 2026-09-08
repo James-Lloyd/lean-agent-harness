@@ -24,6 +24,14 @@ del /a/s/q C:\\temp\\*                         rc=0  ALLOWED
 del /f/q C:\\temp\\f.txt                       rc=0  ALLOWED
 rd/s/q C:\\temp\\x                             rc=0  ALLOWED
 rmdir/s/q C:\\temp\\x                          rc=0  ALLOWED
+--- switch run ended by > ) or , : cmd.exe terminators a space-list boundary misses ---
+rd C:\\temp\\x /s/q>nul                        rc=0  ALLOWED
+rmdir C:\\temp\\x /s/q>nul                     rc=0  ALLOWED
+(rd C:\\temp\\x /s/q)                          rc=0  ALLOWED
+if exist C:\\temp\\x (rd C:\\temp\\x /s/q)     rc=0  ALLOWED
+rd C:\\temp\\x /s/q,                           rc=0  ALLOWED
+del C:\\temp\\*.txt /s/q>nul                   rc=0  ALLOWED
+del C:\\temp\\*.txt /f/s/q>nul                 rc=0  ALLOWED
 --- controls (must stay ALLOWED) ---
 rmdir /srv/cache                               rc=0  ALLOWED
 rmdir /sys/fs/cgroup/x                         rc=0  ALLOWED
@@ -62,6 +70,14 @@ del /a/s/q C:\\temp\\*                         rc=2  DENIED
 del /f/q C:\\temp\\f.txt                       rc=2  DENIED
 rd/s/q C:\\temp\\x                             rc=2  DENIED
 rmdir/s/q C:\\temp\\x                          rc=2  DENIED
+--- switch run ended by > ) or , : cmd.exe terminators a space-list boundary misses ---
+rd C:\\temp\\x /s/q>nul                        rc=2  DENIED
+rmdir C:\\temp\\x /s/q>nul                     rc=2  DENIED
+(rd C:\\temp\\x /s/q)                          rc=2  DENIED
+if exist C:\\temp\\x (rd C:\\temp\\x /s/q)     rc=2  DENIED
+rd C:\\temp\\x /s/q,                           rc=2  DENIED
+del C:\\temp\\*.txt /s/q>nul                   rc=2  DENIED
+del C:\\temp\\*.txt /f/s/q>nul                 rc=2  DENIED
 --- controls (must stay ALLOWED) ---
 rmdir /srv/cache                               rc=0  ALLOWED
 rmdir /sys/fs/cgroup/x                         rc=0  ALLOWED
@@ -102,6 +118,13 @@ del /a/s/q C:\temp\*                           rc=2  DENIED
 del /f/q C:\temp\f.txt                         rc=2  DENIED
 rd/s/q C:\temp\x                               rc=2  DENIED
 rmdir/s/q C:\temp\x                            rc=2  DENIED
+rd C:\temp\x /s/q>nul                          rc=2  DENIED
+rmdir C:\temp\x /s/q>nul                       rc=2  DENIED
+(rd C:\temp\x /s/q)                            rc=2  DENIED
+if exist C:\temp\x (rd C:\temp\x /s/q)         rc=2  DENIED
+rd C:\temp\x /s/q,                             rc=2  DENIED
+del C:\temp\*.txt /s/q>nul                     rc=2  DENIED
+del C:\temp\*.txt /f/s/q>nul                   rc=2  DENIED
 git status                                     rc=0  ALLOWED
 npm test                                       rc=0  ALLOWED
 Remove-Item stale.tmp                          rc=0  ALLOWED
@@ -111,3 +134,17 @@ rd /storage/tmp                                rc=0  ALLOWED
 rd /sq C:\temp\x                               rc=0  ALLOWED
 rd /qs C:\temp\x                               rc=0  ALLOWED
 echo the del /s switch is documented           rc=2  DENIED
+
+=== ARM 4: THE DIFFERENTIAL — nothing a predecessor denied may be allowed now ===
+corpus: 1342 unique forms
+  gen 0 (1621ae7, ps1): denies 348
+  gen 1 (59f23d6, sh): denies 348
+  gen 2 (f17e051, sh): denies 196
+  gen 3 (7a021be, sh): denies 552
+  gen 4 (WORKTREE, sh): denies 962
+
+GAINED (denied now, allowed by every predecessor): 462
+LOST   (denied by some predecessor, allowed now):  128
+       of which adjudicated by live-fire (refused by cmd.exe, or a deliberate FP removal): all
+
+PASS: every loss against a predecessor has a recorded live-fire verdict.

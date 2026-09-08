@@ -34,14 +34,29 @@ Full captured output, unfiltered: **`results-2026-09-08.txt`**. Per arm:
 
 | Arm | What it runs | Result |
 |-----|--------------|--------|
-| 1 | the `.sh` hook at the pre-fix commit `1621ae7` | all twenty-two destructive cases `rc=0` **ALLOWED** (`results-2026-09-08.txt` lines 2–10, 12–13, 15–20, 22–26) |
-| 2 | the `.sh` hook after the fix | all twenty-two `rc=2` **DENIED** (lines 40–48, 50–51, 53–58, 60–64); the eight controls still `rc=0` (lines 66–73) |
-| 2b | one new pattern in a 190,920-byte multi-line payload, and again against a copy of the hook with `set -euo pipefail` injected | **DENIED** both ways; the same-size benign control **ALLOWED** (lines 78–80) |
-| 3 | the `.ps1` twin, same cases | identical to arm 2, case for case (lines 83–113) |
+| 1 | the `.sh` hook at the pre-fix commit `1621ae7` | all twenty-nine destructive cases `rc=0` **ALLOWED** (`results-2026-09-08.txt` lines 2–10, 12–13, 15–20, 22–26, 28–34) |
+| 2 | the `.sh` hook after the fix | all twenty-nine `rc=2` **DENIED** (lines 48–56, 58–59, 61–66, 68–72, 74–80); the eight controls still `rc=0` (lines 82–89) |
+| 2b | one new pattern in a 190,920-byte multi-line payload, and again against a copy of the hook with `set -euo pipefail` injected | **DENIED** both ways; the same-size benign control **ALLOWED** (lines 94–96) |
+| 3 | the `.ps1` twin, same cases | identical to arm 2, case for case (lines 99–136) |
+| 4 | **the differential** — all five pattern generations extracted from the git blobs and evaluated over a 1,342-form corpus | 462 forms **gained**, 128 lost, every loss carrying a recorded live-fire verdict (lines 139–150) |
+
+**Arm 4 is the one this task earned the hard way.** Three of the four pattern generations shipped a
+regression, and each regressing round is one that had not computed the set "denied by a predecessor,
+allowed by this one". So the differential is now an *arm* rather than a discipline: it extracts each
+generation's regexes straight from the git blobs (never transcribed — a transcription slip would make
+the differential agree with itself), evaluates them all over a generated corpus, and fails on any
+loss that is not on a list of adjudicated ones. The adjudicated list can only be extended by a
+live-fire verdict: a form cmd.exe *refuses* is not lost coverage, and a benign command an earlier
+generation over-blocked is a deliberate removal. Everything else is a blocker.
+
+It also carries a positive control on its own filter, because "no unadjudicated losses" reassures
+only if the filter can still report one — an over-broad adjudication pattern would silently swallow a
+real regression, which is precisely the failure this arm exists to catch. The six round-4 regressions
+are checked against the filter every run and must survive it.
 
 Arm 1 is pinned to the commit SHA, not to `origin/main`. Defaulting it to a branch would have made
 the proof self-falsifying: once this change merges, `origin/main` *is* the fixed hook, arm 1 would
-print twenty-two DENIED lines, and the committed results file would contradict the script that claims to
+print twenty-nine DENIED lines, and the committed results file would contradict the script that claims to
 produce it.
 
 **Arm 1 is the one that matters.** Against the pre-fix hook these commands return a wrong *value* — a
@@ -57,7 +72,7 @@ fixture puts its bulk *after* a newline, because grep cannot exit early until it
 line, and only an early exit can make the writer die of SIGPIPE. The benign control at the same size
 is what stops "DENIED" from merely proving that something in a 190 KB payload trips the guard.
 
-## What the fresh-context reviews changed — three rounds, and each fix was itself wrong
+## What the fresh-context reviews changed — four rounds, and three of the four fixes were wrong
 
 **Round 1.** The first version shipped the two cmd.exe patterns as the `.ps1` had always written
 them, matching the switch *adjacent* to the command. A fresh-context review measured that shape
@@ -108,21 +123,43 @@ Both live-fired: the first deleted files at two depths, the second removed a pop
 word `del` next to a path segment ending in `s` or `q`, so `node del.js --out /logs/` and
 `git log -- del /docs/` were denied.
 
-**The rule that finally works is written against cmd.exe's switch grammar, not against a boundary
-character.** A switch is a run of one-letter `/x` segments, it may sit anywhere in the command, and
-the separating space is optional:
+The answer was to stop describing *where the switch sits* and describe cmd.exe's switch **grammar**:
+a switch is a run of one-letter `/x` segments, it may sit anywhere in the command, and the separating
+space is optional. That part was right and still stands. The run-*end* was still written as a list of
+terminators, `([[:space:];&"]|$)`, and that was the fourth wrong answer.
+
+**Round 4.** A fourth review built a 1,992-form corpus, evaluated all four generations' regexes
+straight from the git blobs, and computed the one set that matters: denied by a predecessor, allowed
+by the new pattern. It was not empty. A terminator list is always short by something, and cmd.exe
+also ends a switch run at `>`, `)` and `,`:
 
 ```
-\b(rd|rmdir)\b([^|]*[[:space:]])?(/[a-z])*/s(/[a-z])*([[:space:];&"]|$)
-\bdel\b([^|]*[[:space:]])?(/[a-z])*/[sq](/[a-z])*([[:space:];&"]|$)
+rd <dir> /s/q>nul                       rmdir <dir> /s/q>nul       rd <dir> /s/q,
+if exist <dir> (rd <dir> /s/q)          (rd <dir> /s/q)            del <dir>\*.txt /s/q>nul
 ```
+
+Every one live-fired and deleted its target, and the first two spellings are about as idiomatic as
+batch gets. Round 3 had caught them *by accident* — its boundary class contained `/`, so it matched
+at the inner separator of a multi-segment run and never cared what followed. Removing `/` on
+grammatical grounds removed the accident with it.
+
+So the boundary is now written as **"not a continuation"** rather than as a list of terminators:
+
+```
+\b(rd|rmdir)\b([^|]*[[:space:]])?(/[a-z])*/s(/[a-z])*([^a-zA-Z/]|$)
+\bdel\b([^|]*[[:space:]])?(/[a-z])*/[sq](/[a-z])*([^a-zA-Z/]|$)
+```
+
+A one-letter segment must simply not be followed by another **letter** (that would make it a
+multi-letter token cmd.exe refuses) or by `/` (already consumed by the segment run). Nothing else
+needs enumerating, which is the point: there was no list left to be short by.
 
 The negatives were live-fired too, which is what licenses the narrowness: `rd /sq`, `rd /qs` and
 `rd /s/build` are all **refused by cmd.exe itself** — *"Parameter format not correct"*, *"Invalid
 switch"*, target survived in every case — so matching them would buy no coverage and cost
-over-blocking. Twenty-two destructive forms now deny on both twins; eight controls pass.
+over-blocking. Twenty-nine destructive forms now deny on both twins; eight controls pass.
 
-Three ratchets in `AGENTS.md` came out of this, and they get progressively more expensive. Probe a
+Four ratchets in `AGENTS.md` came out of this, and they get progressively more expensive. Probe a
 new denylist pattern against the platform's real command vocabulary before writing down what it
 costs. **A fix for an over-block is itself a loosening, so it gets differentially diffed against its
 predecessor over every form the old pattern caught** — a pattern that is merely *better reasoned* is
@@ -167,8 +204,8 @@ probing of the two hooks on identical payloads.
 
 | Suite | Before | After |
 |-------|--------|-------|
-| bash `run-tests.sh` | 325 / 0 | **355 / 0** |
-| PowerShell 5.1 `run-tests.ps1` | 333 / 0 | **362 / 0** |
+| bash `run-tests.sh` | 325 / 0 | **362 / 0** |
+| PowerShell 5.1 `run-tests.ps1` | 333 / 0 | **369 / 0** |
 
 Fifteen new assertions on the bash side, fourteen on the PowerShell side: nine denials, two
 flag-order denials, and four negative controls (a bare `Remove-Item` with no destructive flag, plus
