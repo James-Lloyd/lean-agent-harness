@@ -23,6 +23,8 @@ $cases = @(
   'rd C:\temp\x /s/q>nul', 'rmdir C:\temp\x /s/q>nul', '(rd C:\temp\x /s/q)',
   'if exist C:\temp\x (rd C:\temp\x /s/q)', 'rd C:\temp\x /s/q,',
   'del C:\temp\*.txt /s/q>nul', 'del C:\temp\*.txt /f/s/q>nul',
+  # erase — a full cmd.exe synonym for del, missed by every generation. Live-fired.
+  'erase /f/s/q C:\temp\*.txt', 'erase /s C:\temp\*.txt',
   # controls — must be ALLOWED. The three /s-prefixed paths are SF1: POSIX roots, reachable here
   # because the PowerShell tool runs on POSIX via pwsh.
   'git status', 'npm test', "$RI stale.tmp",

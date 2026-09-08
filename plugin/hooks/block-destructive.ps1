@@ -77,7 +77,8 @@ $blocked = @(
   # live-fired, both deleted populated trees. `a-zA-Z` written out rather than trusting a negated
   # class to fold under IgnoreCase.
   @{ rx = '\b(rd|rmdir)\b([^|]*\s)?(/[a-z])*/s(/[a-z])*([^a-zA-Z/]|$)'; why = 'recursive rmdir (/s)' },
-  @{ rx = '\bdel\b([^|]*\s)?(/[a-z])*/[sq](/[a-z])*([^a-zA-Z/]|$)';     why = 'recursive/quiet del' },
+  # `erase` is a full cmd.exe synonym for `del` — live-fired, `erase /f/s/q <dir>\*.txt` deleted three files.
+  @{ rx = '\b(del|erase)\b([^|]*\s)?(/[a-z])*/[sq](/[a-z])*([^a-zA-Z/]|$)'; why = 'recursive/quiet del' },
   @{ rx = '\b(Format-Volume|Clear-Disk|Clear-Content)\b';           why = 'disk/file wipe (PowerShell)' },
   # Block unsafe force-push but ALLOW the recommended --force-with-lease (+ --force-if-includes).
   @{ rx = 'git\s+push\s+.*(-f(\s|$)|--force(?!-with-lease|-if-includes)|\s\+[^\s]+:)'; why = 'force-push (use --force-with-lease)' },

@@ -32,6 +32,9 @@ if exist C:\\temp\\x (rd C:\\temp\\x /s/q)     rc=0  ALLOWED
 rd C:\\temp\\x /s/q,                           rc=0  ALLOWED
 del C:\\temp\\*.txt /s/q>nul                   rc=0  ALLOWED
 del C:\\temp\\*.txt /f/s/q>nul                 rc=0  ALLOWED
+--- erase: a full cmd.exe synonym for del, missed by EVERY generation (live-fired) ---
+erase /f/s/q C:\\temp\\*.txt                   rc=0  ALLOWED
+erase /s C:\\temp\\*.txt                       rc=0  ALLOWED
 --- controls (must stay ALLOWED) ---
 rmdir /srv/cache                               rc=0  ALLOWED
 rmdir /sys/fs/cgroup/x                         rc=0  ALLOWED
@@ -78,6 +81,9 @@ if exist C:\\temp\\x (rd C:\\temp\\x /s/q)     rc=2  DENIED
 rd C:\\temp\\x /s/q,                           rc=2  DENIED
 del C:\\temp\\*.txt /s/q>nul                   rc=2  DENIED
 del C:\\temp\\*.txt /f/s/q>nul                 rc=2  DENIED
+--- erase: a full cmd.exe synonym for del, missed by EVERY generation (live-fired) ---
+erase /f/s/q C:\\temp\\*.txt                   rc=2  DENIED
+erase /s C:\\temp\\*.txt                       rc=2  DENIED
 --- controls (must stay ALLOWED) ---
 rmdir /srv/cache                               rc=0  ALLOWED
 rmdir /sys/fs/cgroup/x                         rc=0  ALLOWED
@@ -125,6 +131,8 @@ if exist C:\temp\x (rd C:\temp\x /s/q)         rc=2  DENIED
 rd C:\temp\x /s/q,                             rc=2  DENIED
 del C:\temp\*.txt /s/q>nul                     rc=2  DENIED
 del C:\temp\*.txt /f/s/q>nul                   rc=2  DENIED
+erase /f/s/q C:\temp\*.txt                     rc=2  DENIED
+erase /s C:\temp\*.txt                         rc=2  DENIED
 git status                                     rc=0  ALLOWED
 npm test                                       rc=0  ALLOWED
 Remove-Item stale.tmp                          rc=0  ALLOWED
@@ -136,14 +144,14 @@ rd /qs C:\temp\x                               rc=0  ALLOWED
 echo the del /s switch is documented           rc=2  DENIED
 
 === ARM 4: THE DIFFERENTIAL — nothing a predecessor denied may be allowed now ===
-corpus: 1342 unique forms
+corpus: 1834 unique forms
   gen 0 (1621ae7, ps1): denies 348
   gen 1 (59f23d6, sh): denies 348
-  gen 2 (f17e051, sh): denies 196
-  gen 3 (7a021be, sh): denies 552
-  gen 4 (WORKTREE, sh): denies 962
+  gen 2 (f17e051, sh): denies 200
+  gen 3 (7a021be, sh): denies 563
+  gen 4 (WORKTREE, sh): denies 1368
 
-GAINED (denied now, allowed by every predecessor): 462
+GAINED (denied now, allowed by every predecessor): 857
 LOST   (denied by some predecessor, allowed now):  128
        of which adjudicated by live-fire (refused by cmd.exe, or a deliberate FP removal): all
 

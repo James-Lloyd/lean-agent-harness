@@ -219,6 +219,10 @@ ok "$([ "$(hookrc "if exist C:/temp/x (rd C:/temp/x ${sw}${swq})")" = "2" ] && e
 ok "$([ "$(hookrc "rd C:/temp/x ${sw}${swq},")"       = "2" ] && echo 1 || echo 0)" "blocks a switch run ended by a comma"
 ok "$([ "$(hookrc "del C:/temp/x ${sw}${swq}>nul")"   = "2" ] && echo 1 || echo 0)" "blocks del with a switch run ended by >"
 ok "$([ "$(hookrc "del C:/temp/x ${swf}${sw}${swq}>nul")" = "2" ] && echo 1 || echo 0)" "blocks del /f/s/q ended by > (led by another flag AND redirected)"
+# `erase` is a full cmd.exe synonym for `del` and was uncovered by EVERY generation of this pattern,
+# including the long-shipped .ps1. Live-fired: it took three files to zero.
+ok "$([ "$(hookrc "erase ${swf}${sw}${swq} C:/temp/x")" = "2" ] && echo 1 || echo 0)" "blocks erase /f/s/q (del's cmd.exe synonym)"
+ok "$([ "$(hookrc "erase ${sw} C:/temp/x")"            = "2" ] && echo 1 || echo 0)" "blocks erase /s"
 # Two-letter switch TOKENS are refused by cmd.exe itself ("Parameter format not correct", live-fired
 # in both orders, target survived), so matching them would only over-block. Pinned so a future
 # widening of the pattern has to justify itself against the parser rather than against intuition.

@@ -240,6 +240,14 @@ editing** (Claude Code: see CLAUDE.md; anything else: `git worktree add`). Land 
   **(f) The differential is a DELIVERABLE, not a habit**: ship the machine-checked set "denied by the
   predecessor, allowed by this one" as a committed evidence arm. Four rounds running, the round that
   skipped it is the round that regressed — including the round whose own diff added clause (c).
+  **(g) That arm's own dismissal filter is an EXACT WHOLE-LINE allowlist of measured cases, never a
+  substring regex, and each positive control is asserted PRESENT in the corpus it filters and DENIED
+  by the current rule — not merely that it survives the filter.** A substring dismissal (`/logs/`,
+  `/srv/`) silently grows its reach as the corpus grows, so the filter built to catch the next
+  regression becomes the thing that hides it. And a control that only proves the filter can speak
+  proves nothing about whether the corpus can accuse: measured on the first version of this arm,
+  gutting the corpus from 1,342 forms to 334 left every control green and the arm still exiting 0.
+  Adding the presence assertion immediately caught a control string the corpus had never generated.
 
 ## Nested context
 Subsystems carry their own `AGENTS.md` next to their code (in this repo: `plugin/engine/` holds the

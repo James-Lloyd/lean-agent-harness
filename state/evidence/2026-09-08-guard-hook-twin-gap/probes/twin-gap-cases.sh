@@ -59,6 +59,9 @@ run "if exist C:\\\\temp\\\\x (rd C:\\\\temp\\\\x /s/q)" "if exist C:\\\\temp\\\
 run "rd C:\\\\temp\\\\x /s/q,"       "rd C:\\\\temp\\\\x /s/q,"
 run "del C:\\\\temp\\\\*.txt /s/q>nul"   "del C:\\\\temp\\\\*.txt /s/q>nul"
 run "del C:\\\\temp\\\\*.txt /f/s/q>nul" "del C:\\\\temp\\\\*.txt /f/s/q>nul"
+echo "--- erase: a full cmd.exe synonym for del, missed by EVERY generation (live-fired) ---"
+run "erase /f/s/q C:\\\\temp\\\\*.txt" "erase /f/s/q C:\\\\temp\\\\*.txt"
+run "erase /s C:\\\\temp\\\\*.txt"     "erase /s C:\\\\temp\\\\*.txt"
 echo "--- controls (must stay ALLOWED) ---"
 # SF1: POSIX absolute paths beginning with the switch letter. rmdir cannot delete a non-empty
 # directory on POSIX, and /srv /sys /sbin /snap /share /storage are ordinary roots.

@@ -114,7 +114,9 @@ declare -a pats=(
   # the parser accepts is what keeps `rmdir /srv/cache` and `rd /storage/tmp` allowed on POSIX,
   # where those are ordinary roots and rmdir cannot even delete a non-empty directory.
   '\b(rd|rmdir)\b([^|]*[[:space:]])?(/[a-z])*/s(/[a-z])*([^a-zA-Z/]|$)@@recursive rmdir (/s)'
-  '\bdel\b([^|]*[[:space:]])?(/[a-z])*/[sq](/[a-z])*([^a-zA-Z/]|$)@@recursive/quiet del'
+  # `erase` is a full cmd.exe synonym for `del`, uncovered by every earlier generation of this
+  # pattern. Live-fired: `erase /f/s/q <dir>\*.txt` took three files to zero.
+  '\b(del|erase)\b([^|]*[[:space:]])?(/[a-z])*/[sq](/[a-z])*([^a-zA-Z/]|$)@@recursive/quiet del'
   '\b(Format-Volume|Clear-Disk|Clear-Content)\b@@disk/file wipe (PowerShell)'
   'git[[:space:]]+push[[:space:]].*(-f([[:space:]]|$)|--force([[:space:]]|$|[^-])|[[:space:]]\+[^[:space:]]+:)@@force-push (use --force-with-lease)'
   'git[[:space:]]+reset[[:space:]]+--hard@@discarding work via reset --hard'

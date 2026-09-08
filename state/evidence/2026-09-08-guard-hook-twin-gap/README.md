@@ -34,11 +34,11 @@ Full captured output, unfiltered: **`results-2026-09-08.txt`**. Per arm:
 
 | Arm | What it runs | Result |
 |-----|--------------|--------|
-| 1 | the `.sh` hook at the pre-fix commit `1621ae7` | all twenty-nine destructive cases `rc=0` **ALLOWED** (`results-2026-09-08.txt` lines 2–10, 12–13, 15–20, 22–26, 28–34) |
-| 2 | the `.sh` hook after the fix | all twenty-nine `rc=2` **DENIED** (lines 48–56, 58–59, 61–66, 68–72, 74–80); the eight controls still `rc=0` (lines 82–89) |
+| 1 | the `.sh` hook at the pre-fix commit `1621ae7` | all thirty-one destructive cases `rc=0` **ALLOWED** (`results-2026-09-08.txt` lines 2–10, 12–13, 15–20, 22–26, 28–34) |
+| 2 | the `.sh` hook after the fix | all thirty-one `rc=2` **DENIED** (lines 48–56, 58–59, 61–66, 68–72, 74–80); the eight controls still `rc=0` (lines 82–89) |
 | 2b | one new pattern in a 190,920-byte multi-line payload, and again against a copy of the hook with `set -euo pipefail` injected | **DENIED** both ways; the same-size benign control **ALLOWED** (lines 94–96) |
 | 3 | the `.ps1` twin, same cases | identical to arm 2, case for case (lines 99–136) |
-| 4 | **the differential** — all five pattern generations extracted from the git blobs and evaluated over a 1,342-form corpus | 462 forms **gained**, 128 lost, every loss carrying a recorded live-fire verdict (lines 139–150) |
+| 4 | **the differential** — all five pattern generations extracted from the git blobs and evaluated over a 1,834-form corpus | 857 forms **gained**, 128 lost, every loss carrying a recorded live-fire verdict (lines 139–150) |
 
 **Arm 4 is the one this task earned the hard way.** Three of the four pattern generations shipped a
 regression, and each regressing round is one that had not computed the set "denied by a predecessor,
@@ -56,7 +56,7 @@ are checked against the filter every run and must survive it.
 
 Arm 1 is pinned to the commit SHA, not to `origin/main`. Defaulting it to a branch would have made
 the proof self-falsifying: once this change merges, `origin/main` *is* the fixed hook, arm 1 would
-print twenty-nine DENIED lines, and the committed results file would contradict the script that claims to
+print thirty-one DENIED lines, and the committed results file would contradict the script that claims to
 produce it.
 
 **Arm 1 is the one that matters.** Against the pre-fix hook these commands return a wrong *value* — a
@@ -157,7 +157,7 @@ needs enumerating, which is the point: there was no list left to be short by.
 The negatives were live-fired too, which is what licenses the narrowness: `rd /sq`, `rd /qs` and
 `rd /s/build` are all **refused by cmd.exe itself** — *"Parameter format not correct"*, *"Invalid
 switch"*, target survived in every case — so matching them would buy no coverage and cost
-over-blocking. Twenty-nine destructive forms now deny on both twins; eight controls pass.
+over-blocking. Thirty-one destructive forms now deny on both twins; eight controls pass.
 
 Four ratchets in `AGENTS.md` came out of this, and they get progressively more expensive. Probe a
 new denylist pattern against the platform's real command vocabulary before writing down what it
@@ -204,8 +204,8 @@ probing of the two hooks on identical payloads.
 
 | Suite | Before | After |
 |-------|--------|-------|
-| bash `run-tests.sh` | 325 / 0 | **362 / 0** |
-| PowerShell 5.1 `run-tests.ps1` | 333 / 0 | **369 / 0** |
+| bash `run-tests.sh` | 325 / 0 | **364 / 0** |
+| PowerShell 5.1 `run-tests.ps1` | 333 / 0 | **371 / 0** |
 
 Fifteen new assertions on the bash side, fourteen on the PowerShell side: nine denials, two
 flag-order denials, and four negative controls (a bare `Remove-Item` with no destructive flag, plus

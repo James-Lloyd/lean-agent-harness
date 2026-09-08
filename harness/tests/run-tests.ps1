@@ -561,6 +561,9 @@ ok "blocks the if-exist guarded delete (idiomatic batch)" ((hookExit "if exist C
 ok "blocks a switch run ended by a comma"              ((hookExit "rd C:\temp\x $sw$swq,") -eq 2)
 ok "blocks del with a switch run ended by >"           ((hookExit "del C:\temp\x $sw$swq>nul") -eq 2)
 ok "blocks del /f/s/q ended by > (led by a flag AND redirected)" ((hookExit "del C:\temp\x $swf$sw$swq>nul") -eq 2)
+# `erase` is a full cmd.exe synonym for `del`, uncovered by EVERY generation including this .ps1.
+ok "blocks erase /f/s/q (del's cmd.exe synonym)"       ((hookExit "erase $swf$sw$swq C:\temp\x") -eq 2)
+ok "blocks erase /s"                                   ((hookExit "erase $sw C:\temp\x") -eq 2)
 # Two-letter switch TOKENS are refused by cmd.exe itself, live-fired in both orders.
 ok "ALLOWS the two-letter token /sq (cmd.exe refuses it)"  ((hookExit "rd ${sw}q C:\temp\x") -eq 0)
 ok "ALLOWS the two-letter token /qs (cmd.exe refuses it)"  ((hookExit "rd ${swq}s C:\temp\x") -eq 0)
