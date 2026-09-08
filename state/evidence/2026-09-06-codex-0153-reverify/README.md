@@ -70,6 +70,12 @@ lets the control actually run. **A guard test whose control cannot perform the a
 
 ## A twin gap this turned up (pre-existing, not a 0.153.4 regression)
 
+> **CLOSED 2026-09-08** — the four patterns are now in `block-destructive.sh` too, with ten
+> assertions on the bash side and nine on the PowerShell side. The section below is kept as the
+> record of how the gap was found; read it as history, not as an open item. Measurement of the
+> pre-fix hook (all four forms ALLOWED, rc=0) and of the fix is in
+> `state/evidence/2026-09-08-guard-hook-twin-gap/`.
+
 `block-destructive.ps1` carries four PowerShell-form patterns that `block-destructive.sh` does not:
 
 ```

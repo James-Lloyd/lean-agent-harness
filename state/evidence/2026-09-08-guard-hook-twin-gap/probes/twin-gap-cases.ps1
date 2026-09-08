@@ -1,0 +1,19 @@
+param([Parameter(Mandatory)][string]$Hook)
+$ErrorActionPreference = 'SilentlyContinue'
+$psHost = (Get-Process -Id $PID).Path
+function hookExit($cmd) {
+  $payload = @{ tool_name='Bash'; tool_input=@{ command=$cmd } } | ConvertTo-Json -Compress
+  $payload | & $psHost -NoProfile -ExecutionPolicy Bypass -File $Hook 1>$null 2>$null
+  return $LASTEXITCODE
+}
+$RI = 'Remove' + '-Item'; $FV = 'Format' + '-Volume'; $CD = 'Clear' + '-Disk'; $CC = 'Clear' + '-Content'
+$cases = @(
+  "$RI -Recurse -Force .", "$RI -Force build", 'rmdir /s /q build', 'rd /s /q build',
+  'del /s *.log', 'del /q *.log', "$FV -DriveLetter D", "$CD -Number 1", "$CC notes.txt",
+  'git status', 'npm test', "$RI stale.tmp", 'echo the del /s switch is documented'
+)
+foreach ($c in $cases) {
+  $rc = hookExit $c
+  $verdict = if ($rc -eq 2) { 'DENIED' } else { 'ALLOWED' }
+  '{0,-46} rc={1}  {2}' -f $c, $rc, $verdict
+}

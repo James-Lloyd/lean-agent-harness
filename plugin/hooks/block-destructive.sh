@@ -82,6 +82,13 @@ declare -a pats=(
   '\b(shred|truncate[[:space:]]+-s[[:space:]]*0)\b@@file shredding/truncation'
   '\bdd\b[^|]*[[:space:]]of=@@raw disk write via dd'
   '\bmkfs@@filesystem format'
+  # PowerShell-tool / cmd.exe destructive forms. These are NOT bash-only: the PowerShell tool runs on
+  # POSIX via pwsh, and this hook is also the one Codex loads under its shell-tool matcher, so a
+  # cross-platform agent can reach them from the .sh side. Twins of the .ps1 entries — keep in step.
+  '\bRemove-Item\b[^|]*-(Recurse|Force)@@recursive/force Remove-Item'
+  '\b(rd|rmdir)\b[[:space:]]+/s@@recursive rmdir (/s)'
+  '\bdel\b[[:space:]]+/[a-z]*[sq]@@recursive/quiet del'
+  '\b(Format-Volume|Clear-Disk|Clear-Content)\b@@disk/file wipe (PowerShell)'
   'git[[:space:]]+push[[:space:]].*(-f([[:space:]]|$)|--force([[:space:]]|$|[^-])|[[:space:]]\+[^[:space:]]+:)@@force-push (use --force-with-lease)'
   'git[[:space:]]+reset[[:space:]]+--hard@@discarding work via reset --hard'
   'git[[:space:]]+clean\b[^|]*(-[a-z]*f[a-z]*([[:space:]]|$)|--force)@@git clean force'

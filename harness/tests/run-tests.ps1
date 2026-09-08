@@ -519,6 +519,22 @@ ok "allows git status"                 ((hookExit 'git status') -eq 0)
 ok "allows npm test"                   ((hookExit 'npm test') -eq 0)
 ok "allows normal git push"            ((hookExit 'git push origin feature') -eq 0)
 ok "ALLOWS git push --force-with-lease (the recommended form)" ((hookExit $lease) -eq 0)
+# Twin of the bash block added 2026-09-08 when the .sh hook gained these four patterns. Only
+# Remove-Item was asserted here before, so three of the four .ps1 patterns shipped unpinned; a
+# rewrite of either hook now has to keep all four denying on both sides.
+$psFv = 'Format' + '-Volume'; $psCd = 'Clear' + '-Disk'; $psCc = 'Clear' + '-Content'
+$psrmF = 'Remove' + '-Item ' + '-Force build'
+ok "blocks Remove-Item -Force (Force alone, no Recurse)" ((hookExit $psrmF) -eq 2)
+ok "blocks rmdir /s (cmd.exe recursive)"                 ((hookExit 'rmdir /s /q build') -eq 2)
+ok "blocks rd /s (cmd.exe recursive, short alias)"       ((hookExit 'rd /s /q build') -eq 2)
+ok "blocks del /s (cmd.exe recursive delete)"            ((hookExit 'del /s *.log') -eq 2)
+ok "blocks del /q (cmd.exe quiet delete)"                ((hookExit 'del /q *.log') -eq 2)
+ok "blocks Format-Volume"                                ((hookExit "$psFv -DriveLetter D") -eq 2)
+ok "blocks Clear-Disk"                                   ((hookExit "$psCd -Number 1") -eq 2)
+ok "blocks Clear-Content"                                ((hookExit "$psCc notes.txt") -eq 2)
+# Negative control: a bare Remove-Item with no destructive flag is ordinary cleanup and must pass,
+# or the patterns above would be proven only by over-blocking.
+ok "ALLOWS a bare Remove-Item with no -Recurse/-Force"   ((hookExit ('Remove' + '-Item stale.tmp')) -eq 0)
 # Twin of the bash pin (2026-09-06): the guard must still fire when the destructive command is buried
 # in an OVERSIZED payload. The .sh hook matched with `printf | grep -q`, the shape that failed open in
 # money_signal once the text passed the 64 KiB pipe buffer under pipefail; the .ps1 hook matches

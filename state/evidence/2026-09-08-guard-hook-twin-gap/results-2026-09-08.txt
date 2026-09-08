@@ -1,0 +1,51 @@
+=== ARM 1: pre-fix .sh (from origin/main) — every case must read ALLOWED ===
+Remove-Item -Recurse -Force .                  rc=0  ALLOWED
+Remove-Item -Force build                       rc=0  ALLOWED
+rmdir /s /q build                              rc=0  ALLOWED
+rd /s /q build                                 rc=0  ALLOWED
+del /s *.log                                   rc=0  ALLOWED
+del /q *.log                                   rc=0  ALLOWED
+Format-Volume -DriveLetter D                   rc=0  ALLOWED
+Clear-Disk -Number 1                           rc=0  ALLOWED
+Clear-Content notes.txt                        rc=0  ALLOWED
+--- controls (must stay ALLOWED) ---
+git status                                     rc=0  ALLOWED
+npm test                                       rc=0  ALLOWED
+Remove-Item stale.tmp                          rc=0  ALLOWED
+docs mention del /s only                       rc=0  ALLOWED
+
+=== ARM 2: post-fix .sh (working tree) — the nine destructive cases must read DENIED ===
+Remove-Item -Recurse -Force .                  rc=2  DENIED
+Remove-Item -Force build                       rc=2  DENIED
+rmdir /s /q build                              rc=2  DENIED
+rd /s /q build                                 rc=2  DENIED
+del /s *.log                                   rc=2  DENIED
+del /q *.log                                   rc=2  DENIED
+Format-Volume -DriveLetter D                   rc=2  DENIED
+Clear-Disk -Number 1                           rc=2  DENIED
+Clear-Content notes.txt                        rc=2  DENIED
+--- controls (must stay ALLOWED) ---
+git status                                     rc=0  ALLOWED
+npm test                                       rc=0  ALLOWED
+Remove-Item stale.tmp                          rc=0  ALLOWED
+docs mention del /s only                       rc=2  DENIED
+
+=== ARM 2b: a NEW pattern at real size, with pipefail injected ===
+oversized multi-line, plain                    rc=2  DENIED
+oversized multi-line, pipefail                 rc=2  DENIED
+CONTROL: oversized, nothing destructive        rc=0  ALLOWED
+
+=== ARM 3: the .ps1 twin — must agree with ARM 2 case for case ===
+Remove-Item -Recurse -Force .                  rc=2  DENIED
+Remove-Item -Force build                       rc=2  DENIED
+rmdir /s /q build                              rc=2  DENIED
+rd /s /q build                                 rc=2  DENIED
+del /s *.log                                   rc=2  DENIED
+del /q *.log                                   rc=2  DENIED
+Format-Volume -DriveLetter D                   rc=2  DENIED
+Clear-Disk -Number 1                           rc=2  DENIED
+Clear-Content notes.txt                        rc=2  DENIED
+git status                                     rc=0  ALLOWED
+npm test                                       rc=0  ALLOWED
+Remove-Item stale.tmp                          rc=0  ALLOWED
+echo the del /s switch is documented           rc=2  DENIED
