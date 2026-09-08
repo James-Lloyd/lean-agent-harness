@@ -86,8 +86,13 @@ declare -a pats=(
   # POSIX via pwsh, and this hook is also the one Codex loads under its shell-tool matcher, so a
   # cross-platform agent can reach them from the .sh side. Twins of the .ps1 entries — keep in step.
   '\bRemove-Item\b[^|]*-(Recurse|Force)@@recursive/force Remove-Item'
-  '\b(rd|rmdir)\b[[:space:]]+/s@@recursive rmdir (/s)'
-  '\bdel\b[[:space:]]+/[a-z]*[sq]@@recursive/quiet del'
+  # The switch must be a STANDALONE token: `[^|]*` lets it appear in any flag order (`rmdir /q /s x`,
+  # `del /f /s x` — both real recursive deletes that an adjacent-only match misses), and the trailing
+  # boundary stops an absolute PATH beginning with the switch letter from matching. Without it,
+  # `rmdir /srv/cache` and `rd /storage/tmp` were denied on POSIX, where /srv /sys /sbin /snap /share
+  # are ordinary roots and rmdir cannot even delete a non-empty directory.
+  '\b(rd|rmdir)\b[^|]*[[:space:]]/s([[:space:]]|$)@@recursive rmdir (/s)'
+  '\bdel\b[^|]*[[:space:]]/[a-z]*[sq]([[:space:]]|$)@@recursive/quiet del'
   '\b(Format-Volume|Clear-Disk|Clear-Content)\b@@disk/file wipe (PowerShell)'
   'git[[:space:]]+push[[:space:]].*(-f([[:space:]]|$)|--force([[:space:]]|$|[^-])|[[:space:]]\+[^[:space:]]+:)@@force-push (use --force-with-lease)'
   'git[[:space:]]+reset[[:space:]]+--hard@@discarding work via reset --hard'

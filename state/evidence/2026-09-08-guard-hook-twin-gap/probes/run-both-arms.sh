@@ -16,7 +16,10 @@ set -u
 here="$(cd "$(dirname "$0")" && pwd)"
 repo="$(git rev-parse --show-toplevel)"
 hook="$repo/plugin/hooks/block-destructive.sh"
-base="${BASE_REF:-origin/main}"
+# Pinned to the PRE-FIX commit, not to a moving branch. `origin/main` was the pre-fix hook only until
+# this change landed; defaulting to it would make arm 1 print nine DENIED lines after the merge and
+# quietly turn the whole proof — and the committed results file — into a self-contradiction.
+base="${BASE_REF:-1621ae7}"
 
 tmp="$(mktemp -d)"
 trap 'rm -rf "$tmp"' EXIT
@@ -50,8 +53,9 @@ if command -v jq >/dev/null 2>&1; then
   bash "$tmp/pf.sh" < "$tmp/big.json" >/dev/null 2>&1; rc_pf=$?
   printf '%-46s rc=%s  %s\n' "oversized multi-line, plain"   "$rc_plain" "$([ "$rc_plain" = 2 ] && echo DENIED || echo ALLOWED)"
   printf '%-46s rc=%s  %s\n' "oversized multi-line, pipefail" "$rc_pf"   "$([ "$rc_pf"    = 2 ] && echo DENIED || echo ALLOWED)"
-  # Positive control: the same oversized shape carrying NO destructive text must come back ALLOWED,
-  # or "DENIED" above would prove only that something in a 150 KB payload trips the guard.
+  # NEGATIVE control: the same oversized shape carrying NO destructive text must come back ALLOWED,
+  # or "DENIED" above would prove only that something in a 190 KB payload trips the guard. (Named
+  # per this repo's usage, where a POSITIVE control is the arm that proves the oracle can speak.)
   { printf 'echo hello\n'
     awk 'BEGIN{for(i=0;i<4000;i++) printf "filler line %d xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\n", i}'
   } > "$tmp/benign.txt"

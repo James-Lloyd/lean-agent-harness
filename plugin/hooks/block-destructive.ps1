@@ -66,8 +66,12 @@ $blocked = @(
   @{ rx = '\bmkfs';                                                  why = 'filesystem format' },
   # PowerShell-tool destructive forms (this hook also matches the PowerShell tool, not just Bash).
   @{ rx = '\bRemove-Item\b[^|]*-(Recurse|Force)';                    why = 'recursive/force Remove-Item' },
-  @{ rx = '\b(rd|rmdir)\b\s+/s';                                     why = 'recursive rmdir (/s)' },
-  @{ rx = '\bdel\b\s+/[a-z]*[sq]';                                   why = 'recursive/quiet del' },
+  # The switch must be a STANDALONE token: `[^|]*` lets it appear in any flag order (`rmdir /q /s x`,
+  # `del /f /s x` — both real recursive deletes that an adjacent-only match misses), and the trailing
+  # boundary stops an absolute PATH beginning with the switch letter from matching (`rmdir /srv/cache`
+  # under pwsh on POSIX). Keep in step with the .sh twin.
+  @{ rx = '\b(rd|rmdir)\b[^|]*\s/s(\s|$)';                           why = 'recursive rmdir (/s)' },
+  @{ rx = '\bdel\b[^|]*\s/[a-z]*[sq](\s|$)';                         why = 'recursive/quiet del' },
   @{ rx = '\b(Format-Volume|Clear-Disk|Clear-Content)\b';           why = 'disk/file wipe (PowerShell)' },
   # Block unsafe force-push but ALLOW the recommended --force-with-lease (+ --force-if-includes).
   @{ rx = 'git\s+push\s+.*(-f(\s|$)|--force(?!-with-lease|-if-includes)|\s\+[^\s]+:)'; why = 'force-push (use --force-with-lease)' },

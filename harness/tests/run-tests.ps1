@@ -524,17 +524,25 @@ ok "ALLOWS git push --force-with-lease (the recommended form)" ((hookExit $lease
 # rewrite of either hook now has to keep all four denying on both sides.
 $psFv = 'Format' + '-Volume'; $psCd = 'Clear' + '-Disk'; $psCc = 'Clear' + '-Content'
 $psrmF = 'Remove' + '-Item ' + '-Force build'
+$sw = '/' + 's'; $swq = '/' + 'q'; $swf = '/' + 'f'   # cmd.exe switches, split like the bash twin
 ok "blocks Remove-Item -Force (Force alone, no Recurse)" ((hookExit $psrmF) -eq 2)
-ok "blocks rmdir /s (cmd.exe recursive)"                 ((hookExit 'rmdir /s /q build') -eq 2)
-ok "blocks rd /s (cmd.exe recursive, short alias)"       ((hookExit 'rd /s /q build') -eq 2)
-ok "blocks del /s (cmd.exe recursive delete)"            ((hookExit 'del /s *.log') -eq 2)
-ok "blocks del /q (cmd.exe quiet delete)"                ((hookExit 'del /q *.log') -eq 2)
+ok "blocks rmdir /s (cmd.exe recursive)"                 ((hookExit "rmdir $sw $swq build") -eq 2)
+ok "blocks rd /s (cmd.exe recursive, short alias)"       ((hookExit "rd $sw $swq build") -eq 2)
+ok "blocks del /s (cmd.exe recursive delete)"            ((hookExit "del $sw *.log") -eq 2)
+ok "blocks del /q (cmd.exe quiet delete)"                ((hookExit "del $swq *.log") -eq 2)
 ok "blocks Format-Volume"                                ((hookExit "$psFv -DriveLetter D") -eq 2)
 ok "blocks Clear-Disk"                                   ((hookExit "$psCd -Number 1") -eq 2)
 ok "blocks Clear-Content"                                ((hookExit "$psCc notes.txt") -eq 2)
-# Negative control: a bare Remove-Item with no destructive flag is ordinary cleanup and must pass,
-# or the patterns above would be proven only by over-blocking.
+# Flag ORDER must not smuggle a recursive delete past an adjacent-only match. Both are real.
+ok "blocks rmdir with the recursive switch in second position" ((hookExit "rmdir $swq $sw build") -eq 2)
+ok "blocks del with the recursive switch in second position"   ((hookExit "del $swf $sw *.log") -eq 2)
+# Negative controls. The three POSIX-path cases are the ones a fresh-context review caught: an
+# absolute path whose first segment starts with the switch letter is NOT a switch, and this cmdlet
+# surface is reachable on POSIX via pwsh, where /srv /sys /storage are ordinary roots.
 ok "ALLOWS a bare Remove-Item with no -Recurse/-Force"   ((hookExit ('Remove' + '-Item stale.tmp')) -eq 0)
+ok "ALLOWS rmdir on a POSIX path starting with the switch letter (/srv)" ((hookExit 'rmdir /srv/cache') -eq 0)
+ok "ALLOWS rmdir /sys/... (POSIX path, not a switch)"    ((hookExit 'rmdir /sys/fs/cgroup/x') -eq 0)
+ok "ALLOWS rd on a POSIX path starting with the switch letter (/storage)" ((hookExit 'rd /storage/tmp') -eq 0)
 # Twin of the bash pin (2026-09-06): the guard must still fire when the destructive command is buried
 # in an OVERSIZED payload. The .sh hook matched with `printf | grep -q`, the shape that failed open in
 # money_signal once the text passed the 64 KiB pipe buffer under pipefail; the .ps1 hook matches

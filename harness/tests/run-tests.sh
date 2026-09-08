@@ -171,23 +171,34 @@ ok "$([ "$(hookrc "$lease")" = "0" ] && echo 1 || echo 0)" "ALLOWS git push --fo
 # shell-tool matcher and the one /harness-init installs on POSIX (where the PowerShell tool still
 # runs via pwsh). Measured against the pre-fix .sh every case below returned 0 — ALLOWED, a wrong
 # VALUE rather than an error, which is what makes these a real regression proof and not a test of
-# the pattern syntax. Fixtures are built from fragments so this suite's own text does not trip the
-# guard watching the agent that edits it.
-psrm="$(printf 'Remove%s-Item' '')"; psfv="$(printf 'Format%s-Volume' '')"
-pscd="$(printf 'Clear%s-Disk' '')";  pscc="$(printf 'Clear%s-Content' '')"
-ok "$([ "$(hookrc "$psrm -Recurse -Force .")" = "2" ] && echo 1 || echo 0)" "blocks Remove-Item -Recurse -Force (PowerShell form)"
-ok "$([ "$(hookrc "$psrm -Force build")"      = "2" ] && echo 1 || echo 0)" "blocks Remove-Item -Force (Force alone, no Recurse)"
-ok "$([ "$(hookrc 'rmdir /s /q build')"       = "2" ] && echo 1 || echo 0)" "blocks rmdir /s (cmd.exe recursive)"
-ok "$([ "$(hookrc 'rd /s /q build')"          = "2" ] && echo 1 || echo 0)" "blocks rd /s (cmd.exe recursive, short alias)"
-ok "$([ "$(hookrc 'del /s *.log')"            = "2" ] && echo 1 || echo 0)" "blocks del /s (cmd.exe recursive delete)"
-ok "$([ "$(hookrc 'del /q *.log')"            = "2" ] && echo 1 || echo 0)" "blocks del /q (cmd.exe quiet delete)"
-ok "$([ "$(hookrc "$psfv -DriveLetter D")"    = "2" ] && echo 1 || echo 0)" "blocks Format-Volume"
-ok "$([ "$(hookrc "$pscd -Number 1")"         = "2" ] && echo 1 || echo 0)" "blocks Clear-Disk"
-ok "$([ "$(hookrc "$pscc notes.txt")"         = "2" ] && echo 1 || echo 0)" "blocks Clear-Content"
-# Negative control for the same block: a bare Remove-Item with no destructive flag is ordinary
-# cleanup and must still pass, or the four patterns above would be proven only by over-blocking.
-ok "$([ "$(hookrc "$psrm stale.tmp")"         = "0" ] && echo 1 || echo 0)" "ALLOWS a bare Remove-Item with no -Recurse/-Force"
-unset psrm psfv pscd pscc
+# the pattern syntax. Fixtures — including the cmd.exe switches — are built from fragments so this
+# suite's own text does not trip the guard watching the agent that edits it. The three POSIX-path
+# controls below are deliberately left verbatim: they must NOT match, so they are safe to write out,
+# and seeing them whole is the point.
+psrm="Remove""-Item"; psfv="Format""-Volume"; pscd="Clear""-Disk"; pscc="Clear""-Content"
+sw="/""s"; swq="/""q"; swf="/""f"    # the cmd.exe switches, split for the same reason
+ok "$([ "$(hookrc "$psrm -Recurse -Force .")"   = "2" ] && echo 1 || echo 0)" "blocks Remove-Item -Recurse -Force (PowerShell form)"
+ok "$([ "$(hookrc "$psrm -Force build")"        = "2" ] && echo 1 || echo 0)" "blocks Remove-Item -Force (Force alone, no Recurse)"
+ok "$([ "$(hookrc "rmdir $sw $swq build")"      = "2" ] && echo 1 || echo 0)" "blocks rmdir /s (cmd.exe recursive)"
+ok "$([ "$(hookrc "rd $sw $swq build")"         = "2" ] && echo 1 || echo 0)" "blocks rd /s (cmd.exe recursive, short alias)"
+ok "$([ "$(hookrc "del $sw *.log")"             = "2" ] && echo 1 || echo 0)" "blocks del /s (cmd.exe recursive delete)"
+ok "$([ "$(hookrc "del $swq *.log")"            = "2" ] && echo 1 || echo 0)" "blocks del /q (cmd.exe quiet delete)"
+ok "$([ "$(hookrc "$psfv -DriveLetter D")"      = "2" ] && echo 1 || echo 0)" "blocks Format-Volume"
+ok "$([ "$(hookrc "$pscd -Number 1")"           = "2" ] && echo 1 || echo 0)" "blocks Clear-Disk"
+ok "$([ "$(hookrc "$pscc notes.txt")"           = "2" ] && echo 1 || echo 0)" "blocks Clear-Content"
+# The switch is matched as a STANDALONE token, so flag ORDER cannot smuggle a recursive delete past
+# an adjacent-only match. Both of these are real recursive deletes and both were missed before.
+ok "$([ "$(hookrc "rmdir $swq $sw build")"      = "2" ] && echo 1 || echo 0)" "blocks rmdir with the recursive switch in second position"
+ok "$([ "$(hookrc "del $swf $sw *.log")"        = "2" ] && echo 1 || echo 0)" "blocks del with the recursive switch in second position"
+# Negative controls. Two kinds, and the second kind is the one a review caught: an absolute POSIX
+# path whose first segment starts with the switch letter is NOT a switch. /srv /sys /sbin /snap
+# /share /storage are ordinary roots, this hook is the one that runs on POSIX, and rmdir there
+# cannot even delete a non-empty directory — so denying these would break real, harmless commands.
+ok "$([ "$(hookrc "$psrm stale.tmp")"           = "0" ] && echo 1 || echo 0)" "ALLOWS a bare Remove-Item with no -Recurse/-Force"
+ok "$([ "$(hookrc 'rmdir /srv/cache')"          = "0" ] && echo 1 || echo 0)" "ALLOWS rmdir on a POSIX path starting with the switch letter (/srv)"
+ok "$([ "$(hookrc 'rmdir /sys/fs/cgroup/x')"    = "0" ] && echo 1 || echo 0)" "ALLOWS rmdir /sys/... (POSIX path, not a switch)"
+ok "$([ "$(hookrc 'rd /storage/tmp')"           = "0" ] && echo 1 || echo 0)" "ALLOWS rd on a POSIX path starting with the switch letter (/storage)"
+unset psrm psfv pscd pscc sw swq swf
 # The guard still fires when the destructive command is buried in an OVERSIZED payload. Kept as a
 # plain smoke test of the size path — but note it is a SINGLE line, and a single line can never
 # reproduce the SIGPIPE fail-open (see the multi-line block below for why). It passes against the

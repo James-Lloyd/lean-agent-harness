@@ -1,4 +1,4 @@
-=== ARM 1: pre-fix .sh (from origin/main) — every case must read ALLOWED ===
+=== ARM 1: pre-fix .sh (from 1621ae7) — every case must read ALLOWED ===
 Remove-Item -Recurse -Force .                  rc=0  ALLOWED
 Remove-Item -Force build                       rc=0  ALLOWED
 rmdir /s /q build                              rc=0  ALLOWED
@@ -8,7 +8,13 @@ del /q *.log                                   rc=0  ALLOWED
 Format-Volume -DriveLetter D                   rc=0  ALLOWED
 Clear-Disk -Number 1                           rc=0  ALLOWED
 Clear-Content notes.txt                        rc=0  ALLOWED
+--- flag-order forms: real recursive deletes an adjacent-only match misses (SF3) ---
+rmdir /q /s build                              rc=0  ALLOWED
+del /f /s *.log                                rc=0  ALLOWED
 --- controls (must stay ALLOWED) ---
+rmdir /srv/cache                               rc=0  ALLOWED
+rmdir /sys/fs/cgroup/x                         rc=0  ALLOWED
+rd /storage/tmp                                rc=0  ALLOWED
 git status                                     rc=0  ALLOWED
 npm test                                       rc=0  ALLOWED
 Remove-Item stale.tmp                          rc=0  ALLOWED
@@ -24,7 +30,13 @@ del /q *.log                                   rc=2  DENIED
 Format-Volume -DriveLetter D                   rc=2  DENIED
 Clear-Disk -Number 1                           rc=2  DENIED
 Clear-Content notes.txt                        rc=2  DENIED
+--- flag-order forms: real recursive deletes an adjacent-only match misses (SF3) ---
+rmdir /q /s build                              rc=2  DENIED
+del /f /s *.log                                rc=2  DENIED
 --- controls (must stay ALLOWED) ---
+rmdir /srv/cache                               rc=0  ALLOWED
+rmdir /sys/fs/cgroup/x                         rc=0  ALLOWED
+rd /storage/tmp                                rc=0  ALLOWED
 git status                                     rc=0  ALLOWED
 npm test                                       rc=0  ALLOWED
 Remove-Item stale.tmp                          rc=0  ALLOWED
@@ -45,7 +57,12 @@ del /q *.log                                   rc=2  DENIED
 Format-Volume -DriveLetter D                   rc=2  DENIED
 Clear-Disk -Number 1                           rc=2  DENIED
 Clear-Content notes.txt                        rc=2  DENIED
+rmdir /q /s build                              rc=2  DENIED
+del /f /s *.log                                rc=2  DENIED
 git status                                     rc=0  ALLOWED
 npm test                                       rc=0  ALLOWED
 Remove-Item stale.tmp                          rc=0  ALLOWED
+rmdir /srv/cache                               rc=0  ALLOWED
+rmdir /sys/fs/cgroup/x                         rc=0  ALLOWED
+rd /storage/tmp                                rc=0  ALLOWED
 echo the del /s switch is documented           rc=2  DENIED

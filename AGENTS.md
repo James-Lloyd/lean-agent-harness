@@ -198,6 +198,22 @@ editing** (Claude Code: see CLAUDE.md; anything else: `git worktree add`). Land 
   control that fires when the switch is off — otherwise the proof passes on a script that never calls
   the tool at all.
 
+- [2026-09-08] **A new denylist pattern is probed against the REAL command vocabulary of the platform
+  it will run on, before "the false positives are X" is written down.** Porting the `.ps1` guard's
+  cmd.exe patterns to the `.sh` twin carried the switch matched ADJACENT to the command, which on
+  POSIX denies `rmdir /srv/cache`, `rmdir /sys/...`, `rd /storage/...` — `/srv /sys /sbin /snap
+  /share /storage` are ordinary roots, and the `.sh` hook is the one that actually runs there. The
+  same shape also MISSED `rmdir /q /s x` and `del /f /s x`, real recursive deletes with the flags in
+  the other order: one pattern, wrong in both directions, and the shipped `.ps1` had carried both
+  defects for months because only one of its four patterns was ever asserted. Two corollaries. (a)
+  The twin whose BEHAVIOUR is correct is not therefore the twin whose TESTS are good — when closing a
+  parity gap, count the assertions on both sides, not just the patterns. (b) A false-positive list
+  assembled from prose examples will always undercount; the author's list named one FP (prose quoting
+  a switch) and a differential probe over real commands found three more that mattered far more.
+  Require the switch to be a standalone token (`[^|]*` before it for flag order, a space-or-end
+  boundary after it so a path cannot impersonate it), and pin the negative controls, not just the
+  denials.
+
 ## Nested context
 Subsystems carry their own `AGENTS.md` next to their code (in this repo: `plugin/engine/` holds the
 engine's PS-5.1/twin-parity rules). When working in a subsystem, its local map applies too.
