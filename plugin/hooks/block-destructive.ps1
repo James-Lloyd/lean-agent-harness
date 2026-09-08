@@ -66,12 +66,15 @@ $blocked = @(
   @{ rx = '\bmkfs';                                                  why = 'filesystem format' },
   # PowerShell-tool destructive forms (this hook also matches the PowerShell tool, not just Bash).
   @{ rx = '\bRemove-Item\b[^|]*-(Recurse|Force)';                    why = 'recursive/force Remove-Item' },
-  # The switch must be a STANDALONE token: `[^|]*` lets it appear in any flag order (`rmdir /q /s x`,
-  # `del /f /s x` — both real recursive deletes that an adjacent-only match misses), and the trailing
-  # boundary stops an absolute PATH beginning with the switch letter from matching (`rmdir /srv/cache`
-  # under pwsh on POSIX). Keep in step with the .sh twin.
-  @{ rx = '\b(rd|rmdir)\b[^|]*\s/s(\s|$)';                           why = 'recursive rmdir (/s)' },
-  @{ rx = '\bdel\b[^|]*\s/[a-z]*[sq](\s|$)';                         why = 'recursive/quiet del' },
+  # The switch must be a SWITCH, not a path, and findable in any position. `[^|]*` before it so flag
+  # order cannot smuggle a delete past an adjacent-only match; the trailing class so an absolute PATH
+  # cannot impersonate it (`rmdir /srv/cache` under pwsh on POSIX). The class MUST include `/` `;`
+  # `&` `"` and not whitespace alone — cmd.exe accepts CONCATENATED switches, so `rd /s/q x` ends the
+  # switch with `/`, and a trailing switch can be followed straight by `&&`. Live-fire in real
+  # cmd.exe: `rd /s/q <dir>` deleted a populated tree past a whitespace-only boundary. `[qs/]*` on
+  # the rd arm absorbs a leading `/q` so `/q/s` is caught. Keep in step with the .sh twin.
+  @{ rx = '\b(rd|rmdir)\b[^|]*\s/[qs/]*s([\s;&"/]|$)';               why = 'recursive rmdir (/s)' },
+  @{ rx = '\bdel\b[^|]*\s/[a-z]*[sq]([\s;&"/]|$)';                   why = 'recursive/quiet del' },
   @{ rx = '\b(Format-Volume|Clear-Disk|Clear-Content)\b';           why = 'disk/file wipe (PowerShell)' },
   # Block unsafe force-push but ALLOW the recommended --force-with-lease (+ --force-if-includes).
   @{ rx = 'git\s+push\s+.*(-f(\s|$)|--force(?!-with-lease|-if-includes)|\s\+[^\s]+:)'; why = 'force-push (use --force-with-lease)' },

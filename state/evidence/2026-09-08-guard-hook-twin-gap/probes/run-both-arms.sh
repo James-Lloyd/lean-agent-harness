@@ -17,7 +17,7 @@ here="$(cd "$(dirname "$0")" && pwd)"
 repo="$(git rev-parse --show-toplevel)"
 hook="$repo/plugin/hooks/block-destructive.sh"
 # Pinned to the PRE-FIX commit, not to a moving branch. `origin/main` was the pre-fix hook only until
-# this change landed; defaulting to it would make arm 1 print nine DENIED lines after the merge and
+# this change landed; defaulting to it would make arm 1 print a wall of DENIED lines after the merge and
 # quietly turn the whole proof — and the committed results file — into a self-contradiction.
 base="${BASE_REF:-1621ae7}"
 
@@ -32,7 +32,7 @@ else
 fi
 
 echo
-echo "=== ARM 2: post-fix .sh (working tree) — the nine destructive cases must read DENIED ==="
+echo "=== ARM 2: post-fix .sh (working tree) — every destructive case must read DENIED ==="
 bash "$here/twin-gap-cases.sh" "$hook"
 
 echo

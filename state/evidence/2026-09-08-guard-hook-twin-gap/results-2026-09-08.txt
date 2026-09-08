@@ -11,6 +11,13 @@ Clear-Content notes.txt                        rc=0  ALLOWED
 --- flag-order forms: real recursive deletes an adjacent-only match misses (SF3) ---
 rmdir /q /s build                              rc=0  ALLOWED
 del /f /s *.log                                rc=0  ALLOWED
+--- CONCATENATED and CHAINED switches: cmd.exe accepts these; live-fire confirmed ---
+rd /s/q C:\\temp\\x                            rc=0  ALLOWED
+rmdir /s/q C:\\temp\\x                         rc=0  ALLOWED
+rd /q/s C:\\temp\\x                            rc=0  ALLOWED
+del /s/q C:\\temp\\*                           rc=0  ALLOWED
+cmd /c rd /s/q C:\\temp\\x                     rc=0  ALLOWED
+rd C:\\temp\\x /s&&echo done                   rc=0  ALLOWED
 --- controls (must stay ALLOWED) ---
 rmdir /srv/cache                               rc=0  ALLOWED
 rmdir /sys/fs/cgroup/x                         rc=0  ALLOWED
@@ -20,7 +27,7 @@ npm test                                       rc=0  ALLOWED
 Remove-Item stale.tmp                          rc=0  ALLOWED
 docs mention del /s only                       rc=0  ALLOWED
 
-=== ARM 2: post-fix .sh (working tree) — the nine destructive cases must read DENIED ===
+=== ARM 2: post-fix .sh (working tree) — every destructive case must read DENIED ===
 Remove-Item -Recurse -Force .                  rc=2  DENIED
 Remove-Item -Force build                       rc=2  DENIED
 rmdir /s /q build                              rc=2  DENIED
@@ -33,6 +40,13 @@ Clear-Content notes.txt                        rc=2  DENIED
 --- flag-order forms: real recursive deletes an adjacent-only match misses (SF3) ---
 rmdir /q /s build                              rc=2  DENIED
 del /f /s *.log                                rc=2  DENIED
+--- CONCATENATED and CHAINED switches: cmd.exe accepts these; live-fire confirmed ---
+rd /s/q C:\\temp\\x                            rc=2  DENIED
+rmdir /s/q C:\\temp\\x                         rc=2  DENIED
+rd /q/s C:\\temp\\x                            rc=2  DENIED
+del /s/q C:\\temp\\*                           rc=2  DENIED
+cmd /c rd /s/q C:\\temp\\x                     rc=2  DENIED
+rd C:\\temp\\x /s&&echo done                   rc=2  DENIED
 --- controls (must stay ALLOWED) ---
 rmdir /srv/cache                               rc=0  ALLOWED
 rmdir /sys/fs/cgroup/x                         rc=0  ALLOWED
@@ -59,6 +73,12 @@ Clear-Disk -Number 1                           rc=2  DENIED
 Clear-Content notes.txt                        rc=2  DENIED
 rmdir /q /s build                              rc=2  DENIED
 del /f /s *.log                                rc=2  DENIED
+rd /s/q C:\temp\x                              rc=2  DENIED
+rmdir /s/q C:\temp\x                           rc=2  DENIED
+rd /q/s C:\temp\x                              rc=2  DENIED
+del /s/q C:\temp\*                             rc=2  DENIED
+cmd /c rd /s/q C:\temp\x                       rc=2  DENIED
+rd C:\temp\x /s&&echo done                     rc=2  DENIED
 git status                                     rc=0  ALLOWED
 npm test                                       rc=0  ALLOWED
 Remove-Item stale.tmp                          rc=0  ALLOWED

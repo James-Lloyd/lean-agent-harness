@@ -86,13 +86,22 @@ declare -a pats=(
   # POSIX via pwsh, and this hook is also the one Codex loads under its shell-tool matcher, so a
   # cross-platform agent can reach them from the .sh side. Twins of the .ps1 entries — keep in step.
   '\bRemove-Item\b[^|]*-(Recurse|Force)@@recursive/force Remove-Item'
-  # The switch must be a STANDALONE token: `[^|]*` lets it appear in any flag order (`rmdir /q /s x`,
-  # `del /f /s x` — both real recursive deletes that an adjacent-only match misses), and the trailing
-  # boundary stops an absolute PATH beginning with the switch letter from matching. Without it,
-  # `rmdir /srv/cache` and `rd /storage/tmp` were denied on POSIX, where /srv /sys /sbin /snap /share
-  # are ordinary roots and rmdir cannot even delete a non-empty directory.
-  '\b(rd|rmdir)\b[^|]*[[:space:]]/s([[:space:]]|$)@@recursive rmdir (/s)'
-  '\bdel\b[^|]*[[:space:]]/[a-z]*[sq]([[:space:]]|$)@@recursive/quiet del'
+  # The switch must be a SWITCH, not a path, and must be findable in any position:
+  #   `[^|]*` before it   — flag order cannot smuggle a delete past an adjacent-only match
+  #                         (`rmdir /q /s x`, `del /f /s x`, `rd <path> /s` are all real).
+  #   the trailing class  — stops an absolute PATH from impersonating the switch. Without it
+  #                         `rmdir /srv/cache`, `rd /storage/tmp` were denied on POSIX, where
+  #                         /srv /sys /sbin /snap /share are ordinary roots and rmdir cannot even
+  #                         delete a non-empty directory.
+  # The class must include `/` `;` `&` and `"`, NOT whitespace alone: cmd.exe accepts CONCATENATED
+  # switches, so `rd /s/q x` and `del /s/q x` end the switch with `/`, and a trailing switch can be
+  # followed straight by `&&` or `;`. A whitespace-only boundary let all of those through — verified
+  # by live-fire in real cmd.exe, where `rd /s/q <dir>` deleted a populated tree. `[qs/]*` on the rd
+  # arm absorbs a leading `/q` so `/q/s` is caught too. `del`'s `[a-z]*` is deliberately NOT widened
+  # to `[a-z/]*`: `/` in the boundary already catches `/s/q` and `/q/s`, and widening it would start
+  # denying ordinary POSIX paths like `del … /tmp/logs`.
+  '\b(rd|rmdir)\b[^|]*[[:space:]]/[qs/]*s([[:space:];&"/]|$)@@recursive rmdir (/s)'
+  '\bdel\b[^|]*[[:space:]]/[a-z]*[sq]([[:space:];&"/]|$)@@recursive/quiet del'
   '\b(Format-Volume|Clear-Disk|Clear-Content)\b@@disk/file wipe (PowerShell)'
   'git[[:space:]]+push[[:space:]].*(-f([[:space:]]|$)|--force([[:space:]]|$|[^-])|[[:space:]]\+[^[:space:]]+:)@@force-push (use --force-with-lease)'
   'git[[:space:]]+reset[[:space:]]+--hard@@discarding work via reset --hard'

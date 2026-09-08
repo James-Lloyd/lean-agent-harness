@@ -210,8 +210,17 @@ editing** (Claude Code: see CLAUDE.md; anything else: `git worktree add`). Land 
   parity gap, count the assertions on both sides, not just the patterns. (b) A false-positive list
   assembled from prose examples will always undercount; the author's list named one FP (prose quoting
   a switch) and a differential probe over real commands found three more that mattered far more.
-  Require the switch to be a standalone token (`[^|]*` before it for flag order, a space-or-end
-  boundary after it so a path cannot impersonate it), and pin the negative controls, not just the
+  **(c) And the fix for an over-block is itself a loosening, so it gets DIFFERENTIALLY DIFFED against
+  the pattern it replaces, over every form the OLD one caught.** The obvious repair here — require a
+  space-or-end boundary after the switch, so a path cannot impersonate it — shipped a real BYPASS and
+  was caught only by a second review: cmd.exe accepts CONCATENATED switches, so `rd /s/q x` and
+  `del /s/q x` end the switch with `/`, and a trailing switch can be followed straight by `&&`. All
+  of those were denied by the crude original and allowed by the careful replacement, including
+  `cmd /c rd /s/q <dir>` — the exact phrasing an agent uses from the Bash tool on Windows, live-fired
+  and confirmed to delete a populated tree. A branch whose purpose was to CLOSE a guard gap was one
+  review away from shipping a net loss of coverage. Probe a foreign shell's pattern against that
+  shell's own PARSER, not against how the flag is usually written; make the boundary a character
+  CLASS (`[[:space:];&"/]`) rather than whitespace; and pin the negative controls as well as the
   denials.
 
 ## Nested context

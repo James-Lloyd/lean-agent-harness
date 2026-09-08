@@ -186,10 +186,20 @@ ok "$([ "$(hookrc "del $swq *.log")"            = "2" ] && echo 1 || echo 0)" "b
 ok "$([ "$(hookrc "$psfv -DriveLetter D")"      = "2" ] && echo 1 || echo 0)" "blocks Format-Volume"
 ok "$([ "$(hookrc "$pscd -Number 1")"           = "2" ] && echo 1 || echo 0)" "blocks Clear-Disk"
 ok "$([ "$(hookrc "$pscc notes.txt")"           = "2" ] && echo 1 || echo 0)" "blocks Clear-Content"
-# The switch is matched as a STANDALONE token, so flag ORDER cannot smuggle a recursive delete past
-# an adjacent-only match. Both of these are real recursive deletes and both were missed before.
+# The switch is found in ANY position, so flag ORDER cannot smuggle a recursive delete past an
+# adjacent-only match. Both of these are real recursive deletes and both were missed before.
 ok "$([ "$(hookrc "rmdir $swq $sw build")"      = "2" ] && echo 1 || echo 0)" "blocks rmdir with the recursive switch in second position"
 ok "$([ "$(hookrc "del $swf $sw *.log")"        = "2" ] && echo 1 || echo 0)" "blocks del with the recursive switch in second position"
+# CONCATENATED switches. cmd.exe accepts them, and `rd /s/q <dir>` deleted a populated tree in a
+# live-fire on Windows 11. A whitespace-only trailing boundary — the obvious way to stop a POSIX
+# path impersonating a switch — silently allows every one of these, which is a NET LOSS against the
+# adjacent-only pattern it replaced. That regression shipped once here; these are its pins.
+ok "$([ "$(hookrc "rd $sw${swq} C:/temp/x")"     = "2" ] && echo 1 || echo 0)" "blocks rd with concatenated switches (/s/q)"
+ok "$([ "$(hookrc "rmdir $sw${swq} C:/temp/x")"  = "2" ] && echo 1 || echo 0)" "blocks rmdir with concatenated switches (/s/q)"
+ok "$([ "$(hookrc "rd $swq${sw} C:/temp/x")"     = "2" ] && echo 1 || echo 0)" "blocks rd with concatenated switches, other order (/q/s)"
+ok "$([ "$(hookrc "del $sw${swq} C:/temp/x")"    = "2" ] && echo 1 || echo 0)" "blocks del with concatenated switches (/s/q)"
+ok "$([ "$(hookrc "cmd /c rd $sw${swq} C:/temp/x")" = "2" ] && echo 1 || echo 0)" "blocks a concatenated-switch delete wrapped in cmd /c (how an agent phrases it)"
+ok "$([ "$(hookrc "rd C:/temp/x ${sw}&&echo done")" = "2" ] && echo 1 || echo 0)" "blocks a trailing switch followed straight by && (no whitespace after)"
 # Negative controls. Two kinds, and the second kind is the one a review caught: an absolute POSIX
 # path whose first segment starts with the switch letter is NOT a switch. /srv /sys /sbin /snap
 # /share /storage are ordinary roots, this hook is the one that runs on POSIX, and rmdir there

@@ -1,7 +1,11 @@
 #!/usr/bin/env bash
-# Pre-fix probe: do the four PowerShell-form destructive patterns reach the .sh denylist?
-# Fixtures are assembled from fragments so this script's own text does not trip the guard
-# that is watching the agent's Bash calls.
+# Do the four PowerShell/cmd.exe destructive patterns reach the denylist, and do the controls stay
+# out of it? Takes a hook path so the same cases can be run against the pre-fix and post-fix hooks.
+#
+# NOTE ON THE FIXTURES: only the PowerShell CMDLET NAMES are assembled from fragments. The cmd.exe
+# switch forms below are written out verbatim and DO trip the guard that watches an agent's Bash
+# calls — that is unavoidable here, since the whole point is to feed the hook the literal text it
+# must deny. Run this script by path; do not paste its cases into a shell command.
 HOOK="$1"
 [ -n "$HOOK" ] || { echo "usage: $0 <path to block-destructive.sh>" >&2; exit 64; }
 
@@ -30,6 +34,16 @@ run "$CC notes.txt"              "$CC notes.txt"
 echo "--- flag-order forms: real recursive deletes an adjacent-only match misses (SF3) ---"
 run "rmdir /q /s build"          "rmdir /q /s build"
 run "del /f /s *.log"            "del /f /s *.log"
+echo "--- CONCATENATED and CHAINED switches: cmd.exe accepts these; live-fire confirmed ---"
+# `rd /s/q <dir>` really deleted a populated tree in cmd.exe on Windows 11. A whitespace-only
+# trailing boundary let every one of these through, which was a NET LOSS against the original
+# adjacent-only pattern. These six are the regression pins for that.
+run "rd /s/q C:\\\\temp\\\\x"      "rd /s/q C:\\\\temp\\\\x"
+run "rmdir /s/q C:\\\\temp\\\\x"   "rmdir /s/q C:\\\\temp\\\\x"
+run "rd /q/s C:\\\\temp\\\\x"      "rd /q/s C:\\\\temp\\\\x"
+run "del /s/q C:\\\\temp\\\\*"     "del /s/q C:\\\\temp\\\\*"
+run "cmd /c rd /s/q C:\\\\temp\\\\x" "cmd /c rd /s/q C:\\\\temp\\\\x"
+run "rd C:\\\\temp\\\\x /s&&echo done" "rd C:\\\\temp\\\\x /s&&echo done"
 echo "--- controls (must stay ALLOWED) ---"
 # SF1: POSIX absolute paths beginning with the switch letter. rmdir cannot delete a non-empty
 # directory on POSIX, and /srv /sys /sbin /snap /share /storage are ordinary roots.

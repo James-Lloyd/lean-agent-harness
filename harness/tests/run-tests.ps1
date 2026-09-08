@@ -536,6 +536,14 @@ ok "blocks Clear-Content"                                ((hookExit "$psCc notes
 # Flag ORDER must not smuggle a recursive delete past an adjacent-only match. Both are real.
 ok "blocks rmdir with the recursive switch in second position" ((hookExit "rmdir $swq $sw build") -eq 2)
 ok "blocks del with the recursive switch in second position"   ((hookExit "del $swf $sw *.log") -eq 2)
+# CONCATENATED switches: cmd.exe accepts them and they really delete (live-fired on Windows 11).
+# A whitespace-only trailing boundary allows every one, a NET LOSS against the pattern it replaced.
+ok "blocks rd with concatenated switches (/s/q)"        ((hookExit "rd $sw$swq C:\temp\x") -eq 2)
+ok "blocks rmdir with concatenated switches (/s/q)"     ((hookExit "rmdir $sw$swq C:\temp\x") -eq 2)
+ok "blocks rd with concatenated switches, other order"  ((hookExit "rd $swq$sw C:\temp\x") -eq 2)
+ok "blocks del with concatenated switches (/s/q)"       ((hookExit "del $sw$swq C:\temp\x") -eq 2)
+ok "blocks a concatenated-switch delete wrapped in cmd /c" ((hookExit "cmd /c rd $sw$swq C:\temp\x") -eq 2)
+ok "blocks a trailing switch followed straight by &&"   ((hookExit "rd C:\temp\x $sw&&echo done") -eq 2)
 # Negative controls. The three POSIX-path cases are the ones a fresh-context review caught: an
 # absolute path whose first segment starts with the switch letter is NOT a switch, and this cmdlet
 # surface is reachable on POSIX via pwsh, where /srv /sys /storage are ordinary roots.
