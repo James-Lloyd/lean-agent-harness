@@ -249,6 +249,35 @@ editing** (Claude Code: see CLAUDE.md; anything else: `git worktree add`). Land 
   gutting the corpus from 1,342 forms to 334 left every control green and the arm still exiting 0.
   Adding the presence assertion immediately caught a control string the corpus had never generated.
 
+- [2026-09-09 · codex] **A flag that PARSES is not a flag that BINDS.** The harness passed
+  `--ask-for-approval never` to `codex exec` for months and the unit tests were green the whole time,
+  because they asserted the string was **present in argv** — which it was. On codex-cli 0.153.4 the
+  flag is rejected by `exec` outright and, in the only slot that accepts it, parses without taking
+  effect: every transcript header read `approval: on-request`, and under that a READ-ONLY judge's
+  `apply_patch` mutated the tree it was judging. Assert a foreign tool's **own report of its
+  effective state** (its startup header, `--json` event, echoed config), never the argv you handed
+  it; and prefer the spelling the tool confirms (`-c approval_policy="never"` flipped the header and
+  the same write was refused). Corollaries: **(a)** the version matters — the identical flag DID bind
+  on 0.144.3 (`state/evidence/2026-07-14-cross-vendor-s3/live-codex-readonly.log`), so this is a
+  regression and the claim names its version; **(b)** the belt you thought was ornamental may be the
+  only thing holding — the caller's post-review `git reset --hard` is what protected judged trees
+  while the sandbox claim was false, so do not remove a redundant guard because the primary one is
+  "guaranteed"; **(c)** a fix to a permission/sandbox argument gets the OPPOSITE case measured too
+  (writers still write), or the fix is just a different outage.
+- [2026-09-09 · codex] **A fix proven with a hand-assembled argv is not proven.** The first proof of
+  the fix above ran a vector typed into a probe, not the one `codex_args` emits — different in three
+  elements. Re-run the arm that drives the SHIPPED builder, ship it as a pre/post DIFFERENTIAL with
+  the pre half read from the **git blob** (never transcribed), and make the arm refuse to run unless
+  the two vectors differ by exactly the change under test. Caught by fresh-context review, which also
+  made the point that the argv is the artifact the foreign tool consumes — the same reasoning as the
+  2026-09-05 "make the tool LOAD it and ACT on it" rule, one layer down.
+- [2026-09-09 · probes] **A probe that writes into `state/evidence/` honours an output-dir override,
+  because the cost-switch proof will run every probe.** The first `skip-proof.sh` ran the probes in
+  place with a stub on PATH: its stub runs overwrote **six real result files**, so the arm written to
+  protect the evidence destroyed it. Probes now take `$PROBE_OUT_DIR`. And **a PATH stub must exist
+  in every form the launchers resolve** — an extensionless `codex` is invisible to Windows
+  PowerShell, so the PS probe skipped the stub, reached the REAL CLI during the negative control, and
+  reported a clean "0 paid calls" for the arm that was supposed to prove the switch works.
 - [2026-09-09] **A probe that reports a verdict must be able to report the OTHER one, and be shown
   doing it in the same run.** Five defects in one change, all in the *checking* code rather than the
   code under test, all invisible to a green run. (a) A PowerShell arm read `if (-not $ok)` on the

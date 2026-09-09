@@ -160,6 +160,24 @@ ok "global flags precede the exec subcommand"      ([array]::IndexOf($ro,'--sand
 ok "model passed through as -m"                     (($ro -join ' ') -match '-m gpt-x')
 ok "effort passed as model_reasoning_effort"        (($ro -join ' ') -match 'model_reasoning_effort="high"')
 ok "no model => no -m flag"                         (-not (($ww -join ' ') -match '(^| )-m ') )
+# 2026-09-09 LIVE-FIRE (codex-cli 0.153.4, state/evidence/2026-09-09-codex-invoke-live-fire/): the
+# approval FLAG is rejected by `codex exec` outright and, passed globally, PARSES WITHOUT BINDING -
+# every exec header read `approval: on-request`, and under that a READ-ONLY judge's apply_patch
+# mutated the tree. `-c approval_policy="never"` AFTER `exec` is what actually binds. Pin presence
+# AND position in both modes: the position is the whole finding, so a value-only assertion would
+# have passed against the broken build.
+foreach ($pair in @(@{n='read-only'; a=$ro}, @{n='workspace-write'; a=$ww})) {
+  $arr = @($pair.a); $n = $pair.n
+  $apIdx = [array]::IndexOf($arr, 'approval_policy="never"')
+  $exIdx = [array]::IndexOf($arr, 'exec')
+  $flIdx = [array]::IndexOf($arr, '--ask-for-approval')
+  ok "$n : -c approval_policy=`"never`" is emitted"                              ($apIdx -ge 0)
+  ok "$n : the approval_policy override sits AFTER exec (where it binds)"        (($apIdx -gt $exIdx) -and ($exIdx -ge 0))
+  ok "$n : --ask-for-approval stays BEFORE exec (exec rejects it outright)"      (($flIdx -lt $exIdx) -and ($flIdx -ge 0))
+  # And the value must be the ARGUMENT OF a -c: a refactor that dropped the flag and left the value
+  # would still satisfy the position checks above while passing codex a bare word it rejects.
+  ok "$n : the override is the argument OF a -c (immediately preceded by it)"    (($apIdx -gt 0) -and ($arr[$apIdx-1] -ceq '-c'))
+}
 
 Write-Host "usage-limit predicate: vendor-neutral markers (drives S3 fallback)"
 ok "detects 'usage limit'"        (Test-UsageLimitError 'Error: monthly usage limit reached')

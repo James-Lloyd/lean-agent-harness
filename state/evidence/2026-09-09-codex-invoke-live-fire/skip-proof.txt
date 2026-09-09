@@ -1,0 +1,14 @@
+### switch ON: no probe may reach `codex exec`
+  ok   live-fire.sh made 0 paid calls
+  ok   loop-review-codex.sh made 0 paid calls
+  ok   builder-differential.sh made 0 paid calls
+  ok   approval-matrix.sh made 0 paid calls
+  ok   ps-twin.ps1 made 0 paid calls
+
+### NEGATIVE CONTROL — switch OFF: the same probes MUST reach `codex exec`
+     (otherwise every line above passes for the wrong reason)
+  ok   builder-differential.sh attempted 3 paid call(s) when not suppressed
+  ok   approval-matrix.sh attempted 2 paid call(s) when not suppressed
+  ok   ps-twin.ps1 attempted 1 paid call(s) when not suppressed
+
+RESULT: skip-proof GREEN

@@ -104,6 +104,24 @@ ok "$(printf '%s' "$ww" | grep -qx 'workspace-write' && echo 1 || echo 0)" "work
 ok "$(printf '%s' "$ro" | grep -qx 'never' && echo 1 || echo 0)" "keeps --ask-for-approval never"
 ok "$(printf '%s' "$ro" | grep -qx -- '-m' && printf '%s' "$ro" | grep -qx 'gpt-x' && echo 1 || echo 0)" "model passed as -m"
 ok "$(printf '%s' "$ww" | grep -qx -- '-m' && echo 0 || echo 1)" "no model => no -m flag"
+# 2026-09-09 LIVE-FIRE (codex-cli 0.153.4, state/evidence/2026-09-09-codex-invoke-live-fire/): the
+# approval FLAG is rejected by `codex exec` outright and, passed globally, PARSES WITHOUT BINDING -
+# every exec header read `approval: on-request`, and under that a READ-ONLY judge's apply_patch
+# mutated the tree. `-c approval_policy="never"` AFTER `exec` is what actually binds. Pin presence
+# AND position in both modes: the position is the whole finding, so a value-only assertion would
+# have passed against the broken build.
+_pos() { printf '%s\n' "$2" | grep -nxF -- "$1" | head -1 | cut -d: -f1; }
+for _m in ro ww; do
+  eval "_v=\$$_m"
+  ok "$(printf '%s\n' "$_v" | grep -qxF 'approval_policy="never"' && echo 1 || echo 0)" "$_m: -c approval_policy=\"never\" is emitted"
+  _ap="$(_pos 'approval_policy="never"' "$_v")"; _ex="$(_pos exec "$_v")"; _fl="$(_pos '--ask-for-approval' "$_v")"
+  ok "$([ -n "$_ap" ] && [ -n "$_ex" ] && [ "$_ap" -gt "$_ex" ] && echo 1 || echo 0)" "$_m: the approval_policy override sits AFTER exec (exec-level, where it binds)"
+  ok "$([ -n "$_fl" ] && [ -n "$_ex" ] && [ "$_fl" -lt "$_ex" ] && echo 1 || echo 0)" "$_m: --ask-for-approval stays BEFORE exec (exec rejects it outright)"
+  # And the value must be the ARGUMENT OF a -c: a refactor that dropped the flag and left the value
+  # would still satisfy the position checks above while passing codex a bare word it rejects.
+  _cn="$(printf '%s\n' "$_v" | grep -nxF -- '-c' | head -1 | cut -d: -f1)"
+  ok "$([ -n "$_ap" ] && [ -n "$_cn" ] && [ "$_ap" -eq "$((_cn+1))" ] && echo 1 || echo 0)" "$_m: the override is the argument OF a -c (immediately preceded by it)"
+done
 
 echo "usage-limit predicate: vendor-neutral markers"
 usage_limit_error 'monthly usage limit reached'   && ok 1 "detects usage limit"      || ok 0 "detects usage limit"

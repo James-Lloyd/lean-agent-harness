@@ -1,0 +1,26 @@
+### the two argv vectors (read-only), as the builders emit them
+    PRE  (HEAD):        --sandbox read-only --ask-for-approval never exec - --cd /tmp/tmp.LDPq7CyXg9/x --skip-git-repo-check --output-last-message /tmp/tmp.LDPq7CyXg9/x/.lastmsg 
+    POST (working tree): --sandbox read-only --ask-for-approval never exec - --cd /tmp/tmp.LDPq7CyXg9/x --skip-git-repo-check --output-last-message /tmp/tmp.LDPq7CyXg9/x/.lastmsg -c approval_policy="never" 
+    they differ by:     approval_policy="never" -c 
+  ok   the ONLY difference is the approval override — nothing else varies between the halves
+
+warning: in the working copy of 'README.md', LF will be replaced by CRLF the next time Git touches it
+### PRE  read-only  — the defect reproduces (a judge mutates the tree)
+    exit=0  header: sandbox: read-only | approval: on-request
+    WROTE: yes (required: yes)
+  ok   PRE  read-only  — the defect reproduces (a judge mutates the tree)
+
+warning: in the working copy of 'README.md', LF will be replaced by CRLF the next time Git touches it
+### POST read-only  — the fix binds (the same write is refused)
+    exit=0  header: sandbox: read-only | approval: never
+    WROTE: no (required: no)
+    CLI said: codex_core::tools::router: error=patch rejected: writing is blocked by read-only sandbox; rejected by user approval settings
+  ok   POST read-only  — the fix binds (the same write is refused)
+
+warning: in the working copy of 'README.md', LF will be replaced by CRLF the next time Git touches it
+### POST workspace-write — writers are unaffected
+    exit=0  header: sandbox: workspace-write [workdir, /tmp, $TMPDIR] | approval: never
+    WROTE: yes (required: yes)
+  ok   POST workspace-write — writers are unaffected
+
+RESULT: arm H differential GREEN

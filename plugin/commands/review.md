@@ -17,10 +17,15 @@ Run an **independent** review, uncontaminated by the reasoning that produced the
   model/effort — `review.codex{model,reasoningEffort}` over the global `models.codex`, resolved by
   `phase_codex_model`/`phase_codex_effort` or `Resolve-PhaseCodexCfg` in `engine/lib/gate.*`):
   ```
-  codex --sandbox read-only --ask-for-approval never exec - --cd <repo-root> --skip-git-repo-check
+  codex --sandbox read-only --ask-for-approval never exec - --cd <repo-root> --skip-git-repo-check -c approval_policy="never"
   ```
   piping in: the checklist below + the relevant `specs/` criteria + the BASE ref + the
-  ship/fix-then-ship/reject output contract. If unavailable, say which probe failed and fall back to
+  ship/fix-then-ship/reject output contract. The trailing `-c approval_policy="never"` is load-bearing,
+  not decoration: on codex-cli 0.153.4 the `--ask-for-approval never` flag parses globally without
+  binding (`codex exec` rejects it outright), the header stays `approval: on-request`, and a read-only
+  judge's `apply_patch` WILL mutate the tree — measured,
+  `state/evidence/2026-09-09-codex-invoke-live-fire/`.
+  If unavailable, say which probe failed and fall back to
   the `reviewer` subagent (pinned to `models.review.fallback`). Afterward `git status` and revert
   anything unexpected — a judge must not mutate what it judges.
 - **any Claude model / unset** → delegate to a fresh `reviewer` subagent (via `Agent`).
