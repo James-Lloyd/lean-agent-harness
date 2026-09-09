@@ -1,0 +1,52 @@
+### environment
+    codex: codex-cli 0.153.4
+    auth : Logged in using ChatGPT
+    repo : <repo>
+
+### arm A: every flag the harness emits, checked against THIS version's help (free)
+  ok   global accepts --sandbox
+  ok   global accepts --ask-for-approval
+  ok   global accepts --cd
+  ok   exec accepts --skip-git-repo-check
+  ok   exec accepts --output-last-message
+  ok   exec accepts --sandbox
+  ok   exec accepts --cd
+  ok   --ask-for-approval is global-only here, so codex_args' before/after split is REQUIRED
+    codex_args read-only <repo> <lastmsg> gpt-5.6-sol high ->
+      --sandbox
+      read-only
+      --ask-for-approval
+      never
+      exec
+      -
+      --cd
+      /c/Users/<user>/Repos/harness/.claude/worktrees/codex-invoke-live-fire
+      --skip-git-repo-check
+      --output-last-message
+      /tmp/lastmsg
+      -c
+      approval_policy="never"
+      -m
+      gpt-5.6-sol
+      -c
+      model_reasoning_effort="high"
+
+### arm B: invoke_codex read-only, prompt on STDIN, final message read back (PAID)
+  --   arm B (PROBE_SKIP_MODEL=1)
+
+### arm C: invoke_phase read-only -> review_verdict, i.e. the loop's review point (PAID)
+  --   arm C (PROBE_SKIP_MODEL=1)
+
+### arm D: review_verdict fail-closed controls, incl. against arm C's REAL output (free)
+  ok   last VERDICT line wins over a quoted one (got REJECT)
+  ok   no VERDICT line -> empty/NONE (loop fails closed), got 'NONE'
+
+### arm E: the watchdog kills a run and says so in the log (PAID, ~1s of model time)
+  --   arm E (PROBE_SKIP_MODEL=1)
+
+### arm F: codex_available and the claude fallback it gates (free)
+  ok   codex_available says yes for the real CLI
+  ok   a missing CLI is refused: 'codex CLI not found'
+  ok   api-key auth requires CODEX_API_KEY
+
+RESULT: codex invoke live-fire GREEN (version: codex-cli 0.153.4, skip_model=1)

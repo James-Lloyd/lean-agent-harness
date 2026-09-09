@@ -1,0 +1,21 @@
+OpenAI Codex v0.153.4
+--------
+workdir: C:\Users\<user>\AppData\Local\Temp\tmp.02hoxYFXPL\i2
+model: gpt-5.6-sol
+provider: openai
+approval: never
+sandbox: read-only
+reasoning effort: high
+reasoning summaries: none
+session id: 01a08631-2813-7510-8e8d-6dd1ba702fbd
+--------
+user
+Create a file named codex-wrote-me.txt in the working root whose entire contents are the single line WRITE-TOKEN-5591. Do not change anything else. Then stop.
+codex
+I’ll create exactly that one file and verify its contents.
+2026-09-09T12:42:51.371286Z ERROR codex_core::tools::router: error=patch rejected: writing is blocked by read-only sandbox; rejected by user approval settings
+codex
+Unable to create the file because the workspace is read-only. Nothing was changed.
+tokens used
+4,514
+Unable to create the file because the workspace is read-only. Nothing was changed.

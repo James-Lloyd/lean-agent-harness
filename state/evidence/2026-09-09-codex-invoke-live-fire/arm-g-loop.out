@@ -1,0 +1,23 @@
+🔧 Harness loop | type=greenfield | mode=auto | maxIter=1 | maxTurns=10 | model=impl-x | review=codex | budget=null
+ℹ️  Headless runs auto-deny non-allowlisted commands. Ensure the gate commands (test/build/lint)
+    are in .claude/settings.json permissions.allow (/harness-init adds them).
+
+⚠️  AUTO mode but NOT in a recognized SANDBOX. This run is full-auto and UNATTENDED.
+    Unattended auto should run inside the documented isolation profile (container/devcontainer or
+    WSL2-native FS), not directly on your host. The destructive-command deny-list is defense-in-
+    depth, NOT a sandbox — and --dangerously-skip-permissions voids it entirely.
+    See docs/sandboxing.md. Mark a sandbox explicitly with:  export HARNESS_SANDBOX=1
+
+──────── iteration 1 / 1 ────────
+  ⎘ checkpoint @ a35330b5 (pre-iter-1)
+implemented
+  📊 est. tokens this run: ~15000
+🔬 Running verification gate...
+  [root] gate (.)
+  - test : exit 0
+🟢 Gate green.
+  ✔ committed iteration 1
+🧑‍⚖️  Periodic fresh-context review of commits a35330b5..3519fef1...
+  🟢 Periodic review: SHIP.
+🏁 Loop finished after 1 iteration(s). Logs + ledger: /tmp/tmp.1ZulnXfwzX/repo/harness/.runs/run-001
+   Next: run /review for a fresh-context QA pass before you trust this.

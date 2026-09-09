@@ -1,0 +1,12 @@
+### arm G: harness/loop.sh --mode auto, review routed to the real codex CLI
+    loop exit=0
+    ledger:
+      {"iter":1,"result":"green","path":"claude","usedFallback":false}
+      {"iter":1,"result":"review","path":"codex","model":"codex","verdict":"SHIP"}
+  ok   ledger records path=codex (the real CLI judged it)
+  ok   ledger records the routed model
+  ok   the loop parsed a real verdict from codex: SHIP
+  ok   reviewer transcript written (review-after-1.log, 480 lines)
+  ok   tree clean after the judge ran (read-only discipline held)
+
+RESULT: arm G GREEN
