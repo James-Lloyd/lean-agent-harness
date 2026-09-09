@@ -335,6 +335,24 @@ editing** (Claude Code: see CLAUDE.md; anything else: `git worktree add`). Land 
   correctly** — "every arm carries a control" was written where only two of four did. Copy the README's
   wording into the state files, not a generous summary of it.
 
+- [2026-09-09] **A "phase X can route to vendor Y" claim cites the command STEP that resolves the phase
+  and invokes the vendor lib — a phase-name MAPPING table is not a dispatch site, and a subagent spawn
+  is not a vendor dispatch.** Writing `/harness-doctor` 10(i), the honoured-set table was derived from
+  `commands/work.md`'s `planner→plan, explorer→explore, …` mapping list, which is bookkeeping. `explore`
+  came out graded ⚠️ "works interactively" when in truth **no `/work` step dispatches an explore phase
+  at all** and `work.md`'s own rule is "No subagent ever wraps codex" — so `explore: "codex"` is as dead
+  as `docs: "codex"`, and the new check would have greenlit the exact unread key it was written to
+  catch. Two corollaries. **(a)** The same commit's *other* cells were right because they were read off
+  dispatch sites; one cell read off a different kind of source was the one that broke, so state which
+  kind each claim came from. **(b)** A phase whose `model` is dead may still have a LIVE `codex{}`
+  block: `codex-setup.*` resolves every mapped agent phase's codex settings ungated by its route, so
+  "nothing reads this phase" must be scoped to the key it is true of, or the advice to delete the block
+  silently retunes a generated Codex role.
+- [2026-09-09] **A doc pin asserted from PowerShell is ASCII-only.** PS 5.1's `Get-Content -Raw` decodes
+  a UTF-8 file as ANSI, so a pin containing a table glyph (`✗`, `→`, an em dash) mojibakes and can never
+  match — it goes red on the PS twin while the bash twin's byte-identical `grep -F` passes, which reads
+  as a twin-parity bug rather than an encoding one. Pin distinctive ASCII substrings in both twins.
+
 ## Nested context
 Subsystems carry their own `AGENTS.md` next to their code (in this repo: `plugin/engine/` holds the
 engine's PS-5.1/twin-parity rules). When working in a subsystem, its local map applies too.

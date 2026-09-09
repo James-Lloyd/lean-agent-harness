@@ -44,13 +44,17 @@ have code that dispatches it — and a value nothing reads advertises a control 
 | phase | headless (`loop.*`/`fleet.*`) | interactive (`/work`, `/review`) |
 |---|---|---|
 | `implement`, `review`, `review.second`, `evaluate` | ✅ | ✅ |
-| `plan`, `explore` | ✗ **silently ignored** | ✅ |
-| `docs` | ✗ | ✗ — `/gc` has no routing block |
+| `plan` | ✗ **silently ignored headlessly** | ✅ `/work` PLAN |
+| `explore`, `docs` | ✗ | ✗ — nothing dispatches either |
 | `session` | must be Claude (the window cannot swap vendor mid-session) | |
 
-`docs: "codex"` is read by nothing at all; `plan`/`explore` work under `/work` and are ignored by an
-overnight loop, which is the trap — the same config behaves differently on the two paths. `/harness-doctor`
-10(i) grades this.
+`explore: "codex"` and `docs: "codex"` are read by nothing at all — `/gc` has no routing block, and
+although `work.md` lists `explorer`→`explore` in its phase mapping, no `/work` step dispatches an
+explore phase and no subagent ever wraps codex. `plan` is the trap instead: it works under `/work` and
+is ignored by an overnight loop, so the same config behaves differently on the two paths.
+`/harness-doctor` 10(i) grades all of this. **Careful:** only the phase's `model` is dead there — a
+`codex{}` block on `explore`/`docs` is still read by `codex-setup.*` to write that agent's
+`.codex/agents/<name>.toml`, so do not delete one while `.codex/` exists.
 
 **Per-phase Codex settings.** A phase whose `model` or `fallback` is `codex` — or, on `review`, whose
 `second.model` is `codex`, since the second judge runs on the review phase's own codex settings — may add

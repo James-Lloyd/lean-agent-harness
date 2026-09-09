@@ -1,6 +1,6 @@
 # 002 — Vendor-agnostic routing (Claude Code today, OpenAI Codex CLI swappable per phase)
 
-- **Status:** accepted — V1–V5 shipped; **V6.1 (2026-09-09) routed this repo's `review.second` to Codex**, the first time the arm is used rather than merely tested (branch `worktree-vendor-agnostic-v6`; evidence `state/evidence/2026-09-09-v6-second-reviewer-routing/`). V6.2 (phases with no headless dispatch site) and V6.3 (the command→skill bridge, "Out of scope" below) remain open in `state/fix_plan.md`. Original V1–V5 status: V1–V4 merged 2026-09-05 as PRs #11–#14; V5 live-fire done 2026-09-05 (`state/evidence/2026-09-05-vendor-agnostic-refit-v5/`): second reviewer compared on a real diff (Fable SHIP vs Codex REJECT, advisory), and the hook probe found four V3 defects fixed in plugin 0.3.5 (see Consequences)
+- **Status:** accepted — V1–V5 shipped; **V6.1 (2026-09-09) routed this repo's `review.second` to Codex**, the first time the arm is used rather than merely tested (branch `worktree-vendor-agnostic-v6`; evidence `state/evidence/2026-09-09-v6-second-reviewer-routing/`). **V6.2 (2026-09-09) graded the phases a codex route cannot reach** (`/harness-doctor` 10(i); evidence `state/evidence/2026-09-09-v6.2-dispatch-site-gap/`). V6.3 (the command→skill bridge, "Out of scope" below) remains open in `state/fix_plan.md`. Original V1–V5 status: V1–V4 merged 2026-09-05 as PRs #11–#14; V5 live-fire done 2026-09-05 (`state/evidence/2026-09-05-vendor-agnostic-refit-v5/`): second reviewer compared on a real diff (Fable SHIP vs Codex REJECT, advisory), and the hook probe found four V3 defects fixed in plugin 0.3.5 (see Consequences)
 - **Date:** 2026-09-04
 
 ## Context
@@ -53,6 +53,14 @@ a **config edit with first-class guardrails**, not an exotic path.
 > codex `model`/`fallback`, and a fifth — `/harness-doctor` check 12's skip predicate — silently
 > disabled itself on a second-reviewer-only config. Evidence:
 > `state/evidence/2026-09-09-v6-second-reviewer-routing/`.
+>
+> **And "a config edit" overstated it (V6.2, same day).** Routing a phase to Codex is a config edit
+> only for the phases something dispatches: `implement`, `review`, `review.second` and `evaluate` on
+> both paths, `plan` interactively only, and **`explore` and `docs` nowhere at all** — `/gc` carries no
+> routing block, and although `work.md` lists `explorer`→`explore` in its phase mapping, no `/work`
+> step dispatches an explore phase and no subagent ever wraps codex. Three of eight phases cannot be
+> routed. `/harness-doctor` 10(i) grades this; evidence
+> `state/evidence/2026-09-09-v6.2-dispatch-site-gap/`.
 
 **D1. `AGENTS.md` is the map; `CLAUDE.md` imports it.** (slice V1, this PR)
 `AGENTS.md` carries everything vendor-neutral: components, the map, how to work, guardrails, the

@@ -1210,11 +1210,27 @@ foreach ($ph in @('plan','explore','docs')) {
   ok "loop.ps1 does NOT resolve $ph - a codex route there is ignored headlessly" (-not $loopPs.Contains("Resolve-PhaseModel `$cfg '$ph'"))
   ok "loop.sh does NOT resolve $ph (twin parity)"                                (-not $loopSh.Contains("phase_model `"`$CONFIG`" $ph"))
 }
+# fleet.* is named in 10(i)'s headless column too, so it gets the same treatment.
+$fleetPs = Get-Content (Join-Path $engineDir 'fleet.ps1') -Raw
+$fleetSh = Get-Content (Join-Path $engineDir 'fleet.sh')  -Raw
+ok "fleet.ps1 resolves implement (its only phase)" ($fleetPs.Contains("Resolve-PhaseModel `$cfg 'implement'"))
+ok "fleet.sh resolves implement (twin parity)"     ($fleetSh.Contains('phase_model "$CONFIG" implement'))
+foreach ($ph in @('plan','explore','docs','review','evaluate')) {
+  ok "fleet.ps1 does NOT resolve $ph"               (-not $fleetPs.Contains("Resolve-PhaseModel `$cfg '$ph'"))
+  ok "fleet.sh does NOT resolve $ph (twin parity)"  (-not $fleetSh.Contains("phase_model `"`$CONFIG`" $ph"))
+}
 $docMd62 = Get-Content (Join-Path $v62Root 'plugin/commands/harness-doctor.md') -Raw
 $mrMd62  = Get-Content (Join-Path $v62Root 'plugin/skills/model-routing/SKILL.md') -Raw
 ok "doctor grows check 10(i)"                                  ($docMd62.Contains('A codex route must have somewhere to be dispatched FROM'))
 ok "doctor 10(i) grades docs as having no site on EITHER path" ($docMd62.Contains('`docs` | **no dispatch site** | **none**'))
-ok "the routing skill warns that plan/explore are ignored headlessly" ($mrMd62.Contains('silently ignored'))
+ok "doctor 10(i) grades EXPLORE as having no site either (a phase MAPPING is not a dispatch site)" ($docMd62.Contains('`explore` | **no dispatch site** | **none**'))
+ok "doctor 10(i) tells the reader to re-derive from dispatch, not from a mapping list" ($docMd62.Contains('a phase-name mapping'))
+ok "doctor carves out the codex{} blocks codex-setup reads on unrouted phases" ($docMd62.Contains('ungated by'))
+# ASCII-ONLY substring on purpose: PS 5.1's Get-Content -Raw decodes this UTF-8 file as ANSI, so a pin
+# containing the table's ✗ glyph mojibakes and can never match (measured — it went red while the bash
+# twin's byte-identical grep passed). Keep both twins' doc pins free of non-ASCII.
+ok "the routing skill puts explore in the same tier as docs" ($mrMd62.Contains('| `explore`, `docs` |'))
+ok "the routing skill warns that plan is ignored headlessly" ($mrMd62.Contains('silently ignored headlessly'))
 
 Write-Host "migrate: end-to-end classify + apply on a synthetic repo"
 # engine/migrate.ps1 has its own e2e self-test (build a synthetic copied-in harness, report, --apply);

@@ -1166,6 +1166,7 @@ echo "model routing V6.2: a codex route must have a dispatch site (harness-docto
 # that does not exist (ratchet 2026-08-11). Assert the honoured set directly from the engine, so adding
 # or removing a dispatch site goes red here rather than silently making doctor 10(i)'s table a lie.
 LSH="$ENGINE/loop.sh"; LPS="$ENGINE/loop.ps1"
+FSH="$ENGINE/fleet.sh"; FPS="$ENGINE/fleet.ps1"
 for ph in implement review evaluate; do
   ok "$(grep -qF "phase_model \"\$CONFIG\" $ph" "$LSH" && echo 1 || echo 0)"       "loop.sh resolves the $ph phase (codex is dispatchable there)"
   ok "$(grep -qF "Resolve-PhaseModel \$cfg '$ph'" "$LPS" && echo 1 || echo 0)"     "loop.ps1 resolves the $ph phase (twin parity)"
@@ -1177,6 +1178,14 @@ for ph in plan explore docs; do
   ok "$(! grep -qF "phase_model \"\$CONFIG\" $ph" "$LSH" && echo 1 || echo 0)"     "loop.sh does NOT resolve $ph — a codex route there is ignored headlessly"
   ok "$(! grep -qF "Resolve-PhaseModel \$cfg '$ph'" "$LPS" && echo 1 || echo 0)"   "loop.ps1 does NOT resolve $ph (twin parity)"
 done
+# fleet.* is named in 10(i)'s headless column too, so it gets the same treatment — otherwise a planning
+# worker added to fleet.sh would make the table a lie for the very column that names it.
+ok "$(grep -qF 'phase_model "$CONFIG" implement' "$FSH" && echo 1 || echo 0)"     "fleet.sh resolves implement (its only phase)"
+ok "$(grep -qF "Resolve-PhaseModel \$cfg 'implement'" "$FPS" && echo 1 || echo 0)" "fleet.ps1 resolves implement (twin parity)"
+for ph in plan explore docs review evaluate; do
+  ok "$(! grep -qF "phase_model \"\$CONFIG\" $ph" "$FSH" && echo 1 || echo 0)"     "fleet.sh does NOT resolve $ph"
+  ok "$(! grep -qF "Resolve-PhaseModel \$cfg '$ph'" "$FPS" && echo 1 || echo 0)"   "fleet.ps1 does NOT resolve $ph (twin parity)"
+done
 # And pin the two prose surfaces that TELL an operator this, in their own distinctive text (the
 # [2026-08-06] ratchet: assert in the right column, not on a row-wide match).
 V62_ROOT="$(cd "$HERE/../.." && pwd)"   # REPO_ROOT is reassigned mid-suite; resolve our own
@@ -1184,7 +1193,13 @@ DOC_MD="$V62_ROOT/plugin/commands/harness-doctor.md"
 MR_MD="$V62_ROOT/plugin/skills/model-routing/SKILL.md"
 ok "$(grep -qF 'A codex route must have somewhere to be dispatched FROM' "$DOC_MD" && echo 1 || echo 0)" "doctor grows check 10(i)"
 ok "$(grep -qF '`docs` | **no dispatch site** | **none**' "$DOC_MD" && echo 1 || echo 0)"                "doctor 10(i) grades docs as having no site on EITHER path"
-ok "$(grep -qF 'silently ignored' "$MR_MD" && echo 1 || echo 0)"                                         "the routing skill warns that plan/explore are ignored headlessly"
+ok "$(grep -qF '`explore` | **no dispatch site** | **none**' "$DOC_MD" && echo 1 || echo 0)"             "doctor 10(i) grades EXPLORE as having no site either (a phase MAPPING is not a dispatch site)"
+ok "$(grep -qF 'a phase-name mapping' "$DOC_MD" && echo 1 || echo 0)"                                    "doctor 10(i) tells the reader to re-derive from dispatch, not from a mapping list"
+ok "$(grep -qF 'ungated by' "$DOC_MD" && echo 1 || echo 0)"                                              "doctor carves out the codex{} blocks codex-setup reads on unrouted phases"
+# ASCII-only, mirroring the PS twin: PS 5.1 decodes this UTF-8 file as ANSI, so a pin containing the
+# table's non-ASCII glyph can never match there. Keep both twins' doc pins ASCII.
+ok "$(grep -qF '| `explore`, `docs` |' "$MR_MD" && echo 1 || echo 0)"                                    "the routing skill puts explore in the same tier as docs"
+ok "$(grep -qF 'silently ignored headlessly' "$MR_MD" && echo 1 || echo 0)"                              "the routing skill warns that plan is ignored headlessly"
 
 echo "migrate: end-to-end classify + apply on a synthetic repo"
 # engine/migrate.sh has its own e2e self-test (build a synthetic copied-in harness, report, --apply);

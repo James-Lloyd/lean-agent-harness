@@ -90,6 +90,9 @@ behaves oddly.
       shipped config has a codex-primary phase (`implement` has been `claude-opus-5` with no fallback
       since 2026-08-11, and the harness repo's own 2026-09-09 cross-vendor routing is `review.second`,
       which spawns no subagent), so this branch is currently unexercised by any config in the repo.
+      **Order of operations with (i):** if the codex-primary phase is one (i) grades ❌ — `explore` or
+      `docs` — then (i) wins and this sub-check does not apply: the frontmatter model is not a
+      "fallback" there, it is the only model the phase will ever run on. Report (i)'s error and stop.
       **Consumer repos:** this is ❌ only where the frontmatter is *writable in-repo* — i.e. the harness
       dev repo. If the agents come from the installed plugin cache (no in-repo `plugin/`), a divergence is
       ℹ️, not drift: nobody may edit that cache from a project (`/plugin update` reverts it, and it's
@@ -133,7 +136,13 @@ behaves oddly.
       block or routing the phase to codex. **`review.codex` beside a Claude primary and a codex `second`
       is READ — do not warn on it:** `second_review`/`Invoke-SecondReview` pass the review phase's
       `REVIEW_CODEX_MODEL`/`REVIEW_CODEX_EFFORT` to the second judge, which is the pairing the
-      model-routing skill recommends as the first use of Codex. `reasoningEffort` there must be a codex level (`minimal|low|medium|high|xhigh`; `max` is
+      model-routing skill recommends as the first use of Codex. **Second carve-out, whenever `.codex/`
+      is generated:** `engine/codex-setup.*` resolves `phase_codex_model`/`phase_codex_effort` for every
+      mapped agent phase (planner, generator, reviewer, evaluator, explorer, doc-gardener) **ungated by
+      that phase's route**, to write `.codex/agents/<name>.toml`. So a `codex{}` block on an unrouted
+      phase — `explore` and `docs` included — is read by the generator even when the phase's `model` is
+      not. Do not call it dead: say it tunes the generated Codex role only, and never suggest deleting
+      it while `.codex/` exists. `reasoningEffort` there must be a codex level (`minimal|low|medium|high|xhigh`; `max` is
       Claude-only) — anything else is ❌. `auth`/`timeoutSeconds` inside a per-phase block are ❌
       (global-only; the engine ignores them there). Report the effective `-m`/effort each codex-routed
       phase would run with, so a stale pinned GPT ID (every `*-codex` ID is retired) is visible.
@@ -154,21 +163,37 @@ behaves oddly.
       |---|---|---|---|
       | `session` | — | — | ❌ (see (b)) |
       | `plan` | **no dispatch site** | `/work` PLAN, workspace-write | ⚠️ interactive-only |
-      | `explore` | **no dispatch site** | `/work` fan-out | ⚠️ interactive-only |
+      | `explore` | **no dispatch site** | **none** | ❌ unread key |
       | `implement` | `loop.*` iteration + `fleet.*` worker | `/work` EXECUTE | ✅ |
       | `review` | `loop.*` review point | `/review` | ✅ |
       | `review.second` | `loop.*` review point | `/review` step 3 | ✅ |
       | `evaluate` | `loop.*` evaluate point | `/work` | ✅ |
       | `docs` | **no dispatch site** | **none** (`/gc` has no routing block) | ❌ unread key |
 
-      So: `docs: "codex"` (or a `docs` codex *fallback*) is ❌ — nothing anywhere reads it; say that the
-      doc-gardener will run on its frontmatter model regardless, and suggest a Claude tier or `null`.
-      `plan`/`explore` routed to codex is ⚠️, not ❌ — it genuinely works under `/work` and is genuinely
-      ignored headlessly, so name BOTH halves rather than calling it broken or calling it fine: a repo
-      that runs the loop overnight gets Claude there whatever the config says. Verify the claim rather
-      than trusting this table if the engine has changed: the honoured set is exactly the phases
-      `loop.sh`/`loop.ps1` resolve into `*_MODEL`/`*_ROUTE` variables, plus whatever `commands/work.md`'s
-      phase mapping names.
+      So: **`docs: "codex"` and `explore: "codex"` are ❌** — no path dispatches either, so the
+      doc-gardener and explorer run on their frontmatter Claude model whatever the config says. Suggest
+      a Claude tier or `null`. `explore` is the one most likely to be *mis*-graded, and was, in this
+      check's first draft: `commands/work.md` names `explorer`→`explore` in its phase-mapping list, but
+      no `/work` step ever dispatches an explore phase, and `work.md`'s own rule is "**No subagent ever
+      wraps codex**" — so the only way exploration happens is an Agent-tool spawn that lands on Claude
+      by construction. **`plan` routed to codex is ⚠️, not ❌** — `/work`'s PLAN step really does route
+      the planner per the routing table in workspace-write mode, and the headless loop really does
+      ignore it, so name BOTH halves rather than calling it broken or fine: a repo that runs the loop
+      overnight gets Claude there whatever the config says.
+      **Carve-out, so this does not contradict (g):** a `codex{}` block on `explore` or `docs` is NOT an
+      unread key even though the phase's `model` is. `engine/codex-setup.*` resolves
+      `phase_codex_model`/`phase_codex_effort` for **every** mapped agent phase — planner, generator,
+      reviewer, evaluator, explorer, doc-gardener — ungated by that phase's route, to write
+      `.codex/agents/<name>.toml`. So those blocks are read whenever the Codex surfaces are generated,
+      and telling an operator to delete one silently retunes the generated Codex role. Grade the
+      `model`, not the block.
+      **How to re-derive this table if the engine has changed** — and derive it from dispatch, not from
+      bookkeeping, which is the mistake that produced the wrong `explore` row: a phase is honoured on a
+      path only where some code **resolves that phase and invokes the vendor lib**. Headless = the
+      phases `loop.{sh,ps1}` and `fleet.{sh,ps1}` resolve into `*_MODEL`/`*_ROUTE` variables and pass to
+      `invoke_phase`/`Invoke-Phase`. Interactive = a command STEP that resolves the phase and dispatches
+      it (`work.md`'s PLAN/EXECUTE/REVIEW/EVALUATE steps, `review.md` step 3) — **a phase-name mapping
+      list is not a dispatch site, and a subagent spawn is not a vendor dispatch.**
 
 11. **Risk-gated promotion (`promotion` block).** Skip entirely (report ℹ️ "not configured") when the
     block is absent — it is opt-in and most repos won't have it. When present:
