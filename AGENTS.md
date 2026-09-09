@@ -321,6 +321,81 @@ editing** (Claude Code: see CLAUDE.md; anything else: `git worktree add`). Land 
   green mode needs an exit-code path (`HARNESS_GATE_STRICT=1`), and the doc says WHERE the banner is
   visible (`/verify`) rather than claiming it always is.
 
+- [2026-09-09] **Correcting a routing/enablement predicate means grepping every CHECK that gates on the
+  same predicate, not only the prose that describes it — a skip condition is a surface too.** Routing
+  `review.second` to codex corrected four surfaces that said a phase's `codex{}` block is read only when
+  `model` or `fallback` is codex; the fresh-context reviewer found a fifth, one section below two of the
+  edits, in the same file: `/harness-doctor` check 12 skips with "no phase routes to codex" when no
+  `models.*.model`/`fallback` is codex **and** `.codex/` is absent. A second-reviewer-only config
+  satisfies both — so the check that exists to catch ungenerated Codex hooks silently disabled itself on
+  exactly the config that needed it, while `fix_plan` and `PROGRESS` both cited that check as the
+  mechanism that would catch it. A predicate copied into a skip/guard clause rots the same way a
+  sentence does, and it rots invisibly, because a self-disabled check reports ℹ️ rather than ❌.
+  Corollary from the same review: **state records overclaim controls that the evidence README states
+  correctly** — "every arm carries a control" was written where only two of four did. Copy the README's
+  wording into the state files, not a generous summary of it.
+
+- [2026-09-09] **A "phase X can route to vendor Y" claim cites the command STEP that resolves the phase
+  and invokes the vendor lib — a phase-name MAPPING table is not a dispatch site, and a subagent spawn
+  is not a vendor dispatch.** Writing `/harness-doctor` 10(i), the honoured-set table was derived from
+  `commands/work.md`'s `planner→plan, explorer→explore, …` mapping list, which is bookkeeping. `explore`
+  came out graded ⚠️ "works interactively" when in truth **no `/work` step dispatches an explore phase
+  at all** and `work.md`'s own rule is "No subagent ever wraps codex" — so `explore: "codex"` is as dead
+  as `docs: "codex"`, and the new check would have greenlit the exact unread key it was written to
+  catch. Two corollaries. **(a)** The same commit's *other* cells were right because they were read off
+  dispatch sites; one cell read off a different kind of source was the one that broke, so state which
+  kind each claim came from. **(b)** A phase whose `model` is dead may still have a LIVE `codex{}`
+  block: `codex-setup.*` resolves every mapped agent phase's codex settings ungated by its route, so
+  "nothing reads this phase" must be scoped to the key it is true of, or the advice to delete the block
+  silently retunes a generated Codex role.
+- [2026-09-09] **A doc pin asserted from PowerShell is ASCII-only.** PS 5.1's `Get-Content -Raw` decodes
+  a UTF-8 file as ANSI, so a pin containing a table glyph (`✗`, `→`, an em dash) mojibakes and can never
+  match — it goes red on the PS twin while the bash twin's byte-identical `grep -F` passes, which reads
+  as a twin-parity bug rather than an encoding one. Pin distinctive ASCII substrings in both twins.
+
+- [2026-09-09] **A probe fixture written in the foreign tool's own config language is PARSED before it
+  is believed — and a null result gets its premise established first.** Two wrong conclusions in one
+  slice, both from the checking code. (a) A canary skill was declared unreachable when the probe had
+  run in an *untrusted* temp project, where Codex skips the whole `config.toml`: the arm measured
+  trust, not skills. (b) The follow-up arm "proved" trust is not inherited by APPENDING
+  `model_reasoning_effort = "low"` to a `config.toml` ending in `[[skills.config]]` — in TOML a bare
+  key belongs to the table above it, so the key landed inside that table and did nothing. Prepending
+  it reversed the verdict. Order arms so each establishes the premise the next needs (trust → location
+  → mechanism → feature), and make a fixture assert its own well-formedness (here: the probe key must
+  precede the first table header) before its measurement is trusted. A NULL result is the one that
+  most needs a premise check, because "nothing happened" is what both a real finding and a broken
+  fixture look like.
+- [2026-09-09] **A config key that VALIDATES is not a config key that WORKS** — the 2026-09-09 flag
+  lesson one layer out. `[[skills.config]] path` has been emitted since slice V3 and re-verified in
+  2026-09-06 only to the depth of "omitting `enabled` is fatal", which proves the key is *parsed*.
+  Measured with a canary token, it delivers no skills to `codex exec` at all: the same SKILL.md is
+  found under `.agents/skills/` and returns NO-SKILL behind the stanza. Verify a foreign tool's config
+  key by the BEHAVIOUR it is supposed to buy, and when the disproof is scoped (here: `exec` only, not
+  interactive), keep the key and record the scope rather than deleting on a partial measurement.
+
+- [2026-09-09] **A line appended to a user-owned text file is prefixed with a newline unless the file
+  is PROVEN to end with one — the sibling block's leading `\n` is not inherited by the block you add
+  beside it.** `codex-setup` grew an `.agents/` append next to its existing `.codex/` append; the old
+  block opened with `\n` and the new one did not, so on a `.gitignore` with no trailing newline the
+  result was the single line `.codex/.agents/` — destroying BOTH patterns and un-ignoring a directory
+  of machine-local absolute paths (ratchet 2026-07-30's exact failure, arrived at from the other
+  direction). The trigger is the upgrade path the new block existed to serve, and the suite's
+  "gained exactly one `.codex/` line" assertion still passed because it ran on a file that DID end in
+  a newline. Fixture the no-trailing-newline shape, and assert the neighbour survives as a WHOLE LINE.
+- [2026-09-09] **Adding the first non-ASCII byte to an emitted string in a `.ps1` checks that file's
+  BOM in the same edit.** The engine's "non-ASCII belongs in comments, not in emitted strings" rule was
+  invisible in `codex-setup.ps1` because the file had been pure ASCII its whole life — and it is
+  BOM-less while every sibling `.ps1` has a BOM. One `…` in a generated preamble would have decoded as
+  Windows-1252 and shipped `â€¦` into all 14 generated skills, diverging from the bash twin's bytes.
+  Every bridge assertion greps ASCII substrings, so the suite could not see it. Grep the file for
+  non-ASCII in STRINGS (not comments) whenever you add emitted prose, and prefer plain ASCII in text
+  both twins must produce byte-identically.
+- [2026-09-09] **A probe truncates its output file only AFTER its cost-switch guard.** All five V6.3
+  probes opened with `LOG=…; : > "$LOG"; exec > >(tee …)` and only then checked `PROBE_SKIP_MODEL`, so
+  the advertised cheap re-run zeroed five committed result files and exited 0 — the 2026-09-09
+  evidence-destruction ratchet reproduced one level down, in the probes rather than in the arm that
+  audits them. Guard first, redirect second; then prove it by running the cheap path and diffing sizes.
+
 ## Nested context
 Subsystems carry their own `AGENTS.md` next to their code (in this repo: `plugin/engine/` holds the
 engine's PS-5.1/twin-parity rules). When working in a subsystem, its local map applies too.

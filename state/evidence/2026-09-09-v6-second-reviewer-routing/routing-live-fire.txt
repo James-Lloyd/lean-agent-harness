@@ -1,0 +1,35 @@
+### environment
+    codex : codex-cli 0.153.4
+    auth  : Logged in using ChatGPT
+    config: harness/harness.config.json (the real one, not a fixture)
+
+### arm A: what the engine resolves for the review phase (free)
+    review.model          = claude-fable-5-1
+    review.second.model   = codex    (effort high)
+    resolved codex model  = []   (empty = float on the CLI default, by config)
+    resolved codex effort = high
+  ok   second reviewer routes to codex
+  ok   codex depth resolves to high
+  ok   primary reviewer is still Claude (claude-fable-5-1) — doer != judge, and review.codex is read anyway
+
+### arm B: negative control — a config with no second reviewer (free)
+    fixture review.second.model = []   codex effort = [low]
+  ok   no second reviewer resolves to empty (arm A's check can fail)
+  ok   per-phase codex effort wins over the global block (arm A's check can fail)
+
+### arm C: what codex REPORTS its effective state to be (real call)
+    invoke_codex rc=0  final-message=[ACK]
+    header: model: gpt-5.6-sol | approval: never | sandbox: read-only | reasoning effort: high
+  ok   the transcript carries a header to assert on
+  ok   approval BINDS (never) — a read-only judge cannot escalate
+  ok   sandbox read-only
+  ok   the config's depth reached the CLI
+    EFFECTIVE MODEL (config pins none; this is the CLI default today): model: gpt-5.6-sol
+
+### arm D: the SHIPPED builder's argv for the second reviewer (free)
+    argv: --sandbox read-only --ask-for-approval never exec - --cd /c/Users/<user>/Repos/harness/.claude/worktrees/vendor-agnostic-v6 --skip-git-repo-check --output-last-message /tmp/lastmsg -c approval_policy="never" -c model_reasoning_effort="high"
+  ok   carries -c overrides
+  ok   depth is passed as a -c override
+  ok   no -m — floats on the CLI default, as configured
+
+### result: PASS

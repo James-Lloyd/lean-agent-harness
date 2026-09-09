@@ -38,14 +38,35 @@ default. `minimal` is a codex-only level (the Claude CLI rejects it, so the disp
 `max` is Claude-only. `fallback: null` = no fallback (the phase just fails when its primary does); a
 whole phase set to `null`, or an absent `models` block, = inherit the ambient session model.
 
-**Per-phase Codex settings.** A phase whose `model` or `fallback` is `codex` may add
+**Not every phase can actually run Codex.** `"codex"` is legal syntax everywhere, but only some phases
+have code that dispatches it — and a value nothing reads advertises a control that does not exist:
+
+| phase | headless (`loop.*`/`fleet.*`) | interactive (`/work`, `/review`) |
+|---|---|---|
+| `implement`, `review`, `review.second`, `evaluate` | ✅ | ✅ |
+| `plan` | ✗ **silently ignored headlessly** | ✅ `/work` PLAN |
+| `explore`, `docs` | ✗ | ✗ — nothing dispatches either |
+| `session` | must be Claude (the window cannot swap vendor mid-session) | |
+
+`explore: "codex"` and `docs: "codex"` are read by nothing at all — `/gc` has no routing block, and
+although `work.md` lists `explorer`→`explore` in its phase mapping, no `/work` step dispatches an
+explore phase and no subagent ever wraps codex. `plan` is the trap instead: it works under `/work` and
+is ignored by an overnight loop, so the same config behaves differently on the two paths.
+`/harness-doctor` 10(i) grades all of this. **Careful:** only the phase's `model` is dead there — a
+`codex{}` block on `explore`/`docs` is still read by `codex-setup.*` to write that agent's
+`.codex/agents/<name>.toml`, so do not delete one while `.codex/` exists.
+
+**Per-phase Codex settings.** A phase whose `model` or `fallback` is `codex` — or, on `review`, whose
+`second.model` is `codex`, since the second judge runs on the review phase's own codex settings — may add
 `"codex": { "model": "gpt-5.6-sol", "reasoningEffort": "high" }`; each key set there wins over the
 global `models.codex` block for that phase (keys left null inherit it). `auth` and `timeoutSeconds`
 stay global. Don't add the block to a phase that never routes to codex — the engine won't read it and
 `/harness-doctor` 10(g) will say so. Prefer `model: null` (float on the Codex CLI default) unless you
 have a reason to pin: every `*-codex` model ID was retired in 2026-07/08, so pinned IDs rot. Once any
 phase routes to codex, run `harness/codex-setup.*` to generate Codex's own copies of the guard hooks,
-agents and skills path (`docs/codex-setup.md`; doctor check 12 keeps them fresh).
+the phase agents, and the harness commands as skills under `<project>/.agents/skills/` - that directory,
+not the `[[skills.config]]` stanza in `config.toml`, is what `codex exec` actually reads (measured
+2026-09-09; the stanza is inert for exec). See `docs/codex-setup.md`; doctor check 12 keeps them fresh.
 
 **Second reviewer (the recommended first use of Codex).** `review.second: { model, effort }` adds a
 second, read-only judge that reviews the SAME batch after the primary SHIPs; SHIP requires both, and both
@@ -54,8 +75,11 @@ reviewers catch mostly *different* bugs, and that a cross-vendor reviewer helps 
 comment-only — so the second reviewer is read-only by construction and has **no fallback**: the point is
 model diversity, and a substitute is not the configured second opinion (an unreachable second reviewer
 fails closed; doctor 10(h) warns). Recommended pair: primary `claude-fable-5-1` @ `high`, second
-`codex` with `review.codex: { model: "gpt-5.6-sol", reasoningEffort: "high" }`. Off by default; turn it on
-in shadow mode first (slice V5) and compare the two judges' findings before letting it gate.
+`codex` with `review.codex: { model: null, reasoningEffort: "high" }` — `null`, not a pinned GPT ID, for the
+same reason given above (measured 2026-09-09, the CLI default was `gpt-5.6-sol` @ high; read the effective
+model back from the exec transcript header rather than pinning it here). Off by default; turn it on
+in shadow mode first (slice V5) and compare the two judges' findings before letting it gate. The harness
+repo itself runs this pair as of 2026-09-09 (`state/evidence/2026-09-09-v6-second-reviewer-routing/`).
 
 ## Running the interview
 

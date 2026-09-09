@@ -1,0 +1,12 @@
+### environment
+  ..   worktree : <repo>
+  ..   trusted paths in ~/.codex/config.toml that could cover it:
+       109:[projects.'c:\users\<user>\repos\harness']
+
+  ok   fixture is well-formed: the probe key (line 1) precedes the first table (line 5)
+### arm 1: does the worktree's project config.toml take effect?
+  ..   header: reasoning effort: low
+  ..   (the project config asks for 'low'; nothing on the command line sets effort)
+  ok   TRUST IS INHERITED — the worktree's own .codex/config.toml is honoured
+
+### result: PASS  (this arm REPORTS a fact; either verdict is a pass)

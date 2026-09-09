@@ -1,6 +1,6 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-settings.json",
-  "_comment": "Harness defaults; personal overrides go in settings.local.json (gitignored). `model` + `effortLevel` mirror config models.session {model, effort} (/harness-doctor check 10 checks agreement); CLAUDE_CODE_EFFORT_LEVEL and `claude --effort` override effortLevel at launch. /harness-init appends the project's gate commands to permissions.allow (headless -p runs auto-deny anything non-allowlisted). The five guard hooks come from the installed lean-agent-harness plugin, not this repo. Why there are no deny rules on config/specs writes, and why hooks are a denylist not a sandbox: docs/sandboxing.md.",
+  "_comment": "Harness defaults; personal overrides go in settings.local.json (gitignored). `model` + `effortLevel` mirror config models.session {model, effort} (/harness-doctor check 10 checks agreement); CLAUDE_CODE_EFFORT_LEVEL and `claude --effort` override effortLevel at launch. /harness-init appends the project's gate commands to permissions.allow (headless -p runs auto-deny anything non-allowlisted). The five guard hooks come from the installed lean-agent-harness plugin, not this repo. Why there are no deny rules on config/specs writes, and why hooks are a denylist not a sandbox: docs/sandboxing.md. The `codex --sandbox read-only` entry (2026-09-09) exists because models.review.second routes to the Codex CLI and /review dispatches it through the Bash tool: without it a headless `claude -p \"/review\"` auto-denies the second judge, which has no fallback and so fails closed to REJECT on every run. It is deliberately NOT `Bash(codex:*)` — the engine's arg builder emits `--sandbox <mode>` as argv[0], so this prefix admits read-only judge runs only and a workspace-write codex run still prompts. The loop path is unaffected either way: loop.sh spawns codex itself, outside the permission system.",
 
   "model": "claude-fable-5-1",
   "effortLevel": "medium",
@@ -20,7 +20,8 @@
       "Bash(git log:*)",
       "Bash(git add:*)",
       "Bash(git commit:*)",
-      "Bash(node harness/tests/gate.mjs)"
+      "Bash(node harness/tests/gate.mjs)",
+      "Bash(codex --sandbox read-only:*)"
     ],
     "deny": [
       "Read(./**/.env)",

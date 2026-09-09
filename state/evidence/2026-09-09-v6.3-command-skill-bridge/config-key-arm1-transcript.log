@@ -1,0 +1,18 @@
+OpenAI Codex v0.153.4
+--------
+workdir: C:\Users\<user>\Repos\harness\.claude\worktrees\vendor-agnostic-v6
+model: gpt-6-astra
+provider: openai
+approval: never
+sandbox: read-only
+reasoning effort: low
+reasoning summaries: none
+session id: 01a08768-706f-7181-a2b8-794bb17571b7
+--------
+user
+Report the delta canary value. If you do not have a skill that provides it, reply exactly NO-SKILL.
+codex
+NO-SKILL
+tokens used
+20,014
+NO-SKILL

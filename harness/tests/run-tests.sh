@@ -520,7 +520,8 @@ JSON
   m="$(phase_codex_model "$ncfg" implement)";  ok "$([ -z "$m" ] && echo 1 || echo 0)"             "no global, no phase block => '' (CLI default) (got '$m')"
   echo "model routing V4: review.second{model,effort} — the second, read-only reviewer (design-doc 002 D4)"
   scfg="$(mktemp)"; printf '%s' '{ "models": {
-    "review": { "model": "claude-fable-5-1", "fallback": "claude-opus-5", "effort": "high", "second": { "model": "codex", "effort": "high" } },
+    "codex":  { "model": "gpt-global", "reasoningEffort": "medium" },
+    "review": { "model": "claude-fable-5-1", "fallback": "claude-opus-5", "effort": "high", "second": { "model": "codex", "effort": "high" }, "codex": { "model": "gpt-second", "reasoningEffort": "xhigh" } },
     "evaluate": { "model": "claude-fable-5-1", "second": { "model": null } },
     "docs": "haiku" } }' > "$scfg"
   m="$(phase_second_model "$scfg" review)";   ok "$([ "$m" = "codex" ] && echo 1 || echo 0)" "second.model resolves (got '$m')"
@@ -529,6 +530,15 @@ JSON
   m="$(phase_second_model "$scfg" implement)";ok "$([ -z "$m" ] && echo 1 || echo 0)"        "absent phase => '' (got '$m')"
   m="$(phase_second_model "$scfg" docs)";     ok "$([ -z "$m" ] && echo 1 || echo 0)"        "flat-legacy string => '' (got '$m')"
   m="$(phase_second_model "$xcfg" review)";   ok "$([ -z "$m" ] && echo 1 || echo 0)"        "review without a second block => '' (got '$m')"
+  # A CODEX SECOND READS review.codex EVEN THOUGH model AND fallback ARE BOTH CLAUDE. second_review /
+  # Invoke-SecondReview pass REVIEW_CODEX_MODEL/EFFORT, so this is the pairing the model-routing skill
+  # recommends as the first use of Codex — and until 2026-09-09 four surfaces (schema x2, doctor 10(f)(g),
+  # the routing skill) said the block is read only when `model` or `fallback` is codex, which would have
+  # made /harness-doctor warn "unread key" on its own recommended config. Pin the behaviour so the prose
+  # cannot drift back.
+  m="$(phase_codex_model "$scfg" review)";    ok "$([ "$m" = "gpt-second" ] && echo 1 || echo 0)" "codex SECOND reads the phase's codex.model beside a Claude primary (got '$m')"
+  m="$(phase_codex_effort "$scfg" review)";   ok "$([ "$m" = "xhigh" ] && echo 1 || echo 0)"      "codex SECOND reads the phase's codex.reasoningEffort (got '$m')"
+  m="$(phase_codex_model "$scfg" evaluate)";  ok "$([ "$m" = "gpt-global" ] && echo 1 || echo 0)" "a phase with no codex block still falls through to the global one (got '$m')"
   rm -f "$ncfg" "$frcfg" "$ecfg" "$xcfg" "$scfg"
 
   echo "model routing S1b: phase_fallback review symmetric with reviewFallback pseudo-phase"
@@ -1050,6 +1060,39 @@ if command -v jq >/dev/null 2>&1; then
   ok "$(grep -q '^sandbox_mode = "workspace-write"' "$CSP/.codex/agents/generator.toml" && grep -q '^model = "gpt-global"' "$CSP/.codex/agents/generator.toml" && echo 1 || echo 0)" "generator.toml: workspace-write + inherits the global codex model"
   ok "$(grep -q "^developer_instructions = '''" "$CSP/.codex/agents/reviewer.toml" && grep -q 'fresh-context reviewer' "$CSP/.codex/agents/reviewer.toml" && ! grep -q '^name: reviewer' "$CSP/.codex/agents/reviewer.toml" && echo 1 || echo 0)" "reviewer.toml: body embedded as a TOML literal, frontmatter stripped"
   ok "$([ "$(grep -cx '\.codex/' "$CSP/.gitignore")" = "1" ] && echo 1 || echo 0)" ".gitignore gained exactly one '.codex/' line"
+  # --- the command->skill bridge (V6.3) ------------------------------------------------------------
+  # `.agents/skills/` is the ONLY location codex exec reads (measured 2026-09-09; the config.toml
+  # [[skills.config]] stanza is inert for exec). Pin the OUTPUT, not the stanza.
+  CSK="$CSP/.agents/skills"
+  n_cmds="$(ls "$ENGINE/../commands"/*.md | wc -l | tr -d ' ')"
+  n_pskills="$(ls -d "$ENGINE/../skills"/*/ | wc -l | tr -d ' ')"
+  n_gen="$(ls -d "$CSK"/*/ 2>/dev/null | wc -l | tr -d ' ')"
+  ok "$([ "$n_gen" = "$((n_cmds + n_pskills))" ] && echo 1 || echo 0)" "skills/: one per plugin command AND per reference skill (got $n_gen, want $((n_cmds + n_pskills)))"
+  ok "$([ -f "$CSK/harness-review/SKILL.md" ] && echo 1 || echo 0)"  "bridge: /review became the harness-review skill"
+  ok "$([ -f "$CSK/harness-work/SKILL.md" ] && echo 1 || echo 0)"    "bridge: /work became the harness-work skill"
+  # A command already named harness-* must not become harness-harness-*.
+  ok "$([ -f "$CSK/harness-doctor/SKILL.md" ] && [ ! -d "$CSK/harness-harness-doctor" ] && echo 1 || echo 0)" "bridge: an already-prefixed command is not double-prefixed"
+  ok "$([ -f "$CSK/model-routing/SKILL.md" ] && echo 1 || echo 0)"   "reference skills are emitted alongside the bridged commands"
+  # Frontmatter Codex needs, and the Claude-only frontmatter it must NOT inherit.
+  ok "$(grep -qx 'name: harness-review' "$CSK/harness-review/SKILL.md" && grep -q '^description: ' "$CSK/harness-review/SKILL.md" && echo 1 || echo 0)" "bridged skill carries name + description frontmatter"
+  ok "$(! grep -q '^allowed-tools:' "$CSK/harness-review/SKILL.md" && ! grep -q '^argument-hint:' "$CSK/harness-review/SKILL.md" && echo 1 || echo 0)" "bridged skill drops Claude-only frontmatter keys"
+  ok "$(grep -qF 'not Claude Code' "$CSK/harness-review/SKILL.md" && grep -qF '.codex/agents/' "$CSK/harness-review/SKILL.md" && echo 1 || echo 0)" "bridged skill carries the Codex translation preamble"
+  ok "$(! grep -qF 'not Claude Code' "$CSK/model-routing/SKILL.md" && echo 1 || echo 0)" "a reference skill is emitted verbatim (no command preamble)"
+  ok "$(grep -qF 'fresh-context' "$CSK/harness-review/SKILL.md" && echo 1 || echo 0)" "bridged skill carries the command BODY, not just its frontmatter"
+  ok "$([ "$(grep -cx '\.agents/' "$CSP/.gitignore")" = "1" ] && echo 1 || echo 0)" ".gitignore gained exactly one '.agents/' line"
+  # REGRESSION: a .gitignore with NO TRAILING NEWLINE that already carries `.codex/` - the exact upgrade
+  # shape (pre-bridge repo, hand-edited file). Appending `.agents/` without a leading newline produced
+  # `.codex/.agents/`, destroying BOTH patterns and un-ignoring the machine-local .codex/ dir. Assert
+  # both survive as whole lines, not merely that the file mentions them.
+  printf 'node_modules/\n.codex/' > "$CSP/.gitignore"
+  bash "$CS" --project-root "$CSP" >/dev/null 2>&1 || true
+  ok "$([ "$(grep -cx '\.codex/' "$CSP/.gitignore")" = "1" ] && echo 1 || echo 0)"  "no-trailing-newline .gitignore: '.codex/' survives the .agents/ append"
+  ok "$([ "$(grep -cx '\.agents/' "$CSP/.gitignore")" = "1" ] && echo 1 || echo 0)" "no-trailing-newline .gitignore: '.agents/' lands on its own line"
+  ok "$(! grep -q '\.codex/\.agents/' "$CSP/.gitignore" && echo 1 || echo 0)"       "no-trailing-newline .gitignore: the two patterns were not concatenated"
+  # A hand-written skill beside the generated set must survive a re-run; a generated one must be replaced.
+  mkdir -p "$CSK/my-own-skill"; printf -- '---\nname: my-own-skill\n---\nmine\n' > "$CSK/my-own-skill/SKILL.md"
+  bash "$CS" --project-root "$CSP" >/dev/null 2>&1 || true
+  ok "$([ -f "$CSK/my-own-skill/SKILL.md" ] && echo 1 || echo 0)" "a hand-written skill survives regeneration (only .harness-generated dirs are wiped)"
   bash "$CS" --project-root "$CSP" >/dev/null 2>&1 || true
   ok "$([ "$(grep -cx '\.codex/' "$CSP/.gitignore")" = "1" ] && echo 1 || echo 0)" "re-run is idempotent on .gitignore"
   # A consumer .gitignore on Windows is often CRLF: the presence check must CR-strip or bash re-appends forever.
@@ -1149,6 +1192,47 @@ if command -v node >/dev/null 2>&1; then
 else
   echo "  (skipping dispatcher test — node not installed)"
 fi
+
+echo "model routing V6.2: a codex route must have a dispatch site (harness-doctor 10(i))"
+# THE INVARIANT BEHIND THE DOC TABLE, not the table itself. `"codex"` is legal syntax on every phase,
+# but only the phases the loop RESOLVES can act on it — and a value nothing reads advertises a control
+# that does not exist (ratchet 2026-08-11). Assert the honoured set directly from the engine, so adding
+# or removing a dispatch site goes red here rather than silently making doctor 10(i)'s table a lie.
+LSH="$ENGINE/loop.sh"; LPS="$ENGINE/loop.ps1"
+FSH="$ENGINE/fleet.sh"; FPS="$ENGINE/fleet.ps1"
+for ph in implement review evaluate; do
+  ok "$(grep -qF "phase_model \"\$CONFIG\" $ph" "$LSH" && echo 1 || echo 0)"       "loop.sh resolves the $ph phase (codex is dispatchable there)"
+  ok "$(grep -qF "Resolve-PhaseModel \$cfg '$ph'" "$LPS" && echo 1 || echo 0)"     "loop.ps1 resolves the $ph phase (twin parity)"
+done
+# The other half, and the one that actually catches drift: these phases have NO headless dispatch site,
+# which is why doctor 10(i) grades `plan`/`explore` as interactive-only and `docs` as an unread key. If
+# someone adds a site, this goes red and the table must be updated in the same change.
+for ph in plan explore docs; do
+  ok "$(! grep -qF "phase_model \"\$CONFIG\" $ph" "$LSH" && echo 1 || echo 0)"     "loop.sh does NOT resolve $ph — a codex route there is ignored headlessly"
+  ok "$(! grep -qF "Resolve-PhaseModel \$cfg '$ph'" "$LPS" && echo 1 || echo 0)"   "loop.ps1 does NOT resolve $ph (twin parity)"
+done
+# fleet.* is named in 10(i)'s headless column too, so it gets the same treatment — otherwise a planning
+# worker added to fleet.sh would make the table a lie for the very column that names it.
+ok "$(grep -qF 'phase_model "$CONFIG" implement' "$FSH" && echo 1 || echo 0)"     "fleet.sh resolves implement (its only phase)"
+ok "$(grep -qF "Resolve-PhaseModel \$cfg 'implement'" "$FPS" && echo 1 || echo 0)" "fleet.ps1 resolves implement (twin parity)"
+for ph in plan explore docs review evaluate; do
+  ok "$(! grep -qF "phase_model \"\$CONFIG\" $ph" "$FSH" && echo 1 || echo 0)"     "fleet.sh does NOT resolve $ph"
+  ok "$(! grep -qF "Resolve-PhaseModel \$cfg '$ph'" "$FPS" && echo 1 || echo 0)"   "fleet.ps1 does NOT resolve $ph (twin parity)"
+done
+# And pin the two prose surfaces that TELL an operator this, in their own distinctive text (the
+# [2026-08-06] ratchet: assert in the right column, not on a row-wide match).
+V62_ROOT="$(cd "$HERE/../.." && pwd)"   # REPO_ROOT is reassigned mid-suite; resolve our own
+DOC_MD="$V62_ROOT/plugin/commands/harness-doctor.md"
+MR_MD="$V62_ROOT/plugin/skills/model-routing/SKILL.md"
+ok "$(grep -qF 'A codex route must have somewhere to be dispatched FROM' "$DOC_MD" && echo 1 || echo 0)" "doctor grows check 10(i)"
+ok "$(grep -qF '`docs` | **no dispatch site** | **none**' "$DOC_MD" && echo 1 || echo 0)"                "doctor 10(i) grades docs as having no site on EITHER path"
+ok "$(grep -qF '`explore` | **no dispatch site** | **none**' "$DOC_MD" && echo 1 || echo 0)"             "doctor 10(i) grades EXPLORE as having no site either (a phase MAPPING is not a dispatch site)"
+ok "$(grep -qF 'a phase-name mapping' "$DOC_MD" && echo 1 || echo 0)"                                    "doctor 10(i) tells the reader to re-derive from dispatch, not from a mapping list"
+ok "$(grep -qF 'ungated by' "$DOC_MD" && echo 1 || echo 0)"                                              "doctor carves out the codex{} blocks codex-setup reads on unrouted phases"
+# ASCII-only, mirroring the PS twin: PS 5.1 decodes this UTF-8 file as ANSI, so a pin containing the
+# table's non-ASCII glyph can never match there. Keep both twins' doc pins ASCII.
+ok "$(grep -qF '| `explore`, `docs` |' "$MR_MD" && echo 1 || echo 0)"                                    "the routing skill puts explore in the same tier as docs"
+ok "$(grep -qF 'silently ignored headlessly' "$MR_MD" && echo 1 || echo 0)"                              "the routing skill warns that plan is ignored headlessly"
 
 echo "migrate: end-to-end classify + apply on a synthetic repo"
 # engine/migrate.sh has its own e2e self-test (build a synthetic copied-in harness, report, --apply);

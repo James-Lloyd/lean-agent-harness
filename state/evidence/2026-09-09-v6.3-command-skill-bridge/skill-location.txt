@@ -1,0 +1,17 @@
+  ..   fixture: .agents/skills/harness-canary-charlie/SKILL.md (token lives ONLY in that file)
+  ..   the token appears nowhere in either prompt below
+### arm H1+H2: skill in .agents/skills/, named EXPLICITLY in the prompt
+  ..   final message: CANARY-CHARLIE-9a1b44
+  ok   the skill WAS reachable when named — .agents/skills/ is a discovery location
+
+### arm H1b: same skill, NOT named — does the model find it on its own?
+  ..   final message: CANARY-CHARLIE-9a1b44
+  ok   found WITHOUT being named — discovery is automatic
+
+### verdict
+SKILLS=auto  (.agents/skills/ is discovered and used unprompted)
+  ..   NOTE: a null result here is a real finding, not a probe failure — headless codex exec already
+  ..         ignores project hooks entirely (docs/codex-setup.md), so 'skills are interactive-only'
+  ..         would be the same shape of limitation.
+
+### result: PASS

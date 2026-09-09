@@ -86,8 +86,13 @@ behaves oddly.
       `reviewer`→`review`, `evaluator`→`evaluate`, `doc-gardener`→`docs`. The rule: frontmatter == the
       phase's **primary** when the primary is a Claude model; when the primary is `"codex"`, frontmatter
       must == the phase's **Claude `fallback`** (so a spawned subagent still lands on the right model) and
-      you note "phase is codex-routed — frontmatter tracks its Claude fallback." With the shipped config
-      this is the `generator` branch (`implement = {codex, opus}` → `generator` frontmatter must be `opus`).
+      you note "phase is codex-routed — frontmatter tracks its Claude fallback." Illustration only: no
+      shipped config has a codex-primary phase (`implement` has been `claude-opus-5` with no fallback
+      since 2026-08-11, and the harness repo's own 2026-09-09 cross-vendor routing is `review.second`,
+      which spawns no subagent), so this branch is currently unexercised by any config in the repo.
+      **Order of operations with (i):** if the codex-primary phase is one (i) grades ❌ — `explore` or
+      `docs` — then (i) wins and this sub-check does not apply: the frontmatter model is not a
+      "fallback" there, it is the only model the phase will ever run on. Report (i)'s error and stop.
       **Consumer repos:** this is ❌ only where the frontmatter is *writable in-repo* — i.e. the harness
       dev repo. If the agents come from the installed plugin cache (no in-repo `plugin/`), a divergence is
       ℹ️, not drift: nobody may edit that cache from a project (`/plugin update` reverts it, and it's
@@ -119,16 +124,25 @@ behaves oddly.
       global `models.codex.reasoningEffort` — see (g); that phase's
       Claude arm is its *fallback*, governed by `fallbackEffort`).
     - **(f) Codex reachability (⚠️ not ❌), for every codex-routed phase.** For **each** phase whose
-      `model` OR `fallback` is `"codex"`, probe `codex --version` and (auth `chatgpt`) `codex login
+      `model`, `fallback`, or (on `review`) `second.model` is `"codex"`, probe `codex --version` and (auth `chatgpt`) `codex login
       status` exit 0, or (auth `api-key`) `CODEX_API_KEY` set. Unavailable is ⚠️ not ❌ — that phase runs
       on (or falls back to) its Claude arm by design; say which path each codex-routed phase would take
       today.
     - **(g) Per-phase codex overrides are read, and legal.** A phase may carry `codex: { model,
       reasoningEffort }` (design-doc 002 D2), merged over the global `models.codex` by the engine's
       `phase_codex_model`/`phase_codex_effort` (sh) and `Resolve-PhaseCodexCfg` (ps1). It is consumed
-      ONLY when that phase's `model` or `fallback` is `"codex"` — on any other phase it is a key nothing
-      reads (ratchet 2026-08-11): ⚠️, name the phase, suggest deleting the block or routing the phase to
-      codex. `reasoningEffort` there must be a codex level (`minimal|low|medium|high|xhigh`; `max` is
+      ONLY when that phase's `model`, `fallback`, or (on `review`) `second.model` is `"codex"` — on any
+      other phase it is a key nothing reads (ratchet 2026-08-11): ⚠️, name the phase, suggest deleting the
+      block or routing the phase to codex. **`review.codex` beside a Claude primary and a codex `second`
+      is READ — do not warn on it:** `second_review`/`Invoke-SecondReview` pass the review phase's
+      `REVIEW_CODEX_MODEL`/`REVIEW_CODEX_EFFORT` to the second judge, which is the pairing the
+      model-routing skill recommends as the first use of Codex. **Second carve-out, whenever `.codex/`
+      is generated:** `engine/codex-setup.*` resolves `phase_codex_model`/`phase_codex_effort` for every
+      mapped agent phase (planner, generator, reviewer, evaluator, explorer, doc-gardener) **ungated by
+      that phase's route**, to write `.codex/agents/<name>.toml`. So a `codex{}` block on an unrouted
+      phase — `explore` and `docs` included — is read by the generator even when the phase's `model` is
+      not. Do not call it dead: say it tunes the generated Codex role only, and never suggest deleting
+      it while `.codex/` exists. `reasoningEffort` there must be a codex level (`minimal|low|medium|high|xhigh`; `max` is
       Claude-only) — anything else is ❌. `auth`/`timeoutSeconds` inside a per-phase block are ❌
       (global-only; the engine ignores them there). Report the effective `-m`/effort each codex-routed
       phase would run with, so a stale pinned GPT ID (every `*-codex` ID is retired) is visible.
@@ -140,6 +154,46 @@ behaves oddly.
       the second reviewer has NO fallback, so an unreachable one stops every review point fail-closed
       until it is reachable or removed. Say which pair will actually judge (e.g. "claude-fable-5-1 then
       codex gpt-5.6-sol").
+    - **(i) A codex route must have somewhere to be dispatched FROM.** The literal `"codex"` is legal
+      *syntax* on every phase, but only some phases have code that acts on it, and a value nothing reads
+      is worse than no value at all (ratchet 2026-08-11) — it advertises a control that does not exist.
+      Grade each codex-routed phase against where it is actually honoured:
+
+      | phase | headless (`loop.*`, `fleet.*`) | interactive (`/work`, `/review`) | `"codex"` verdict |
+      |---|---|---|---|
+      | `session` | — | — | ❌ (see (b)) |
+      | `plan` | **no dispatch site** | `/work` PLAN, workspace-write | ⚠️ interactive-only |
+      | `explore` | **no dispatch site** | **none** | ❌ unread key |
+      | `implement` | `loop.*` iteration + `fleet.*` worker | `/work` EXECUTE | ✅ |
+      | `review` | `loop.*` review point | `/review` | ✅ |
+      | `review.second` | `loop.*` review point | `/review` step 3 | ✅ |
+      | `evaluate` | `loop.*` evaluate point | `/work` | ✅ |
+      | `docs` | **no dispatch site** | **none** (`/gc` has no routing block) | ❌ unread key |
+
+      So: **`docs: "codex"` and `explore: "codex"` are ❌** — no path dispatches either, so the
+      doc-gardener and explorer run on their frontmatter Claude model whatever the config says. Suggest
+      a Claude tier or `null`. `explore` is the one most likely to be *mis*-graded, and was, in this
+      check's first draft: `commands/work.md` names `explorer`→`explore` in its phase-mapping list, but
+      no `/work` step ever dispatches an explore phase, and `work.md`'s own rule is "**No subagent ever
+      wraps codex**" — so the only way exploration happens is an Agent-tool spawn that lands on Claude
+      by construction. **`plan` routed to codex is ⚠️, not ❌** — `/work`'s PLAN step really does route
+      the planner per the routing table in workspace-write mode, and the headless loop really does
+      ignore it, so name BOTH halves rather than calling it broken or fine: a repo that runs the loop
+      overnight gets Claude there whatever the config says.
+      **Carve-out, so this does not contradict (g):** a `codex{}` block on `explore` or `docs` is NOT an
+      unread key even though the phase's `model` is. `engine/codex-setup.*` resolves
+      `phase_codex_model`/`phase_codex_effort` for **every** mapped agent phase — planner, generator,
+      reviewer, evaluator, explorer, doc-gardener — ungated by that phase's route, to write
+      `.codex/agents/<name>.toml`. So those blocks are read whenever the Codex surfaces are generated,
+      and telling an operator to delete one silently retunes the generated Codex role. Grade the
+      `model`, not the block.
+      **How to re-derive this table if the engine has changed** — and derive it from dispatch, not from
+      bookkeeping, which is the mistake that produced the wrong `explore` row: a phase is honoured on a
+      path only where some code **resolves that phase and invokes the vendor lib**. Headless = the
+      phases `loop.{sh,ps1}` and `fleet.{sh,ps1}` resolve into `*_MODEL`/`*_ROUTE` variables and pass to
+      `invoke_phase`/`Invoke-Phase`. Interactive = a command STEP that resolves the phase and dispatches
+      it (`work.md`'s PLAN/EXECUTE/REVIEW/EVALUATE steps, `review.md` step 3) — **a phase-name mapping
+      list is not a dispatch site, and a subagent spawn is not a vendor dispatch.**
 
 11. **Risk-gated promotion (`promotion` block).** Skip entirely (report ℹ️ "not configured") when the
     block is absent — it is opt-in and most repos won't have it. When present:
@@ -179,13 +233,18 @@ behaves oddly.
       (`docs/promotion.md` §3). When auto-merge is not armed, this is ℹ️ only.
 
 12. **Codex surfaces are generated and fresh (only when anything routes to codex).** Skip with ℹ️
-    "no phase routes to codex" when no `models.*.model`/`fallback` is `"codex"` and there is no `.codex/`
-    dir. Otherwise run the generator's own check — `bash harness/codex-setup.sh --check` (or
+    "no phase routes to codex" when no `models.*.model`, `models.*.fallback` or (on `review`)
+    `models.review.second.model` is `"codex"` and there is no `.codex/` dir. **The `second.model` arm of
+    that predicate is load-bearing** (added 2026-09-09): a config whose only codex route is the second
+    reviewer satisfied the old two-term skip on a machine where `.codex/` had not been generated yet —
+    so the check silently disabled itself on exactly the config that needs it, while every loop review
+    point invoked the Codex CLI against ungenerated hooks and agents. Otherwise run the generator's own check — `bash harness/codex-setup.sh --check` (or
     `powershell harness/codex-setup.ps1 -Check`; wrappers copied by `/harness-init`, engine script
     `${CLAUDE_PLUGIN_ROOT}/engine/codex-setup.*`; if the wrappers are absent, e.g. a `/harness-migrate`d
     repo, run the engine script with `--project-root <repo>` directly) — and grade its output: `fresh`
-    (exit 0) = ✅; `NOT generated` (exit 1) = ❌ when a phase routes to codex (its hooks/agents/skills do
-    not exist for Codex yet — run the generator), ⚠️ when nothing routes there; `STALE` (exit 1) = ⚠️ (an
+    (exit 0) = ✅; `NOT generated` (exit 1) = ❌ when anything routes to codex — a phase's `model`,
+    `fallback`, or `review.second.model` (its hooks/agents/skills do not exist for Codex yet — run the
+    generator), ⚠️ when nothing routes there; `STALE` (exit 1) = ⚠️ (an
     input changed since generation — re-run). Note `block-destructive` is generated under the
     shell-tool matcher `Bash` (`_shell_matcher_note` in the file; recorded live from Codex 0.144.3 in V5),
     and every hook command carries `run.mjs --codex` — Codex ignores exit code 2, so the dispatcher must

@@ -310,7 +310,8 @@ ok "no global, no phase block => null model (CLI default)" ($null -eq $xn.model 
 
 Write-Host "model routing V4: review.second{model,effort} - the second, read-only reviewer (design-doc 002 D4)"
 $scfg = [pscustomobject]@{ models = [pscustomobject]@{
-  review   = [pscustomobject]@{ model='claude-fable-5-1'; fallback='claude-opus-5'; effort='high'; second=[pscustomobject]@{ model='codex'; effort='high' } }
+  codex    = [pscustomobject]@{ model='gpt-global'; reasoningEffort='medium' }
+  review   = [pscustomobject]@{ model='claude-fable-5-1'; fallback='claude-opus-5'; effort='high'; second=[pscustomobject]@{ model='codex'; effort='high' }; codex=[pscustomobject]@{ model='gpt-second'; reasoningEffort='xhigh' } }
   evaluate = [pscustomobject]@{ model='claude-fable-5-1'; second=[pscustomobject]@{ model=$null } }
   docs     = 'haiku'
 } }
@@ -320,6 +321,14 @@ ok "second.model null => '' (no second reviewer)"         ((Resolve-PhaseSecondM
 ok "absent phase => ''"                                   ((Resolve-PhaseSecondModel $scfg 'implement') -eq '')
 ok "flat-legacy string => ''"                             ((Resolve-PhaseSecondModel $scfg 'docs') -eq '')
 ok "review without a second block => ''"                  ((Resolve-PhaseSecondModel $xcfg 'review') -eq '')
+# A CODEX SECOND READS review.codex EVEN THOUGH model AND fallback ARE BOTH CLAUDE (bash twin carries the
+# same three). Invoke-SecondReview passes the review phase's codex settings, so this is the pairing the
+# model-routing skill recommends as Codex's first use - and until 2026-09-09 four surfaces said the block
+# is read only when model/fallback is codex, which would have made doctor 10(g) warn "unread key" on it.
+$sr = Resolve-PhaseCodexCfg $scfg 'review'; $se = Resolve-PhaseCodexCfg $scfg 'evaluate'
+ok "codex SECOND reads the phase's codex.model beside a Claude primary" ($sr.model -eq 'gpt-second')
+ok "codex SECOND reads the phase's codex.reasoningEffort"               ($sr.reasoningEffort -eq 'xhigh')
+ok "a phase with no codex block still falls through to the global one"  ($se.model -eq 'gpt-global')
 
 Write-Host "model routing S1b: Resolve-PhaseFallback('review') is symmetric with reviewFallback pseudo-phase"
 # Mixed config: nested review with a NULL fallback + a legacy top-level reviewFallback. Both accessors
@@ -1025,6 +1034,40 @@ ok "generator.toml: workspace-write + inherits the global codex model" ($gn -mat
 ok "reviewer.toml: body embedded as a TOML literal, frontmatter stripped" ($rv.Contains("developer_instructions = '''") -and $rv.Contains('fresh-context reviewer') -and -not ($rv -match '(?m)^name: reviewer'))
 $giCount = @(Get-Content -LiteralPath (Join-Path $csp '.gitignore') | Where-Object { $_ -ceq '.codex/' }).Count
 ok ".gitignore gained exactly one '.codex/' line"                ($giCount -eq 1)
+# --- the command->skill bridge (V6.3), mirroring the bash twin ------------------------------------
+# `.agents/skills/` is the ONLY location codex exec reads (measured 2026-09-09; the config.toml
+# [[skills.config]] stanza is inert for exec). Pin the OUTPUT, not the stanza.
+$csk      = Join-Path $csp '.agents/skills'
+$nCmds    = @(Get-ChildItem -LiteralPath (Join-Path $engineDir '../commands') -Filter *.md).Count
+$nPSkills = @(Get-ChildItem -LiteralPath (Join-Path $engineDir '../skills') -Directory).Count
+$nGen     = @(Get-ChildItem -LiteralPath $csk -Directory -ErrorAction SilentlyContinue).Count
+ok "skills/: one per plugin command AND per reference skill (got $nGen, want $($nCmds + $nPSkills))" ($nGen -eq ($nCmds + $nPSkills))
+ok "bridge: /review became the harness-review skill" (Test-Path -LiteralPath (Join-Path $csk 'harness-review/SKILL.md') -PathType Leaf)
+ok "bridge: /work became the harness-work skill"     (Test-Path -LiteralPath (Join-Path $csk 'harness-work/SKILL.md') -PathType Leaf)
+ok "bridge: an already-prefixed command is not double-prefixed" ((Test-Path -LiteralPath (Join-Path $csk 'harness-doctor/SKILL.md') -PathType Leaf) -and -not (Test-Path -LiteralPath (Join-Path $csk 'harness-harness-doctor')))
+ok "reference skills are emitted alongside the bridged commands" (Test-Path -LiteralPath (Join-Path $csk 'model-routing/SKILL.md') -PathType Leaf)
+$brv = Get-Content -LiteralPath (Join-Path $csk 'harness-review/SKILL.md') -Raw
+$bmr = Get-Content -LiteralPath (Join-Path $csk 'model-routing/SKILL.md') -Raw
+ok "bridged skill carries name + description frontmatter"  (($brv -match '(?m)^name: harness-review$') -and ($brv -match '(?m)^description: '))
+ok "bridged skill drops Claude-only frontmatter keys"      (-not ($brv -match '(?m)^allowed-tools:') -and -not ($brv -match '(?m)^argument-hint:'))
+ok "bridged skill carries the Codex translation preamble"  ($brv.Contains('not Claude Code') -and $brv.Contains('.codex/agents/'))
+ok "a reference skill is emitted verbatim (no command preamble)" (-not $bmr.Contains('not Claude Code'))
+ok "bridged skill carries the command BODY, not just its frontmatter" ($brv.Contains('fresh-context'))
+$giA = @(Get-Content -LiteralPath (Join-Path $csp '.gitignore') | Where-Object { $_ -ceq '.agents/' }).Count
+ok ".gitignore gained exactly one '.agents/' line"         ($giA -eq 1)
+# REGRESSION (mirror of the bash twin): a .gitignore with NO TRAILING NEWLINE already carrying `.codex/`
+# - the exact upgrade shape. Without a leading newline the append produced `.codex/.agents/`, destroying
+# both patterns and un-ignoring the machine-local .codex/ dir.
+[System.IO.File]::WriteAllText((Join-Path $csp '.gitignore'), "node_modules/`n.codex/", (New-Object System.Text.UTF8Encoding($false)))
+$null = _CS @()
+$giNl = @(Get-Content -LiteralPath (Join-Path $csp '.gitignore'))
+ok "no-trailing-newline .gitignore: '.codex/' survives the .agents/ append"  (@($giNl | Where-Object { $_ -ceq '.codex/' }).Count -eq 1)
+ok "no-trailing-newline .gitignore: '.agents/' lands on its own line"        (@($giNl | Where-Object { $_ -ceq '.agents/' }).Count -eq 1)
+ok "no-trailing-newline .gitignore: the two patterns were not concatenated"  (-not (@($giNl | Where-Object { $_ -like '*.codex/.agents/*' }).Count))
+[void](New-Item -ItemType Directory -Force -Path (Join-Path $csk 'my-own-skill'))
+Set-Content -LiteralPath (Join-Path $csk 'my-own-skill/SKILL.md') -Value "---`nname: my-own-skill`n---`nmine" -Encoding utf8
+$null = _CS @()
+ok "a hand-written skill survives regeneration (only .harness-generated dirs are wiped)" (Test-Path -LiteralPath (Join-Path $csk 'my-own-skill/SKILL.md') -PathType Leaf)
 $null = _CS @()
 $giCount2 = @(Get-Content -LiteralPath (Join-Path $csp '.gitignore') | Where-Object { $_ -ceq '.codex/' }).Count
 ok "re-run is idempotent on .gitignore"                          ($giCount2 -eq 1)
@@ -1183,6 +1226,45 @@ ok "risk skill states the shipped size limit ($maxLines)" ($riskTxt.Contains("**
 # which has no .Count under StrictMode and would THROW rather than fail the assertion.
 ok "risk skill names alwaysHuman as HIGH"  (@($riskTxt -split "`n" | Where-Object { $_.Contains('promotion.alwaysHuman')  -and $_.Contains("${bt}HIGH$bt") }).Count -gt 0)
 ok "risk skill names moneySignals as HIGH" (@($riskTxt -split "`n" | Where-Object { $_.Contains('promotion.moneySignals') -and $_.Contains("${bt}HIGH$bt") }).Count -gt 0)
+
+Write-Host "model routing V6.2: a codex route must have a dispatch site (harness-doctor 10(i))"
+# THE INVARIANT BEHIND THE DOC TABLE, not the table itself (bash twin carries the mirror). 'codex' is
+# legal syntax on every phase, but only the phases the loop RESOLVES can act on it, and a value nothing
+# reads advertises a control that does not exist (ratchet 2026-08-11).
+$v62Root  = Split-Path (Split-Path $here -Parent) -Parent
+$loopPs   = Get-Content (Join-Path $engineDir 'loop.ps1') -Raw
+$loopSh   = Get-Content (Join-Path $engineDir 'loop.sh')  -Raw
+foreach ($ph in @('implement','review','evaluate')) {
+  ok "loop.ps1 resolves the $ph phase (codex is dispatchable there)" ($loopPs.Contains("Resolve-PhaseModel `$cfg '$ph'"))
+  ok "loop.sh resolves the $ph phase (twin parity)"                  ($loopSh.Contains("phase_model `"`$CONFIG`" $ph"))
+}
+# The half that actually catches drift: no headless dispatch site for these, which is why doctor 10(i)
+# grades plan/explore interactive-only and docs an unread key. Adding a site reds this.
+foreach ($ph in @('plan','explore','docs')) {
+  ok "loop.ps1 does NOT resolve $ph - a codex route there is ignored headlessly" (-not $loopPs.Contains("Resolve-PhaseModel `$cfg '$ph'"))
+  ok "loop.sh does NOT resolve $ph (twin parity)"                                (-not $loopSh.Contains("phase_model `"`$CONFIG`" $ph"))
+}
+# fleet.* is named in 10(i)'s headless column too, so it gets the same treatment.
+$fleetPs = Get-Content (Join-Path $engineDir 'fleet.ps1') -Raw
+$fleetSh = Get-Content (Join-Path $engineDir 'fleet.sh')  -Raw
+ok "fleet.ps1 resolves implement (its only phase)" ($fleetPs.Contains("Resolve-PhaseModel `$cfg 'implement'"))
+ok "fleet.sh resolves implement (twin parity)"     ($fleetSh.Contains('phase_model "$CONFIG" implement'))
+foreach ($ph in @('plan','explore','docs','review','evaluate')) {
+  ok "fleet.ps1 does NOT resolve $ph"               (-not $fleetPs.Contains("Resolve-PhaseModel `$cfg '$ph'"))
+  ok "fleet.sh does NOT resolve $ph (twin parity)"  (-not $fleetSh.Contains("phase_model `"`$CONFIG`" $ph"))
+}
+$docMd62 = Get-Content (Join-Path $v62Root 'plugin/commands/harness-doctor.md') -Raw
+$mrMd62  = Get-Content (Join-Path $v62Root 'plugin/skills/model-routing/SKILL.md') -Raw
+ok "doctor grows check 10(i)"                                  ($docMd62.Contains('A codex route must have somewhere to be dispatched FROM'))
+ok "doctor 10(i) grades docs as having no site on EITHER path" ($docMd62.Contains('`docs` | **no dispatch site** | **none**'))
+ok "doctor 10(i) grades EXPLORE as having no site either (a phase MAPPING is not a dispatch site)" ($docMd62.Contains('`explore` | **no dispatch site** | **none**'))
+ok "doctor 10(i) tells the reader to re-derive from dispatch, not from a mapping list" ($docMd62.Contains('a phase-name mapping'))
+ok "doctor carves out the codex{} blocks codex-setup reads on unrouted phases" ($docMd62.Contains('ungated by'))
+# ASCII-ONLY substring on purpose: PS 5.1's Get-Content -Raw decodes this UTF-8 file as ANSI, so a pin
+# containing the table's ✗ glyph mojibakes and can never match (measured — it went red while the bash
+# twin's byte-identical grep passed). Keep both twins' doc pins free of non-ASCII.
+ok "the routing skill puts explore in the same tier as docs" ($mrMd62.Contains('| `explore`, `docs` |'))
+ok "the routing skill warns that plan is ignored headlessly" ($mrMd62.Contains('silently ignored headlessly'))
 
 Write-Host "migrate: end-to-end classify + apply on a synthetic repo"
 # engine/migrate.ps1 has its own e2e self-test (build a synthetic copied-in harness, report, --apply);

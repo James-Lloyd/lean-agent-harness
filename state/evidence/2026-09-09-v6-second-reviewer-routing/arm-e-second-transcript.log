@@ -1,0 +1,245 @@
+OpenAI Codex v0.153.4
+--------
+workdir: C:\Users\<user>\AppData\Local\Temp\tmp.ETaIQjWRPO\repo
+model: gpt-5.6-sol
+provider: openai
+approval: never
+sandbox: read-only
+reasoning effort: high
+reasoning summaries: none
+session id: 01a086b7-3a08-7152-aefe-915ecc7ce144
+--------
+user
+You are a FRESH-CONTEXT REVIEWER (the harness 'reviewer' role). You
+have NO memory of how this code was written; judge only the artifact. You are READ-ONLY — do not edit,
+write, or commit anything.
+
+1. Inspect the batch:  git log --oneline 4d798b9125964b62bd887780a2aa4b9227fb3200..HEAD   and   git diff 4d798b9125964b62bd887780a2aa4b9227fb3200..HEAD
+2. Judge it against specs/ (acceptance criteria) and docs/principles/ (golden principles): correctness
+   vs spec, evidence quality, guardrails (no weakened/deleted tests, no edited specs, no destructive
+   ops/secrets), architectural drift, needless complexity.
+3. Classify every finding blocker / should-fix / nit. A BLOCKER violates a stated spec requirement,
+   breaks an interface contract, loses data, opens a security hole, or fails a test. List findings as
+   file:line — severity — problem — concrete fix. Do NOT raise issues that are not traceable to a
+   spec requirement or a correctness, security, or data-integrity failure — a reviewer told to find
+   problems always will, and invented findings cause over-engineering churn. "No findings" is a
+   valid outcome: SHIP it.
+
+Finish with EXACTLY ONE final line and nothing after it:
+VERDICT: SHIP     (zero blockers — should-fix/nit findings are logged above and do not gate)
+VERDICT: REJECT   (any blocker — when unsure whether a finding is blocker-grade, treat it as one)
+codex
+I’ll review the commit range, changed files, specifications, and principles read-only, then run relevant non-mutating checks if the repository makes them available.
+exec
+"C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command 'git status --short; git log --oneline 4d798b9125964b62bd887780a2aa4b9227fb3200..HEAD; git diff --stat 4d798b9125964b62bd887780a2aa4b9227fb3200..HEAD; rg --files specs docs/principles; git diff --name-status 4d798b9125964b62bd887780a2aa4b9227fb3200..HEAD' in C:\Users\<user>\AppData\Local\Temp\tmp.ETaIQjWRPO\repo
+ succeeded in 152ms:
+8b495e2 loop(1): green iteration
+ out/a.txt         | 1 +
+ state/fix_plan.md | 2 +-
+ 2 files changed, 2 insertions(+), 1 deletion(-)
+rg: specs: The system cannot find the file specified. (os error 2)
+rg: docs/principles: The system cannot find the path specified. (os error 3)
+A	out/a.txt
+M	state/fix_plan.md
+
+exec
+"C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command "Get-ChildItem -Force | Select-Object Mode,Length,Name; git diff --find-renames --find-copies --no-ext-diff 4d798b9125964b62bd887780a2aa4b9227fb3200..HEAD; git show --stat --oneline --decorate HEAD; rg --files -g '"'!*'"\\.git*'" in C:\Users\<user>\AppData\Local\Temp\tmp.ETaIQjWRPO\repo
+ succeeded in 3735ms:
+
+diff --git a/out/a.txt b/out/a.txt
+new file mode 100644
+index 0000000..e0c2b39
+--- /dev/null
++++ b/out/a.txt
+@@ -0,0 +1 @@
++built
+diff --git a/state/fix_plan.md b/state/fix_plan.md
+index a76dd32..bee720b 100644
+--- a/state/fix_plan.md
++++ b/state/fix_plan.md
+@@ -1,2 +1,2 @@
+ ## Tasks
+-- [ ] build thing
++- [x] build thing
+8b495e2 (HEAD -> main) loop(1): green iteration
+ out/a.txt         | 1 +
+ state/fix_plan.md | 2 +-
+ 2 files changed, 2 insertions(+), 1 deletion(-)
+state\tasks.json
+state\PROGRESS.md
+state\fix_plan.md
+PROMPT.md
+out\a.txt
+harness\tests\run-tests.sh
+harness\tests\run-tests.ps1
+harness\tests\README.md
+harness\tests\migrate-test.sh
+harness\tests\migrate-test.ps1
+harness\tests\loop-review-test.sh
+harness\tests\loop-review-test.ps1
+harness\tests\gate.mjs
+harness\tests\fleet-queue-test.sh
+harness\tests\fleet-queue-test.ps1
+harness\loop.sh
+harness\loop.ps1
+harness\harness.config.json
+harness\fleet.sh
+harness\fleet.ps1
+harness\codex-setup.sh
+harness\codex-setup.ps1
+Mode   Length Name      
+----   ------ ----      
+d--h--        .git      
+d-----        harness   
+d-----        out       
+d-----        state     
+-a---- 52     .gitignore
+-a---- 16     PROMPT.md 
+
+
+
+codex
+The batch is extremely small: it adds `out/a.txt` with `built` and marks one plan item complete. The requested `specs/` and `docs/principles/` directories are absent, so I’m tracing the repository’s actual acceptance contract through `PROMPT.md`, state files, and the harness tests rather than inventing requirements.
+exec
+"C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command 'Get-Content -Raw PROMPT.md; Get-Content -Raw state/fix_plan.md; Get-Content -Raw state/PROGRESS.md; Get-Content -Raw state/tasks.json; Get-Content -Raw harness/harness.config.json; Get-Content -Raw harness/tests/README.md; git log --oneline --all --decorate --graph; git ls-tree -r --name-only 4d798b9125964b62bd887780a2aa4b9227fb3200' in C:\Users\<user>\AppData\Local\Temp\tmp.ETaIQjWRPO\repo
+ succeeded in 799ms:
+do the top task
+
+## Tasks
+- [x] build thing
+
+- init
+
+{ "version": 2, "tasks": [] }
+
+{
+  "project": { "type": "greenfield", "baseline": { "established": false, "ref": null } },
+  "models": {
+    "implement": { "model": "impl-x", "fallback": null },
+    "review":    { "model": "primary-judge", "fallback": null, "second": { "model": "codex", "effort": "high" },
+                   "codex": { "model": null, "reasoningEffort": "high" } },
+    "codex":     { "model": null, "reasoningEffort": "medium", "auth": "chatgpt", "timeoutSeconds": 300 }
+  },
+  "autonomy": { "mode": "auto", "maxIterations": 1, "maxTurnsPerIteration": 10, "tokenBudget": null, "meterTokens": false, "skipPermissions": false,
+                "checkpoints": { "planApproval": false, "beforeRiskyOps": false, "everyNIterations": 0 } },
+  "loop": { "promptFile": "PROMPT.md", "planFile": "state/fix_plan.md", "progressFile": "state/PROGRESS.md",
+            "oneItemPerIteration": true, "autoRollbackOnRed": true, "commitOnGreen": true, "tagOnGreen": false, "stopWhenPlanEmpty": true },
+  "verification": { "requireE2EEvidence": false, "reviewEveryNIterations": 1, "evaluator": { "enabled": false } },
+  "components": [ { "name": "root", "path": ".", "gate": { "format": null, "lint": null, "typecheck": null, "build": null, "test": "exit 0", "e2e": null } } ],
+  "gate": { "format": null, "lint": null, "typecheck": null, "build": null, "test": null, "e2e": null }
+}
+
+# Harness self-tests
+
+The harness tests its own fiddly logic â€” because "test the harness" is one of the principles it preaches
+(Fowler), and because this logic (the multi-component gate router, the destructive-command denylist, the
+budget, the plan counter) is exactly the kind of code that breaks silently. These tests have already
+caught real bugs (a denylist delimiter collision, a `grep -c` double-count).
+
+Self-contained â€” no Pester/bats dependency â€” so they run anywhere, including CI.
+
+```bash
+# Both twins, either platform â€” this is what the repo's own gate runs
+node harness/tests/gate.mjs
+
+# â€¦or one twin directly:
+powershell -NoProfile -ExecutionPolicy Bypass -File harness/tests/run-tests.ps1   # Windows
+bash harness/tests/run-tests.sh                                                   # Linux / macOS (needs jq)
+```
+
+`gate.mjs` is this repo's wired gate step (`harness/harness.config.json` â†’
+`components[0].gate.test`), so `/verify` and the loop's `autoRollbackOnRed` grade the real suites
+rather than an empty command set. It is JavaScript rather than a `.sh`/`.ps1` twin pair because a
+gate step is **one string** that the engine hands to `cmd /c` on Windows and `bash -lc` on Unix:
+cmd.exe rejects a forward-slash script path, `powershell` doesn't exist on Linux, and â€” measured â€”
+under `cmd /c` a bare `bash` resolves to **WSL's** `C:\Windows\System32\bash.exe`, a different OS
+entirely (`state/evidence/2026-09-09-wire-repo-gate/`). `node` is on PATH under both shells and is
+already a harness dependency (`plugin/hooks/run.mjs`). It runs the platform's native twin
+**fail-closed**; on Windows it adds the `.sh` twin when Git Bash can be found on disk (never by a
+`PATH` lookup). On POSIX it deliberately does *not* attempt the `.ps1` twin â€” a decision, not a
+measurement: that suite does pick its host (`pwsh` vs `powershell`), but nothing has ever run it off
+Windows, so a red from it would say nothing about the change under test.
+
+Any ungraded twin prints a loud `UNGRADED TWIN` banner. Note where that banner is actually seen: the
+engine's gate step prints a command's output **only when it exits non-zero**, so under
+`loop`/`fleet` a green half-graded run looks like any other green. Set `HARNESS_GATE_STRICT=1` to
+make an ungraded twin exit non-zero instead.
+
+Both exit non-zero on any failure. A ready-to-activate CI workflow is in [`ci/`](../../ci/) â€” copy it
+into `.github/workflows/` to run these on every push/PR.
+
+## What's covered
+- **Gate**: StrictMode-safe tolerance of gate objects with missing keys (a `/harness-prune` hazard);
+  pass/fail; multi-component execution + failure attribution (`component:step`).
+- **Denylist hook**: blocks the bypass variants the review found (`rm -fr`, `git push -f`,
+  `find -delete`, `git reset --hard <sha>`, secret reads); allows normal commands.
+- **Budget**: per-run reset (it was a lifetime counter); run-id allocation claims its dir atomically.
+- **Plan counter**: `grep -c` emits a single clean count for empty and non-empty plans.
+- **Model routing**: `config.models.<phase>` resolution, incl. trimmed-config inherit behavior.
+- **Codex reviewer**: the availability probe that drives the claude fallback.
+- **Gate wiring**: this repo's own `components[0].gate.test` is non-null, launches via `node` (the
+  only cross-shell spelling), names a script that exists, and `gate.mjs` parses and keeps its
+  Windows bash lookup off `PATH` â€” so the wiring can't quietly revert to all-null.
+- **Fleet**: ownership-overlap + batch selection (unit, in `run-tests.*`), and a separate
+  **merge-queue integration test** (`fleet-queue-test.ps1` / `.sh`) that live-fires the fleet runner
+  in a throwaway repo with a stub claude (`HARNESS_CLAUDE_CMD`) and asserts merge, recording, cleanup,
+  and the tamper-park guardrail end-to-end.
+
+When `/ratchet` traces a failure to harness logic, add a case here so it can't regress.
+
+* 8b495e2 (HEAD -> main) loop(1): green iteration
+* 4d798b9 init
+.gitignore
+PROMPT.md
+harness/.budget.json
+harness/codex-setup.ps1
+harness/codex-setup.sh
+harness/fleet.ps1
+harness/fleet.sh
+harness/harness.config.json
+harness/loop.ps1
+harness/loop.sh
+harness/tests/README.md
+harness/tests/fleet-queue-test.ps1
+harness/tests/fleet-queue-test.sh
+harness/tests/gate.mjs
+harness/tests/loop-review-test.ps1
+harness/tests/loop-review-test.sh
+harness/tests/migrate-test.ps1
+harness/tests/migrate-test.sh
+harness/tests/run-tests.ps1
+harness/tests/run-tests.sh
+state/PROGRESS.md
+state/fix_plan.md
+state/tasks.json
+
+exec
+"C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command "git diff --check 4d798b9125964b62bd887780a2aa4b9227fb3200..HEAD; if ((Test-Path specs) -or (Test-Path docs/principles)) { throw 'unexpected requirements paths detected' }; "'$bytes = [System.IO.File]::ReadAllBytes((Resolve-Path '"'out/a.txt')); [pscustomobject]@{ Text=[System.Text.Encoding]::UTF8.GetString("'$bytes); Hex=($bytes | ForEach-Object { $_.ToString('"'x2') }) -join ' '; Length="'$bytes.Length }; git show --format=fuller --no-patch HEAD; git diff --numstat 4d798b9125964b62bd887780a2aa4b9227fb3200..HEAD -- specs docs/principles harness/tests; cmd /c "exit 0"; Write-Output "configured gate exit=$LASTEXITCODE"' in C:\Users\<user>\AppData\Local\Temp\tmp.ETaIQjWRPO\repo
+ succeeded in 1591ms:
+
+commit 8b495e2a74ed7128e33a68657046bdfcb1ec6146
+Author:     Loop Second Judge Probe <loop-second@example.com>
+AuthorDate: Wed Sep 9 16:09:07 2026 +0100
+Commit:     Loop Second Judge Probe <loop-second@example.com>
+CommitDate: Wed Sep 9 16:09:07 2026 +0100
+
+    loop(1): green iteration
+    
+    Automated by harness/loop. Gate passed.
+    Co-Authored-By: Claude <noreply@anthropic.com>
+Text   Hex               Length
+----   ---               ------
+bui... 62 75 69 6c 74 0a      6
+configured gate exit=0
+
+
+
+codex
+No findings. The batch adds the requested build artifact, updates the task status, passes `git diff --check`, and does not alter tests or requirements. No `specs/` or `docs/principles/` directories exist in this repository.
+
+VERDICT: SHIP
+tokens used
+15,447
+No findings. The batch adds the requested build artifact, updates the task status, passes `git diff --check`, and does not alter tests or requirements. No `specs/` or `docs/principles/` directories exist in this repository.
+
+VERDICT: SHIP

@@ -1,0 +1,15 @@
+### arm 1: a loop run whose plan/explore/docs are ALL routed to codex
+    loop exit=0
+    models the claude arm was asked for: impl-x judge-x 
+    codex invocations recorded:          0 
+  ok   codex was never invoked: plan/explore/docs routed to codex are silently ignored by the loop
+  ok   the implement phase DID dispatch (the run really happened)
+  ok   the review phase DID dispatch (a second real dispatch site)
+
+### arm 2: POSITIVE CONTROL — the same loop, with a codex route the engine DOES honour
+    codex invocations recorded: 1
+  ok   the PATH stub IS reachable — arm 1's zero is a measurement, not a broken PATH
+      first contact: CODEX-WAS-INVOKED: login status
+      (an availability probe, not an exec — the stub exits 97 on purpose; see the comment above)
+
+### result: PASS

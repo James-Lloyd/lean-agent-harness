@@ -34,9 +34,12 @@ the config (readable directly, or via the engine lib resolvers — bash `phase_m
   `engine/lib/gate.*`). bash: call `invoke_phase` directly, never in `$(...)` (subshell drops its return
   globals). No subagent ever wraps codex.
 
-With the default config every phase is Claude (single-vendor by decision 2026-08-11 — the codex arm
-still exists in the engine but is unrouted), so PLAN, EXECUTE and REVIEW each spawn their Claude
-subagent: `generator` **is** the implement primary (`claude-opus-5`, no fallback — if it caps the
+With the default config every phase's PRIMARY is Claude, so PLAN, EXECUTE and REVIEW each spawn their
+Claude subagent. Check `models.review.second` before you treat REVIEW as one judge: when it is set
+(`"codex"` in this repo since 2026-09-09), a read-only second judge reviews the SAME batch after the
+primary ships and SHIP requires BOTH — `/review` step 3 runs it, and it has no fallback, so an
+unreachable second judge stops for a human rather than silently reducing to a single opinion.
+The subagents: `generator` **is** the implement primary (`claude-opus-5`, no fallback — if it caps the
 build stops), `planner`/`reviewer` run `claude-fable-5-1` with a `claude-opus-5` fallback. Subagent
 frontmatter carries each phase's primary Claude model *and* its declared `effort`; `/harness-doctor`
 check 10 validates that. You — the orchestrator — run `models.session` (`claude-fable-5-1` at medium

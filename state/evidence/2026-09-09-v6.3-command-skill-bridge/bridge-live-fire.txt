@@ -1,0 +1,34 @@
+### what the generator produced
+  ..   skills dir: .agents/skills (20 skills)
+  ..   commands bridged: 14
+       brownfield-safety
+       e2e-evidence
+       harness-doctor
+       harness-gc
+       harness-handoff
+       harness-init
+       harness-loop
+       harness-migrate
+       harness-onboard
+       harness-plan
+       harness-promote
+       harness-prune
+       harness-ratchet
+       harness-review
+       harness-verify
+       harness-work
+       model-routing
+       risk-tiering
+       sprint-contract
+       stack-detect
+
+### arm B1: the generated bridge in place
+  ..   final message: (1) ship / fix-then-ship / reject (2) The doer must not be the judge.
+  ok   codex reported the harness's own three-valued verdict contract (incl. FIX-THEN-SHIP) - it read the skill body
+  ok   codex reported the doer-is-not-the-judge rule - it ACTED on the skill's content
+
+### arm C: NEGATIVE CONTROL - the same question with the generated skills moved aside
+  ..   final message: NO-SKILL
+  ok   without the generated skills codex reports NO-SKILL - arm B1's answer came from the bridge
+
+### result: PASS

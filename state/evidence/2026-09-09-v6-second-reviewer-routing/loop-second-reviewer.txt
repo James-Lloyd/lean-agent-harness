@@ -1,0 +1,19 @@
+### arm E: loop.sh --mode auto — stubbed Claude primary SHIPs, real Codex second judges the same batch
+    loop exit=0
+    ledger:
+      {"iter":1,"result":"green","path":"claude","usedFallback":false}
+      {"iter":1,"result":"review","path":"claude","model":"primary-judge","verdict":"SHIP"}
+      {"iter":1,"result":"review-second","path":"codex","model":"codex","verdict":"SHIP"}
+  ok   primary (Claude) verdict SHIP — the precondition for consulting the second
+  ok   primary went down the claude path
+  ok   second judge went down the REAL codex path
+  ok   ledger records the routed second model
+  ok   codex second returned a parsed verdict: SHIP (both judges shipped)
+  ok   ledger order is primary -> second (line 2 before 3)
+  ok   second reviewer transcript written (review-second-after-1.log, 245 lines)
+  ok   second judge ran with approval: never (its own header says so)
+  ok   second judge ran read-only (its own header says so)
+  ok   review.codex.reasoningEffort (high) beat the global block (medium) for the SECOND judge
+  ok   tree clean after both judges ran
+
+RESULT: arm E GREEN

@@ -97,7 +97,7 @@ With answers in hand:
   only `harness.config.json` + these wrappers + gitignored runtime — no engine code.
 - **Codex surfaces (only if any phase routes to `codex`).** Run `bash harness/codex-setup.sh` (or the
   `.ps1`) to generate the gitignored `.codex/` (config, guard hooks, one Codex agent per plugin agent);
-  it appends `.codex/` to `.gitignore` itself. Read the first paragraph of `docs/codex-setup.md` before
+  it appends both `.codex/` and `.agents/` to `.gitignore` itself (the second holds the command->skill bridge - the harness commands as Codex skills, which is the only skill location `codex exec` reads). Read the first paragraph of `docs/codex-setup.md` before
   relying on the hooks headlessly. Skip entirely for a single-vendor Claude routing.
 - **Model routing + reasoning effort (per phase).** Apply the answers you already collected in Step 2.8
   using the **`model-routing` skill**'s write-all-surfaces contract — don't re-run the interview here.
