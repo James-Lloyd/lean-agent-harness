@@ -1027,6 +1027,7 @@ if command -v jq >/dev/null 2>&1; then
   CSP="$(mktemp -d)"; mkdir -p "$CSP/harness"
   printf '%s' '{ "models": {
     "codex":  { "model": "gpt-global", "reasoningEffort": "medium", "auth": "chatgpt", "timeoutSeconds": 60 },
+    "session": { "model": "claude-fable-5-1", "codex": { "model": "gpt-session", "reasoningEffort": "xhigh" } },
     "review": { "model": "codex", "fallback": "claude-fable-5-1", "codex": { "model": "gpt-review", "reasoningEffort": "xhigh" } },
     "implement": { "model": "claude-opus-5" } } }' > "$CSP/harness/harness.config.json"
   printf 'node_modules/\n' > "$CSP/.gitignore"
@@ -1068,6 +1069,15 @@ if command -v jq >/dev/null 2>&1; then
   n_pskills="$(ls -d "$ENGINE/../skills"/*/ | wc -l | tr -d ' ')"
   n_gen="$(ls -d "$CSK"/*/ 2>/dev/null | wc -l | tr -d ' ')"
   ok "$([ "$n_gen" = "$((n_cmds + n_pskills))" ] && echo 1 || echo 0)" "skills/: one per plugin command AND per reference skill (got $n_gen, want $((n_cmds + n_pskills)))"
+  # The CODEX SESSION's model/depth: models.session.codex{} -> TOP-LEVEL keys in config.toml. They must
+  # come BEFORE the first table header, or TOML binds them to that table and they silently become
+  # feature flags rather than session settings.
+  CTOML="$CSP/.codex/config.toml"
+  ok "$(grep -q '^model = "gpt-session"' "$CTOML" && echo 1 || echo 0)"                    "config.toml carries the codex SESSION model from models.session.codex"
+  ok "$(grep -q '^model_reasoning_effort = "xhigh"' "$CTOML" && echo 1 || echo 0)"         "config.toml carries the codex SESSION reasoning effort"
+  ct_model="$(grep -n '^model = ' "$CTOML" | head -1 | cut -d: -f1)"
+  ct_table="$(grep -n '^\[' "$CTOML" | head -1 | cut -d: -f1)"
+  ok "$([ -n "$ct_model" ] && [ -n "$ct_table" ] && [ "$ct_model" -lt "$ct_table" ] && echo 1 || echo 0)" "session keys precede the first table header (TOML top level, not a [features] key)"
   ok "$([ -f "$CSK/harness-review/SKILL.md" ] && echo 1 || echo 0)"  "bridge: /review became the harness-review skill"
   ok "$([ -f "$CSK/harness-work/SKILL.md" ] && echo 1 || echo 0)"    "bridge: /work became the harness-work skill"
   # A command already named harness-* must not become harness-harness-*.
@@ -1198,12 +1208,18 @@ echo "model routing: this repo's Codex side is fully pinned and fully covered"
 # silently inherits the global depth -- which is how the explorer ended up running at judge depth.
 # And every pinned ID must agree, so one phase cannot drift onto a different model unnoticed.
 RCFG="$(cd "$HERE/../.." && pwd)/harness/harness.config.json"   # REPO_ROOT is reassigned mid-suite
-GLOBAL_CODEX_MODEL="$(jq -r '.models.codex.model // ""' "$RCFG")"
-for ph in plan implement review evaluate explore docs; do
-  ok "$(jq -e --arg p "$ph" '.models[$p].codex.reasoningEffort' "$RCFG" >/dev/null 2>&1 && echo 1 || echo 0)" \
-     "models.$ph carries its own codex.reasoningEffort (no silent inherit of the global depth)"
+# `session` is included: models.session.model must be Claude (the Claude Code window cannot swap
+# vendor), but a CODEX session is a separate process, and models.session.codex{} is what codex-setup
+# writes as TOP-LEVEL model/model_reasoning_effort in .codex/config.toml.
+for ph in session plan implement review evaluate explore docs; do
+  ok "$(jq -e --arg p "$ph" '.models[$p].codex.reasoningEffort' "$RCFG" >/dev/null 2>&1 && echo 1 || echo 0)"      "models.$ph carries its own codex.reasoningEffort (no silent inherit of the global depth)"
+  # EXPLICIT, not identical: the phases deliberately run DIFFERENT models (judges on one, doers on
+  # another), so the invariant is that none of them FLOATS - an empty/null model here inherits the
+  # global block, which is the silent-drift shape this pins against. The first version of this
+  # assertion demanded every phase equal the global pin, and would have blocked exactly the split
+  # routing the per-phase table exists to express.
   m="$(jq -r --arg p "$ph" '.models[$p].codex.model // ""' "$RCFG")"
-  ok "$([ "$m" = "$GLOBAL_CODEX_MODEL" ] && echo 1 || echo 0)" "models.$ph.codex.model agrees with the global pin (got '$m')"
+  ok "$([ -n "$m" ] && [ "$m" != "null" ] && echo 1 || echo 0)" "models.$ph.codex.model is pinned explicitly, not floating (got '$m')"
 done
 # The scout must be CHEAPER than the judges, or the per-phase table buys nothing. `minimal` is a
 # codex-only level with no Claude equivalent -- this is the one place the Codex table can beat the

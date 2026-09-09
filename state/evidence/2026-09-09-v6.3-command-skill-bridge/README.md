@@ -108,3 +108,34 @@ Probe-side corrections, all in this dir:
   under headless `exec`, so a Codex operator's guardrails are `--sandbox` + `approval_policy=never` +
   the gate until the user-level hooks are installed and trusted (still open in `fix_plan`).
 - **Cost or latency.** Not measured; nothing here licenses a figure.
+
+## Addendum — the Codex per-phase table, and a default that OSCILLATES
+
+`probes/effort-model-coupling.sh` and `probes/pinned-model-binds.sh` were added while giving the Codex
+side its own per-phase models and efforts.
+
+**The default is not migrating one way — it flips.** Observed on this box, same account, same flags:
+
+| time (local) | CLI default reported |
+|---|---|
+| up to ~16:11 | `gpt-5.6-sol` |
+| ~18:10 – ~19:58 | `gpt-6-astra` |
+| ~20:5x (pinned-model-binds arm 1) | `gpt-5.6-sol` again |
+
+`effort-model-coupling.sh` rules out the obvious confound: passing `-c model_reasoning_effort` does
+**not** select the model (bare / high / low all returned the same ID in one run). So an unpinned phase
+can land on a different model between two runs an hour apart, in either direction. That is the whole
+case for pinning a judge, and it is stronger than the original one-way observation.
+
+**The pin binds, demonstrated twice against a differing default** — `gpt-5.6-sol` while the default was
+`gpt-6-astra`, and `gpt-6-astra` while the default was `gpt-5.6-sol`. Both runs drove the shipped
+resolvers and the shipped arg builder, never a hand-assembled argv, and the arm states that it could
+not have demonstrated binding had the pin equalled the default.
+
+**The Codex session model is a real surface.** `models.session.model` must be Claude — the Claude Code
+window cannot swap vendor mid-session — but a Codex session is a different process, and
+`models.session.codex{}` is now written as **top-level** `model` / `model_reasoning_effort` in
+`.codex/config.toml`. Top-level is load-bearing: in TOML a bare key belongs to the table above it, so
+emitting these after `[features]` would silently turn them into feature flags. Both suites assert the
+keys precede the first table header. The mechanism is the one `trust-inheritance.sh` already measured
+— a top-level key in that file changes the transcript header.

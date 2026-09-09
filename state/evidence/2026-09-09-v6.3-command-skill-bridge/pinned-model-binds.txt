@@ -1,14 +1,14 @@
-  ..   config pins review.codex.model = gpt-5.6-sol @ high
+  ..   config pins review.codex.model = gpt-6-astra @ high
 
 ### arm 1: the CLI's CURRENT default (no -m), for contrast
-  ..   CLI default today: gpt-6-astra
+  ..   CLI default today: gpt-5.6-sol
 
 ### arm 2: the SHIPPED builder, with the config's pin
   ..   invoke_codex rc=0 final=[OK]
-  ..   header reports: model=gpt-5.6-sol effort=high
+  ..   header reports: model=gpt-6-astra effort=high
   ok   the transcript carries a model header to assert on
-  ok   THE PIN BINDS - codex ran the configured gpt-5.6-sol, not its default
+  ok   THE PIN BINDS - codex ran the configured gpt-6-astra, not its default
   ok   the pinned depth bound too (high)
-  ok   the pin differs from the CLI default (gpt-5.6-sol vs gpt-6-astra), so binding is genuinely demonstrated
+  ok   the pin differs from the CLI default (gpt-6-astra vs gpt-5.6-sol), so binding is genuinely demonstrated
 
 ### result: PASS

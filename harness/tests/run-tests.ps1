@@ -970,6 +970,7 @@ $csp = Join-Path ([System.IO.Path]::GetTempPath()) ("codex-setup-" + [System.IO.
 New-Item -ItemType Directory -Force -Path (Join-Path $csp 'harness') | Out-Null
 $cscfg = '{ "models": {
   "codex":  { "model": "gpt-global", "reasoningEffort": "medium", "auth": "chatgpt", "timeoutSeconds": 60 },
+  "session": { "model": "claude-fable-5-1", "codex": { "model": "gpt-session", "reasoningEffort": "xhigh" } },
   "review": { "model": "codex", "fallback": "claude-fable-5-1", "codex": { "model": "gpt-review", "reasoningEffort": "xhigh" } },
   "implement": { "model": "claude-opus-5" } } }'
 [System.IO.File]::WriteAllText((Join-Path $csp 'harness/harness.config.json'), $cscfg, (New-Object System.Text.UTF8Encoding($false)))
@@ -1042,6 +1043,15 @@ $nCmds    = @(Get-ChildItem -LiteralPath (Join-Path $engineDir '../commands') -F
 $nPSkills = @(Get-ChildItem -LiteralPath (Join-Path $engineDir '../skills') -Directory).Count
 $nGen     = @(Get-ChildItem -LiteralPath $csk -Directory -ErrorAction SilentlyContinue).Count
 ok "skills/: one per plugin command AND per reference skill (got $nGen, want $($nCmds + $nPSkills))" ($nGen -eq ($nCmds + $nPSkills))
+# The CODEX SESSION's model/depth: models.session.codex{} -> TOP-LEVEL keys in config.toml. They must
+# precede the first table header, or TOML binds them to that table and they silently become feature flags.
+$ctoml = Get-Content -LiteralPath (Join-Path $csp '.codex/config.toml') -Raw
+ok "config.toml carries the codex SESSION model from models.session.codex" ($ctoml -match '(?m)^model = "gpt-session"')
+ok "config.toml carries the codex SESSION reasoning effort"                ($ctoml -match '(?m)^model_reasoning_effort = "xhigh"')
+$ctLines = @(Get-Content -LiteralPath (Join-Path $csp '.codex/config.toml'))
+$ctModelIdx = [Array]::FindIndex($ctLines, [Predicate[string]]{ param($l) $l -like 'model = *' })
+$ctTableIdx = [Array]::FindIndex($ctLines, [Predicate[string]]{ param($l) $l -like '`[*' })
+ok "session keys precede the first table header (TOML top level, not a [features] key)" ($ctModelIdx -ge 0 -and $ctTableIdx -ge 0 -and $ctModelIdx -lt $ctTableIdx)
 ok "bridge: /review became the harness-review skill" (Test-Path -LiteralPath (Join-Path $csk 'harness-review/SKILL.md') -PathType Leaf)
 ok "bridge: /work became the harness-work skill"     (Test-Path -LiteralPath (Join-Path $csk 'harness-work/SKILL.md') -PathType Leaf)
 ok "bridge: an already-prefixed command is not double-prefixed" ((Test-Path -LiteralPath (Join-Path $csk 'harness-doctor/SKILL.md') -PathType Leaf) -and -not (Test-Path -LiteralPath (Join-Path $csk 'harness-harness-doctor')))
@@ -1232,12 +1242,17 @@ Write-Host "model routing: this repo's Codex side is fully pinned and fully cove
 # block, or that role silently inherits the global depth; and every pinned ID must agree.
 $rcfgPath = Join-Path (Split-Path (Split-Path $here -Parent) -Parent) 'harness/harness.config.json'
 $rcfg = Get-Content -LiteralPath $rcfgPath -Raw | ConvertFrom-Json
-$globalCodexModel = [string](Get-Prop $rcfg.models.codex 'model')
-foreach ($ph in @('plan','implement','review','evaluate','explore','docs')) {
+# `session` included: its Claude model must be Claude, but models.session.codex{} is what codex-setup
+# writes as TOP-LEVEL model/model_reasoning_effort into .codex/config.toml for a Codex session.
+foreach ($ph in @('session','plan','implement','review','evaluate','explore','docs')) {
   $phObj = $rcfg.models.PSObject.Properties[$ph].Value
   $cx = if ($phObj.PSObject.Properties['codex']) { $phObj.PSObject.Properties['codex'].Value } else { $null }
   ok "models.$ph carries its own codex.reasoningEffort (no silent inherit of the global depth)" ($null -ne $cx -and [string](Get-Prop $cx 'reasoningEffort'))
-  ok "models.$ph.codex.model agrees with the global pin" ($null -ne $cx -and ([string](Get-Prop $cx 'model')) -eq $globalCodexModel)
+  # EXPLICIT, not identical - the phases deliberately run DIFFERENT models (judges on one, doers on
+  # another). The invariant is that none FLOATS; demanding they all match the global pin would have
+  # blocked exactly the split routing this table exists to express.
+  $cxm = if ($null -ne $cx) { [string](Get-Prop $cx 'model') } else { '' }
+  ok "models.$ph.codex.model is pinned explicitly, not floating" ($cxm -and $cxm -ne 'null')
 }
 ok "the codex explorer runs at 'minimal' (codex-only level; cheaper than the judges)" ([string](Get-Prop $rcfg.models.explore.codex 'reasoningEffort') -eq 'minimal')
 ok "the codex second reviewer runs at 'high'" ([string](Get-Prop $rcfg.models.review.codex 'reasoningEffort') -eq 'high')
