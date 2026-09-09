@@ -520,7 +520,8 @@ JSON
   m="$(phase_codex_model "$ncfg" implement)";  ok "$([ -z "$m" ] && echo 1 || echo 0)"             "no global, no phase block => '' (CLI default) (got '$m')"
   echo "model routing V4: review.second{model,effort} — the second, read-only reviewer (design-doc 002 D4)"
   scfg="$(mktemp)"; printf '%s' '{ "models": {
-    "review": { "model": "claude-fable-5-1", "fallback": "claude-opus-5", "effort": "high", "second": { "model": "codex", "effort": "high" } },
+    "codex":  { "model": "gpt-global", "reasoningEffort": "medium" },
+    "review": { "model": "claude-fable-5-1", "fallback": "claude-opus-5", "effort": "high", "second": { "model": "codex", "effort": "high" }, "codex": { "model": "gpt-second", "reasoningEffort": "xhigh" } },
     "evaluate": { "model": "claude-fable-5-1", "second": { "model": null } },
     "docs": "haiku" } }' > "$scfg"
   m="$(phase_second_model "$scfg" review)";   ok "$([ "$m" = "codex" ] && echo 1 || echo 0)" "second.model resolves (got '$m')"
@@ -529,6 +530,15 @@ JSON
   m="$(phase_second_model "$scfg" implement)";ok "$([ -z "$m" ] && echo 1 || echo 0)"        "absent phase => '' (got '$m')"
   m="$(phase_second_model "$scfg" docs)";     ok "$([ -z "$m" ] && echo 1 || echo 0)"        "flat-legacy string => '' (got '$m')"
   m="$(phase_second_model "$xcfg" review)";   ok "$([ -z "$m" ] && echo 1 || echo 0)"        "review without a second block => '' (got '$m')"
+  # A CODEX SECOND READS review.codex EVEN THOUGH model AND fallback ARE BOTH CLAUDE. second_review /
+  # Invoke-SecondReview pass REVIEW_CODEX_MODEL/EFFORT, so this is the pairing the model-routing skill
+  # recommends as the first use of Codex — and until 2026-09-09 four surfaces (schema x2, doctor 10(f)(g),
+  # the routing skill) said the block is read only when `model` or `fallback` is codex, which would have
+  # made /harness-doctor warn "unread key" on its own recommended config. Pin the behaviour so the prose
+  # cannot drift back.
+  m="$(phase_codex_model "$scfg" review)";    ok "$([ "$m" = "gpt-second" ] && echo 1 || echo 0)" "codex SECOND reads the phase's codex.model beside a Claude primary (got '$m')"
+  m="$(phase_codex_effort "$scfg" review)";   ok "$([ "$m" = "xhigh" ] && echo 1 || echo 0)"      "codex SECOND reads the phase's codex.reasoningEffort (got '$m')"
+  m="$(phase_codex_model "$scfg" evaluate)";  ok "$([ "$m" = "gpt-global" ] && echo 1 || echo 0)" "a phase with no codex block still falls through to the global one (got '$m')"
   rm -f "$ncfg" "$frcfg" "$ecfg" "$xcfg" "$scfg"
 
   echo "model routing S1b: phase_fallback review symmetric with reviewFallback pseudo-phase"

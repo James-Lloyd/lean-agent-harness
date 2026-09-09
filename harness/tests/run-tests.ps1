@@ -310,7 +310,8 @@ ok "no global, no phase block => null model (CLI default)" ($null -eq $xn.model 
 
 Write-Host "model routing V4: review.second{model,effort} - the second, read-only reviewer (design-doc 002 D4)"
 $scfg = [pscustomobject]@{ models = [pscustomobject]@{
-  review   = [pscustomobject]@{ model='claude-fable-5-1'; fallback='claude-opus-5'; effort='high'; second=[pscustomobject]@{ model='codex'; effort='high' } }
+  codex    = [pscustomobject]@{ model='gpt-global'; reasoningEffort='medium' }
+  review   = [pscustomobject]@{ model='claude-fable-5-1'; fallback='claude-opus-5'; effort='high'; second=[pscustomobject]@{ model='codex'; effort='high' }; codex=[pscustomobject]@{ model='gpt-second'; reasoningEffort='xhigh' } }
   evaluate = [pscustomobject]@{ model='claude-fable-5-1'; second=[pscustomobject]@{ model=$null } }
   docs     = 'haiku'
 } }
@@ -320,6 +321,14 @@ ok "second.model null => '' (no second reviewer)"         ((Resolve-PhaseSecondM
 ok "absent phase => ''"                                   ((Resolve-PhaseSecondModel $scfg 'implement') -eq '')
 ok "flat-legacy string => ''"                             ((Resolve-PhaseSecondModel $scfg 'docs') -eq '')
 ok "review without a second block => ''"                  ((Resolve-PhaseSecondModel $xcfg 'review') -eq '')
+# A CODEX SECOND READS review.codex EVEN THOUGH model AND fallback ARE BOTH CLAUDE (bash twin carries the
+# same three). Invoke-SecondReview passes the review phase's codex settings, so this is the pairing the
+# model-routing skill recommends as Codex's first use - and until 2026-09-09 four surfaces said the block
+# is read only when model/fallback is codex, which would have made doctor 10(g) warn "unread key" on it.
+$sr = Resolve-PhaseCodexCfg $scfg 'review'; $se = Resolve-PhaseCodexCfg $scfg 'evaluate'
+ok "codex SECOND reads the phase's codex.model beside a Claude primary" ($sr.model -eq 'gpt-second')
+ok "codex SECOND reads the phase's codex.reasoningEffort"               ($sr.reasoningEffort -eq 'xhigh')
+ok "a phase with no codex block still falls through to the global one"  ($se.model -eq 'gpt-global')
 
 Write-Host "model routing S1b: Resolve-PhaseFallback('review') is symmetric with reviewFallback pseudo-phase"
 # Mixed config: nested review with a NULL fallback + a legacy top-level reviewFallback. Both accessors

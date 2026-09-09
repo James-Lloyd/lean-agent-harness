@@ -1,0 +1,18 @@
+OpenAI Codex v0.153.4
+--------
+workdir: C:\Users\<user>\Repos\harness\.claude\worktrees\vendor-agnostic-v6
+model: gpt-5.6-sol
+provider: openai
+approval: never
+sandbox: read-only
+reasoning effort: high
+reasoning summaries: none
+session id: 01a0867b-88c1-71e2-87e7-1c60290323a8
+--------
+user
+Reply with the single word ACK and nothing else. Do not read or write any files.
+codex
+ACK
+tokens used
+24,335
+ACK

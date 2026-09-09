@@ -38,7 +38,8 @@ default. `minimal` is a codex-only level (the Claude CLI rejects it, so the disp
 `max` is Claude-only. `fallback: null` = no fallback (the phase just fails when its primary does); a
 whole phase set to `null`, or an absent `models` block, = inherit the ambient session model.
 
-**Per-phase Codex settings.** A phase whose `model` or `fallback` is `codex` may add
+**Per-phase Codex settings.** A phase whose `model` or `fallback` is `codex` — or, on `review`, whose
+`second.model` is `codex`, since the second judge runs on the review phase's own codex settings — may add
 `"codex": { "model": "gpt-5.6-sol", "reasoningEffort": "high" }`; each key set there wins over the
 global `models.codex` block for that phase (keys left null inherit it). `auth` and `timeoutSeconds`
 stay global. Don't add the block to a phase that never routes to codex — the engine won't read it and

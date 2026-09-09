@@ -1,0 +1,448 @@
+OpenAI Codex v0.153.4
+--------
+workdir: C:\Users\<user>\AppData\Local\Temp\tmp.bYEBpK9R81\repo
+model: gpt-5.6-sol
+provider: openai
+approval: never
+sandbox: read-only
+reasoning effort: high
+reasoning summaries: none
+session id: 01a0868e-bc10-7721-8a1a-8bdc060f4f5a
+--------
+user
+You are a FRESH-CONTEXT REVIEWER (the harness 'reviewer' role). You
+have NO memory of how this code was written; judge only the artifact. You are READ-ONLY — do not edit,
+write, or commit anything.
+
+1. Inspect the batch:  git log --oneline efa4bce907f1f96bc3743c8466dc632481df1059..HEAD   and   git diff efa4bce907f1f96bc3743c8466dc632481df1059..HEAD
+2. Judge it against specs/ (acceptance criteria) and docs/principles/ (golden principles): correctness
+   vs spec, evidence quality, guardrails (no weakened/deleted tests, no edited specs, no destructive
+   ops/secrets), architectural drift, needless complexity.
+3. Classify every finding blocker / should-fix / nit. A BLOCKER violates a stated spec requirement,
+   breaks an interface contract, loses data, opens a security hole, or fails a test. List findings as
+   file:line — severity — problem — concrete fix. Do NOT raise issues that are not traceable to a
+   spec requirement or a correctness, security, or data-integrity failure — a reviewer told to find
+   problems always will, and invented findings cause over-engineering churn. "No findings" is a
+   valid outcome: SHIP it.
+
+Finish with EXACTLY ONE final line and nothing after it:
+VERDICT: SHIP     (zero blockers — should-fix/nit findings are logged above and do not gate)
+VERDICT: REJECT   (any blocker — when unsure whether a finding is blocker-grade, treat it as one)
+codex
+I’ll inspect the commit range, changed files, acceptance specs, and golden principles, then run only relevant read-only verification. I won’t modify the worktree.
+exec
+"C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command 'git status --short; git log --oneline efa4bce907f1f96bc3743c8466dc632481df1059..HEAD; git diff --stat efa4bce907f1f96bc3743c8466dc632481df1059..HEAD; git diff --name-status efa4bce907f1f96bc3743c8466dc632481df1059..HEAD; rg --files specs docs/principles' in C:\Users\<user>\AppData\Local\Temp\tmp.bYEBpK9R81\repo
+ exited 1 in 1556ms:
+warning: unable to access 'C:\Users\<user>/.config/git/ignore': Permission denied
+warning: unable to access 'C:\Users\<user>/.config/git/ignore': Permission denied
+786f851 loop(1): green iteration
+ out/a.txt         | 1 +
+ state/fix_plan.md | 2 +-
+ 2 files changed, 2 insertions(+), 1 deletion(-)
+A	out/a.txt
+M	state/fix_plan.md
+rg : The term 'rg' is not recognized as the name of a cmdlet, function, script file, or operable program. Check the 
+spelling of the name, or if a path was included, verify that the path is correct and try again.
+At line:2 char:222
++ ... ame-status efa4bce907f1f96bc3743c8466dc632481df1059..HEAD; rg --files ...
++                                                                ~~
+    + CategoryInfo          : ObjectNotFound: (rg:String) [], CommandNotFoundException
+    + FullyQualifiedErrorId : CommandNotFoundException
+ 
+
+exec
+"C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command 'git diff --find-renames --find-copies efa4bce907f1f96bc3743c8466dc632481df1059..HEAD; Get-ChildItem -Path specs,docs/principles -Recurse -File | ForEach-Object { $_.FullName }' in C:\Users\<user>\AppData\Local\Temp\tmp.bYEBpK9R81\repo
+ exited 1 in 134ms:
+diff --git a/out/a.txt b/out/a.txt
+new file mode 100644
+index 0000000..e0c2b39
+--- /dev/null
++++ b/out/a.txt
+@@ -0,0 +1 @@
++built
+diff --git a/state/fix_plan.md b/state/fix_plan.md
+index a76dd32..bee720b 100644
+--- a/state/fix_plan.md
++++ b/state/fix_plan.md
+@@ -1,2 +1,2 @@
+ ## Tasks
+-- [ ] build thing
++- [x] build thing
+Get-ChildItem : Cannot find path 'C:\Users\<user>\AppData\Local\Temp\tmp.bYEBpK9R81\repo\docs\' because it does not 
+exist.
+At line:2 char:87
++ ... 1059..HEAD; Get-ChildItem -Path specs,docs/principles -Recurse -File  ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : ObjectNotFound: (C:\Users\<user>\...9R81\repo\docs\:String) [Get-ChildItem], ItemNotFound 
+   Exception
+    + FullyQualifiedErrorId : PathNotFound,Microsoft.PowerShell.Commands.GetChildItemCommand
+ 
+
+exec
+"C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command 'Get-ChildItem -Force | Select-Object Mode,Length,Name; Get-ChildItem -Path specs -Recurse -File | Select-Object -ExpandProperty FullName; Get-ChildItem -Path . -Recurse -File -Filter AGENTS.md | Select-Object -ExpandProperty FullName' in C:\Users\<user>\AppData\Local\Temp\tmp.bYEBpK9R81\repo
+ succeeded in 103ms:
+
+Mode   Length Name      
+----   ------ ----      
+d--h--        .git      
+d-----        harness   
+d-----        out       
+d-----        state     
+-a---- 52     .gitignore
+-a---- 16     PROMPT.md 
+
+
+
+codex
+The batch is very small: it adds `out/a.txt` with `built` and checks off one plan item. The expected `specs/` and `docs/principles/` directories are not present at the worktree root, so I’m tracing repository history and harness metadata to identify the actual acceptance source before judging the output.
+exec
+"C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command 'Get-ChildItem -Path . -Recurse -Force -File | ForEach-Object { $_.FullName }; git log --all --oneline --decorate --graph -20; git ls-tree -r --name-only HEAD; git ls-tree -r --name-only efa4bce907f1f96bc3743c8466dc632481df1059; git show --stat --oneline --decorate 786f851; git show HEAD:PROMPT.md; git show HEAD:state/fix_plan.md; git show HEAD:.gitignore' in C:\Users\<user>\AppData\Local\Temp\tmp.bYEBpK9R81\repo
+ succeeded in 252ms:
+C:\Users\<user>\AppData\Local\Temp\tmp.bYEBpK9R81\repo\.gitignore
+C:\Users\<user>\AppData\Local\Temp\tmp.bYEBpK9R81\repo\PROMPT.md
+C:\Users\<user>\AppData\Local\Temp\tmp.bYEBpK9R81\repo\.git\COMMIT_EDITMSG
+C:\Users\<user>\AppData\Local\Temp\tmp.bYEBpK9R81\repo\.git\config
+C:\Users\<user>\AppData\Local\Temp\tmp.bYEBpK9R81\repo\.git\description
+C:\Users\<user>\AppData\Local\Temp\tmp.bYEBpK9R81\repo\.git\HEAD
+C:\Users\<user>\AppData\Local\Temp\tmp.bYEBpK9R81\repo\.git\index
+C:\Users\<user>\AppData\Local\Temp\tmp.bYEBpK9R81\repo\.git\ORIG_HEAD
+C:\Users\<user>\AppData\Local\Temp\tmp.bYEBpK9R81\repo\.git\hooks\applypatch-msg.sample
+C:\Users\<user>\AppData\Local\Temp\tmp.bYEBpK9R81\repo\.git\hooks\commit-msg.sample
+C:\Users\<user>\AppData\Local\Temp\tmp.bYEBpK9R81\repo\.git\hooks\fsmonitor-watchman.sample
+C:\Users\<user>\AppData\Local\Temp\tmp.bYEBpK9R81\repo\.git\hooks\post-update.sample
+C:\Users\<user>\AppData\Local\Temp\tmp.bYEBpK9R81\repo\.git\hooks\pre-applypatch.sample
+C:\Users\<user>\AppData\Local\Temp\tmp.bYEBpK9R81\repo\.git\hooks\pre-commit.sample
+C:\Users\<user>\AppData\Local\Temp\tmp.bYEBpK9R81\repo\.git\hooks\pre-merge-commit.sample
+C:\Users\<user>\AppData\Local\Temp\tmp.bYEBpK9R81\repo\.git\hooks\pre-push.sample
+C:\Users\<user>\AppData\Local\Temp\tmp.bYEBpK9R81\repo\.git\hooks\pre-rebase.sample
+C:\Users\<user>\AppData\Local\Temp\tmp.bYEBpK9R81\repo\.git\hooks\pre-receive.sample
+C:\Users\<user>\AppData\Local\Temp\tmp.bYEBpK9R81\repo\.git\hooks\prepare-commit-msg.sample
+C:\Users\<user>\AppData\Local\Temp\tmp.bYEBpK9R81\repo\.git\hooks\push-to-checkout.sample
+C:\Users\<user>\AppData\Local\Temp\tmp.bYEBpK9R81\repo\.git\hooks\sendemail-validate.sample
+C:\Users\<user>\AppData\Local\Temp\tmp.bYEBpK9R81\repo\.git\hooks\update.sample
+C:\Users\<user>\AppData\Local\Temp\tmp.bYEBpK9R81\repo\.git\info\exclude
+C:\Users\<user>\AppData\Local\Temp\tmp.bYEBpK9R81\repo\.git\logs\HEAD
+C:\Users\<user>\AppData\Local\Temp\tmp.bYEBpK9R81\repo\.git\logs\refs\heads\main
+C:\Users\<user>\AppData\Local\Temp\tmp.bYEBpK9R81\repo\.git\objects\03\128d703df7216d30b9b2b1f95cf4499f6b0f5f
+C:\Users\<user>\AppData\Local\Temp\tmp.bYEBpK9R81\repo\.git\objects\07\425a6dc65d3153505bfa75890061ae899cc4d0
+C:\Users\<user>\AppData\Local\Temp\tmp.bYEBpK9R81\repo\.git\objects\0c\b2066a6ed57c35168fc4eb83ad3cbc2b0251e0
+C:\Users\<user>\AppData\Local\Temp\tmp.bYEBpK9R81\repo\.git\objects\10\98fd97a96a6766e2c935ecdc1d548b146f1e85
+C:\Users\<user>\AppData\Local\Temp\tmp.bYEBpK9R81\repo\.git\objects\13\41d5555cd06dcba4fe5d6597e7ec4f5d6cbca3
+C:\Users\<user>\AppData\Local\Temp\tmp.bYEBpK9R81\repo\.git\objects\16\393a2ce193e2508c379b902fd08b635731754d
+C:\Users\<user>\AppData\Local\Temp\tmp.bYEBpK9R81\repo\.git\objects\17\8d4b52883003e6fe1133bb7515c481819aeffa
+C:\Users\<user>\AppData\Local\Temp\tmp.bYEBpK9R81\repo\.git\objects\1a\44876c03d061c65d94023b36fc3211b95a747c
+C:\Users\<user>\AppData\Local\Temp\tmp.bYEBpK9R81\repo\.git\objects\28\6b51dd60382ac016e020e35a9c63d9965f197b
+C:\Users\<user>\AppData\Local\Temp\tmp.bYEBpK9R81\repo\.git\objects\35\b37e9cd6d9d057198331aa64e830aa740b57b1
+C:\Users\<user>\AppData\Local\Temp\tmp.bYEBpK9R81\repo\.git\objects\39\cfcdbb6aa1f8c24a048f6abf642a7e06c56405
+C:\Users\<user>\AppData\Local\Temp\tmp.bYEBpK9R81\repo\.git\objects\3c\3f9fe82de489cbcb51cb56a8e2ca315697caae
+C:\Users\<user>\AppData\Local\Temp\tmp.bYEBpK9R81\repo\.git\objects\4c\b35d1685333c6a1bc4d6d70ad5bb1a1860f6b6
+C:\Users\<user>\AppData\Local\Temp\tmp.bYEBpK9R81\repo\.git\objects\5b\4b80bbfa2b2ca7f24d89ea13e119b723b42163
+C:\Users\<user>\AppData\Local\Temp\tmp.bYEBpK9R81\repo\.git\objects\64\7614830546217a2e15183efeefb662a8debe8b
+C:\Users\<user>\AppData\Local\Temp\tmp.bYEBpK9R81\repo\.git\objects\6a\6b7ae23b84e9956bb0bab66505d88d6e191a6a
+C:\Users\<user>\AppData\Local\Temp\tmp.bYEBpK9R81\repo\.git\objects\76\be605a3e59158e834ba36b63e9ffbaec18e382
+C:\Users\<user>\AppData\Local\Temp\tmp.bYEBpK9R81\repo\.git\objects\78\6f851f08c756bc3867f7078fb73e46d8f5297d
+C:\Users\<user>\AppData\Local\Temp\tmp.bYEBpK9R81\repo\.git\objects\85\74b714ff48d5a45f2a638f4114ec8d23981a72
+C:\Users\<user>\AppData\Local\Temp\tmp.bYEBpK9R81\repo\.git\objects\90\ad64a8acc5443a9f622028bd744dc6e969275b
+C:\Users\<user>\AppData\Local\Temp\tmp.bYEBpK9R81\repo\.git\objects\9b\ee960f321fc0448766af82c7f3bef213d9ae47
+C:\Users\<user>\AppData\Local\Temp\tmp.bYEBpK9R81\repo\.git\objects\a7\6dd324cb55bbdc0b8faa4aba386c5907fb66cd
+C:\Users\<user>\AppData\Local\Temp\tmp.bYEBpK9R81\repo\.git\objects\b1\d2c8832d8149de37543884ce77663b9865fca1
+C:\Users\<user>\AppData\Local\Temp\tmp.bYEBpK9R81\repo\.git\objects\b7\27a127b81df831c3c0e7c1ccc2c78e5228f236
+C:\Users\<user>\AppData\Local\Temp\tmp.bYEBpK9R81\repo\.git\objects\bc\7ad3b8d19228533023c420e38194937a5cdf52
+C:\Users\<user>\AppData\Local\Temp\tmp.bYEBpK9R81\repo\.git\objects\be\e720bf79a55bf5ebfe493f72698e383b9759e8
+C:\Users\<user>\AppData\Local\Temp\tmp.bYEBpK9R81\repo\.git\objects\de\81f954cab81cab28f0341c821f572c01fc7383
+C:\Users\<user>\AppData\Local\Temp\tmp.bYEBpK9R81\repo\.git\objects\de\cbf9a1a9a5a11afad0240172f6b3981a8eaa4f
+C:\Users\<user>\AppData\Local\Temp\tmp.bYEBpK9R81\repo\.git\objects\e0\c2b391a5e2a8ea8847c5eaaaa44bb14c5963f3
+C:\Users\<user>\AppData\Local\Temp\tmp.bYEBpK9R81\repo\.git\objects\e4\450e623d2239c584287417b6deed1648f43d32
+C:\Users\<user>\AppData\Local\Temp\tmp.bYEBpK9R81\repo\.git\objects\e6\a2498c8d0da267f4311ff0cc950c51431c6f12
+C:\Users\<user>\AppData\Local\Temp\tmp.bYEBpK9R81\repo\.git\objects\ef\12822094eff453c182e2fa364cfeae3b5256cd
+C:\Users\<user>\AppData\Local\Temp\tmp.bYEBpK9R81\repo\.git\objects\ef\a4bce907f1f96bc3743c8466dc632481df1059
+C:\Users\<user>\AppData\Local\Temp\tmp.bYEBpK9R81\repo\.git\objects\f3\2880b09af4a45b6f01d8b50a912f7f4a269c2e
+C:\Users\<user>\AppData\Local\Temp\tmp.bYEBpK9R81\repo\.git\refs\heads\main
+C:\Users\<user>\AppData\Local\Temp\tmp.bYEBpK9R81\repo\harness\.budget.json
+C:\Users\<user>\AppData\Local\Temp\tmp.bYEBpK9R81\repo\harness\codex-setup.ps1
+C:\Users\<user>\AppData\Local\Temp\tmp.bYEBpK9R81\repo\harness\codex-setup.sh
+C:\Users\<user>\AppData\Local\Temp\tmp.bYEBpK9R81\repo\harness\fleet.ps1
+C:\Users\<user>\AppData\Local\Temp\tmp.bYEBpK9R81\repo\harness\fleet.sh
+C:\Users\<user>\AppData\Local\Temp\tmp.bYEBpK9R81\repo\harness\harness.config.json
+C:\Users\<user>\AppData\Local\Temp\tmp.bYEBpK9R81\repo\harness\loop.ps1
+C:\Users\<user>\AppData\Local\Temp\tmp.bYEBpK9R81\repo\harness\loop.sh
+C:\Users\<user>\AppData\Local\Temp\tmp.bYEBpK9R81\repo\harness\.runs\run-001\.budget.json
+C:\Users\<user>\AppData\Local\Temp\tmp.bYEBpK9R81\repo\harness\.runs\run-001\iter-1.log
+C:\Users\<user>\AppData\Local\Temp\tmp.bYEBpK9R81\repo\harness\.runs\run-001\ledger.jsonl
+C:\Users\<user>\AppData\Local\Temp\tmp.bYEBpK9R81\repo\harness\.runs\run-001\review-after-1.log
+C:\Users\<user>\AppData\Local\Temp\tmp.bYEBpK9R81\repo\harness\.runs\run-001\review-second-after-1.log
+C:\Users\<user>\AppData\Local\Temp\tmp.bYEBpK9R81\repo\harness\tests\fleet-queue-test.ps1
+C:\Users\<user>\AppData\Local\Temp\tmp.bYEBpK9R81\repo\harness\tests\fleet-queue-test.sh
+C:\Users\<user>\AppData\Local\Temp\tmp.bYEBpK9R81\repo\harness\tests\gate.mjs
+C:\Users\<user>\AppData\Local\Temp\tmp.bYEBpK9R81\repo\harness\tests\loop-review-test.ps1
+C:\Users\<user>\AppData\Local\Temp\tmp.bYEBpK9R81\repo\harness\tests\loop-review-test.sh
+C:\Users\<user>\AppData\Local\Temp\tmp.bYEBpK9R81\repo\harness\tests\migrate-test.ps1
+C:\Users\<user>\AppData\Local\Temp\tmp.bYEBpK9R81\repo\harness\tests\migrate-test.sh
+C:\Users\<user>\AppData\Local\Temp\tmp.bYEBpK9R81\repo\harness\tests\README.md
+C:\Users\<user>\AppData\Local\Temp\tmp.bYEBpK9R81\repo\harness\tests\run-tests.ps1
+C:\Users\<user>\AppData\Local\Temp\tmp.bYEBpK9R81\repo\harness\tests\run-tests.sh
+C:\Users\<user>\AppData\Local\Temp\tmp.bYEBpK9R81\repo\out\a.txt
+C:\Users\<user>\AppData\Local\Temp\tmp.bYEBpK9R81\repo\state\fix_plan.md
+C:\Users\<user>\AppData\Local\Temp\tmp.bYEBpK9R81\repo\state\PROGRESS.md
+C:\Users\<user>\AppData\Local\Temp\tmp.bYEBpK9R81\repo\state\tasks.json
+* 786f851 (HEAD -> main) loop(1): green iteration
+* efa4bce init
+.gitignore
+PROMPT.md
+harness/.budget.json
+harness/codex-setup.ps1
+harness/codex-setup.sh
+harness/fleet.ps1
+harness/fleet.sh
+harness/harness.config.json
+harness/loop.ps1
+harness/loop.sh
+harness/tests/README.md
+harness/tests/fleet-queue-test.ps1
+harness/tests/fleet-queue-test.sh
+harness/tests/gate.mjs
+harness/tests/loop-review-test.ps1
+harness/tests/loop-review-test.sh
+harness/tests/migrate-test.ps1
+harness/tests/migrate-test.sh
+harness/tests/run-tests.ps1
+harness/tests/run-tests.sh
+out/a.txt
+state/PROGRESS.md
+state/fix_plan.md
+state/tasks.json
+.gitignore
+PROMPT.md
+harness/.budget.json
+harness/codex-setup.ps1
+harness/codex-setup.sh
+harness/fleet.ps1
+harness/fleet.sh
+harness/harness.config.json
+harness/loop.ps1
+harness/loop.sh
+harness/tests/README.md
+harness/tests/fleet-queue-test.ps1
+harness/tests/fleet-queue-test.sh
+harness/tests/gate.mjs
+harness/tests/loop-review-test.ps1
+harness/tests/loop-review-test.sh
+harness/tests/migrate-test.ps1
+harness/tests/migrate-test.sh
+harness/tests/run-tests.ps1
+harness/tests/run-tests.sh
+state/PROGRESS.md
+state/fix_plan.md
+state/tasks.json
+786f851 (HEAD -> main) loop(1): green iteration
+ out/a.txt         | 1 +
+ state/fix_plan.md | 2 +-
+ 2 files changed, 2 insertions(+), 1 deletion(-)
+do the top task
+## Tasks
+- [x] build thing
+harness/.runs/
+harness/.worktrees/
+state/handoff.md
+
+exec
+"C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command 'Get-Content -Raw state/tasks.json; Get-Content -Raw state/PROGRESS.md; Get-Content -Raw harness/harness.config.json; Get-Content -Raw harness/tests/gate.mjs; Get-Content -Raw harness/.runs/run-001/iter-1.log; Get-Content -Raw harness/.runs/run-001/ledger.jsonl' in C:\Users\<user>\AppData\Local\Temp\tmp.bYEBpK9R81\repo
+ succeeded in 226ms:
+{ "version": 2, "tasks": [] }
+
+- init
+
+{
+  "project": { "type": "greenfield", "baseline": { "established": false, "ref": null } },
+  "models": {
+    "implement": { "model": "impl-x", "fallback": null },
+    "review":    { "model": "primary-judge", "fallback": null, "second": { "model": "codex", "effort": "high" },
+                   "codex": { "model": null, "reasoningEffort": "high" } },
+    "codex":     { "model": null, "reasoningEffort": "medium", "auth": "chatgpt", "timeoutSeconds": 300 }
+  },
+  "autonomy": { "mode": "auto", "maxIterations": 1, "maxTurnsPerIteration": 10, "tokenBudget": null, "meterTokens": false, "skipPermissions": false,
+                "checkpoints": { "planApproval": false, "beforeRiskyOps": false, "everyNIterations": 0 } },
+  "loop": { "promptFile": "PROMPT.md", "planFile": "state/fix_plan.md", "progressFile": "state/PROGRESS.md",
+            "oneItemPerIteration": true, "autoRollbackOnRed": true, "commitOnGreen": true, "tagOnGreen": false, "stopWhenPlanEmpty": true },
+  "verification": { "requireE2EEvidence": false, "reviewEveryNIterations": 1, "evaluator": { "enabled": false } },
+  "components": [ { "name": "root", "path": ".", "gate": { "format": null, "lint": null, "typecheck": null, "build": null, "test": "exit 0", "e2e": null } } ],
+  "gate": { "format": null, "lint": null, "typecheck": null, "build": null, "test": null, "e2e": null }
+}
+
+#!/usr/bin/env node
+/*
+ * gate.mjs â€” the harness's OWN gate entry point (harness.config.json -> components[0].gate.test).
+ * One command, both self-test twins, on either platform.
+ *
+ * WHY NODE, and not a .sh/.ps1 twin pair. A gate step in harness.config.json is ONE string, and the
+ * engine hands it to a DIFFERENT shell per platform: `cmd /c <cmd>` in plugin/engine/lib/gate.ps1,
+ * `bash -lc <cmd>` in gate.sh. So the string has to parse and resolve under both, and no shell
+ * spelling does:
+ *   - `harness/tests/run-tests.ps1` â€” cmd.exe refuses a forward-slash command path
+ *     ("'harness' is not recognized"); backslashes then break under bash.
+ *   - `powershell ... -File ...` â€” no `powershell` on Linux.
+ *   - `bash harness/tests/gate.sh` â€” MEASURED TRAP, and the reason this file is not a shell script:
+ *     under `cmd /c` on Windows, `bash` resolves to WSL's C:\Windows\System32\bash.exe, NOT to Git
+ *     Bash (which is only on PATH inside a Git Bash session). On a box without WSL the gate died with
+ *     HCS_E_HYPERV_NOT_INSTALLED; with WSL it would have run the suite in a different OS entirely.
+ * `node` is on PATH under both shells and is already a harness dependency (the plugin's hook
+ * dispatcher, plugin/hooks/run.mjs, is a cross-platform .mjs for exactly this reason), and node
+ * resolves paths itself, so the platform dispatch lives here â€” written once â€” instead of being
+ * encoded in a config string.
+ *
+ * WHAT IT RUNS. The platform's NATIVE twin is mandatory and fails the gate if it is missing or red
+ * (Windows -> run-tests.ps1, POSIX -> run-tests.sh). On Windows the .sh twin is run as well when Git
+ * Bash can be located BY PATH ON DISK (never by a PATH lookup â€” see above), which is the common case
+ * on a dev box and grades both twins locally.
+ *
+ * On POSIX the .ps1 twin is NOT attempted, even where pwsh exists. That is a DECISION, not a
+ * measurement: run-tests.ps1 does carry a pwsh/powershell host branch and may well run there, but
+ * nothing in CI has ever run it off Windows, so its POSIX behaviour is unknown and a red from it
+ * would say nothing about the change under test. If that gets measured, run it and delete this
+ * paragraph.
+ *
+ * Whenever a twin goes ungraded the run prints a loud UNGRADED banner naming CI's per-OS jobs as the
+ * backstop. NOTE the limit of that, honestly: the engine's gate step (Invoke-GateStep / _gate_step)
+ * PRINTS a command's output only when it exits non-zero, so on a green half-graded run the banner is
+ * captured and discarded â€” it is visible under /verify, where the agent runs this command itself,
+ * and invisible under loop/fleet. Set HARNESS_GATE_STRICT=1 to make an ungraded twin exit non-zero
+ * instead; that is what makes the half-grade reach a caller that only reads the exit code.
+ *
+ *   Run:  node harness/tests/gate.mjs
+ */
+import { spawnSync } from 'node:child_process';
+import { existsSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const HERE = dirname(fileURLToPath(import.meta.url));
+const WIN = process.platform === 'win32';
+
+function which(cmd) {
+  const probe = spawnSync(WIN ? 'where' : 'command', WIN ? [cmd] : ['-v', cmd], {
+    encoding: 'utf8', shell: !WIN,
+  });
+  if (probe.status !== 0) return null;
+  const first = String(probe.stdout || '').split(/\r?\n/).find((l) => l.trim());
+  return first ? first.trim() : null;
+}
+
+// A PowerShell to run the .ps1 twin â€” WINDOWS ONLY, deliberately. Windows PowerShell 5.1 is the
+// harness's documented engine and run-tests.ps1 carries no platform branches (it drives cmd.exe
+// forms, `powershell`, Windows paths); CI never runs it anywhere but windows-latest. Reaching for a
+// Linux `pwsh` would produce reds that say nothing about the change under test, so on POSIX the .ps1
+// twin is reported UNGRADED instead of attempted.
+function findPowerShell() {
+  if (!WIN) return null;
+  for (const c of ['powershell', 'pwsh']) {
+    if (which(c)) return { exe: c, args: ['-NoProfile', '-ExecutionPolicy', 'Bypass'] };
+  }
+  return null;
+}
+
+// A bash to run the .sh twin. On Windows a bare PATH lookup finds WSL, which is the wrong OS â€” so
+// look for Git Bash at its real install locations, plus wherever this repo's own git lives.
+function findBash() {
+  if (!WIN) {
+    const p = which('bash');
+    return p ? { exe: p } : null;
+  }
+  const candidates = [
+    join(process.env.ProgramFiles || 'C:\\Program Files', 'Git', 'bin', 'bash.exe'),
+    join(process.env['ProgramFiles(x86)'] || 'C:\\Program Files (x86)', 'Git', 'bin', 'bash.exe'),
+    join(process.env.LOCALAPPDATA || '', 'Programs', 'Git', 'bin', 'bash.exe'),
+  ];
+  const gitExec = spawnSync('git', ['--exec-path'], { encoding: 'utf8' });
+  if (gitExec.status === 0) {
+    // .../Git/mingw64/libexec/git-core -> .../Git/bin/bash.exe
+    const m = String(gitExec.stdout).trim().replace(/\//g, '\\').match(/^(.*)\\mingw(?:32|64)\\libexec\\git-core$/i);
+    if (m) candidates.push(join(m[1], 'bin', 'bash.exe'));
+  }
+  const hit = candidates.find((c) => c && existsSync(c));
+  return hit ? { exe: hit } : null;
+}
+
+function run(label, exe, args, cwd) {
+  console.log(`=== ${label}\n    ${exe} ${args.join(' ')}`);
+  const r = spawnSync(exe, args, { cwd, stdio: 'inherit' });
+  const code = r.status === null ? 1 : r.status;
+  if (r.error) console.log(`    ! ${r.error.message}`);
+  console.log('');
+  return code;
+}
+
+const ps = findPowerShell();
+const sh = findBash();
+let rc = 0;
+const ungraded = [];
+
+// --- the .ps1 twin ---
+if (ps) {
+  rc |= run('PowerShell self-tests (harness/tests/run-tests.ps1)', ps.exe, [...ps.args, '-File', join(HERE, 'run-tests.ps1')], HERE);
+} else if (WIN) {
+  console.log('=== PowerShell self-tests: no powershell/pwsh found on Windows â€” failing CLOSED.\n');
+  rc = 1;
+} else {
+  ungraded.push('run-tests.ps1 (POSIX host â€” not attempted by decision; unmeasured off Windows, CI grades it on windows-latest)');
+}
+
+// --- the .sh twin ---
+if (sh) {
+  rc |= run('bash self-tests (harness/tests/run-tests.sh)', sh.exe, [join(HERE, 'run-tests.sh')], HERE);
+} else if (!WIN) {
+  console.log('=== bash self-tests: no bash found â€” failing CLOSED.\n');
+  rc = 1;
+} else {
+  ungraded.push('run-tests.sh (no Git Bash found; a PATH `bash` on Windows is WSL and is not used)');
+}
+
+const STRICT = process.env.HARNESS_GATE_STRICT === '1';
+for (const u of ungraded) {
+  console.log('!!! UNGRADED TWIN: ' + u);
+  console.log('!!! This gate run graded HALF the engine. CI (.github/workflows/harness-selftest.yml)');
+  console.log('!!! grades the .sh twin on ubuntu and the .ps1 twin on windows, and is the backstop â€”');
+  console.log('!!! but locally, treat this as a gap.' + (STRICT ? ' HARNESS_GATE_STRICT=1: failing on it.' : ''));
+}
+// A caller that only reads the exit code (the engine's gate step swallows a green command's output)
+// cannot see the banner above. HARNESS_GATE_STRICT=1 turns the half-grade into a red.
+if (ungraded.length && STRICT) rc |= 1;
+
+console.log(rc === 0 ? `GATE: green${ungraded.length ? ' (half-graded â€” see above)' : ' (both twins)'}` : 'GATE: RED');
+process.exit(rc === 0 ? 0 : 1);
+
+implemented
+
+{"iter":1,"result":"green","path":"claude","usedFallback":false}
+{"iter":1,"result":"review","path":"claude","model":"primary-judge","verdict":"SHIP"}
+
+
+exec
+"C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command 'git diff --check efa4bce907f1f96bc3743c8466dc632481df1059..HEAD; git log --all --oneline -- specs docs/principles; git show --format=fuller --name-status --summary HEAD; $n=0; Get-Content out/a.txt | ForEach-Object { $n++; "out/a.txt:${n}: $_" }; $n=0; Get-Content state/fix_plan.md | ForEach-Object { $n++; "state/fix_plan.md:${n}: $_" }; cmd /c "exit 0"; Write-Output "configured gate exit=$LASTEXITCODE"; git status --short' in C:\Users\<user>\AppData\Local\Temp\tmp.bYEBpK9R81\repo
+ succeeded in 216ms:
+commit 786f851f08c756bc3867f7078fb73e46d8f5297d
+Author:     Loop Second Judge Probe <loop-second@example.com>
+AuthorDate: Wed Sep 9 15:24:54 2026 +0100
+Commit:     Loop Second Judge Probe <loop-second@example.com>
+CommitDate: Wed Sep 9 15:24:54 2026 +0100
+
+    loop(1): green iteration
+    
+    Automated by harness/loop. Gate passed.
+    Co-Authored-By: Claude <noreply@anthropic.com>
+
+A	out/a.txt
+M	state/fix_plan.md
+out/a.txt:1: built
+state/fix_plan.md:1: ## Tasks
+state/fix_plan.md:2: - [x] build thing
+configured gate exit=0
+
+codex
+No findings. The batch fulfills the available task (“build thing”) by adding `out/a.txt` containing `built`, updates the plan, leaves tests/specifications untouched, passes `git diff --check`, and the configured gate exits successfully. No `specs/` or `docs/principles/` directories exist in this repository or base revision.
+
+VERDICT: SHIP
+tokens used
+16,416
+No findings. The batch fulfills the available task (“build thing”) by adding `out/a.txt` containing `built`, updates the plan, leaves tests/specifications untouched, passes `git diff --check`, and the configured gate exits successfully. No `specs/` or `docs/principles/` directories exist in this repository or base revision.
+
+VERDICT: SHIP

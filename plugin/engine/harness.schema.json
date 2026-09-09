@@ -33,7 +33,7 @@
         "docs": { "$ref": "#/definitions/phaseRouting", "description": "Model for the doc-gardener agent." },
         "codex": {
           "type": "object",
-          "description": "GLOBAL defaults for the OpenAI Codex CLI — used whenever ANY phase's model or fallback resolves to 'codex'. A phase may override `model` and `reasoningEffort` for itself via its own `codex: {…}` block (definitions/phaseRouting); `auth` and `timeoutSeconds` are global-only.",
+          "description": "GLOBAL defaults for the OpenAI Codex CLI — used whenever ANY phase's model, fallback, or (on `review`) `second` resolves to 'codex'. A phase may override `model` and `reasoningEffort` for itself via its own `codex: {…}` block (definitions/phaseRouting); `auth` and `timeoutSeconds` are global-only.",
           "properties": {
             "model": { "type": ["string", "null"], "description": "Passed as `codex exec -m`. null = don't pin; float on the CLI's default (recommended — pinned IDs rot as OpenAI retires models)." },
             "reasoningEffort": { "type": ["string", "null"], "enum": ["minimal", "low", "medium", "high", "xhigh", null], "description": "Sets codex `model_reasoning_effort` for the run. Default high." },
@@ -235,7 +235,7 @@
             },
             "codex": {
               "type": ["object", "null"],
-              "description": "Per-phase Codex override (design-doc 002 D2), read ONLY when this phase's `model` or `fallback` is the literal 'codex'. Each key set here wins over the global models.codex block for this phase; keys left null inherit it. auth and timeoutSeconds are global-only. On a phase that never routes to codex this block is unread — /harness-doctor check 10(g) warns.",
+              "description": "Per-phase Codex override (design-doc 002 D2), read ONLY when this phase's `model`, `fallback`, or (on `review`) `second.model` is the literal 'codex' — the second reviewer takes its Codex model and depth from the review phase's own codex block (loop.sh second_review / Invoke-SecondReview pass REVIEW_CODEX_MODEL/EFFORT), so `review.codex` beside a Claude primary and a codex `second` is READ, not dead. Each key set here wins over the global models.codex block for this phase; keys left null inherit it. auth and timeoutSeconds are global-only. On a phase that never routes to codex this block is unread — /harness-doctor check 10(g) warns.",
               "properties": {
                 "model": { "type": ["string", "null"], "description": "Codex model for this phase, passed as `codex exec -m` (e.g. gpt-5.6-sol). null = inherit models.codex.model (null there = float on the CLI default; every *-codex ID was retired in 2026-07/08, so pinned IDs rot)." },
                 "reasoningEffort": { "type": ["string", "null"], "enum": ["minimal", "low", "medium", "high", "xhigh", null], "description": "Codex `model_reasoning_effort` for this phase. null = inherit models.codex.reasoningEffort." }
