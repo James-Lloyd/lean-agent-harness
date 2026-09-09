@@ -507,7 +507,7 @@ model routing: this repo's Codex side is fully pinned and fully covered
   ok  models.explore.codex.model is pinned explicitly, not floating
   ok  models.docs carries its own codex.reasoningEffort (no silent inherit of the global depth)
   ok  models.docs.codex.model is pinned explicitly, not floating
-  ok  the codex explorer runs at 'none' (the cheapest level these models actually accept)
+  ok  the codex explorer stays cheap (none|low; got 'low') - NOT 'minimal', which both pinned models refuse at runtime
   ok  the codex second reviewer runs at 'high'
 model routing V6.2: a codex route must have a dispatch site (harness-doctor 10(i))
   ok  loop.ps1 resolves the implement phase (codex is dispatchable there)
@@ -1019,7 +1019,7 @@ model routing: this repo's Codex side is fully pinned and fully covered
   ok  models.explore.codex.model is pinned explicitly, not floating (got 'gpt-5.6-luna')
   ok  models.docs carries its own codex.reasoningEffort (no silent inherit of the global depth)
   ok  models.docs.codex.model is pinned explicitly, not floating (got 'gpt-5.6-luna')
-  ok  the codex explorer runs at 'none' (the cheapest level these models actually accept)
+  ok  the codex explorer stays cheap (none|low; got 'low') - NOT 'minimal', which both pinned models refuse at runtime
   ok  the codex second reviewer runs at 'high'
 model routing V6.2: a codex route must have a dispatch site (harness-doctor 10(i))
   ok  loop.sh resolves the implement phase (codex is dispatchable there)

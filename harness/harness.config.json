@@ -12,7 +12,7 @@
     "session":   { "model": "claude-fable-5-1", "fallback": null,            "effort": "medium",
                    "codex": { "model": "gpt-5.6-sol", "reasoningEffort": "high" } },
     "explore":   { "model": "haiku",            "fallback": null,            "effort": "low",
-                   "codex": { "model": "gpt-5.6-luna", "reasoningEffort": "none" } },
+                   "codex": { "model": "gpt-5.6-luna", "reasoningEffort": "low" } },
     "plan":      { "model": "claude-fable-5-1", "fallback": "claude-opus-5", "effort": "high", "fallbackEffort": "high",
                    "codex": { "model": "gpt-6-astra", "reasoningEffort": "high" } },
     "implement": { "model": "claude-opus-5",    "fallback": null,            "effort": "high",

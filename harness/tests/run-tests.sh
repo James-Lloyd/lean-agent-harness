@@ -1227,7 +1227,8 @@ done
 # 'none', not 'minimal': measured 2026-09-09, `minimal` is REFUSED at runtime by gpt-5.6-sol and
 # gpt-5.6-luna alike (HTTP 400 unsupported_value; their set is none|low|medium|high|xhigh|max). This
 # assertion previously pinned `minimal`, i.e. it pinned a combination that could not run.
-ok "$([ "$(jq -r '.models.explore.codex.reasoningEffort' "$RCFG")" = "none" ] && echo 1 || echo 0)" "the codex explorer runs at 'none' (the cheapest level these models actually accept)"
+expl_eff="$(jq -r '.models.explore.codex.reasoningEffort' "$RCFG")"
+ok "$(case "$expl_eff" in none|low) echo 1;; *) echo 0;; esac)" "the codex explorer stays cheap (none|low; got '$expl_eff') - NOT 'minimal', which both pinned models refuse at runtime"
 ok "$([ "$(jq -r '.models.review.codex.reasoningEffort' "$RCFG")" = "high" ] && echo 1 || echo 0)"    "the codex second reviewer runs at 'high'"
 
 echo "model routing V6.2: a codex route must have a dispatch site (harness-doctor 10(i))"

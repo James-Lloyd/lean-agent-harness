@@ -197,3 +197,9 @@ that could not run, and now pins `none`.
 **The lesson is narrow and expensive: verify the PAIR, not the parts.** A model id that resolves and
 an effort level that is in the enum can still be a runtime 400 together. `model-id-check.sh <id>
 <effort>` is the arm; it asserts a zero exit *and* that the header echoes back the effort asked for.
+
+**Final note on `explore`:** set to `low` rather than `none` by James. Both bind on `gpt-5.6-luna`
+(verified); `low` buys a little judgement on a read-only scout for negligible cost. The suite now
+asserts the INTENT — explore must be `none` or `low`, never `minimal` — rather than pinning one
+value, so tuning between the two cheap levels does not require a test edit while the impossible
+level stays excluded.
