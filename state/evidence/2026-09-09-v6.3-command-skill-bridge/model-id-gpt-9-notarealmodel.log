@@ -1,0 +1,16 @@
+OpenAI Codex v0.153.4
+--------
+workdir: C:\Users\<user>\Repos\harness\.claude\worktrees\vendor-agnostic-v6
+model: gpt-9-notarealmodel
+provider: openai
+approval: never
+sandbox: read-only
+reasoning effort: high
+reasoning summaries: none
+session id: 01a087b9-9bdd-71e2-97be-7cc2faff5149
+--------
+user
+Reply with the single word OK.
+warning: Model metadata for `gpt-9-notarealmodel` not found. Defaulting to fallback metadata; this can degrade performance and cause issues.
+ERROR: {"type":"error","status":400,"error":{"type":"invalid_request_error","message":"The 'gpt-9-notarealmodel' model is not supported when using Codex with a ChatGPT account."}}
+ERROR: {"type":"error","status":400,"error":{"type":"invalid_request_error","message":"The 'gpt-9-notarealmodel' model is not supported when using Codex with a ChatGPT account."}}

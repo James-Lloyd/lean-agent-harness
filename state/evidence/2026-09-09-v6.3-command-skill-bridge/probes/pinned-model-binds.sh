@@ -51,7 +51,15 @@ echo "### arm 2: the SHIPPED builder, with the config's pin"
 # invoke_codex is what second_review/Invoke-SecondReview call; nothing here is typed by hand.
 MSG="$(invoke_codex read-only 'Reply with the single word OK.' "$ROOT" "$OUT/pinned-model.log" \
         "$PIN" "$EFF" "$(jq -r '.models.codex.timeoutSeconds // 900' "$CFG")" 2>&1)"
-note "invoke_codex rc=$? final=[$(printf '%s' "$MSG" | tr -d '\r' | head -c 40)]"
+IRC=$?
+note "invoke_codex rc=$IRC final=[$(printf '%s' "$MSG" | tr -d '\r' | head -c 40)]"
+# THE EXIT CODE IS PART OF THE ASSERTION, not a note. Measured on gpt-6-luna: codex prints the
+# REQUESTED model in the session header and only then fails with HTTP 400 ("not supported when using
+# Codex with a ChatGPT account"). So a header match alone passes on a model that cannot run - which
+# is exactly what this arm existed to rule out. The first version of this probe captured rc and only
+# printed it.
+[ "$IRC" -eq 0 ] && ok "the pinned run actually SUCCEEDED (exit 0) - the header is not a lone witness" \
+                 || bad "the pinned run FAILED (exit $IRC) - the header echoes the request, so the pin is NOT usable"
 GOT="$(grep -m1 -E '^model:' "$OUT/pinned-model.log" | tr -d '\r' | sed 's/^model: //')"
 GOTE="$(grep -m1 -E '^reasoning effort:' "$OUT/pinned-model.log" | tr -d '\r' | sed 's/^reasoning effort: //')"
 note "header reports: model=$GOT effort=$GOTE"

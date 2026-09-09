@@ -139,3 +139,28 @@ window cannot swap vendor mid-session — but a Codex session is a different pro
 emitting these after `[features]` would silently turn them into feature flags. Both suites assert the
 keys precede the first table header. The mechanism is the one `trust-inheritance.sh` already measured
 — a top-level key in that file changes the transcript header.
+
+## Model-ID validity, and why the session header is NOT proof of it
+
+`probes/model-id-check.sh <id>` answers "is this pin usable on this account", and writing it found a
+hole in `pinned-model-binds.sh`.
+
+**Codex echoes the REQUESTED model id in the session header before validating it.** Measured:
+
+| id | header says | exit | outcome |
+|---|---|---|---|
+| `gpt-5.6-sol` | `gpt-5.6-sol` | 0 | usable |
+| `gpt-6-astra` | `gpt-6-astra` | 0 | usable |
+| `gpt-6-luna` | `gpt-6-luna` | 1 | **HTTP 400** — not supported on a ChatGPT account |
+| `gpt-9-notarealmodel` | `gpt-9-notarealmodel` | 1 | **HTTP 400** — identical message |
+
+So a header match alone passes on a model that cannot run. `pinned-model-binds.sh` captured the exit
+code and only *printed* it; it now asserts it. That is the same defect class as the rest of this dir —
+the checking code, not the code under test — and it is the third time in this slice.
+
+**The error message is generic.** A deliberately nonsense id produces byte-identical text to
+`gpt-6-luna`, so this box cannot distinguish "real model, wrong plan" from "no such model". Anything
+stronger about `luna` needs a source other than this account.
+
+**A bad pin fails loudly at the FIRST call, not silently** — no substitution was observed in any arm.
+That is what makes pinning safe here: a retired id breaks the run, it does not quietly change judges.

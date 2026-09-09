@@ -1,0 +1,3 @@
+### candidate model id: gpt-6-astra
+    exit=0  header model=gpt-6-astra
+  ok   'gpt-6-astra' RESOLVES and RUNS (header matches, exit 0)

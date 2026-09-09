@@ -1,0 +1,6 @@
+### candidate model id: gpt-6-luna
+    exit=1  header model=gpt-6-luna
+  FAIL 'gpt-6-luna' is echoed in the header but the run FAILED (exit 1) - the id is not usable
+    the error:
+      warning: Model metadata for `gpt-6-luna` not found. Defaulting to fallback metadata; this can degrade performance and cause issues.
+      ERROR: {"type":"error","status":400,"error":{"type":"invalid_request_error","message":"The 'gpt-6-luna' model is not supported when using Codex with a ChatGPT account."}}
