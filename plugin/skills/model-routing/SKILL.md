@@ -34,8 +34,7 @@ only the tier matters.
 Values may be a **Claude alias** (`opus`/`sonnet`/`haiku`/`fable`), a full `claude-*` ID, or the literal
 **`codex`** (supported by the engine, but not routed in the recommended defaults —
 see "Cross-vendor" below). Effort is `minimal|low|medium|high|xhigh|max`; absent = the model's own
-default. `minimal` is a codex-only level (the Claude CLI rejects it, so the dispatcher omits the flag);
-`max` is Claude-only. `fallback: null` = no fallback (the phase just fails when its primary does); a
+default. **Effort support is per-MODEL on the Codex side, not per-vendor**, and the old shorthand here was wrong in both directions: `minimal` is rejected by the Claude CLI (the dispatcher omits the flag) AND by gpt-5.6-sol and gpt-5.6-luna, which the API says accept `none|low|medium|high|xhigh|max`; `max` is therefore not Claude-only. Measured 2026-09-09 - `explore` was shipped as sol@`minimal` for an hour and would have failed at runtime with HTTP 400 `unsupported_value`. Verify the model+effort PAIR (`state/evidence/2026-09-09-v6.3-command-skill-bridge/probes/model-id-check.sh <id> <effort>`): a level valid for one model is refused by another. `fallback: null` = no fallback (the phase just fails when its primary does); a
 whole phase set to `null`, or an absent `models` block, = inherit the ambient session model.
 
 **Not every phase can actually run Codex.** `"codex"` is legal syntax everywhere, but only some phases

@@ -164,3 +164,36 @@ stronger about `luna` needs a source other than this account.
 
 **A bad pin fails loudly at the FIRST call, not silently** — no substitution was observed in any arm.
 That is what makes pinning safe here: a retired id breaks the run, it does not quietly change judges.
+
+## Effort support is PER-MODEL — and the config shipped an impossible pair for an hour
+
+Asked to move `explore`/`docs` to `gpt-5.6-luna`, `probes/model-id-check.sh <id> <effort>` grew an
+effort argument, and the first run of the shipped combination failed:
+
+```
+'minimal' is not supported with the 'gpt-5.6-luna' model.
+Supported values are: 'none', 'low', 'medium', 'high', 'xhigh', and 'max'.
+```
+
+`gpt-5.6-sol` refuses `minimal` too. So the config committed in `163a04e` — `explore: gpt-5.6-sol @
+minimal` — **could never have run**: every Codex explorer would have died with HTTP 400 on its first
+call. It was caught only because James asked for a different model.
+
+| pair | result |
+|---|---|
+| `gpt-5.6-luna` @ default | runs |
+| `gpt-5.6-luna` @ `none` | runs |
+| `gpt-5.6-luna` @ `low` | runs |
+| `gpt-5.6-luna` @ `minimal` | **400 unsupported_value** |
+| `gpt-5.6-sol` @ `minimal` | **400 unsupported_value** |
+| `gpt-6-luna`, `gpt-9-notarealmodel` | **400**, generic "not supported ... with a ChatGPT account" |
+
+Two repo-wide claims are disproved by that error text. **`minimal` is not "the codex level"** — it is
+refused by both pinned models — and **`max` is not "Claude-only"**, since the API lists it among the
+supported values. The schema enum was missing `none` entirely. Schema, routing skill and doctor 10(e)
+all corrected; the suites' `explore` assertion had been pinning `minimal`, i.e. pinning a combination
+that could not run, and now pins `none`.
+
+**The lesson is narrow and expensive: verify the PAIR, not the parts.** A model id that resolves and
+an effort level that is in the enum can still be a runtime 400 together. `model-id-check.sh <id>
+<effort>` is the arm; it asserts a zero exit *and* that the header echoes back the effort asked for.

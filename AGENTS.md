@@ -396,6 +396,17 @@ editing** (Claude Code: see CLAUDE.md; anything else: `git worktree add`). Land 
   evidence-destruction ratchet reproduced one level down, in the probes rather than in the arm that
   audits them. Guard first, redirect second; then prove it by running the cheap path and diffing sizes.
 
+- [2026-09-09] **Verify the model+effort PAIR you ship, not the parts** — a valid id and an
+  in-enum effort level can still be a runtime 400 together, and a foreign vendor's capability matrix is
+  per-MODEL, not per-vendor. `explore` shipped as `gpt-5.6-sol @ minimal` and could never have run:
+  both pinned models refuse `minimal` (`unsupported_value`; the API reports their set as
+  `none|low|medium|high|xhigh|max`). Two repo-wide shorthands died with it — `minimal` is not "the
+  codex level" and `max` is not "Claude-only" — and the schema enum was missing `none` entirely. The
+  combination was only tested because someone asked for a different model; nothing in the suite could
+  see it, because both halves were independently legal. Corollary: a session header that echoes your
+  request is not proof it was accepted — Codex prints the requested model and effort BEFORE validating
+  them, so pair the header check with a zero exit or the assertion passes on a run that died.
+
 ## Nested context
 Subsystems carry their own `AGENTS.md` next to their code (in this repo: `plugin/engine/` holds the
 engine's PS-5.1/twin-parity rules). When working in a subsystem, its local map applies too.

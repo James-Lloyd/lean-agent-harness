@@ -1,0 +1,6 @@
+### candidate model id: gpt-5.6-luna  (effort minimal)
+    exit=1  header model=gpt-5.6-luna
+  FAIL 'gpt-5.6-luna' is echoed in the header but the run FAILED (exit 1) - the id is not usable
+    the error:
+      ERROR: {
+      ERROR: {

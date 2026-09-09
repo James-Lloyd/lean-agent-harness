@@ -1,0 +1,33 @@
+OpenAI Codex v0.153.4
+--------
+workdir: C:\Users\<user>\Repos\harness\.claude\worktrees\vendor-agnostic-v6
+model: gpt-5.6-luna
+provider: openai
+approval: never
+sandbox: read-only
+reasoning effort: minimal
+reasoning summaries: none
+session id: 01a087c5-c0be-7f10-a4ee-7c56ef789917
+--------
+user
+Reply with the single word OK.
+ERROR: {
+  "type": "error",
+  "error": {
+    "type": "invalid_request_error",
+    "code": "unsupported_value",
+    "message": "Unsupported value: 'minimal' is not supported with the 'gpt-5.6-luna' model. Supported values are: 'none', 'low', 'medium', 'high', 'xhigh', and 'max'.",
+    "param": "reasoning.effort"
+  },
+  "status": 400
+}
+ERROR: {
+  "type": "error",
+  "error": {
+    "type": "invalid_request_error",
+    "code": "unsupported_value",
+    "message": "Unsupported value: 'minimal' is not supported with the 'gpt-5.6-luna' model. Supported values are: 'none', 'low', 'medium', 'high', 'xhigh', and 'max'.",
+    "param": "reasoning.effort"
+  },
+  "status": 400
+}

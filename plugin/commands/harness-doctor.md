@@ -103,8 +103,13 @@ behaves oddly.
       nowhere to go.
     - **(e) Declared effort tracks frontmatter — where anything enforces it.** `effort`/`fallbackEffort`
       are optional (`minimal|low|medium|high|xhigh|max`); absent = the model default, and absent everywhere
-      is ✅. `minimal` on a **Claude** primary/fallback is ⚠️ (codex-only level; the headless dispatcher
-      omits the flag and the model default applies). Two graded cases, both ❌ on mismatch, then one
+      is ✅. `minimal` on a **Claude** primary/fallback is ⚠️ (the Claude CLI rejects it; the headless
+      dispatcher omits the flag and the model default applies). **Do not call `minimal` "the codex
+      level" and do not call `max` "Claude-only"** — measured 2026-09-09, `minimal` is refused at
+      runtime by gpt-5.6-sol *and* gpt-5.6-luna (HTTP 400 `unsupported_value`; the API reports their
+      set as `none|low|medium|high|xhigh|max`), so Codex effort support is per-MODEL. A `codex{}`
+      block's `reasoningEffort` can therefore be individually legal and still fail in combination —
+      say so rather than grading it against a vendor-wide list. Two graded cases, both ❌ on mismatch, then one
       that needs no grading:
       **(i) Session** — `.claude/settings.json` `effortLevel` == `models.session.effort` (the settings key
       accepts `low|medium|high|xhigh`; `minimal` and `max` have no settings equivalent, so declaring

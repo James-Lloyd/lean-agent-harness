@@ -12,7 +12,7 @@
     "session":   { "model": "claude-fable-5-1", "fallback": null,            "effort": "medium",
                    "codex": { "model": "gpt-5.6-sol", "reasoningEffort": "high" } },
     "explore":   { "model": "haiku",            "fallback": null,            "effort": "low",
-                   "codex": { "model": "gpt-5.6-sol", "reasoningEffort": "minimal" } },
+                   "codex": { "model": "gpt-5.6-luna", "reasoningEffort": "none" } },
     "plan":      { "model": "claude-fable-5-1", "fallback": "claude-opus-5", "effort": "high", "fallbackEffort": "high",
                    "codex": { "model": "gpt-6-astra", "reasoningEffort": "high" } },
     "implement": { "model": "claude-opus-5",    "fallback": null,            "effort": "high",
@@ -24,7 +24,7 @@
     "evaluate":  { "model": "claude-fable-5-1", "fallback": "claude-opus-5", "effort": "high", "fallbackEffort": "medium",
                    "codex": { "model": "gpt-6-astra", "reasoningEffort": "high" } },
     "docs":      { "model": "haiku",            "fallback": null,            "effort": "low",
-                   "codex": { "model": "gpt-5.6-sol", "reasoningEffort": "low" } },
+                   "codex": { "model": "gpt-5.6-luna", "reasoningEffort": "low" } },
 
     "codex": {
       "_comment": "GLOBAL Codex CLI defaults, read whenever any phase's model/fallback/second resolves to 'codex' AND that phase has no `codex{}` block of its own (all six agent phases now do, so this block is the floor, not the usual source). PINNED, NOT FLOATING, since 2026-09-09: `model: null` floats on the CLI default — every *-codex ID was retired in 2026-07/08 and pinned IDs rot (design-doc 002 Consequences); the effective model is read back from the exec transcript header, never assumed. We pin anyway, by James's decision, because floating was MEASURED to move inside a single working day: 21 transcripts from 2026-09-09 split cleanly at ~17:00 UTC, every run before reporting `gpt-5.6-sol` and every run after `gpt-6-astra`, same box, same account, same flags (state/evidence/2026-09-09-v6.3-command-skill-bridge/, and effort-model-coupling.txt rules out the effort flag as the cause). An unpinned judge can change model between one morning and one afternoon, which makes cross-run comparison meaningless. The cost of pinning is that a retired ID breaks loudly - /harness-doctor 10(f)+10(g) report the effective model per phase, so the rot is visible rather than silent. auth/timeoutSeconds are global-only (a per-phase codex block carrying either is a doctor 10(g) error). auth=chatgpt matches this box: `codex login status` reports 'Logged in using ChatGPT' and CODEX_API_KEY is unset (probed 2026-09-09 on codex-cli 0.153.4).",

@@ -1,0 +1,4 @@
+### candidate model id: gpt-5.6-luna  (effort low)
+    exit=0  header model=gpt-5.6-luna
+  ok   'gpt-5.6-luna' RESOLVES and RUNS (header matches, exit 0)
+  ok   effort 'low' bound on this model (header says so)

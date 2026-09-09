@@ -15,19 +15,24 @@ HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 OUT="${PROBE_OUT_DIR:-$(cd "$HERE/.." && pwd)}"
 ROOT="$(cd "$HERE/../../../.." && pwd)"
 CAND="${1:-}"
-[ -n "$CAND" ] || { echo "usage: model-id-check.sh <model-id>"; exit 2; }
+# Optional second arg: the reasoning effort to test WITH. Verify the COMBINATION you ship, not just
+# the id - effort levels are not guaranteed to be supported by every model, and `minimal` is the one
+# the harness relies on for the codex explorer.
+EFFORT="${2:-}"
+[ -n "$CAND" ] || { echo "usage: model-id-check.sh <model-id> [reasoning-effort]"; exit 2; }
 if [ "${PROBE_SKIP_MODEL:-0}" = "1" ]; then echo "--   skipped (PROBE_SKIP_MODEL=1)"; exit 0; fi
-LOG="$OUT/model-id-check-$CAND.txt"
+LABEL="$CAND${EFFORT:+-$EFFORT}"
+LOG="$OUT/model-id-check-$LABEL.txt"
 : > "$LOG"
 exec > >(tee -a "$LOG") 2>&1
 rc=0
 
-echo "### candidate model id: $CAND"
-lg="$OUT/model-id-$CAND.log"
+echo "### candidate model id: $CAND${EFFORT:+  (effort $EFFORT)}"
+lg="$OUT/model-id-$LABEL.log"
 lm="$(mktemp)"
 printf 'Reply with the single word OK.' | codex --sandbox read-only --ask-for-approval never exec - \
   --cd "$ROOT" --skip-git-repo-check --output-last-message "$lm" -c 'approval_policy="never"' \
-  -m "$CAND" > "$lg" 2>&1
+  -m "$CAND" ${EFFORT:+-c "model_reasoning_effort=\"$EFFORT\""} > "$lg" 2>&1
 crc=$?
 rm -f "$lm"
 GOT="$(grep -m1 -E '^model:' "$lg" | tr -d '\r' | sed 's/^model: //')"
@@ -38,24 +43,33 @@ echo "    exit=$crc  header model=${GOT:-<none>}"
 # match must be paired with a zero exit or the check passes on a model that cannot run.
 if [ "$GOT" = "$CAND" ] && [ "$crc" -eq 0 ]; then
   echo "  ok   '$CAND' RESOLVES and RUNS (header matches, exit 0)"
-  echo "VALID $CAND" > "$OUT/model-id-verdict-$CAND.txt"
+  if [ -n "$EFFORT" ]; then
+    GOTE="$(grep -m1 -E '^reasoning effort:' "$lg" | tr -d '\r' | sed 's/^reasoning effort: //')"
+    if [ "$GOTE" = "$EFFORT" ]; then
+      echo "  ok   effort '$EFFORT' bound on this model (header says so)"
+    else
+      echo "  FAIL asked for effort '$EFFORT', header reports '$GOTE' - this model/effort pair is not what it claims"
+      rc=1
+    fi
+  fi
+  echo "VALID $CAND" > "$OUT/model-id-verdict-$LABEL.txt"
 elif [ "$GOT" = "$CAND" ]; then
   echo "  FAIL '$CAND' is echoed in the header but the run FAILED (exit $crc) - the id is not usable"
   echo "    the error:"
   grep -m2 -E '^(ERROR|warning):' "$lg" | sed 's/^/      /'
-  echo "UNUSABLE $CAND (header echo, exit $crc)" > "$OUT/model-id-verdict-$CAND.txt"
+  echo "UNUSABLE $CAND (header echo, exit $crc)" > "$OUT/model-id-verdict-$LABEL.txt"
   rc=1
 elif [ -n "$GOT" ]; then
   echo "  FAIL SILENT SUBSTITUTION - asked for '$CAND', codex ran '$GOT'"
   echo "  ..   a wrong or retired pin would run the wrong model with no error. Pins cannot be trusted"
   echo "  ..   from the config alone; read the header back."
-  echo "SUBSTITUTED $CAND -> $GOT" > "$OUT/model-id-verdict-$CAND.txt"
+  echo "SUBSTITUTED $CAND -> $GOT" > "$OUT/model-id-verdict-$LABEL.txt"
   rc=1
 else
   echo "  ok   '$CAND' was REJECTED loudly (no session header; exit $crc) - a bad pin fails, it does not substitute"
   echo "    first lines of the error:"
   head -6 "$lg" | sed 's/^/      /'
-  echo "INVALID $CAND" > "$OUT/model-id-verdict-$CAND.txt"
+  echo "INVALID $CAND" > "$OUT/model-id-verdict-$LABEL.txt"
 fi
 
 cd "$ROOT" || exit 1

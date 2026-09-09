@@ -1254,7 +1254,8 @@ foreach ($ph in @('session','plan','implement','review','evaluate','explore','do
   $cxm = if ($null -ne $cx) { [string](Get-Prop $cx 'model') } else { '' }
   ok "models.$ph.codex.model is pinned explicitly, not floating" ($cxm -and $cxm -ne 'null')
 }
-ok "the codex explorer runs at 'minimal' (codex-only level; cheaper than the judges)" ([string](Get-Prop $rcfg.models.explore.codex 'reasoningEffort') -eq 'minimal')
+# 'none', not 'minimal' - `minimal` is refused at runtime by both pinned models (measured 2026-09-09).
+ok "the codex explorer runs at 'none' (the cheapest level these models actually accept)" ([string](Get-Prop $rcfg.models.explore.codex 'reasoningEffort') -eq 'none')
 ok "the codex second reviewer runs at 'high'" ([string](Get-Prop $rcfg.models.review.codex 'reasoningEffort') -eq 'high')
 
 Write-Host "model routing V6.2: a codex route must have a dispatch site (harness-doctor 10(i))"
