@@ -1,0 +1,18 @@
+OpenAI Codex v0.153.4
+--------
+workdir: C:\Users\<user>\Repos\harness\.claude\worktrees\vendor-agnostic-v6
+model: gpt-6-astra
+provider: openai
+approval: never
+sandbox: read-only
+reasoning effort: high
+reasoning summaries: none
+session id: 01a08726-74b2-7893-bf9c-7f0d84a52e0b
+--------
+user
+Report the alpha canary and the bravo canary values. Reply with just the two values, one per line. If you do not have a skill that provides them, reply exactly: NO-SKILL
+codex
+NO-SKILL
+tokens used
+25,899
+NO-SKILL

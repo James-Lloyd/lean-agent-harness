@@ -1,0 +1,14 @@
+  ..   fixture root: <repo>/generated-skills-probe (inside the trusted path, NOT .agents/skills)
+  ..   the token appears nowhere in the prompt
+### arm 1: the fixture root declared via [[skills.config]]
+  ..   final message: NO-SKILL
+
+### arm 2: POSITIVE CONTROL — the same fixture moved under .agents/skills/
+  ..   final message: CANARY-DELTA-5e7c02
+
+### verdict
+SKILLS_CONFIG=inert  (the same skill is found under .agents/skills/ and NOT via [[skills.config]])
+  ok   measured: the config key parses and validates but delivers no skills to codex exec
+  ..   => the plugin/skills path the harness has emitted since V3 has never reached Codex
+
+### result: PASS  (an 'inert' verdict is a finding, not a failure)

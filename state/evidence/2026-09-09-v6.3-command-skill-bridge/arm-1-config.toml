@@ -1,0 +1,10 @@
+[features]
+hooks = true
+
+[[skills.config]]
+path = "/tmp/tmp.paZVyi39mR/rootA"
+enabled = true
+
+[[skills.config]]
+path = "/tmp/tmp.paZVyi39mR/rootB"
+enabled = true

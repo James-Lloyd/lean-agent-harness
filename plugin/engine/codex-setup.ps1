@@ -49,6 +49,7 @@ Set-StrictMode -Version Latest
 
 $pluginRoot = Split-Path -Parent $PSScriptRoot
 $hooksDir = Join-Path $pluginRoot 'hooks'; $skillsDir = Join-Path $pluginRoot 'skills'; $agentsDir = Join-Path $pluginRoot 'agents'
+$cmdsDir  = Join-Path $pluginRoot 'commands'   # source of the command->skill bridge (design-doc 002 V6)
 
 if (-not $ProjectRoot) {
   $prevEAP = $ErrorActionPreference; $ErrorActionPreference = 'Continue'
@@ -72,6 +73,23 @@ function Fwd([string]$p) { return $p.Replace('\', '/') }                       #
 function TomlBasic([string]$s) { return $s.Replace('\', '\\').Replace('"', '\"') }
 function Write-NoBom([string]$path, [string]$text) { [System.IO.File]::WriteAllText($path, $text, $utf8) }
 # Ordinal name order (= the .sh twin's LC_ALL=C sort), so the inputs digest agrees across twins.
+function Ordinal-Files([string]$dir, [string]$filter) {
+  $files = @(Get-ChildItem -LiteralPath $dir -Filter $filter -ErrorAction SilentlyContinue)
+  $names = New-Object System.Collections.ArrayList
+  foreach ($f in $files) { [void]$names.Add($f.Name) }
+  $names.Sort([System.StringComparer]::Ordinal)
+  return @($names | ForEach-Object { $n = $_; $files | Where-Object { $_.Name -ceq $n } | Select-Object -First 1 })
+}
+# Plugin skill dirs in ordinal order by DIRECTORY name — the .sh twin sorts the `<dir>/SKILL.md` glob,
+# whose ordering is decided by the directory component, and hashes `## <dirname>` before each body.
+function Skill-Files {
+  $dirs = @(Get-ChildItem -LiteralPath $skillsDir -Directory -ErrorAction SilentlyContinue |
+            Where-Object { Test-Path -LiteralPath (Join-Path $_.FullName 'SKILL.md') -PathType Leaf })
+  $names = New-Object System.Collections.ArrayList
+  foreach ($d in $dirs) { [void]$names.Add($d.Name) }
+  $names.Sort([System.StringComparer]::Ordinal)
+  return @($names | ForEach-Object { $n = $_; $dirs | Where-Object { $_.Name -ceq $n } | Select-Object -First 1 })
+}
 function Agent-Files {
   $files = @(Get-ChildItem -LiteralPath $agentsDir -Filter *.md)
   $names = New-Object System.Collections.ArrayList
@@ -89,6 +107,16 @@ function Get-InputsHash {
   foreach ($f in (Agent-Files)) {
     $w.Write($utf8.GetBytes("## $($f.Name)`n"))
     $w.Write([System.IO.File]::ReadAllBytes($f.FullName))
+  }
+  # The generated .agents/skills/ set is derived from the commands and the plugin skills, so a change
+  # to either must read STALE. Order and separators mirror the .sh twin byte for byte.
+  foreach ($f in (Ordinal-Files $cmdsDir '*.md')) {
+    $w.Write($utf8.GetBytes("## $($f.Name)`n"))
+    $w.Write([System.IO.File]::ReadAllBytes($f.FullName))
+  }
+  foreach ($d in (Skill-Files)) {
+    $w.Write($utf8.GetBytes("## $($d.Name)`n"))
+    $w.Write([System.IO.File]::ReadAllBytes((Join-Path $d.FullName 'SKILL.md')))
   }
   $w.Flush()
   $sha = [System.Security.Cryptography.SHA256]::Create()
@@ -172,6 +200,65 @@ foreach ($f in (Agent-Files)) {
 }
 
 # stamp
+# .agents/skills/ - THE ONLY SKILL LOCATION CODEX EXEC ACTUALLY READS (mirror of the .sh twin).
+# Measured 2026-09-09 on codex-cli 0.153.4 with a canary token present in exactly one file
+# (state/evidence/2026-09-09-v6.3-command-skill-bridge/): a skill under `.agents/skills/<name>/` is
+# discovered and used without being named in the prompt, while the identical file behind a
+# `[[skills.config]] path` entry is never reached. Emits the plugin's reference skills verbatim, plus
+# every harness COMMAND as a skill - the command->skill bridge (design-doc 002 slice V6).
+$skillsOut = Join-Path $ProjectRoot '.agents/skills'
+[void](New-Item -ItemType Directory -Force -Path $skillsOut)
+# Wipe only what WE generated, so a hand-written skill beside ours survives a re-run.
+foreach ($d in @(Get-ChildItem -LiteralPath $skillsOut -Directory -ErrorAction SilentlyContinue)) {
+  if (Test-Path -LiteralPath (Join-Path $d.FullName '.harness-generated') -PathType Leaf) {
+    Remove-Item -LiteralPath $d.FullName -Recurse -Force
+  }
+}
+function Strip-Frontmatter([string]$path) {
+  $lines = [System.IO.File]::ReadAllLines($path); $n = 0; $started = $false
+  $body = New-Object System.Collections.ArrayList
+  foreach ($ln in $lines) {
+    if ($ln -match '^---\s*$') { $n++; if ($n -le 2) { continue } }
+    if ($n -lt 2) { continue }
+    if (-not $started -and $ln.Trim() -eq '') { continue }
+    $started = $true; [void]$body.Add($ln)
+  }
+  while ($body.Count -gt 0 -and $body[$body.Count - 1].Trim() -eq '') { $body.RemoveAt($body.Count - 1) }
+  return ($body -join "`n")
+}
+function Emit-Skill([string]$name, [string]$desc, [string]$bodyText, [string]$preamble) {
+  $sd = Join-Path $skillsOut $name
+  [void](New-Item -ItemType Directory -Force -Path $sd)
+  $t = "---`nname: $name`ndescription: $desc`n---`n`n<!-- $genNote -->`n`n"
+  if ($preamble) { $t += "$preamble`n`n" }
+  $t += "$bodyText`n"
+  Write-NoBom (Join-Path $sd 'SKILL.md') $t
+  Write-NoBom (Join-Path $sd '.harness-generated') ''
+}
+foreach ($d in (Skill-Files)) {
+  $sf = Join-Path $d.FullName 'SKILL.md'
+  $sname = ''; $sdesc = ''
+  foreach ($ln in [System.IO.File]::ReadAllLines($sf)) {
+    if (-not $sname -and $ln -match '^name:\s*(.+)$')        { $sname = $Matches[1] }
+    if (-not $sdesc -and $ln -match '^description:\s*(.+)$') { $sdesc = $Matches[1] }
+  }
+  if (-not $sname) { $sname = $d.Name }
+  Emit-Skill $sname $sdesc (Strip-Frontmatter $sf) ''
+}
+$cmdPreamble = '**You are running under the OpenAI Codex CLI, not Claude Code.** This is a harness command translated into a skill. Read `AGENTS.md` at the repo root for the project map (Codex reads it natively; it is the same content Claude Code gets through `CLAUDE.md`). Translations that apply throughout the text below: a **slash command** (`/work`, `/review`, …) is another skill in this same directory named `harness-<command>` - invoke it by reading it, not by typing the slash form, which does not exist here. A **subagent** named in the text (`generator`, `reviewer`, `planner`, `explorer`, `evaluator`, `doc-gardener`) has a Codex role definition under `.codex/agents/<name>.toml` carrying that phase''s model, reasoning effort and sandbox; where the text says to spawn one, either delegate to that role or do the work yourself under its rules and its sandbox - and keep the harness''s own rule that the doer is never the judge. **`allowed-tools` frontmatter, `model:` frontmatter and their drift checks are Claude-Code-only and do not apply.** Everything else - the phase order, the gates, the guardrails, the output contract - applies unchanged.'
+foreach ($f in (Ordinal-Files $cmdsDir '*.md')) {
+  $cname = [System.IO.Path]::GetFileNameWithoutExtension($f.Name)
+  $cdesc = ''
+  foreach ($ln in [System.IO.File]::ReadAllLines($f.FullName)) {
+    if ($ln -match '^description:\s*(.+)$') { $cdesc = $Matches[1]; break }
+  }
+  if (-not $cdesc) { $cdesc = "The harness's /$cname command, translated for Codex." }
+  # `harness-doctor.md` etc. already carry the prefix; don't emit `harness-harness-doctor`.
+  $sname = if ($cname.StartsWith('harness-')) { $cname } else { "harness-$cname" }
+  Emit-Skill $sname $cdesc (Strip-Frontmatter $f.FullName) $cmdPreamble
+}
+$skillCount = @(Get-ChildItem -LiteralPath $skillsOut -Directory -ErrorAction SilentlyContinue).Count
+
 $stampObj = [ordered]@{ pluginVersion = $pluginVersion; inputsHash = (Get-InputsHash); pluginRoot = (Fwd $pluginRoot); generatedAt = [DateTime]::UtcNow.ToString('yyyy-MM-ddTHH:mm:ssZ') }
 Write-NoBom (Join-Path $out '.harness-stamp.json') (($stampObj | ConvertTo-Json) + "`n")
 
@@ -181,6 +268,13 @@ $giLines = if (Test-Path $gi) { @(Get-Content -LiteralPath $gi) } else { @() }
 if (-not ($giLines -ccontains '.codex/')) {
   # AppendAllText with the no-BOM encoding: Add-Content -Encoding utf8 would splice a BOM mid-file on 5.1.
   [System.IO.File]::AppendAllText($gi, "`n# OpenAI Codex CLI surfaces generated by harness/codex-setup.* (machine-local absolute paths):`n.codex/`n", $utf8)
+}
+# .agents/ gets its own guard: a repo set up before the bridge shipped already has the `.codex/` line,
+# so a combined check would never append this one. `-ccontains` is case-sensitive, matching the .sh
+# twin's `grep -qx`. Re-read the file: the block above may have just appended to it.
+$giLines2 = if (Test-Path $gi) { @(Get-Content -LiteralPath $gi) } else { @() }
+if (-not ($giLines2 -ccontains '.agents/')) {
+  [System.IO.File]::AppendAllText($gi, ".agents/`n", $utf8)
 }
 
 # -User: hooks into ~/.codex/hooks.json (only place repo hooks run under headless `codex exec` untrusted)
@@ -200,5 +294,7 @@ if ($User) {
 
 $nAgents = @(Get-ChildItem -LiteralPath (Join-Path $out 'agents') -Filter *.toml).Count
 Write-Output "codex-setup: wrote $out (config.toml, hooks.json, $nAgents agents) for plugin $pluginVersion"
+Write-Output "codex-setup: wrote $skillsOut ($skillCount skills - the harness commands as harness-<name>, plus the reference skills)"
+Write-Output "NOTE: .agents/skills/ is where 'codex exec' actually finds skills; the config.toml [[skills.config]] stanza does NOT deliver them (measured 0.153.4) - docs/codex-setup.md"
 Write-Output "NOTE: under headless 'codex exec' the repo's .codex/hooks.json is NEVER loaded (Codex 0.144.3, slice V5) - use -User (~/.codex/hooks.json) plus /hooks trust or --dangerously-bypass-hook-trust; the project file serves interactive sessions - docs/codex-setup.md"
 exit 0

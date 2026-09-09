@@ -1,6 +1,6 @@
 # 002 — Vendor-agnostic routing (Claude Code today, OpenAI Codex CLI swappable per phase)
 
-- **Status:** accepted — V1–V5 shipped; **V6.1 (2026-09-09) routed this repo's `review.second` to Codex**, the first time the arm is used rather than merely tested (branch `worktree-vendor-agnostic-v6`; evidence `state/evidence/2026-09-09-v6-second-reviewer-routing/`). **V6.2 (2026-09-09) graded the phases a codex route cannot reach** (`/harness-doctor` 10(i); evidence `state/evidence/2026-09-09-v6.2-dispatch-site-gap/`). V6.3 (the command→skill bridge, "Out of scope" below) remains open in `state/fix_plan.md`. Original V1–V5 status: V1–V4 merged 2026-09-05 as PRs #11–#14; V5 live-fire done 2026-09-05 (`state/evidence/2026-09-05-vendor-agnostic-refit-v5/`): second reviewer compared on a real diff (Fable SHIP vs Codex REJECT, advisory), and the hook probe found four V3 defects fixed in plugin 0.3.5 (see Consequences)
+- **Status:** accepted — V1–V5 shipped; **V6.1 (2026-09-09) routed this repo's `review.second` to Codex**, the first time the arm is used rather than merely tested (branch `worktree-vendor-agnostic-v6`; evidence `state/evidence/2026-09-09-v6-second-reviewer-routing/`). **V6.2 (2026-09-09) graded the phases a codex route cannot reach** (`/harness-doctor` 10(i); evidence `state/evidence/2026-09-09-v6.2-dispatch-site-gap/`). **V6.3 (2026-09-09) SHIPPED the command→skill bridge** that the "Out of scope" section below defers — every harness command is generated into `<project>/.agents/skills/harness-<name>/`, live-fired loaded-and-acted-on (evidence `state/evidence/2026-09-09-v6.3-command-skill-bridge/`), and the same slice measured the shipped `[[skills.config]]` stanza to be inert for `codex exec`. Original V1–V5 status: V1–V4 merged 2026-09-05 as PRs #11–#14; V5 live-fire done 2026-09-05 (`state/evidence/2026-09-05-vendor-agnostic-refit-v5/`): second reviewer compared on a real diff (Fable SHIP vs Codex REJECT, advisory), and the hook probe found four V3 defects fixed in plugin 0.3.5 (see Consequences)
 - **Date:** 2026-09-04
 
 ## Context
@@ -80,6 +80,12 @@ added later without breaking anything. What actually matters — choosing a diff
 depth per phase — is delivered by the override object.
 
 **D3. Codex surfaces are *generated*, machine-local, and gitignored.** (slice V3)
+*(Superseded in part, 2026-09-09 / V6.3: the `[[skills.config]]` stanza described here validates but
+delivers no skills to `codex exec` — measured with a canary token in
+`state/evidence/2026-09-09-v6.3-command-skill-bridge/`. Skills are now generated into
+`<project>/.agents/skills/`, which is read, and which also carries the command→skill bridge that this
+doc's "Out of scope" section defers.)*
+
 A new engine script pair `codex-setup.{ps1,sh}` writes `.codex/config.toml` (`[[skills.config]] path`
 pointing at the installed plugin's `skills/` with `enabled = true`, hooks feature on — no `[agents]`
 block: V5 found Codex 0.144.3 rejects `enabled`/`default_subagent_*` there as a malformed agent role),
@@ -107,6 +113,15 @@ second `codex` (`gpt-5.6-sol` @ `high`).
 **Out of scope, recorded:** bridging the harness's slash commands (`/work`, `/review`, …) to Codex
 (`$skills` are the Codex analogue; custom prompts are deprecated there) — a Codex operator runs the
 loop headlessly or drives the phases by hand until a command→skill bridge exists (slice V6, unplanned).
+
+> **DONE 2026-09-09 (V6.3).** `codex-setup.*` generates each command into
+> `<project>/.agents/skills/harness-<command>/SKILL.md` with a preamble translating the Claude-Code-isms
+> (slash form → sibling skill, subagent → `.codex/agents/<name>.toml` role, `allowed-tools`/`model:`
+> frontmatter → not applicable). Live-fired: codex answered the harness's own three-valued verdict
+> contract and its doer-is-not-the-judge rule from the generated `harness-review` skill, and returned
+> `NO-SKILL` with the generated set moved aside. The guess in the paragraph above was half right —
+> skills are the Codex analogue, but the delivery mechanism is `.agents/skills/`, not the
+> `[[skills.config]]` path D3 assumed.
 
 ## Consequences
 

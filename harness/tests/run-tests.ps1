@@ -1034,6 +1034,31 @@ ok "generator.toml: workspace-write + inherits the global codex model" ($gn -mat
 ok "reviewer.toml: body embedded as a TOML literal, frontmatter stripped" ($rv.Contains("developer_instructions = '''") -and $rv.Contains('fresh-context reviewer') -and -not ($rv -match '(?m)^name: reviewer'))
 $giCount = @(Get-Content -LiteralPath (Join-Path $csp '.gitignore') | Where-Object { $_ -ceq '.codex/' }).Count
 ok ".gitignore gained exactly one '.codex/' line"                ($giCount -eq 1)
+# --- the command->skill bridge (V6.3), mirroring the bash twin ------------------------------------
+# `.agents/skills/` is the ONLY location codex exec reads (measured 2026-09-09; the config.toml
+# [[skills.config]] stanza is inert for exec). Pin the OUTPUT, not the stanza.
+$csk      = Join-Path $csp '.agents/skills'
+$nCmds    = @(Get-ChildItem -LiteralPath (Join-Path $engineDir '../commands') -Filter *.md).Count
+$nPSkills = @(Get-ChildItem -LiteralPath (Join-Path $engineDir '../skills') -Directory).Count
+$nGen     = @(Get-ChildItem -LiteralPath $csk -Directory -ErrorAction SilentlyContinue).Count
+ok "skills/: one per plugin command AND per reference skill (got $nGen, want $($nCmds + $nPSkills))" ($nGen -eq ($nCmds + $nPSkills))
+ok "bridge: /review became the harness-review skill" (Test-Path -LiteralPath (Join-Path $csk 'harness-review/SKILL.md') -PathType Leaf)
+ok "bridge: /work became the harness-work skill"     (Test-Path -LiteralPath (Join-Path $csk 'harness-work/SKILL.md') -PathType Leaf)
+ok "bridge: an already-prefixed command is not double-prefixed" ((Test-Path -LiteralPath (Join-Path $csk 'harness-doctor/SKILL.md') -PathType Leaf) -and -not (Test-Path -LiteralPath (Join-Path $csk 'harness-harness-doctor')))
+ok "reference skills are emitted alongside the bridged commands" (Test-Path -LiteralPath (Join-Path $csk 'model-routing/SKILL.md') -PathType Leaf)
+$brv = Get-Content -LiteralPath (Join-Path $csk 'harness-review/SKILL.md') -Raw
+$bmr = Get-Content -LiteralPath (Join-Path $csk 'model-routing/SKILL.md') -Raw
+ok "bridged skill carries name + description frontmatter"  (($brv -match '(?m)^name: harness-review$') -and ($brv -match '(?m)^description: '))
+ok "bridged skill drops Claude-only frontmatter keys"      (-not ($brv -match '(?m)^allowed-tools:') -and -not ($brv -match '(?m)^argument-hint:'))
+ok "bridged skill carries the Codex translation preamble"  ($brv.Contains('not Claude Code') -and $brv.Contains('.codex/agents/'))
+ok "a reference skill is emitted verbatim (no command preamble)" (-not $bmr.Contains('not Claude Code'))
+ok "bridged skill carries the command BODY, not just its frontmatter" ($brv.Contains('fresh-context'))
+$giA = @(Get-Content -LiteralPath (Join-Path $csp '.gitignore') | Where-Object { $_ -ceq '.agents/' }).Count
+ok ".gitignore gained exactly one '.agents/' line"         ($giA -eq 1)
+[void](New-Item -ItemType Directory -Force -Path (Join-Path $csk 'my-own-skill'))
+Set-Content -LiteralPath (Join-Path $csk 'my-own-skill/SKILL.md') -Value "---`nname: my-own-skill`n---`nmine" -Encoding utf8
+$null = _CS @()
+ok "a hand-written skill survives regeneration (only .harness-generated dirs are wiped)" (Test-Path -LiteralPath (Join-Path $csk 'my-own-skill/SKILL.md') -PathType Leaf)
 $null = _CS @()
 $giCount2 = @(Get-Content -LiteralPath (Join-Path $csp '.gitignore') | Where-Object { $_ -ceq '.codex/' }).Count
 ok "re-run is idempotent on .gitignore"                          ($giCount2 -eq 1)

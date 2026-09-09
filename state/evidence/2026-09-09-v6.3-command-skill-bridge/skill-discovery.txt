@@ -1,0 +1,11 @@
+### arm 1: two [[skills.config]] roots, project config present
+  ..   final message: NO-SKILL
+  ..   config lines codex echoed: 3 mentioning 'skill'
+  FAIL alpha canary NOT returned — skills at [[skills.config]] path are not reaching codex exec
+  FAIL bravo canary NOT returned — a second skills root does not load
+
+### arm N: NEGATIVE CONTROL — same question, no skills roots configured
+  ..   final message: NO-SKILL
+  ok   no canary token without the skills roots — arm 1's tokens really came from the skill files
+
+### result: FAIL

@@ -55,7 +55,7 @@ written to `~/.codex` in the re-verification, so the user-level path could not h
 
 | File | Content | Why generated, not committed |
 |---|---|---|
-| `.codex/config.toml` | `[features] hooks = true`; `[[skills.config]] path = <plugin>/skills` + `enabled = true` so Codex reads the harness skills (Agent Skills standard). **No `[agents]` block**: verified live on Codex 0.144.3 (slice V5), `[agents]` is a table of agent *roles* there, so the `enabled`/`default_subagent_*` keys V3 emitted were rejected as a malformed role — and any config-load error kills the *whole* `.codex/` layer silently (the run continues on `~/.codex/config.toml` alone). **0.153.4 accepts `[agents] enabled = true`** (re-verified 2026-09-06; `default_subagent_*` was **not** re-sent, and per `AGENT_NOTES.md` that field did not exist in the 0.144.3 binary at all), so omitting the block is now a compatibility choice rather than a necessity: one artifact stays valid on both. Per-agent model/effort lives in `agents/<name>.toml` | the plugin lives in the per-machine cache (`~/.claude/plugins/…`), so the path is absolute and local — a committed absolute path dies on the next device (ratchet 2026-07-30) |
+| `.codex/config.toml` | `[features] hooks = true`; `[[skills.config]] path = <plugin>/skills` + `enabled = true`. **This stanza does NOT deliver skills to `codex exec`** — measured 2026-09-09 (see "Driving the harness from Codex" below); the skills Codex actually reads are generated into `<project>/.agents/skills/`. It is kept only because the measurement covers `exec` and an interactive session may still use it. **No `[agents]` block**: verified live on Codex 0.144.3 (slice V5), `[agents]` is a table of agent *roles* there, so the `enabled`/`default_subagent_*` keys V3 emitted were rejected as a malformed role — and any config-load error kills the *whole* `.codex/` layer silently (the run continues on `~/.codex/config.toml` alone). **0.153.4 accepts `[agents] enabled = true`** (re-verified 2026-09-06; `default_subagent_*` was **not** re-sent, and per `AGENT_NOTES.md` that field did not exist in the 0.144.3 binary at all), so omitting the block is now a compatibility choice rather than a necessity: one artifact stays valid on both. Per-agent model/effort lives in `agents/<name>.toml` | the plugin lives in the per-machine cache (`~/.claude/plugins/…`), so the path is absolute and local — a committed absolute path dies on the next device (ratchet 2026-07-30) |
 | `.codex/hooks.json` | four of the five harness guard hooks routed through the same `run.mjs` dispatcher and hook bodies Claude Code uses: `protect-specs`, `format-and-check`, `session-start` under matcher `*`; `block-destructive` under the **shell-tool matcher** only (`--shell-matcher`, see below). `lock-config` has no Codex event (`ConfigChange`) | same absolute-path reason |
 | `.codex/agents/<name>.toml` | one Codex custom agent per plugin agent: `model`/`model_reasoning_effort` from that phase's **effective** codex settings (`models.<phase>.codex{}` over `models.codex`), `sandbox_mode = "read-only"` for the judges (reviewer, evaluator, risk-classifier, explorer) and `"workspace-write"` for the writers, `developer_instructions` = the agent's body | the body is plugin content: regenerate on `/plugin update` rather than fork it. **A generated judge's `read-only` inherits the SESSION's approval policy and is not by itself the guarantee** — see the bullet above; whether an agent table accepts an approval key is unmeasured, so a judge spawned outside the engine's own invocation is only as safe as the policy it inherits |
 | `.codex/.harness-stamp.json` | plugin version + a sha256 of every input (config, hook manifest, agent files, plugin root) | lets `--check` say **fresh / STALE / NOT generated** deterministically; `/harness-doctor` check 12 runs it |
@@ -218,8 +218,38 @@ about it are worth keeping:
   way produced no warning at all — the content is validated on the discovery path, not the
   declaration path. The harness does not use declarations, and on this evidence should not start.
 
+## Driving the harness from Codex (the command→skill bridge)
+
+**Shipped 2026-09-09 (slice V6.3).** `codex-setup.*` now writes every harness command into
+`<project>/.agents/skills/harness-<command>/SKILL.md` — `harness-work`, `harness-review`,
+`harness-verify`, `harness-plan`, and the rest — alongside the plugin's reference skills. A Codex
+operator asks for the work in words ("review the current diff using the harness review skill", or just
+"review the current diff") and Codex finds the skill itself.
+
+Each bridged skill keeps the command's full body and gains a preamble that translates the
+Claude-Code-isms: a slash command is another skill named `harness-<command>`; a named subagent has a
+role under `.codex/agents/<name>.toml` carrying that phase's model, effort and sandbox; `allowed-tools`
+and `model:` frontmatter do not apply. The doer-is-not-the-judge rule is carried through unchanged.
+
+**Where skills must live, and where they must not.** Measured live on codex-cli 0.153.4 with a canary
+token present in exactly one file (`state/evidence/2026-09-09-v6.3-command-skill-bridge/`):
+
+| Location | Read by `codex exec`? |
+|---|---|
+| `<project>/.agents/skills/<name>/SKILL.md` | **Yes** — discovered and used *without* being named in the prompt |
+| a root declared via `[[skills.config]] path` in `config.toml` | **No** — the identical file returns `NO-SKILL` |
+
+The second row corrects a claim this document and the generator carried from slice V3 onward: the
+`[[skills.config]]` stanza validates (omitting `enabled` is still fatal) but delivers no skills to
+`codex exec`, so the plugin's reference skills never actually reached Codex that way. The stanza is
+still emitted — the measurement covers `codex exec` only, and an interactive session may read it — but
+it is no longer the mechanism anything relies on. **Trust still gates everything project-level**, and
+trust is prefix-inherited: a trusted repo covers its own git worktrees (measured the same day).
+
 ## What stays Claude-only
 
-The harness's slash commands (`/work`, `/review`, …) are Claude Code commands. Under Codex you run the
-headless loop (`harness/loop.*` with the phase routed to `codex`) or drive phases by hand with the
-generated agents; a command-to-skill bridge is a later slice (design-doc 002, "Out of scope").
+The Claude Code **slash form** itself (`/work`), the `Agent` tool as spelled in the command bodies,
+`.claude/settings.json` permissions, and the `model:`/`allowed-tools` frontmatter drift checks. The
+orchestration prose those commands carry is no longer Claude-only — that is what the bridge changed.
+Also still Claude-only in practice: `explore` and `docs` can never route to Codex, and `plan` only
+does so interactively (`/harness-doctor` 10(i)).

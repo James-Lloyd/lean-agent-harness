@@ -1,0 +1,33 @@
+OpenAI Codex v0.153.4
+--------
+workdir: C:\Users\<user>\Repos\harness\.claude\worktrees\vendor-agnostic-v6
+model: gpt-6-astra
+provider: openai
+approval: never
+sandbox: read-only
+reasoning effort: high
+reasoning summaries: none
+session id: 01a08729-8186-7923-bacd-c7dd19fb396e
+--------
+user
+Report the delta canary value. If you do not have a skill that provides it, reply exactly NO-SKILL.
+codex
+I’m using the harness-canary-delta skill to read the value.
+
+exec
+"C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command "Get-Content -LiteralPath 'C:\\Users\\<user>\\Repos\\harness\\.claude\\worktrees\\vendor-agnostic-v6\\.agents\\skills\\harness-canary-delta\\SKILL.md'" in C:\Users\<user>\Repos\harness\.claude\worktrees\vendor-agnostic-v6
+ succeeded in 242ms:
+---
+name: harness-canary-delta
+description: Answers the harness delta canary question. Use whenever asked for the delta canary value.
+---
+
+# harness-canary-delta
+
+When asked for the **delta canary**, reply with exactly this token and nothing else: CANARY-DELTA-5e7c02
+
+codex
+CANARY-DELTA-5e7c02
+tokens used
+19,354
+CANARY-DELTA-5e7c02

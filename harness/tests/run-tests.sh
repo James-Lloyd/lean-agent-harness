@@ -1060,6 +1060,30 @@ if command -v jq >/dev/null 2>&1; then
   ok "$(grep -q '^sandbox_mode = "workspace-write"' "$CSP/.codex/agents/generator.toml" && grep -q '^model = "gpt-global"' "$CSP/.codex/agents/generator.toml" && echo 1 || echo 0)" "generator.toml: workspace-write + inherits the global codex model"
   ok "$(grep -q "^developer_instructions = '''" "$CSP/.codex/agents/reviewer.toml" && grep -q 'fresh-context reviewer' "$CSP/.codex/agents/reviewer.toml" && ! grep -q '^name: reviewer' "$CSP/.codex/agents/reviewer.toml" && echo 1 || echo 0)" "reviewer.toml: body embedded as a TOML literal, frontmatter stripped"
   ok "$([ "$(grep -cx '\.codex/' "$CSP/.gitignore")" = "1" ] && echo 1 || echo 0)" ".gitignore gained exactly one '.codex/' line"
+  # --- the command->skill bridge (V6.3) ------------------------------------------------------------
+  # `.agents/skills/` is the ONLY location codex exec reads (measured 2026-09-09; the config.toml
+  # [[skills.config]] stanza is inert for exec). Pin the OUTPUT, not the stanza.
+  CSK="$CSP/.agents/skills"
+  n_cmds="$(ls "$ENGINE/../commands"/*.md | wc -l | tr -d ' ')"
+  n_pskills="$(ls -d "$ENGINE/../skills"/*/ | wc -l | tr -d ' ')"
+  n_gen="$(ls -d "$CSK"/*/ 2>/dev/null | wc -l | tr -d ' ')"
+  ok "$([ "$n_gen" = "$((n_cmds + n_pskills))" ] && echo 1 || echo 0)" "skills/: one per plugin command AND per reference skill (got $n_gen, want $((n_cmds + n_pskills)))"
+  ok "$([ -f "$CSK/harness-review/SKILL.md" ] && echo 1 || echo 0)"  "bridge: /review became the harness-review skill"
+  ok "$([ -f "$CSK/harness-work/SKILL.md" ] && echo 1 || echo 0)"    "bridge: /work became the harness-work skill"
+  # A command already named harness-* must not become harness-harness-*.
+  ok "$([ -f "$CSK/harness-doctor/SKILL.md" ] && [ ! -d "$CSK/harness-harness-doctor" ] && echo 1 || echo 0)" "bridge: an already-prefixed command is not double-prefixed"
+  ok "$([ -f "$CSK/model-routing/SKILL.md" ] && echo 1 || echo 0)"   "reference skills are emitted alongside the bridged commands"
+  # Frontmatter Codex needs, and the Claude-only frontmatter it must NOT inherit.
+  ok "$(grep -qx 'name: harness-review' "$CSK/harness-review/SKILL.md" && grep -q '^description: ' "$CSK/harness-review/SKILL.md" && echo 1 || echo 0)" "bridged skill carries name + description frontmatter"
+  ok "$(! grep -q '^allowed-tools:' "$CSK/harness-review/SKILL.md" && ! grep -q '^argument-hint:' "$CSK/harness-review/SKILL.md" && echo 1 || echo 0)" "bridged skill drops Claude-only frontmatter keys"
+  ok "$(grep -qF 'not Claude Code' "$CSK/harness-review/SKILL.md" && grep -qF '.codex/agents/' "$CSK/harness-review/SKILL.md" && echo 1 || echo 0)" "bridged skill carries the Codex translation preamble"
+  ok "$(! grep -qF 'not Claude Code' "$CSK/model-routing/SKILL.md" && echo 1 || echo 0)" "a reference skill is emitted verbatim (no command preamble)"
+  ok "$(grep -qF 'fresh-context' "$CSK/harness-review/SKILL.md" && echo 1 || echo 0)" "bridged skill carries the command BODY, not just its frontmatter"
+  ok "$([ "$(grep -cx '\.agents/' "$CSP/.gitignore")" = "1" ] && echo 1 || echo 0)" ".gitignore gained exactly one '.agents/' line"
+  # A hand-written skill beside the generated set must survive a re-run; a generated one must be replaced.
+  mkdir -p "$CSK/my-own-skill"; printf -- '---\nname: my-own-skill\n---\nmine\n' > "$CSK/my-own-skill/SKILL.md"
+  bash "$CS" --project-root "$CSP" >/dev/null 2>&1 || true
+  ok "$([ -f "$CSK/my-own-skill/SKILL.md" ] && echo 1 || echo 0)" "a hand-written skill survives regeneration (only .harness-generated dirs are wiped)"
   bash "$CS" --project-root "$CSP" >/dev/null 2>&1 || true
   ok "$([ "$(grep -cx '\.codex/' "$CSP/.gitignore")" = "1" ] && echo 1 || echo 0)" "re-run is idempotent on .gitignore"
   # A consumer .gitignore on Windows is often CRLF: the presence check must CR-strip or bash re-appends forever.

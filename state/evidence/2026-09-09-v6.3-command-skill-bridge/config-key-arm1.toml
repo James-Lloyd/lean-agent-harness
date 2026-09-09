@@ -1,0 +1,6 @@
+[features]
+hooks = true
+
+[[skills.config]]
+path = "/c/Users/<user>/Repos/harness/.claude/worktrees/vendor-agnostic-v6/generated-skills-probe"
+enabled = true

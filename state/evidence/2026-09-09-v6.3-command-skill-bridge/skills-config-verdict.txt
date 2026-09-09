@@ -1,0 +1,1 @@
+SKILLS_CONFIG=inert  (the same skill is found under .agents/skills/ and NOT via [[skills.config]])

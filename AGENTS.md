@@ -353,6 +353,26 @@ editing** (Claude Code: see CLAUDE.md; anything else: `git worktree add`). Land 
   match — it goes red on the PS twin while the bash twin's byte-identical `grep -F` passes, which reads
   as a twin-parity bug rather than an encoding one. Pin distinctive ASCII substrings in both twins.
 
+- [2026-09-09] **A probe fixture written in the foreign tool's own config language is PARSED before it
+  is believed — and a null result gets its premise established first.** Two wrong conclusions in one
+  slice, both from the checking code. (a) A canary skill was declared unreachable when the probe had
+  run in an *untrusted* temp project, where Codex skips the whole `config.toml`: the arm measured
+  trust, not skills. (b) The follow-up arm "proved" trust is not inherited by APPENDING
+  `model_reasoning_effort = "low"` to a `config.toml` ending in `[[skills.config]]` — in TOML a bare
+  key belongs to the table above it, so the key landed inside that table and did nothing. Prepending
+  it reversed the verdict. Order arms so each establishes the premise the next needs (trust → location
+  → mechanism → feature), and make a fixture assert its own well-formedness (here: the probe key must
+  precede the first table header) before its measurement is trusted. A NULL result is the one that
+  most needs a premise check, because "nothing happened" is what both a real finding and a broken
+  fixture look like.
+- [2026-09-09] **A config key that VALIDATES is not a config key that WORKS** — the 2026-09-09 flag
+  lesson one layer out. `[[skills.config]] path` has been emitted since slice V3 and re-verified in
+  2026-09-06 only to the depth of "omitting `enabled` is fatal", which proves the key is *parsed*.
+  Measured with a canary token, it delivers no skills to `codex exec` at all: the same SKILL.md is
+  found under `.agents/skills/` and returns NO-SKILL behind the stanza. Verify a foreign tool's config
+  key by the BEHAVIOUR it is supposed to buy, and when the disproof is scoped (here: `exec` only, not
+  interactive), keep the key and record the scope rather than deleting on a partial measurement.
+
 ## Nested context
 Subsystems carry their own `AGENTS.md` next to their code (in this repo: `plugin/engine/` holds the
 engine's PS-5.1/twin-parity rules). When working in a subsystem, its local map applies too.
