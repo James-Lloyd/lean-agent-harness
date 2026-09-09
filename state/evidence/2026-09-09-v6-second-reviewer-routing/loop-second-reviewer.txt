@@ -10,7 +10,7 @@
   ok   ledger records the routed second model
   ok   codex second returned a parsed verdict: SHIP (both judges shipped)
   ok   ledger order is primary -> second (line 2 before 3)
-  ok   second reviewer transcript written (review-second-after-1.log, 448 lines)
+  ok   second reviewer transcript written (review-second-after-1.log, 245 lines)
   ok   second judge ran with approval: never (its own header says so)
   ok   second judge ran read-only (its own header says so)
   ok   review.codex.reasoningEffort (high) beat the global block (medium) for the SECOND judge

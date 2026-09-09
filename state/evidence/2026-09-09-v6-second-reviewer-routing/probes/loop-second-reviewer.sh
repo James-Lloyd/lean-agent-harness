@@ -149,4 +149,12 @@ echo "RESULT: arm E $([ "$rc" = 0 ] && echo GREEN || echo RED)"
 cd "$ROOT" || exit 1
 exec 1>&- 2>&-; wait
 node "$HERE/scrub.mjs" "$LOG" "$OUT/arm-e-loop.out" "$OUT/arm-e-second-transcript.log" >/dev/null 2>&1
+# VERIFY THE SCRUB, never assume it. arm-e-second-transcript.log CERTAINLY contains a real home path
+# (codex prints `workdir:` in its header), so a missing node or a throwing scrub.mjs would land a
+# username in state/evidence/ under a GREEN result. Written to stderr because stdout is closed above.
+me="$(id -un 2>/dev/null || echo __no_such_user__)"
+for f in "$LOG" "$OUT/arm-e-loop.out" "$OUT/arm-e-second-transcript.log"; do
+  [ -f "$f" ] || continue
+  if grep -qi "users[/\\\\]\+$me" "$f"; then echo "FAIL scrubber left the OS username in $f" >&2; rc=1; fi
+done
 exit "$rc"

@@ -16,6 +16,7 @@
     "review":    { "model": "claude-fable-5-1", "fallback": "claude-opus-5", "effort": "high", "fallbackEffort": "medium",
                    "second": { "model": "codex", "effort": "high" },
                    "codex":  { "model": null,    "reasoningEffort": "high" } },
+    "_reviewCodexNote": "review.codex above is deliberately VALUE-IDENTICAL to the global models.codex block, so deleting it would change nothing today. It is kept as the declared place to retune the SECOND judge's model/depth without moving every other codex-routed phase — and as the live example that a per-phase block is read for a codex `second`, which four surfaces denied until 2026-09-09. If you ever route another phase to codex, this block is what stops that phase's retuning from silently changing the reviewer.",
     "evaluate":  { "model": "claude-fable-5-1", "fallback": "claude-opus-5", "effort": "high", "fallbackEffort": "medium" },
     "docs":      { "model": "haiku",            "fallback": null,            "effort": "low" },
 

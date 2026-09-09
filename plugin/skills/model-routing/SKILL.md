@@ -55,8 +55,11 @@ reviewers catch mostly *different* bugs, and that a cross-vendor reviewer helps 
 comment-only — so the second reviewer is read-only by construction and has **no fallback**: the point is
 model diversity, and a substitute is not the configured second opinion (an unreachable second reviewer
 fails closed; doctor 10(h) warns). Recommended pair: primary `claude-fable-5-1` @ `high`, second
-`codex` with `review.codex: { model: "gpt-5.6-sol", reasoningEffort: "high" }`. Off by default; turn it on
-in shadow mode first (slice V5) and compare the two judges' findings before letting it gate.
+`codex` with `review.codex: { model: null, reasoningEffort: "high" }` — `null`, not a pinned GPT ID, for the
+same reason given above (measured 2026-09-09, the CLI default was `gpt-5.6-sol` @ high; read the effective
+model back from the exec transcript header rather than pinning it here). Off by default; turn it on
+in shadow mode first (slice V5) and compare the two judges' findings before letting it gate. The harness
+repo itself runs this pair as of 2026-09-09 (`state/evidence/2026-09-09-v6-second-reviewer-routing/`).
 
 ## Running the interview
 

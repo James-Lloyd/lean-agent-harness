@@ -111,12 +111,20 @@ fi
 echo
 
 echo "### result: $([ $rc -eq 0 ] && echo PASS || echo FAIL)"
-# Scrub the OS username out of everything this run produced, then land it. scrub.mjs rewrites FILES
-# IN PLACE and takes paths, not stdin — piping it produces a one-line status file, which is how the
-# first version of this probe destroyed its own log.
+# CLOSE THE FDS AND WAIT FOR tee BEFORE COPYING. Without this the cp races the process substitution
+# and can land a log missing its own tail — including the `### result:` line — after which the
+# username assertion below greps a file it never fully saw: a guard that passes on unread content.
+exec 1>&- 2>&-; wait
+# scrub.mjs rewrites FILES IN PLACE and takes paths, not stdin — piping it produces a one-line status
+# file, which is how the first version of this probe destroyed its own log.
 cp "$RAW" "$LOG"; rm -f "$RAW"
-node "$HERE/scrub.mjs" "$LOG" ${TRANSCRIPT:+"$TRANSCRIPT"} >/dev/null 2>&1 || true
-if grep -qi "users[/\\\\]\+$(id -un 2>/dev/null || echo __no_such_user__)" "$LOG"; then
-  echo "  FAIL scrubber left the OS username in $LOG" >&2; rc=1
-fi
+node "$HERE/scrub.mjs" "$LOG" ${TRANSCRIPT:+"$TRANSCRIPT"} >/dev/null 2>&1
+# VERIFY THE SCRUB, never assume it. node missing or scrub.mjs throwing must not let a real username
+# reach state/evidence/ on a GREEN run (ratchet 2026-09-09: the pre-commit guard is the backstop, not
+# the primary). Checked over every file this probe lands, not just the log.
+me="$(id -un 2>/dev/null || echo __no_such_user__)"
+for f in "$LOG" ${TRANSCRIPT:+"$TRANSCRIPT"}; do
+  [ -f "$f" ] || continue
+  if grep -qi "users[/\\\\]\+$me" "$f"; then echo "FAIL scrubber left the OS username in $f" >&2; rc=1; fi
+done
 exit $rc

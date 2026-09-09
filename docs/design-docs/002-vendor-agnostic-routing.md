@@ -1,6 +1,6 @@
 # 002 — Vendor-agnostic routing (Claude Code today, OpenAI Codex CLI swappable per phase)
 
-- **Status:** accepted — all slices shipped. V1–V4 merged 2026-09-05 as PRs #11–#14; V5 live-fire done 2026-09-05 (`state/evidence/2026-09-05-vendor-agnostic-refit-v5/`): second reviewer compared on a real diff (Fable SHIP vs Codex REJECT, advisory), and the hook probe found four V3 defects fixed in plugin 0.3.5 (see Consequences)
+- **Status:** accepted — V1–V5 shipped; **V6.1 (2026-09-09) routed this repo's `review.second` to Codex**, the first time the arm is used rather than merely tested (branch `worktree-vendor-agnostic-v6`; evidence `state/evidence/2026-09-09-v6-second-reviewer-routing/`). V6.2 (phases with no headless dispatch site) and V6.3 (the command→skill bridge, "Out of scope" below) remain open in `state/fix_plan.md`. Original V1–V5 status: V1–V4 merged 2026-09-05 as PRs #11–#14; V5 live-fire done 2026-09-05 (`state/evidence/2026-09-05-vendor-agnostic-refit-v5/`): second reviewer compared on a real diff (Fable SHIP vs Codex REJECT, advisory), and the hook probe found four V3 defects fixed in plugin 0.3.5 (see Consequences)
 - **Date:** 2026-09-04
 
 ## Context
@@ -45,6 +45,14 @@ findings are recorded here so this doc stands alone):
 Make the harness vendor-agnostic in four load-bearing moves, shipped as five slices. The default
 routing stays single-vendor Claude (per 08-11); what changes is that routing a phase to Codex becomes
 a **config edit with first-class guardrails**, not an exotic path.
+
+> **Superseded for THIS repo, 2026-09-09 (slice V6.1).** The sentence above described the shipped
+> *consumer template*, and still does — but this repo's own `harness.config.json` now routes
+> `models.review.second` to the Codex CLI (D4's recommendation, which V5 had only compared in shadow).
+> Turning it on found that four surfaces described the per-phase `codex{}` block as read only for a
+> codex `model`/`fallback`, and a fifth — `/harness-doctor` check 12's skip predicate — silently
+> disabled itself on a second-reviewer-only config. Evidence:
+> `state/evidence/2026-09-09-v6-second-reviewer-routing/`.
 
 **D1. `AGENTS.md` is the map; `CLAUDE.md` imports it.** (slice V1, this PR)
 `AGENTS.md` carries everything vendor-neutral: components, the map, how to work, guardrails, the

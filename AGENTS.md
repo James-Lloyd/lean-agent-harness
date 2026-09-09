@@ -321,6 +321,20 @@ editing** (Claude Code: see CLAUDE.md; anything else: `git worktree add`). Land 
   green mode needs an exit-code path (`HARNESS_GATE_STRICT=1`), and the doc says WHERE the banner is
   visible (`/verify`) rather than claiming it always is.
 
+- [2026-09-09] **Correcting a routing/enablement predicate means grepping every CHECK that gates on the
+  same predicate, not only the prose that describes it — a skip condition is a surface too.** Routing
+  `review.second` to codex corrected four surfaces that said a phase's `codex{}` block is read only when
+  `model` or `fallback` is codex; the fresh-context reviewer found a fifth, one section below two of the
+  edits, in the same file: `/harness-doctor` check 12 skips with "no phase routes to codex" when no
+  `models.*.model`/`fallback` is codex **and** `.codex/` is absent. A second-reviewer-only config
+  satisfies both — so the check that exists to catch ungenerated Codex hooks silently disabled itself on
+  exactly the config that needed it, while `fix_plan` and `PROGRESS` both cited that check as the
+  mechanism that would catch it. A predicate copied into a skip/guard clause rots the same way a
+  sentence does, and it rots invisibly, because a self-disabled check reports ℹ️ rather than ❌.
+  Corollary from the same review: **state records overclaim controls that the evidence README states
+  correctly** — "every arm carries a control" was written where only two of four did. Copy the README's
+  wording into the state files, not a generous summary of it.
+
 ## Nested context
 Subsystems carry their own `AGENTS.md` next to their code (in this repo: `plugin/engine/` holds the
 engine's PS-5.1/twin-parity rules). When working in a subsystem, its local map applies too.

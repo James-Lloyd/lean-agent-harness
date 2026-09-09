@@ -9,7 +9,7 @@
     See docs/sandboxing.md. Mark a sandbox explicitly with:  export HARNESS_SANDBOX=1
 
 ──────── iteration 1 / 1 ────────
-  ⎘ checkpoint @ efa4bce9 (pre-iter-1)
+  ⎘ checkpoint @ 4d798b91 (pre-iter-1)
 implemented
   📊 est. tokens this run: ~15000
 🔬 Running verification gate...
@@ -17,9 +17,9 @@ implemented
   - test : exit 0
 🟢 Gate green.
   ✔ committed iteration 1
-🧑‍⚖️  Periodic fresh-context review of commits efa4bce9..786f851f...
+🧑‍⚖️  Periodic fresh-context review of commits 4d798b91..8b495e2a...
   🟢 Periodic review: SHIP.
 🧑‍⚖️  Second reviewer (codex) on the same batch...
   🟢 Second reviewer: SHIP (both judges agree).
-🏁 Loop finished after 1 iteration(s). Logs + ledger: /tmp/tmp.bYEBpK9R81/repo/harness/.runs/run-001
+🏁 Loop finished after 1 iteration(s). Logs + ledger: /tmp/tmp.ETaIQjWRPO/repo/harness/.runs/run-001
    Next: run /review for a fresh-context QA pass before you trust this.

@@ -86,8 +86,10 @@ behaves oddly.
       `reviewer`→`review`, `evaluator`→`evaluate`, `doc-gardener`→`docs`. The rule: frontmatter == the
       phase's **primary** when the primary is a Claude model; when the primary is `"codex"`, frontmatter
       must == the phase's **Claude `fallback`** (so a spawned subagent still lands on the right model) and
-      you note "phase is codex-routed — frontmatter tracks its Claude fallback." With the shipped config
-      this is the `generator` branch (`implement = {codex, opus}` → `generator` frontmatter must be `opus`).
+      you note "phase is codex-routed — frontmatter tracks its Claude fallback." Illustration only: no
+      shipped config has a codex-primary phase (`implement` has been `claude-opus-5` with no fallback
+      since 2026-08-11, and the harness repo's own 2026-09-09 cross-vendor routing is `review.second`,
+      which spawns no subagent), so this branch is currently unexercised by any config in the repo.
       **Consumer repos:** this is ❌ only where the frontmatter is *writable in-repo* — i.e. the harness
       dev repo. If the agents come from the installed plugin cache (no in-repo `plugin/`), a divergence is
       ℹ️, not drift: nobody may edit that cache from a project (`/plugin update` reverts it, and it's
@@ -182,13 +184,18 @@ behaves oddly.
       (`docs/promotion.md` §3). When auto-merge is not armed, this is ℹ️ only.
 
 12. **Codex surfaces are generated and fresh (only when anything routes to codex).** Skip with ℹ️
-    "no phase routes to codex" when no `models.*.model`/`fallback` is `"codex"` and there is no `.codex/`
-    dir. Otherwise run the generator's own check — `bash harness/codex-setup.sh --check` (or
+    "no phase routes to codex" when no `models.*.model`, `models.*.fallback` or (on `review`)
+    `models.review.second.model` is `"codex"` and there is no `.codex/` dir. **The `second.model` arm of
+    that predicate is load-bearing** (added 2026-09-09): a config whose only codex route is the second
+    reviewer satisfied the old two-term skip on a machine where `.codex/` had not been generated yet —
+    so the check silently disabled itself on exactly the config that needs it, while every loop review
+    point invoked the Codex CLI against ungenerated hooks and agents. Otherwise run the generator's own check — `bash harness/codex-setup.sh --check` (or
     `powershell harness/codex-setup.ps1 -Check`; wrappers copied by `/harness-init`, engine script
     `${CLAUDE_PLUGIN_ROOT}/engine/codex-setup.*`; if the wrappers are absent, e.g. a `/harness-migrate`d
     repo, run the engine script with `--project-root <repo>` directly) — and grade its output: `fresh`
-    (exit 0) = ✅; `NOT generated` (exit 1) = ❌ when a phase routes to codex (its hooks/agents/skills do
-    not exist for Codex yet — run the generator), ⚠️ when nothing routes there; `STALE` (exit 1) = ⚠️ (an
+    (exit 0) = ✅; `NOT generated` (exit 1) = ❌ when anything routes to codex — a phase's `model`,
+    `fallback`, or `review.second.model` (its hooks/agents/skills do not exist for Codex yet — run the
+    generator), ⚠️ when nothing routes there; `STALE` (exit 1) = ⚠️ (an
     input changed since generation — re-run). Note `block-destructive` is generated under the
     shell-tool matcher `Bash` (`_shell_matcher_note` in the file; recorded live from Codex 0.144.3 in V5),
     and every hook command carries `run.mjs --codex` — Codex ignores exit code 2, so the dispatcher must
