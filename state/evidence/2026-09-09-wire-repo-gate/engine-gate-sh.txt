@@ -1,0 +1,22 @@
+### ARM 2: node harness/tests/gate.mjs (direct, full output -> dispatcher-direct.txt)
+    exit=0  elapsed=262s
+    === PowerShell self-tests (harness/tests/run-tests.ps1)
+    RESULT: 377 passed, 0 failed
+    === bash self-tests (harness/tests/run-tests.sh)
+    RESULT: 370 passed, 0 failed
+    GATE: green (both twins)
+
+### ARM 3: run_gate from plugin/engine/lib/gate.sh (engine's POSIX router, bash -lc)
+  [root] gate (.)
+  - test : node harness/tests/gate.mjs
+    exit=0  failed_step=''  elapsed=344s
+
+### arm 3 negative control: same router, gate.test replaced by a command that exits 1
+  [root] gate (.)
+  - test : node -e "process.exit(1)"
+    x test failed in /c/Users/<user>/Repos/harness/.claude/worktrees/wire-repo-gate/.:
+      
+    exit=1  failed_step='root:test'
+    ok control went red and named the step, so arm 3's green is a real verdict
+
+RESULT: arm2=0 arm3=0 control=1 -> GREEN

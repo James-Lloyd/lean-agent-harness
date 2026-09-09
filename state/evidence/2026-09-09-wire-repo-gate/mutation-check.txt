@@ -1,0 +1,63 @@
+extracted: sh 6 assertions, ps 6 assertions
+
+### sh twin
+        FAIL root component gate.test is wired (not null)
+        FAIL gate.test launches via node (cross-shell: cmd /c AND bash -lc), got: <null>
+        FAIL gate.test's script exists at the repo-relative path it names ()
+        ok  harness/tests/gate.mjs exists
+        ok  gate.mjs parses (node --check)
+        ok  gate.mjs looks bash up on PATH only inside findBash's !WIN guard (WSL trap stays closed)
+  ok   MUTANT  (gate.test = null) — 3 assertion(s) failed as required (pass=3)
+        FAIL root component gate.test is wired (not null)
+        FAIL gate.test launches via node (cross-shell: cmd /c AND bash -lc), got: <null>
+        FAIL gate.test's script exists at the repo-relative path it names ()
+        ok  harness/tests/gate.mjs exists
+        ok  gate.mjs parses (node --check)
+        ok  gate.mjs looks bash up on PATH only inside findBash's !WIN guard (WSL trap stays closed)
+  ok   MUTANT  (gate object deleted) — 3 assertion(s) failed as required (pass=3)
+        ok  root component gate.test is wired (not null)
+        ok  gate.test launches via node (cross-shell: cmd /c AND bash -lc), got: node harness/tests/gate.mjs
+        ok  gate.test's script exists at the repo-relative path it names (harness/tests/gate.mjs)
+        ok  harness/tests/gate.mjs exists
+        ok  gate.mjs parses (node --check)
+        FAIL gate.mjs looks bash up on PATH only inside findBash's !WIN guard (WSL trap stays closed)
+  ok   MUTANT  (gate.mjs WSL trap open) — 1 assertion(s) failed as required (pass=5), naming 'WSL trap'
+        ok  root component gate.test is wired (not null)
+        ok  gate.test launches via node (cross-shell: cmd /c AND bash -lc), got: node harness/tests/gate.mjs
+        ok  gate.test's script exists at the repo-relative path it names (harness/tests/gate.mjs)
+        ok  harness/tests/gate.mjs exists
+        ok  gate.mjs parses (node --check)
+        ok  gate.mjs looks bash up on PATH only inside findBash's !WIN guard (WSL trap stays closed)
+  ok   CONTROL (both intact) — all 6 assertions passed
+
+### ps twin
+        FAIL root component gate.test is wired (not null)
+        FAIL gate.test launches via node (cross-shell: cmd /c AND bash -lc), got: 
+        FAIL gate.test's script exists at the repo-relative path it names ()
+        ok  harness/tests/gate.mjs exists
+        ok  gate.mjs parses (node --check)
+        ok  gate.mjs looks bash up on PATH only inside findBash's !WIN guard (WSL trap stays closed)
+  ok   MUTANT  (gate.test = null) — 3 assertion(s) failed as required (pass=3)
+        FAIL root component gate.test is wired (not null)
+        FAIL gate.test launches via node (cross-shell: cmd /c AND bash -lc), got: 
+        FAIL gate.test's script exists at the repo-relative path it names ()
+        ok  harness/tests/gate.mjs exists
+        ok  gate.mjs parses (node --check)
+        ok  gate.mjs looks bash up on PATH only inside findBash's !WIN guard (WSL trap stays closed)
+  ok   MUTANT  (gate object deleted) — 3 assertion(s) failed as required (pass=3)
+        ok  root component gate.test is wired (not null)
+        ok  gate.test launches via node (cross-shell: cmd /c AND bash -lc), got: node harness/tests/gate.mjs
+        ok  gate.test's script exists at the repo-relative path it names (harness/tests/gate.mjs)
+        ok  harness/tests/gate.mjs exists
+        ok  gate.mjs parses (node --check)
+        FAIL gate.mjs looks bash up on PATH only inside findBash's !WIN guard (WSL trap stays closed)
+  ok   MUTANT  (gate.mjs WSL trap open) — 1 assertion(s) failed as required (pass=5), naming 'WSL trap'
+        ok  root component gate.test is wired (not null)
+        ok  gate.test launches via node (cross-shell: cmd /c AND bash -lc), got: node harness/tests/gate.mjs
+        ok  gate.test's script exists at the repo-relative path it names (harness/tests/gate.mjs)
+        ok  harness/tests/gate.mjs exists
+        ok  gate.mjs parses (node --check)
+        ok  gate.mjs looks bash up on PATH only inside findBash's !WIN guard (WSL trap stays closed)
+  ok   CONTROL (both intact) — all 6 assertions passed
+
+RESULT: arm 5 GREEN

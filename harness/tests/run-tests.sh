@@ -1076,6 +1076,51 @@ else
   echo "  (skipping codex-setup tests - jq not installed)"
 fi
 
+echo "gate wiring: this repo's own gate actually runs the self-test twins"
+# The repo's product IS the harness, so an all-null gate means /verify and the loop's
+# autoRollbackOnRed grade an EMPTY command set (harness-doctor 2026-09-07, check 4). Pin the wiring
+# so it cannot silently revert to null, and pin the SHAPE of the command: the engine hands a gate
+# step to `cmd /c` on Windows and `bash -lc` on Unix, and a bare `bash <script>` under cmd /c
+# resolves to WSL's C:\Windows\System32\bash.exe -- a different OS, measured red with
+# HCS_E_HYPERV_NOT_INSTALLED (state/evidence/2026-09-09-wire-repo-gate/). `node` is the one launcher
+# on PATH under both shells, so the dispatch lives in gate.mjs.
+GW_CFG="$(cd "$HERE/../.." && pwd)/harness/harness.config.json"
+GW_MJS="$HERE/gate.mjs"
+if command -v jq >/dev/null 2>&1; then
+  gw_test="$(jq -r '.components[0].gate.test // ""' "$GW_CFG")"
+  [ -n "$gw_test" ] && p=1 || p=0
+  ok "$p" "root component gate.test is wired (not null)"
+  case "$gw_test" in node\ *) p=1 ;; *) p=0 ;; esac
+  ok "$p" "gate.test launches via node (cross-shell: cmd /c AND bash -lc), got: ${gw_test:-<null>}"
+  gw_path="$(printf '%s' "$gw_test" | sed 's/^node[[:space:]]*//')"   # tolerate `node  script` (the PS twin uses ^node\s+)
+  [ -f "$(cd "$HERE/../.." && pwd)/$gw_path" ] && p=1 || p=0
+  ok "$p" "gate.test's script exists at the repo-relative path it names ($gw_path)"
+else
+  echo "  (skipping gate-wiring config checks — jq not installed)"
+fi
+[ -f "$GW_MJS" ] && p=1 || p=0
+ok "$p" "harness/tests/gate.mjs exists"
+if command -v node >/dev/null 2>&1; then
+  if node --check "$GW_MJS" >/dev/null 2>&1; then p=1; else p=0; fi
+  ok "$p" "gate.mjs parses (node --check)"
+  # The WSL trap is the whole reason this file is .mjs: on Windows a PATH lookup for `bash` finds
+  # WSL, not Git Bash. So findBash must reach `which('bash')` ONLY inside its !WIN guard. Assert the
+  # POSITION, not the mere presence of tokens: the first spelling of this check grepped the whole
+  # file for "if (!WIN) {" and "existsSync", which a findBash that called which('bash') FIRST — the
+  # exact regression — would still have satisfied. (Its inability to accuse was found in review;
+  # probes/mutation-check.sh now feeds it that mutant and requires it to go red.)
+  gw_body="$(awk '/^function findBash\(\)/{f=1} f{print} f&&/^\}/{exit}' "$GW_MJS")"
+  gw_nwhich="$(printf '%s\n' "$gw_body" | grep -c 'which(')"
+  gw_lguard="$(printf '%s\n' "$gw_body" | grep -n 'if (!WIN) {' | head -1 | cut -d: -f1)"
+  gw_lwhich="$(printf '%s\n' "$gw_body" | grep -n 'which(' | head -1 | cut -d: -f1)"
+  p=0
+  if [ -n "$gw_body" ] && [ "$gw_nwhich" = "1" ] && [ -n "$gw_lguard" ] && [ -n "$gw_lwhich" ] \
+     && [ "$gw_lwhich" -gt "$gw_lguard" ]; then p=1; fi
+  ok "$p" "gate.mjs looks bash up on PATH only inside findBash's !WIN guard (WSL trap stays closed)"
+else
+  echo "  (skipping gate.mjs node checks — node not installed)"
+fi
+
 echo "plugin: cross-platform hook dispatcher (node)"
 # The plugin ships hooks through plugin/hooks/run.mjs (static hooks.json can't branch on OS). Its own
 # node self-test covers both OS branches + a real dispatch; fold its exit code into this suite.

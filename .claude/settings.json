@@ -19,7 +19,8 @@
       "Bash(git diff:*)",
       "Bash(git log:*)",
       "Bash(git add:*)",
-      "Bash(git commit:*)"
+      "Bash(git commit:*)",
+      "Bash(node harness/tests/gate.mjs)"
     ],
     "deny": [
       "Read(./**/.env)",

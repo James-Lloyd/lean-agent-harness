@@ -1,0 +1,21 @@
+### arm 4: red propagation through the dispatcher (stub twins)
+  ok   GREEN  (both twins pass) [positive control] -> exit 0 (expected 0)
+       GATE: green (both twins)
+  ok   RED    (both twins fail) -> exit 1 (expected 1)
+       GATE: RED
+  ok   RED-A  (only .ps1 fails) -> exit 1 (expected 1)
+       GATE: RED
+  ok   RED-B  (only .sh fails) -> exit 1 (expected 1)
+       GATE: RED
+
+### half-grade: an ungraded twin is loud, and fatal only under HARNESS_GATE_STRICT=1
+  ok   CONTROL (Git Bash present, both twins graded) -> exit 0, banner=no
+       GATE: green (both twins)
+  ok   no Git Bash, lenient (default) -> exit 0, banner=yes
+       !!! UNGRADED TWIN: run-tests.sh (no Git Bash found; a PATH `bash` on Windows is WSL and is not used)
+       GATE: green (half-graded — see above)
+  ok   no Git Bash, HARNESS_GATE_STRICT=1 -> exit 1, banner=yes
+       !!! UNGRADED TWIN: run-tests.sh (no Git Bash found; a PATH `bash` on Windows is WSL and is not used)
+       GATE: RED
+
+RESULT: arm 4 GREEN

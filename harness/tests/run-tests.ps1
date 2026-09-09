@@ -1045,6 +1045,56 @@ ok "-User refuses to overwrite a hooks.json the harness did not generate" ($urc 
 Remove-Item Env:HARNESS_CODEX_HOME -ErrorAction SilentlyContinue
 Remove-Item -Recurse -Force $csp, $ch -ErrorAction SilentlyContinue
 
+Write-Host "gate wiring: this repo's own gate actually runs the self-test twins"
+# The repo's product IS the harness, so an all-null gate means /verify and the loop's
+# autoRollbackOnRed grade an EMPTY command set (harness-doctor 2026-09-07, check 4). Pin the wiring so
+# it cannot silently revert to null, and pin the SHAPE of the command: the engine hands a gate step to
+# `cmd /c` on Windows and `bash -lc` on Unix, and a bare `bash <script>` under cmd /c resolves to WSL's
+# C:\Windows\System32\bash.exe - a different OS, measured red with HCS_E_HYPERV_NOT_INSTALLED
+# (state/evidence/2026-09-09-wire-repo-gate/). `node` is the one launcher on PATH under both shells,
+# so the dispatch lives in gate.mjs. Config keys are read via PSObject.Properties (a bare $obj.$key on
+# a missing key aborts the whole suite under StrictMode instead of failing this one assertion).
+$gwRoot = Split-Path (Split-Path $here -Parent) -Parent
+$gwCfgPath = Join-Path $gwRoot 'harness/harness.config.json'
+$gwMjs = Join-Path $here 'gate.mjs'
+$gwCfg = Get-Content $gwCfgPath -Raw | ConvertFrom-Json
+# Get-Prop (dot-sourced from the engine's gate.ps1 above) is the StrictMode-safe reader. Every hop is
+# guarded, not just the last one: a config that drops `components` or the `gate` object - a plausible
+# revert shape - must FAIL these three assertions the way the bash twin's `jq ... // ""` does, not
+# abort the whole suite on a missing-property error.
+$gwComponents = Get-Prop $gwCfg 'components'
+$gwGate = if ($gwComponents -and @($gwComponents).Count -gt 0) { Get-Prop @($gwComponents)[0] 'gate' } else { $null }
+$gwTest = if ($gwGate) { Get-Prop $gwGate 'test' } else { $null }
+ok "root component gate.test is wired (not null)" ([bool]$gwTest)
+ok "gate.test launches via node (cross-shell: cmd /c AND bash -lc), got: $gwTest" ([string]$gwTest -like 'node *')
+$gwScript = ([string]$gwTest) -replace '^node\s+', ''
+# -PathType Leaf, and the non-empty guard, are both load-bearing: `Join-Path $root ''` returns the
+# REPO ROOT, which exists and is a container - so the obvious spelling passes on a null gate.test,
+# the very shape this section exists to catch. (Caught by probes/mutation-check.sh, not by review.)
+ok "gate.test's script exists at the repo-relative path it names ($gwScript)" ([bool]$gwScript -and (Test-Path (Join-Path $gwRoot $gwScript) -PathType Leaf))
+ok "harness/tests/gate.mjs exists" (Test-Path $gwMjs)
+if (Get-Command node -ErrorAction SilentlyContinue) {
+  & node --check $gwMjs 1>$null 2>$null
+  ok "gate.mjs parses (node --check)" ($LASTEXITCODE -eq 0)
+  # The WSL trap is the whole reason this file is .mjs: on Windows a PATH lookup for `bash` finds
+  # WSL, not Git Bash. So findBash must reach which('bash') ONLY inside its !WIN guard. Assert the
+  # POSITION, not the mere presence of tokens: the first spelling grepped the whole file for
+  # "if (!WIN) {" and "existsSync", which a findBash calling which('bash') FIRST - the exact
+  # regression - would still have satisfied. probes/mutation-check.sh now feeds it that mutant.
+  $gwLines = @(Get-Content $gwMjs)
+  $gwStart = ($gwLines | Select-String -SimpleMatch 'function findBash()' | Select-Object -First 1).LineNumber
+  $gwBody = if ($gwStart) { @($gwLines[($gwStart-1)..($gwLines.Count-1)]) } else { @() }
+  $gwEnd = ($gwBody | Select-String -Pattern '^\}' | Select-Object -First 1).LineNumber
+  if ($gwEnd) { $gwBody = @($gwBody[0..($gwEnd-1)]) }
+  $gwGuardAt = ($gwBody | Select-String -SimpleMatch 'if (!WIN) {' | Select-Object -First 1).LineNumber
+  $gwWhichHits = @($gwBody | Select-String -SimpleMatch 'which(')
+  $gwWhichAt = if ($gwWhichHits.Count -gt 0) { $gwWhichHits[0].LineNumber } else { $null }
+  ok "gate.mjs looks bash up on PATH only inside findBash's !WIN guard (WSL trap stays closed)" (
+    $gwBody.Count -gt 0 -and $gwWhichHits.Count -eq 1 -and $gwGuardAt -and $gwWhichAt -and $gwWhichAt -gt $gwGuardAt)
+} else {
+  Write-Host "  (skipping gate.mjs node checks - node not on PATH)" -ForegroundColor Yellow
+}
+
 Write-Host "plugin: cross-platform hook dispatcher (node)"
 # The plugin ships hooks through plugin/hooks/run.mjs (static hooks.json can't branch on OS). Its own
 # node self-test covers both OS branches + a real dispatch; fold its exit code into this suite.

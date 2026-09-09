@@ -249,6 +249,49 @@ editing** (Claude Code: see CLAUDE.md; anything else: `git worktree add`). Land 
   gutting the corpus from 1,342 forms to 334 left every control green and the arm still exiting 0.
   Adding the presence assertion immediately caught a control string the corpus had never generated.
 
+- [2026-09-09] **A probe that reports a verdict must be able to report the OTHER one, and be shown
+  doing it in the same run.** Five defects in one change, all in the *checking* code rather than the
+  code under test, all invisible to a green run. (a) A PowerShell arm read `if (-not $ok)` on the
+  RESULT OBJECT returned by `Invoke-ProjectGate` — a non-null object is always truthy, so the arm
+  exited 0 whatever the gate said. Test the named property (`$ok.Passed`), and give every arm a
+  negative control (a config whose gate step exits 1) so "green" is a measurement and not a
+  formality. (b) An assertion that a path exists used `Test-Path (Join-Path $root $x)`, and on the
+  empty `$x` — the exact pre-fix shape it was written to catch — `Join-Path` yields the repo root,
+  which exists: it PASSED on the mutant. `-PathType Leaf` plus a non-empty guard. (c) An assertion
+  guarding a code invariant grepped the whole file for two tokens; the mutant that re-opens the
+  invariant still contains both tokens, so it could never accuse. Assert the POSITION (the single
+  `which(` call must come after the guard line, inside that function's own body), and feed the arm
+  the mutant to prove it goes red. (d) The extracted-block harness in that same arm did not reproduce
+  the real suite's PREAMBLE (the engine dot-source that defines `Get-Prop`), so three assertions died
+  on a missing command and were counted as "not failed": pass=3, fail=0, reported GREEN. An
+  extracted-block runner copies the preamble, or it measures nothing. (e) `env ProgramFiles=… node …`
+  from Git Bash does NOT set that variable — MSYS special-cases it and the child sees the real
+  `C:\Program Files` (measured; `ProgramFiles(x86)` and `LOCALAPPDATA` did get through). Force an
+  environment from the language that will spawn the child, and assert the branch you forced was
+  actually entered.
+- [2026-09-09] **A duration, cost or count written into prose names the arm and output file that
+  measured it.** "~9 minutes, ~4.5 min each" was written into two surfaces from an impression; the
+  measurements in the same evidence dir said 273 s and 333 s for the whole both-twin run. A figure
+  with no citation is a guess wearing a number's clothes.
+- [2026-09-09] **Evidence is scrubbed of the OS username by the PROBE'S OWN redirect, never at commit
+  time.** The 2026-09-07 ratchet made the scrubber cover every separator form; this one moves it
+  earlier. Seven `C:\Users\<name>` lines reached `state/evidence/` because the probes wrote raw and
+  the author was to scrub later — the local pre-commit guard would have blocked the commit, which is
+  the good case; the bad case is `--no-verify`. Each probe now writes its own output file and pipes
+  it through `scrub.mjs` before returning.
+- [2026-09-09] **A gate step is ONE string handed to a DIFFERENT shell per platform** (`cmd /c` on
+  Windows via `Invoke-GateStep`, `bash -lc` on POSIX via `_gate_step`), so a cross-platform gate
+  command cannot be a shell script path: cmd.exe refuses a forward-slash command path, and — measured
+  — a bare `bash` under `cmd /c` resolves to **WSL's** `System32\bash.exe`, not Git Bash, which is
+  only on PATH inside a Git Bash session. On a box without WSL that is a hard red; with WSL it would
+  have run the suite in another OS entirely. Dispatch from `node` (already a harness dependency for
+  exactly this reason in `plugin/hooks/run.mjs`) and locate a Windows interpreter BY PATH ON DISK.
+- [2026-09-09] **A banner is not a signal if the caller never sees it.** Both engines print a gate
+  command's output only when it exits non-zero, so anything a green command says — including a loud
+  "half the engine went ungraded" — is captured and discarded under `loop`/`fleet`. A degraded-but-
+  green mode needs an exit-code path (`HARNESS_GATE_STRICT=1`), and the doc says WHERE the banner is
+  visible (`/verify`) rather than claiming it always is.
+
 ## Nested context
 Subsystems carry their own `AGENTS.md` next to their code (in this repo: `plugin/engine/` holds the
 engine's PS-5.1/twin-parity rules). When working in a subsystem, its local map applies too.

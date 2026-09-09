@@ -15,6 +15,15 @@ This repo (harness dev): suites source the engine from `HARNESS_ENGINE` — set 
 `<repo>/plugin/engine` to test live in-repo edits (else you get the stale installed-plugin cache).
 PowerShell 5.1: `powershell harness/tests/run-tests.ps1`; bash needs `jq` on PATH
 (WinGet package dir). Fleet e2e: `harness/tests/fleet-queue-test.{ps1,sh}`.
+**The gate** (2026-09-09) is wired: `harness.config.json` → `components[0].gate.test` =
+`node harness/tests/gate.mjs`, which runs BOTH twins (~5 min warm; 273 s / 333 s measured in
+`state/evidence/2026-09-09-wire-repo-gate/engine-gate-{ps,sh}.txt`) — so `/verify` and the loop's
+`autoRollbackOnRed` now grade something. It is a `.mjs` and not a shell script on purpose: the engine
+runs a gate step through `cmd /c` on Windows and `bash -lc` on Unix, and under `cmd /c` a bare `bash`
+is **WSL's** `System32\bash.exe`, not Git Bash (measured red: `wsl-trap.txt` in that dir). `node` is
+the only launcher on PATH under both. If a twin can't be graded it prints an `UNGRADED TWIN` banner —
+but the engine swallows a *green* command's output, so that banner reaches you under `/verify` and
+NOT under the loop; `HARNESS_GATE_STRICT=1` turns a half-grade into a red exit instead.
 
 ## Environment quirks
 - The block-destructive PreToolUse hook scans the whole Bash command line — a commit message that
