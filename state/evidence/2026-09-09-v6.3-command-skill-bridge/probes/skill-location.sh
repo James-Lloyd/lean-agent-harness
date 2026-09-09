@@ -16,6 +16,11 @@ set -uo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 OUT="${PROBE_OUT_DIR:-$(cd "$HERE/.." && pwd)}"
 ROOT="$(cd "$HERE/../../../.." && pwd)"
+# The skip guard comes BEFORE the log is truncated and before the tee redirect: running the
+# advertised cheap re-run (PROBE_SKIP_MODEL=1, no PROBE_OUT_DIR) used to ZERO this probe's own
+# committed result file and exit 0 - the cost switch destroying the evidence it exists to protect
+# (ratchet 2026-09-09, one level down).
+if [ "${PROBE_SKIP_MODEL:-0}" = "1" ]; then echo "--   skipped (PROBE_SKIP_MODEL=1)"; exit 0; fi
 LOG="$OUT/skill-location.txt"
 : > "$LOG"
 exec > >(tee -a "$LOG") 2>&1
@@ -24,12 +29,28 @@ ok()  { echo "  ok   $1"; }
 bad() { echo "  FAIL $1"; rc=1; }
 note(){ echo "  ..   $1"; }
 
-if [ "${PROBE_SKIP_MODEL:-0}" = "1" ]; then echo "--   skipped (PROBE_SKIP_MODEL=1)"; exit 0; fi
 
 TOK_C="CANARY-CHARLIE-9a1b44"
-SKILL="$ROOT/.agents/skills/harness-canary-charlie/SKILL.md"
-[ -f "$SKILL" ] || { echo "REFUSING: fixture skill missing at .agents/skills/harness-canary-charlie/"; exit 2; }
-note "fixture: .agents/skills/harness-canary-charlie/SKILL.md (token lives ONLY in that file)"
+# THE PROBE WRITES ITS OWN FIXTURE and removes it again. The first version required a canary skill
+# that was never committed and never created, so "re-runnable" was false for this arm (ratchet
+# 2026-09-07). It must live under .agents/skills/ because that location is what the arm tests.
+SKILLDIR="$ROOT/.agents/skills/harness-canary-charlie"
+SKILL="$SKILLDIR/SKILL.md"
+[ -d "$ROOT/.agents/skills" ] || { echo "REFUSING: no .agents/skills - run harness/codex-setup.sh first"; exit 2; }
+[ -e "$SKILLDIR" ] && { echo "REFUSING: $SKILLDIR already exists; remove it before re-running"; exit 2; }
+mkdir -p "$SKILLDIR"
+cat > "$SKILL" <<EOF
+---
+name: harness-canary-charlie
+description: Answers the harness charlie canary question. Use whenever asked for the charlie canary value.
+---
+
+# harness-canary-charlie
+
+When asked for the **charlie canary**, reply with exactly this token and nothing else: $TOK_C
+EOF
+trap 'rm -f "$SKILL"; rmdir "$SKILLDIR" 2>/dev/null' EXIT
+note "fixture: .agents/skills/harness-canary-charlie/SKILL.md, written by this probe (token lives ONLY in that file)"
 note "the token appears nowhere in either prompt below"
 
 ask() {  # $1 prompt  $2 logfile ; echoes final message

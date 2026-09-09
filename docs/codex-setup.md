@@ -60,7 +60,13 @@ written to `~/.codex` in the re-verification, so the user-level path could not h
 | `.codex/agents/<name>.toml` | one Codex custom agent per plugin agent: `model`/`model_reasoning_effort` from that phase's **effective** codex settings (`models.<phase>.codex{}` over `models.codex`), `sandbox_mode = "read-only"` for the judges (reviewer, evaluator, risk-classifier, explorer) and `"workspace-write"` for the writers, `developer_instructions` = the agent's body | the body is plugin content: regenerate on `/plugin update` rather than fork it. **A generated judge's `read-only` inherits the SESSION's approval policy and is not by itself the guarantee** — see the bullet above; whether an agent table accepts an approval key is unmeasured, so a judge spawned outside the engine's own invocation is only as safe as the policy it inherits |
 | `.codex/.harness-stamp.json` | plugin version + a sha256 of every input (config, hook manifest, agent files, plugin root) | lets `--check` say **fresh / STALE / NOT generated** deterministically; `/harness-doctor` check 12 runs it |
 
-It also appends `.codex/` to the project's `.gitignore` if missing.
+**It also writes `<project>/.agents/skills/`** — every harness command as a Codex skill, plus the
+plugin's reference skills. That directory, not the `[[skills.config]]` stanza above, is what `codex
+exec` actually reads; see "Driving the harness from Codex" below. Dirs carrying a `.harness-generated`
+marker are the generator's to replace on each run; a hand-written skill beside them is left alone, and
+one whose NAME collides with a generated skill is skipped with a warning rather than overwritten.
+
+It appends both `.codex/` and `.agents/` to the project's `.gitignore` if missing.
 
 ## Commands
 
@@ -237,7 +243,7 @@ token present in exactly one file (`state/evidence/2026-09-09-v6.3-command-skill
 | Location | Read by `codex exec`? |
 |---|---|
 | `<project>/.agents/skills/<name>/SKILL.md` | **Yes** — discovered and used *without* being named in the prompt |
-| a root declared via `[[skills.config]] path` in `config.toml` | **No** — the identical file returns `NO-SKILL` |
+| a root declared via `[[skills.config]] path` in `config.toml` | **No** — the identical file returns `NO-SKILL`, with an in-run witness (a top-level `model_reasoning_effort` in the same file, echoed in the transcript header) proving the config *was* loaded. Scope: the root-of-skill-dirs form the harness emits; `path` pointing at a single skill directory was not tested |
 
 The second row corrects a claim this document and the generator carried from slice V3 onward: the
 `[[skills.config]]` stanza validates (omitting `enabled` is still fatal) but delivers no skills to

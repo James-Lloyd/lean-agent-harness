@@ -58,6 +58,34 @@ trust → location → config-key → bridge, each arm establishing the premise 
 A third, smaller one: the bridge arm first went red on a **correct** answer, because it grepped
 case-sensitively for `SHIP` while codex had replied `ship / fix-then-ship / reject`.
 
+## Corrections from the fresh-context review
+
+The review returned FIX-THEN-SHIP with three blockers. Two changed shipped behaviour, one changed
+this dir:
+
+- **The `.agents/` gitignore append corrupted a `.gitignore` with no trailing newline** into the
+  single line `.codex/.agents/`, destroying both patterns and un-ignoring a directory of
+  machine-local absolute paths. Fixed in both twins; the regression fixture is mutation-checked (on
+  the pre-fix append the whole-line `.codex/` count is 0).
+- **One `...` character in an emitted PowerShell string.** `codex-setup.ps1` is BOM-less, so PS 5.1
+  would have decoded it as Windows-1252 and shipped mojibake into all 14 generated skills, diverging
+  from the bash twin's bytes. Both preambles are ASCII-only now.
+- **`--check` said `fresh` with the whole bridge deleted** - and `/harness-doctor` 12 runs exactly
+  that. Now gated on the skill count. The first fix of it exited 1 while printing *nothing*, because
+  `find` on a missing dir aborts the script under `pipefail`.
+
+Probe-side corrections, all in this dir:
+
+- **All five probes truncated their log BEFORE the cost-switch guard**, so the advertised cheap
+  re-run (`PROBE_SKIP_MODEL=1`) zeroed five committed result files. Guard now precedes the redirect;
+  verified by running the cheap path across all five and confirming every byte survived.
+- **Two probes could not be re-run at all** - their canary fixtures were never committed and never
+  created. Each now writes its own and removes it.
+- **The "inert" arm now carries an in-run witness.** It concluded from a NULL result while its
+  premise (this project's config is honoured) came from a *different* run. A top-level
+  `model_reasoning_effort = "low"` in the same file now proves, from that run's own header, that the
+  config was loaded. Re-measured: the conclusion held.
+
 ## Controls
 
 - **Bridge:** the generated skills are physically moved aside and the same question re-asked. It

@@ -452,6 +452,9 @@ codex-setup: generated, gitignored Codex surfaces from a temp project (design-do
   ok  a reference skill is emitted verbatim (no command preamble)
   ok  bridged skill carries the command BODY, not just its frontmatter
   ok  .gitignore gained exactly one '.agents/' line
+  ok  no-trailing-newline .gitignore: '.codex/' survives the .agents/ append
+  ok  no-trailing-newline .gitignore: '.agents/' lands on its own line
+  ok  no-trailing-newline .gitignore: the two patterns were not concatenated
   ok  a hand-written skill survives regeneration (only .harness-generated dirs are wiped)
   ok  re-run is idempotent on .gitignore
   ok  cross-twin: bash --check calls the PS-generated set fresh (digest parity)
@@ -521,7 +524,7 @@ model routing V6.2: a codex route must have a dispatch site (harness-doctor 10(i
 migrate: end-to-end classify + apply on a synthetic repo
   ok  harness-migrate self-test passes
 
-RESULT: 431 passed, 0 failed
+RESULT: 434 passed, 0 failed
 
 === bash self-tests (harness/tests/run-tests.sh)
     C:\Program Files\Git\bin\bash.exe C:\Users\<user>\Repos\harness\.claude\worktrees\vendor-agnostic-v6\harness\tests\run-tests.sh
@@ -956,6 +959,9 @@ codex-setup: generated, gitignored Codex surfaces from a temp project (design-do
   ok  a reference skill is emitted verbatim (no command preamble)
   ok  bridged skill carries the command BODY, not just its frontmatter
   ok  .gitignore gained exactly one '.agents/' line
+  ok  no-trailing-newline .gitignore: '.codex/' survives the .agents/ append
+  ok  no-trailing-newline .gitignore: '.agents/' lands on its own line
+  ok  no-trailing-newline .gitignore: the two patterns were not concatenated
   ok  a hand-written skill survives regeneration (only .harness-generated dirs are wiped)
   ok  re-run is idempotent on .gitignore
   ok  CRLF .gitignore already containing .codex/ is left alone (no duplicate)
@@ -1010,6 +1016,6 @@ model routing V6.2: a codex route must have a dispatch site (harness-doctor 10(i
 migrate: end-to-end classify + apply on a synthetic repo
   ok  harness-migrate self-test passes
 
-RESULT: 424 passed, 0 failed
+RESULT: 427 passed, 0 failed
 
 GATE: green (both twins)

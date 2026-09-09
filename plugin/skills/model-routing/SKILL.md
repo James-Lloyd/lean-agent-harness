@@ -64,7 +64,9 @@ stay global. Don't add the block to a phase that never routes to codex — the e
 `/harness-doctor` 10(g) will say so. Prefer `model: null` (float on the Codex CLI default) unless you
 have a reason to pin: every `*-codex` model ID was retired in 2026-07/08, so pinned IDs rot. Once any
 phase routes to codex, run `harness/codex-setup.*` to generate Codex's own copies of the guard hooks,
-agents and skills path (`docs/codex-setup.md`; doctor check 12 keeps them fresh).
+the phase agents, and the harness commands as skills under `<project>/.agents/skills/` - that directory,
+not the `[[skills.config]]` stanza in `config.toml`, is what `codex exec` actually reads (measured
+2026-09-09; the stanza is inert for exec). See `docs/codex-setup.md`; doctor check 12 keeps them fresh.
 
 **Second reviewer (the recommended first use of Codex).** `review.second: { model, effort }` adds a
 second, read-only judge that reviews the SAME batch after the primary SHIPs; SHIP requires both, and both

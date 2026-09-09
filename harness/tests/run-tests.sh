@@ -1080,6 +1080,15 @@ if command -v jq >/dev/null 2>&1; then
   ok "$(! grep -qF 'not Claude Code' "$CSK/model-routing/SKILL.md" && echo 1 || echo 0)" "a reference skill is emitted verbatim (no command preamble)"
   ok "$(grep -qF 'fresh-context' "$CSK/harness-review/SKILL.md" && echo 1 || echo 0)" "bridged skill carries the command BODY, not just its frontmatter"
   ok "$([ "$(grep -cx '\.agents/' "$CSP/.gitignore")" = "1" ] && echo 1 || echo 0)" ".gitignore gained exactly one '.agents/' line"
+  # REGRESSION: a .gitignore with NO TRAILING NEWLINE that already carries `.codex/` - the exact upgrade
+  # shape (pre-bridge repo, hand-edited file). Appending `.agents/` without a leading newline produced
+  # `.codex/.agents/`, destroying BOTH patterns and un-ignoring the machine-local .codex/ dir. Assert
+  # both survive as whole lines, not merely that the file mentions them.
+  printf 'node_modules/\n.codex/' > "$CSP/.gitignore"
+  bash "$CS" --project-root "$CSP" >/dev/null 2>&1 || true
+  ok "$([ "$(grep -cx '\.codex/' "$CSP/.gitignore")" = "1" ] && echo 1 || echo 0)"  "no-trailing-newline .gitignore: '.codex/' survives the .agents/ append"
+  ok "$([ "$(grep -cx '\.agents/' "$CSP/.gitignore")" = "1" ] && echo 1 || echo 0)" "no-trailing-newline .gitignore: '.agents/' lands on its own line"
+  ok "$(! grep -q '\.codex/\.agents/' "$CSP/.gitignore" && echo 1 || echo 0)"       "no-trailing-newline .gitignore: the two patterns were not concatenated"
   # A hand-written skill beside the generated set must survive a re-run; a generated one must be replaced.
   mkdir -p "$CSK/my-own-skill"; printf -- '---\nname: my-own-skill\n---\nmine\n' > "$CSK/my-own-skill/SKILL.md"
   bash "$CS" --project-root "$CSP" >/dev/null 2>&1 || true

@@ -2,6 +2,8 @@
   ..   the token appears nowhere in the prompt
 ### arm 1: the fixture root declared via [[skills.config]]
   ..   final message: NO-SKILL
+  ..   premise witness (same file, same run): reasoning effort: low
+  ok   the config file WAS loaded this run - a NO-SKILL below is about the stanza, not about the file
 
 ### arm 2: POSITIVE CONTROL — the same fixture moved under .agents/skills/
   ..   final message: CANARY-DELTA-5e7c02

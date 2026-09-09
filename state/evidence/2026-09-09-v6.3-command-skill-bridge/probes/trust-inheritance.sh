@@ -22,6 +22,11 @@ set -uo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 OUT="${PROBE_OUT_DIR:-$(cd "$HERE/.." && pwd)}"
 ROOT="$(cd "$HERE/../../../.." && pwd)"
+# The skip guard comes BEFORE the log is truncated and before the tee redirect: running the
+# advertised cheap re-run (PROBE_SKIP_MODEL=1, no PROBE_OUT_DIR) used to ZERO this probe's own
+# committed result file and exit 0 - the cost switch destroying the evidence it exists to protect
+# (ratchet 2026-09-09, one level down).
+if [ "${PROBE_SKIP_MODEL:-0}" = "1" ]; then echo "--   skipped (PROBE_SKIP_MODEL=1)"; exit 0; fi
 LOG="$OUT/trust-inheritance.txt"
 : > "$LOG"
 exec > >(tee -a "$LOG") 2>&1
@@ -30,7 +35,6 @@ ok()  { echo "  ok   $1"; }
 bad() { echo "  FAIL $1"; rc=1; }
 note(){ echo "  ..   $1"; }
 
-if [ "${PROBE_SKIP_MODEL:-0}" = "1" ]; then echo "--   skipped (PROBE_SKIP_MODEL=1)"; exit 0; fi
 
 CFG="$ROOT/.codex/config.toml"
 [ -f "$CFG" ] || { echo "REFUSING: no generated .codex/config.toml in this worktree — run harness/codex-setup.sh first"; exit 2; }

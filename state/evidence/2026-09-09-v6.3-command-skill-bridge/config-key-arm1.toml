@@ -1,6 +1,8 @@
+model_reasoning_effort = "low"
+
 [features]
 hooks = true
 
 [[skills.config]]
-path = "/c/Users/<user>/Repos/harness/.claude/worktrees/vendor-agnostic-v6/generated-skills-probe"
+path = "/tmp/tmp.1YMzpWU9ES/skills-root"
 enabled = true

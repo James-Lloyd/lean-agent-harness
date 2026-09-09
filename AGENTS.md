@@ -373,6 +373,29 @@ editing** (Claude Code: see CLAUDE.md; anything else: `git worktree add`). Land 
   key by the BEHAVIOUR it is supposed to buy, and when the disproof is scoped (here: `exec` only, not
   interactive), keep the key and record the scope rather than deleting on a partial measurement.
 
+- [2026-09-09] **A line appended to a user-owned text file is prefixed with a newline unless the file
+  is PROVEN to end with one — the sibling block's leading `\n` is not inherited by the block you add
+  beside it.** `codex-setup` grew an `.agents/` append next to its existing `.codex/` append; the old
+  block opened with `\n` and the new one did not, so on a `.gitignore` with no trailing newline the
+  result was the single line `.codex/.agents/` — destroying BOTH patterns and un-ignoring a directory
+  of machine-local absolute paths (ratchet 2026-07-30's exact failure, arrived at from the other
+  direction). The trigger is the upgrade path the new block existed to serve, and the suite's
+  "gained exactly one `.codex/` line" assertion still passed because it ran on a file that DID end in
+  a newline. Fixture the no-trailing-newline shape, and assert the neighbour survives as a WHOLE LINE.
+- [2026-09-09] **Adding the first non-ASCII byte to an emitted string in a `.ps1` checks that file's
+  BOM in the same edit.** The engine's "non-ASCII belongs in comments, not in emitted strings" rule was
+  invisible in `codex-setup.ps1` because the file had been pure ASCII its whole life — and it is
+  BOM-less while every sibling `.ps1` has a BOM. One `…` in a generated preamble would have decoded as
+  Windows-1252 and shipped `â€¦` into all 14 generated skills, diverging from the bash twin's bytes.
+  Every bridge assertion greps ASCII substrings, so the suite could not see it. Grep the file for
+  non-ASCII in STRINGS (not comments) whenever you add emitted prose, and prefer plain ASCII in text
+  both twins must produce byte-identically.
+- [2026-09-09] **A probe truncates its output file only AFTER its cost-switch guard.** All five V6.3
+  probes opened with `LOG=…; : > "$LOG"; exec > >(tee …)` and only then checked `PROBE_SKIP_MODEL`, so
+  the advertised cheap re-run zeroed five committed result files and exited 0 — the 2026-09-09
+  evidence-destruction ratchet reproduced one level down, in the probes rather than in the arm that
+  audits them. Guard first, redirect second; then prove it by running the cheap path and diffing sizes.
+
 ## Nested context
 Subsystems carry their own `AGENTS.md` next to their code (in this repo: `plugin/engine/` holds the
 engine's PS-5.1/twin-parity rules). When working in a subsystem, its local map applies too.

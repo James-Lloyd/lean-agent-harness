@@ -18,6 +18,11 @@ set -uo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 OUT="${PROBE_OUT_DIR:-$(cd "$HERE/.." && pwd)}"
 ROOT="$(cd "$HERE/../../../.." && pwd)"
+# The skip guard comes BEFORE the log is truncated and before the tee redirect: running the
+# advertised cheap re-run (PROBE_SKIP_MODEL=1, no PROBE_OUT_DIR) used to ZERO this probe's own
+# committed result file and exit 0 - the cost switch destroying the evidence it exists to protect
+# (ratchet 2026-09-09, one level down).
+if [ "${PROBE_SKIP_MODEL:-0}" = "1" ]; then echo "--   skipped (PROBE_SKIP_MODEL=1)"; exit 0; fi
 LOG="$OUT/skills-config-key.txt"
 : > "$LOG"
 exec > >(tee -a "$LOG") 2>&1
@@ -26,15 +31,30 @@ ok()  { echo "  ok   $1"; }
 bad() { echo "  FAIL $1"; rc=1; }
 note(){ echo "  ..   $1"; }
 
-if [ "${PROBE_SKIP_MODEL:-0}" = "1" ]; then echo "--   skipped (PROBE_SKIP_MODEL=1)"; exit 0; fi
 
 TOK_D="CANARY-DELTA-5e7c02"
-FIX="$ROOT/generated-skills-probe"
-[ -f "$FIX/harness-canary-delta/SKILL.md" ] || { echo "REFUSING: fixture missing at generated-skills-probe/"; exit 2; }
+# THE PROBE WRITES ITS OWN FIXTURE. The first version required a `generated-skills-probe/` directory
+# that was never committed and never created, so "re-runnable" was false for this arm (ratchet
+# 2026-09-07: the re-runnable probe contains the arm that produced it). It lives in a temp dir so a
+# re-run cannot leave litter in the repo, and deliberately NOT under `.agents/skills/`, which is a
+# proven auto-discovery location and would make the arm answer through the very route it is testing.
+FIXROOT="$(mktemp -d)"
+FIX="$FIXROOT/skills-root"
+mkdir -p "$FIX/harness-canary-delta"
+cat > "$FIX/harness-canary-delta/SKILL.md" <<EOF
+---
+name: harness-canary-delta
+description: Answers the harness delta canary question. Use whenever asked for the delta canary value.
+---
+
+# harness-canary-delta
+
+When asked for the **delta canary**, reply with exactly this token and nothing else: $TOK_D
+EOF
 CFG="$ROOT/.codex/config.toml"
 [ -f "$CFG" ] || { echo "REFUSING: no generated .codex/config.toml — run harness/codex-setup.sh first"; exit 2; }
 BAK="$(mktemp)"; cp "$CFG" "$BAK"
-trap 'cp "$BAK" "$CFG"; rm -f "$BAK"' EXIT
+trap 'cp "$BAK" "$CFG"; rm -f "$BAK"; rm -rf "$FIXROOT"' EXIT
 
 fwd() { printf '%s' "$1" | sed 's#\\#/#g'; }
 ask() {  # $1 prompt  $2 logfile
@@ -46,15 +66,33 @@ ask() {  # $1 prompt  $2 logfile
 }
 Q='Report the delta canary value. If you do not have a skill that provides it, reply exactly NO-SKILL.'
 
-note "fixture root: <repo>/generated-skills-probe (inside the trusted path, NOT .agents/skills)"
+note "fixture root: a temp dir written by this probe, declared as a [[skills.config]] path (NOT .agents/skills)"
+note "SCOPE: only the ROOT-OF-SKILL-DIRS form is tested - the shape the harness actually emits."
+note "       `path` pointing at a single skill DIRECTORY is untested, and n=1 per arm against a"
+note "       nondeterministic model. The load-bearing claim (the harness's own stanza delivers"
+note "       nothing) is what these arms support."
 note "the token appears nowhere in the prompt"
 
 echo "### arm 1: the fixture root declared via [[skills.config]]"
-printf '[features]\nhooks = true\n\n[[skills.config]]\npath = "%s"\nenabled = true\n' "$(fwd "$FIX")" > "$CFG"
+# IN-RUN PREMISE WITNESS. This arm concludes "inert" from a NULL result, and a null result is exactly
+# what a config that was never loaded also looks like. The premise (this project's config IS honoured)
+# was established by a DIFFERENT run with different file content, which is not good enough for the
+# repo's own rule that a null result gets its premise checked. `model_reasoning_effort = "low"` is
+# carried at TOP LEVEL of the very same file, so the transcript's own header proves the file was read.
+printf 'model_reasoning_effort = "low"\n\n[features]\nhooks = true\n\n[[skills.config]]\npath = "%s"\nenabled = true\n' "$(fwd "$FIX")" > "$CFG"
 cp "$CFG" "$OUT/config-key-arm1.toml"
 A1="$(ask "$Q" "$OUT/config-key-arm1-transcript.log")"
 note "final message: $(printf '%s' "$A1" | tr '\n' ' ' | cut -c1-140)"
 VIA_CFG=0; printf '%s' "$A1" | grep -qF "$TOK_D" && VIA_CFG=1
+# The witness: same file, same run. If this says anything but `low`, the config was not loaded and the
+# arm is measuring nothing at all -- so it is a hard stop, not a note.
+HDR1="$(grep -m1 -E '^reasoning effort:' "$OUT/config-key-arm1-transcript.log" 2>/dev/null | tr -d '\r')"
+note "premise witness (same file, same run): $HDR1"
+if [ "$HDR1" = "reasoning effort: low" ]; then
+  ok "the config file WAS loaded this run - a NO-SKILL below is about the stanza, not about the file"
+else
+  bad "the project config was NOT loaded (header '$HDR1', expected 'low') - this arm cannot conclude anything"
+fi
 
 echo
 echo "### arm 2: POSITIVE CONTROL — the same fixture moved under .agents/skills/"

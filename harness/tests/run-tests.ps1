@@ -1055,6 +1055,15 @@ ok "a reference skill is emitted verbatim (no command preamble)" (-not $bmr.Cont
 ok "bridged skill carries the command BODY, not just its frontmatter" ($brv.Contains('fresh-context'))
 $giA = @(Get-Content -LiteralPath (Join-Path $csp '.gitignore') | Where-Object { $_ -ceq '.agents/' }).Count
 ok ".gitignore gained exactly one '.agents/' line"         ($giA -eq 1)
+# REGRESSION (mirror of the bash twin): a .gitignore with NO TRAILING NEWLINE already carrying `.codex/`
+# - the exact upgrade shape. Without a leading newline the append produced `.codex/.agents/`, destroying
+# both patterns and un-ignoring the machine-local .codex/ dir.
+[System.IO.File]::WriteAllText((Join-Path $csp '.gitignore'), "node_modules/`n.codex/", (New-Object System.Text.UTF8Encoding($false)))
+$null = _CS @()
+$giNl = @(Get-Content -LiteralPath (Join-Path $csp '.gitignore'))
+ok "no-trailing-newline .gitignore: '.codex/' survives the .agents/ append"  (@($giNl | Where-Object { $_ -ceq '.codex/' }).Count -eq 1)
+ok "no-trailing-newline .gitignore: '.agents/' lands on its own line"        (@($giNl | Where-Object { $_ -ceq '.agents/' }).Count -eq 1)
+ok "no-trailing-newline .gitignore: the two patterns were not concatenated"  (-not (@($giNl | Where-Object { $_ -like '*.codex/.agents/*' }).Count))
 [void](New-Item -ItemType Directory -Force -Path (Join-Path $csk 'my-own-skill'))
 Set-Content -LiteralPath (Join-Path $csk 'my-own-skill/SKILL.md') -Value "---`nname: my-own-skill`n---`nmine" -Encoding utf8
 $null = _CS @()

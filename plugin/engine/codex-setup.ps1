@@ -22,7 +22,13 @@
     agents/<name>.toml  one per plugin agent: model/effort from the phase's effective codex settings,
                         sandbox_mode read-only for judges, developer_instructions = the agent body
     .harness-stamp.json plugin version + sha256 of the inputs, so -Check can detect staleness
-  and appends `.codex/` to <project>/.gitignore if missing.
+  and, under <project>/.agents/skills/ :
+    <name>/SKILL.md     every harness COMMAND as a Codex skill (`harness-<command>`) plus the plugin's
+                        reference skills. This is the ONLY skill location `codex exec` reads - the
+                        config.toml [[skills.config]] stanza is inert for exec (measured 0.153.4,
+                        state/evidence/2026-09-09-v6.3-command-skill-bridge/). Dirs carrying a
+                        .harness-generated marker are ours to replace; anything else is left alone.
+  and appends `.codex/` and `.agents/` to <project>/.gitignore if missing.
 
   Usage: codex-setup.ps1 -ProjectRoot <repo> [-Check] [-User] [-ShellMatcher <regex>]
     -Check  exit 0 if the generated set exists and matches the current inputs, 1 if missing/stale
@@ -130,6 +136,19 @@ if ($Check) {
   if (-not (Test-Path $stamp) -or -not (Test-Path (Join-Path $out 'config.toml')) -or -not (Test-Path (Join-Path $out 'hooks.json')) -or -not (Test-Path (Join-Path $out 'agents'))) {
     Write-Output 'codex-setup: NOT generated (run harness/codex-setup.ps1)'; exit 1
   }
+  # The .agents/skills/ bridge lives OUTSIDE $out, so the gate above cannot see it (mirror of the .sh
+  # twin): without this, deleting the whole bridge still reported `fresh`, and /harness-doctor 12 runs
+  # exactly this check.
+  $wantSkills = @(Get-ChildItem -LiteralPath $cmdsDir -Filter *.md -ErrorAction SilentlyContinue).Count +
+                @(Get-ChildItem -LiteralPath $skillsDir -Directory -ErrorAction SilentlyContinue |
+                  Where-Object { Test-Path -LiteralPath (Join-Path $_.FullName 'SKILL.md') -PathType Leaf }).Count
+  $haveSkills = @(Get-ChildItem -LiteralPath (Join-Path $ProjectRoot '.agents/skills') -Directory -ErrorAction SilentlyContinue |
+                  Where-Object { Test-Path -LiteralPath (Join-Path $_.FullName 'SKILL.md') -PathType Leaf }).Count
+  if ($haveSkills -eq 0) {
+    Write-Output 'codex-setup: NOT generated (.agents/skills is missing - run harness/codex-setup.ps1)'; exit 1
+  } elseif ($haveSkills -lt $wantSkills) {
+    Write-Output "codex-setup: STALE (.agents/skills has $haveSkills of $wantSkills skills; re-run harness/codex-setup.ps1)"; exit 1
+  }
   $st = Get-Content -LiteralPath $stamp -Raw | ConvertFrom-Json
   $want = Get-InputsHash; $have = [string](Get-Prop $st 'inputsHash')
   if ($want -ne $have) { Write-Output 'codex-setup: STALE (inputs changed since generation; re-run harness/codex-setup.ps1)'; exit 1 }
@@ -207,11 +226,19 @@ foreach ($f in (Agent-Files)) {
 # `[[skills.config]] path` entry is never reached. Emits the plugin's reference skills verbatim, plus
 # every harness COMMAND as a skill - the command->skill bridge (design-doc 002 slice V6).
 $skillsOut = Join-Path $ProjectRoot '.agents/skills'
+$script:skillCollisions = 0
 [void](New-Item -ItemType Directory -Force -Path $skillsOut)
 # Wipe only what WE generated, so a hand-written skill beside ours survives a re-run.
 foreach ($d in @(Get-ChildItem -LiteralPath $skillsOut -Directory -ErrorAction SilentlyContinue)) {
   if (Test-Path -LiteralPath (Join-Path $d.FullName '.harness-generated') -PathType Leaf) {
-    Remove-Item -LiteralPath $d.FullName -Recurse -Force
+    # Delete only the two files WE wrote, then the dir if it is now empty - the .sh twin's behaviour.
+    # A recursive force-delete here is not twin-equivalent: anything a user left inside a generated
+    # skill dir (notes, a scripts/ folder) survives on Linux and vanished on Windows.
+    Remove-Item -LiteralPath (Join-Path $d.FullName '.harness-generated') -Force -ErrorAction SilentlyContinue
+    Remove-Item -LiteralPath (Join-Path $d.FullName 'SKILL.md') -Force -ErrorAction SilentlyContinue
+    if (-not @(Get-ChildItem -LiteralPath $d.FullName -Force -ErrorAction SilentlyContinue).Count) {
+      Remove-Item -LiteralPath $d.FullName -Force -ErrorAction SilentlyContinue
+    }
   }
 }
 function Strip-Frontmatter([string]$path) {
@@ -228,6 +255,14 @@ function Strip-Frontmatter([string]$path) {
 }
 function Emit-Skill([string]$name, [string]$desc, [string]$bodyText, [string]$preamble) {
   $sd = Join-Path $skillsOut $name
+  # A hand-written skill of the same name is skipped, not overwritten (mirror of the .sh twin):
+  # overwriting would also stamp it .harness-generated, making it a wipe target for every future run.
+  if ((Test-Path -LiteralPath (Join-Path $sd 'SKILL.md') -PathType Leaf) -and
+      -not (Test-Path -LiteralPath (Join-Path $sd '.harness-generated') -PathType Leaf)) {
+    [Console]::Error.WriteLine("codex-setup: SKIPPING $name - a hand-written skill of that name already exists (rename it to let the harness generate this one)")
+    $script:skillCollisions++
+    return
+  }
   [void](New-Item -ItemType Directory -Force -Path $sd)
   $t = "---`nname: $name`ndescription: $desc`n---`n`n<!-- $genNote -->`n`n"
   if ($preamble) { $t += "$preamble`n`n" }
@@ -245,7 +280,7 @@ foreach ($d in (Skill-Files)) {
   if (-not $sname) { $sname = $d.Name }
   Emit-Skill $sname $sdesc (Strip-Frontmatter $sf) ''
 }
-$cmdPreamble = '**You are running under the OpenAI Codex CLI, not Claude Code.** This is a harness command translated into a skill. Read `AGENTS.md` at the repo root for the project map (Codex reads it natively; it is the same content Claude Code gets through `CLAUDE.md`). Translations that apply throughout the text below: a **slash command** (`/work`, `/review`, …) is another skill in this same directory named `harness-<command>` - invoke it by reading it, not by typing the slash form, which does not exist here. A **subagent** named in the text (`generator`, `reviewer`, `planner`, `explorer`, `evaluator`, `doc-gardener`) has a Codex role definition under `.codex/agents/<name>.toml` carrying that phase''s model, reasoning effort and sandbox; where the text says to spawn one, either delegate to that role or do the work yourself under its rules and its sandbox - and keep the harness''s own rule that the doer is never the judge. **`allowed-tools` frontmatter, `model:` frontmatter and their drift checks are Claude-Code-only and do not apply.** Everything else - the phase order, the gates, the guardrails, the output contract - applies unchanged.'
+$cmdPreamble = '**You are running under the OpenAI Codex CLI, not Claude Code.** This is a harness command translated into a skill. Read `AGENTS.md` at the repo root for the project map (Codex reads it natively; Claude Code gets the same content plus a short Claude-specific section through `CLAUDE.md`). Translations that apply throughout the text below: a **slash command** (`/work`, `/review`, and so on) is another skill in this same directory named `harness-<command>` - except for a command whose own name already begins `harness-`, which keeps it (`/harness-doctor` is the skill `harness-doctor`, never `harness-harness-doctor`); invoke one by reading it, not by typing the slash form, which does not exist here. **`$ARGUMENTS`** is whatever the operator asked for in their own words - substitute it, or take the command''s stated default when they gave none. **`${CLAUDE_PLUGIN_ROOT}`** does not expand under Codex; the same engine scripts are reachable through this repo''s own `harness/` wrappers (`harness/loop.sh`, `harness/codex-setup.sh`, and so on). A **subagent** named in the text (`generator`, `reviewer`, `planner`, `explorer`, `evaluator`, `doc-gardener`) has a Codex role definition under `.codex/agents/<name>.toml` carrying that phase''s model, reasoning effort and sandbox; where the text says to spawn one, either delegate to that role or do the work yourself under its rules and its sandbox - and keep the harness''s own rule that the doer is never the judge. **`allowed-tools` frontmatter, `model:` frontmatter and their drift checks are Claude-Code-only and do not apply.** Everything else - the phase order, the gates, the guardrails, the output contract - applies unchanged.'
 foreach ($f in (Ordinal-Files $cmdsDir '*.md')) {
   $cname = [System.IO.Path]::GetFileNameWithoutExtension($f.Name)
   $cdesc = ''
@@ -274,6 +309,15 @@ if (-not ($giLines -ccontains '.codex/')) {
 # twin's `grep -qx`. Re-read the file: the block above may have just appended to it.
 $giLines2 = if (Test-Path $gi) { @(Get-Content -LiteralPath $gi) } else { @() }
 if (-not ($giLines2 -ccontains '.agents/')) {
+  # Leading newline unless the file already ends with one - see the .sh twin: the `.codex/` block's
+  # leading `\n` is not inherited by this one, and without this guard a .gitignore with no trailing
+  # newline gets `.codex/.agents/`, un-ignoring both.
+  $needsNl = $false
+  if (Test-Path -LiteralPath $gi -PathType Leaf) {
+    $bytes = [System.IO.File]::ReadAllBytes($gi)
+    if ($bytes.Length -gt 0 -and $bytes[$bytes.Length - 1] -ne 0x0A) { $needsNl = $true }
+  }
+  if ($needsNl) { [System.IO.File]::AppendAllText($gi, "`n", $utf8) }
   [System.IO.File]::AppendAllText($gi, ".agents/`n", $utf8)
 }
 
