@@ -1,0 +1,8 @@
+﻿### arm 1: the repo's configured gate through Invoke-ProjectGate (cmd /c)
+    Passed=True  FailedStep=''  Component=''  elapsed=258s
+
+### negative control: same engine call, gate.test replaced by a command that exits 1
+    Passed=False  FailedStep='test'  Component='root'
+    ok control went red, so the green above is a real verdict
+
+RESULT: arm 1 GREEN

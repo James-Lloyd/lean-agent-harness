@@ -67,11 +67,12 @@
       "runtime": null,
       "commands": { "install": null, "run": null },
       "gate": {
+        "_comment": "This repo's product IS the harness, so its gate is the harness's own self-test twins. `node harness/tests/gate.mjs` is the one spelling the engine can run on both platforms (cmd /c on Windows, bash -lc on Unix) — that script explains why (a bare `bash` under cmd /c is WSL, measured) and dispatches to run-tests.ps1 + run-tests.sh. NOTE for consumer repos: an all-null gate is the shipped-template default; /harness-init fills yours from the real stack.",
         "format": null,
         "lint": null,
         "typecheck": null,
         "build": null,
-        "test": null,
+        "test": "node harness/tests/gate.mjs",
         "e2e": null
       }
     }

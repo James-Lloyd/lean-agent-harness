@@ -108,7 +108,7 @@ the config preset, a Task Scheduler / cron recipe, and the morning audit routine
 | `.claude/settings.json` | Permissions + env + session `model`/`effortLevel`. The hooks (format/lint/typecheck on edit, routed per component; block destructive bash; SessionStart orientation) are supplied by the plugin (`plugin/hooks/hooks.json`), not defined here. |
 | `harness/harness.config.json` | Autonomy + workflow + per-phase **model routing** (`models` — `{model, fallback, effort}` per phase; the schema still allows a phase to route cross-vendor to the OpenAI Codex CLI with a Claude fallback, but the default config is single-vendor Claude on every phase) + per-component gate config + the opt-in `promotion` risk policy (see [`docs/promotion.md`](docs/promotion.md)) — the one file you tune per project. |
 | `harness/loop.ps1` / `loop.sh`, `harness/fleet.ps1` / `fleet.sh`, `harness/codex-setup.ps1` / `codex-setup.sh` | Thin **wrappers** that locate the installed plugin engine (`$HARNESS_ENGINE` → `$CLAUDE_PLUGIN_ROOT/engine` → `~/.claude/plugins`) and dispatch to it, passing this repo as project root — so `powershell harness/loop.ps1 …` keeps working from a bare terminal or cron. The real loop / **opt-in parallel fleet** (independent tasks build in isolated worktrees, then land through a serialized merge queue that re-runs the full gate) ship in `plugin/engine/`. |
-| `harness/tests/` | Self-tests for the harness's own logic (gate, denylist, budget) sourced from `plugin/engine` — run them locally or in CI. |
+| `harness/tests/` | Self-tests for the harness's own logic (gate, denylist, budget) sourced from `plugin/engine` — run them locally (`node harness/tests/gate.mjs` runs both twins, and is this repo's own wired gate step) or in CI. |
 | `ci/` | Ready-to-activate CI workflow (copy into `.github/workflows/` to run self-tests on push/PR). |
 | `docs/` | `architecture/`, `design-docs/`, `execution-plans/`, `technical-debt/`, `principles/`. The agent's long-term knowledge, version-controlled. |
 | `specs/` | **Immutable** source of truth for requirements. The agent reads, never rewrites. |
@@ -189,7 +189,9 @@ rolling back any iteration that fails the validate gate. Full contract:
    judges (fresh-context review, evaluator) run in the supervised paths — see [`ROADMAP.md`](ROADMAP.md).
 10. **Portable by construction.** Plain files + git, no proprietary memory; swap the model freely.
 11. **It tests itself.** The harness's own logic has self-tests ([`harness/tests/`](harness/tests/)) run
-    in CI — they've already caught real bugs.
+    in CI — they've already caught real bugs. And it eats its own gate: this repo's
+    `components[0].gate.test` runs those suites, so `/verify` and `autoRollbackOnRed` grade the
+    harness by the same rule the harness imposes on a project.
 
 ---
 
