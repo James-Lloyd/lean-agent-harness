@@ -1,0 +1,921 @@
+=== PowerShell self-tests (harness/tests/run-tests.ps1)
+    powershell -NoProfile -ExecutionPolicy Bypass -File C:\Users\<user>\Repos\harness\.claude\worktrees\wire-repo-gate\harness\tests\run-tests.ps1
+engine hygiene: every engine .ps1 PARSES under this PowerShell host
+  ok  parses: codex-setup.ps1
+  ok  parses: fleet.ps1
+  ok  parses: loop.ps1
+  ok  parses: migrate.ps1
+  ok  parses: lib\budget.ps1
+  ok  parses: lib\checkpoint.ps1
+  ok  parses: lib\dispatch.ps1
+  ok  parses: lib\fleet.ps1
+  ok  parses: lib\gate.ps1
+  ok  parses: lib\invoke-codex.ps1
+  ok  parses: lib\risk.ps1
+  ok  parses: wrappers\codex-setup.ps1
+  ok  parses: wrappers\fleet.ps1
+  ok  parses: wrappers\loop.ps1
+gate: StrictMode-safe missing-key tolerance
+  - format : exit 0
+  ok  partial gate object does not throw
+  ok  partial gate object passes (missing steps skipped)
+gate: pass / fail attribution
+  - format : exit 0
+  - lint : exit 0
+  - test : exit 0
+  ok  all-green gate passes
+  - format : exit 0
+  - lint : exit 5
+    x lint failed (exit 5) in C:\Users\<user>\Repos\harness\.claude\worktrees\wire-repo-gate\harness\tests :
+  ok  failing gate reports FailedStep=lint
+gate: a step that writes to STDERR but exits 0 still passes (regression: EAP=Stop)
+  - format : echo oops 1>&2
+  - test : exit 0
+  ok  stderr-on-exit-0 step does not throw
+  ok  stderr-on-exit-0 gate passes
+gate: multi-component project gate + failure attribution
+  [frontend] gate (.)
+  - format : exit 0
+  - test : exit 0
+  [backend] gate (.)
+  - format : exit 0
+  - test : exit 0
+  [root] cross-cutting gate
+  - e2e : exit 0
+  ok  multi-component all-green passes
+  [frontend] gate (.)
+  - format : exit 0
+  [backend] gate (.)
+  - format : exit 0
+  - lint : exit 9
+    x lint failed (exit 9) in C:\Users\<user>\Repos\harness\.claude\worktrees\wire-repo-gate\harness\tests\. :
+  ok  multi-component failure attributed to backend:lint
+  x component 'ghost' path missing: C:\Users\<user>\Repos\harness\.claude\worktrees\wire-repo-gate\harness\tests\no-such-dir-xyz
+  ok  missing component dir fails the gate (fail-closed)
+review verdict: fail-closed last-VERDICT-line parsing
+  ok  SHIP on a clean final verdict
+  ok  REJECT wins as the last VERDICT line
+  ok  mid-sentence SHIP is not a verdict
+  ok  empty output fails closed
+review verdict: CASE-SENSITIVE - lowercase prose never ships (twin-parity with grep -E)
+  ok  lowercase 'verdict: ship' is prose => NONE
+  ok  mixed-case 'Verdict: Ship' is prose => NONE
+  ok  lowercase 'verdict: reject' is prose => NONE
+  ok  REJECT then line-initial lowercase prose stays REJECT
+  ok  lowercase prose after SHIP does not un-ship it
+evaluator verdict: CASE-SENSITIVE (same defect, same fix)
+  ok  lowercase 'verdict: pass' is prose => NONE
+  ok  FAIL then lowercase 'verdict: pass' stays FAIL
+evaluator verdict: fail-closed parse + sub-threshold N/10 override (Get-EvaluatorVerdict)
+  ok  PASS when verdict PASS and all scores >= threshold
+  ok  sub-threshold score overrides a PASS summary => FAIL
+  ok  explicit VERDICT: FAIL => FAIL
+  ok  no VERDICT line => NONE (fail-closed)
+  ok  empty text => NONE
+  ok  mid-sentence VERDICT: PASS is not a verdict => NONE
+  ok  score AT threshold (7/10, strict <) not below => PASS
+codex reviewer: availability probe drives the claude fallback
+  ok  missing binary => unavailable with reason
+  ok  api-key mode without CODEX_API_KEY => unavailable
+  ok  api-key mode with CODEX_API_KEY => available
+codex arg-assembly: -Mode selects the sandbox flag (read-only vs workspace-write)
+  ok  read-only mode => --sandbox read-only
+  ok  workspace-write mode => --sandbox write
+  ok  both modes keep --ask-for-approval never
+  ok  global flags precede the exec subcommand
+  ok  model passed through as -m
+  ok  effort passed as model_reasoning_effort
+  ok  no model => no -m flag
+  ok  read-only : -c approval_policy="never" is emitted
+  ok  read-only : the approval_policy override sits AFTER exec (where it binds)
+  ok  read-only : --ask-for-approval stays BEFORE exec (exec rejects it outright)
+  ok  read-only : the override is the argument OF a -c (immediately preceded by it)
+  ok  workspace-write : -c approval_policy="never" is emitted
+  ok  workspace-write : the approval_policy override sits AFTER exec (where it binds)
+  ok  workspace-write : --ask-for-approval stays BEFORE exec (exec rejects it outright)
+  ok  workspace-write : the override is the argument OF a -c (immediately preceded by it)
+usage-limit predicate: vendor-neutral markers (drives S3 fallback)
+  ok  detects 'usage limit'
+  ok  detects 'rate limit'
+  ok  detects 'quota' (any case)
+  ok  detects 'overloaded'
+  ok  detects HTTP 429
+  ok  detects 'too many requests'
+  ok  clean output => false
+  ok  stray 429 tokens => false
+  ok  empty output => false
+  ok  detects a usage limit past the pipe buffer
+sandbox predicate: HARNESS_SANDBOX contract + auto-detect (Test-Sandboxed, gate.ps1)
+  ok  HARNESS_SANDBOX=1 => sandboxed
+  ok  HARNESS_SANDBOX=true => sandboxed
+  ok  HARNESS_SANDBOX=yes => sandboxed
+  ok  HARNESS_SANDBOX=YES => sandboxed (case-insensitive)
+  ok  HARNESS_SANDBOX=0 => NOT sandboxed
+  ok  HARNESS_SANDBOX=false => NOT sandboxed
+  ok  explicit 0 beats markers
+  ok  unset + no markers (bare host) => NOT sandboxed
+  ok  CODESPACES=false (present, not truthy) => sandboxed
+  ok  container=lxc (name value, present) => sandboxed
+sandbox template: devcontainer.json parses and marks itself a sandbox
+  ok  devcontainer.json is valid JSON (ConvertFrom-Json)
+  ok  devcontainer sets HARNESS_SANDBOX=1
+  ok  devcontainer uses a volume workspace (no host FS bind)
+model routing: Resolve-PhaseModel (config.models -> --model; '' = inherit)
+  ok  resolves implement model
+  ok  resolves reviewFallback model
+  ok  missing phase key => inherit ('')
+  ok  no models block => inherit ('')
+  ok  explicit null => inherit ('')
+model routing: nested {model,fallback} shape + Resolve-PhaseFallback
+  ok  nested primary => model
+  ok  nested review primary => codex
+  ok  nested fallback => fallback model
+  ok  reviewFallback pseudo-phase => review.fallback
+  ok  nested null fallback => inherit ('')
+  ok  nested absent phase => inherit ('') (model)
+  ok  nested absent phase => inherit ('') (fallback)
+  ok  flat-legacy primary still resolves
+  ok  flat-legacy reviewFallback (top-level)
+  ok  flat review fallback => top-level reviewFallback
+  ok  flat non-review phase has no fallback ('')
+model routing: Resolve-PhaseEffort / Resolve-PhaseFallbackEffort (declared depth -> headless --effort)
+  ok  nested effort resolves
+  ok  nested fallbackEffort resolves
+  ok  absent fallbackEffort => '' (inherits effort at dispatch)
+  ok  explicit null effort => ''
+  ok  absent phase => ''
+  ok  flat-legacy string declares no effort
+model routing V2: per-phase codex{model,reasoningEffort} over the global models.codex (design-doc 002 D2)
+  ok  per-phase codex.model wins over global
+  ok  per-phase codex.reasoningEffort wins over global
+  ok  partial override: model from phase
+  ok  partial override: effort inherits global
+  ok  no phase block => global model
+  ok  flat-legacy 'codex' string => global model
+  ok  auth/timeout are global-only and carried through
+  ok  no global, no phase block => null model (CLI default)
+model routing V4: review.second{model,effort} - the second, read-only reviewer (design-doc 002 D4)
+  ok  second.model resolves
+  ok  second.effort resolves
+  ok  second.model null => '' (no second reviewer)
+  ok  absent phase => ''
+  ok  flat-legacy string => ''
+  ok  review without a second block => ''
+model routing S1b: Resolve-PhaseFallback('review') is symmetric with reviewFallback pseudo-phase
+  ok  mixed review.fallback=null falls to legacy reviewFallback
+  ok  mixed: fallback accessor == reviewFallback pseudo-phase
+  ok  nested review.fallback=sonnet => fallback accessor
+  ok  nested review.fallback=sonnet => reviewFallback pseudo
+  ok  absent review + legacy => fallback accessor
+  ok  non-review nested null fallback still => ''
+dispatch: Invoke-Phase fallback trigger (stub claude; deterministic, no real model/codex)
+clean ok output
+  ok  1 primary success => Ok, Path=claude, no fallback
+Error: monthly usage limit reached
+clean ok output
+  ok  2 usage-limit => fallback fires, Ok, UsedFallback=true
+clean ok output
+  ok  3 codex unavailable => claude fallback, Ok, Path=claude
+build failed: TypeError in module
+  ok  4 generic failure => Ok=false, invoke-failed, no fallback
+  ok  4 fallback stub was NEVER invoked (marker absent)
+Error: monthly usage limit reached
+Error: monthly usage limit reached
+  ok  5 both usage-limited => Ok=false, exhausted, Path=null
+build complete; note: server was overloaded earlier
+  ok  6 success w/ 'overloaded' text => Ok, no fallback (ratchet)
+  ok  6 fallback NOT consulted on the success
+  ok  7 -Quiet primary success => Ok, Path=claude, no fallback
+  ok  7 -Quiet still writes the transcript log
+clean ok output
+  ok  8a primary runs at its declared effort (--effort high)
+Error: monthly usage limit reached
+clean ok output
+  ok  8b fallback runs at FallbackEffort (high -> medium)
+Error: monthly usage limit reached
+clean ok output
+  ok  8c absent FallbackEffort inherits the primary's effort
+clean ok output
+  ok  8d no declared effort => no --effort flag (model default)
+clean ok output
+  ok  8e codex-only 'minimal' is NOT passed to claude (flag omitted)
+clean ok output
+  ok  8f 'max' is CLI-legal and passed through
+  ok  8g Test-ClaudeEffortLegal: xhigh yes; minimal/empty/High no (case-sensitive)
+  ok  9a codex primary available => Ok, Path=codex, no fallback
+  ok  9b codex arm returns the --output-last-message text (verdict)
+  ok  9c per-phase codex model/effort reached codex argv (-m / model_reasoning_effort)
+fleet: ownership overlap + batch selection (file-partitioned parallelism)
+  ok  same dir overlaps
+  ok  nested path overlaps
+  ok  glob suffix normalized
+  ok  case/slash-insensitive (Windows)
+  ok  disjoint dirs do not overlap
+  ok  empty entry overlaps everything (fail-closed)
+  ok  selects T1,T3,T6 (skips overlap/status/unowned)
+  ok  maxWorkers caps the batch
+budget: per-run reset
+  ok  budget resets to 0
+  ok  no cap => not exceeded
+budget: run id = max existing suffix + 1, not dir count; allocation claims the dir
+  ok  run-004 after run-002 was cleaned up
+  ok  allocation claims the dir (2nd call => run-005)
+budget: meters MAX of each token field, not the sum (modelUsage repeats counts)
+  ?? est. tokens this run: ~150
+  ok  budget meters 150 (max 100 + max 50, not summed to 300)
+  ?? est. tokens this run: ~3,150
+  ok  budget includes cache tokens (3150)
+  ?? est. tokens this run: ~15,000
+  ok  budget: a log with NO token counts does not throw and falls back to the 15000 estimate
+block-destructive hook: blocks dangerous, allows safe
+  ok  blocks rm -fr (flag order)
+  ok  blocks rm <dir> -rf (flags after operand)
+  ok  blocks git push -f (short flag)
+  ok  blocks find -delete
+  ok  blocks git reset --hard <sha>
+  ok  blocks secret read via grep
+  ok  blocks Remove-Item -Recurse -Force
+  ok  allows git status
+  ok  allows npm test
+  ok  allows normal git push
+  ok  ALLOWS git push --force-with-lease (the recommended form)
+  ok  blocks Remove-Item -Force (Force alone, no Recurse)
+  ok  blocks rmdir /s (cmd.exe recursive)
+  ok  blocks rd /s (cmd.exe recursive, short alias)
+  ok  blocks del /s (cmd.exe recursive delete)
+  ok  blocks del /q (cmd.exe quiet delete)
+  ok  blocks Format-Volume
+  ok  blocks Clear-Disk
+  ok  blocks Clear-Content
+  ok  blocks rmdir with the recursive switch in second position
+  ok  blocks del with the recursive switch in second position
+  ok  blocks rd with concatenated switches (/s/q)
+  ok  blocks rmdir with concatenated switches (/s/q)
+  ok  blocks rd with concatenated switches, other order
+  ok  blocks del with concatenated switches (/s/q)
+  ok  blocks a concatenated-switch delete wrapped in cmd /c
+  ok  blocks a trailing switch followed straight by &&
+  ok  blocks del with the recursive switch led by another flag (/f/s/q)
+  ok  blocks del /a/s/q (different leading flag)
+  ok  blocks del /f/q (quiet switch not first in the run)
+  ok  blocks rd with NO space between command and switch
+  ok  blocks rmdir with NO space between command and switch
+  ok  blocks a switch run ended by > (rd ... >nul)
+  ok  blocks a switch run ended by > (rmdir ... >nul)
+  ok  blocks a switch run ended by ) (parenthesised)
+  ok  blocks the if-exist guarded delete (idiomatic batch)
+  ok  blocks a switch run ended by a comma
+  ok  blocks del with a switch run ended by >
+  ok  blocks del /f/s/q ended by > (led by a flag AND redirected)
+  ok  blocks erase /f/s/q (del's cmd.exe synonym)
+  ok  blocks erase /s
+  ok  ALLOWS the two-letter token /sq (cmd.exe refuses it)
+  ok  ALLOWS the two-letter token /qs (cmd.exe refuses it)
+  ok  ALLOWS a command mentioning del beside a /logs/ path
+  ok  ALLOWS rmdir /s/build (cmd.exe: 'Invalid switch')
+  ok  ALLOWS a bare Remove-Item with no -Recurse/-Force
+  ok  ALLOWS rmdir on a POSIX path starting with the switch letter (/srv)
+  ok  ALLOWS rmdir /sys/... (POSIX path, not a switch)
+  ok  ALLOWS rd on a POSIX path starting with the switch letter (/storage)
+  ok  blocks a destructive command inside a payload larger than the pipe buffer
+  ok  blocks a destructive command in a MULTI-LINE oversized payload
+block-destructive: work-discard + remote-pipe coverage, false-positive exemptions
+  ok  blocks git checkout . (bare dot)
+  ok  blocks git restore .
+  ok  blocks git clean --force (long form)
+  ok  blocks rm with quoted flags
+  ok  blocks iwr | iex
+  ok  allows git checkout feature-branch
+  ok  allows cat .env.example (template)
+  ok  allows commit msg mentioning drop table
+  ok  allows src/api.key.ts (source, not a key file)
+  ok  blocks reading server.key
+block-destructive: spec-lock blocks shell writes to specs/ only when locked
+  ok  blocks shell write to specs/ when locked
+  ok  allows shell write to specs/ when unlocked
+  ok  blocks >specs/ redirect without a space when locked
+  ok  blocks touch specs/ when locked
+  ok  ALLOWS sed -n ranged READ of specs/ when locked
+  ok  ALLOWS cp specs/ -> elsewhere (read) when locked
+  ok  blocks cp -> specs/ (write) when locked
+protect-specs hook: locks specs/ only when HARNESS_LOCK_SPECS is set
+  ok  blocks specs/ write when locked
+  ok  allows non-spec write when locked
+  ok  allows specs/ write when unlocked
+  ok  blocks specs/*.ipynb via notebook_path when locked
+risk: glob semantics (must be identical in risk.sh - neither -like nor case globs are used)
+  ok  **/ spans whole segments
+  ok  **/ also matches at the repo root
+  ok  * never crosses /
+  ok  * matches within one segment
+  ok  a leading dot in a path survives
+  ok  a leading ./ prefix is stripped
+  ok  a non-match stays a non-match
+risk: deterministic rules (every criterion computed from the diff, escalate-only)
+  ok  a clean diff is LOW
+  ok  a migration escalates to MEDIUM
+  ok  infra escalates to MEDIUM
+  ok  size at the limit escalates to MEDIUM
+  ok  size just under the limit stays LOW
+  ok  an alwaysHuman path pins HIGH
+  ok  a money signal in added text pins HIGH
+  ok  a money term as a snake_case prefix fires
+  ok  an inflected money term fires
+  ok  a money term MID-word does not fire
+  ok  a money signal fires in an added text larger than the pipe buffer
+  ok  editing the policy itself pins HIGH
+  ok  editing the risk lib itself pins HIGH
+  ok  an empty diff fails closed to HIGH
+  ok  HIGH is not diluted by a MEDIUM rule
+  ok  a tripped rule is named in the reasons
+risk: the escalate-only ratchet (an agent may confirm or raise, never lower)
+  ok  merge cannot lower a tier
+  ok  merge raises to the higher tier
+  ok  an unknown tier ranks HIGH, not LOW
+risk: verdict parsing is fail-closed (mirror of the reviewer's last-VERDICT-line rule)
+  ok  the LAST RISK: line decides
+  ok  a mid-reasoning mention cannot decide
+  ok  no RISK: line fails closed to HIGH
+  ok  empty output fails closed to HIGH
+  ok  an unrecognized tier token is HIGH
+  ok  a lowercase 'risk: low' note is NOT a verdict
+  ok  a mixed-case 'Risk: Low' is NOT a verdict
+  ok  RISK:LOW with no space is still a verdict
+risk: the promotion decision (prod is never automated)
+  ok  staging + LOW + preconditions met = AUTO
+  ok  prod + LOW is STILL human
+  ok  staging + MEDIUM is human
+  ok  staging + HIGH is human
+  ok  a LOW diff with no review SHIP is human
+  ok  a LOW diff with a red gate is human
+  ok  a LOW diff with no e2e evidence is human
+  ok  an unknown environment is human
+  ok  promotion disabled is human
+  ok  the prod refusal names prod, not config
+  ok  LOW + all preconditions but NO reviewer identity => HUMAN
+  ok  the no-reviewer refusal names self-approval (not the AUTO reason)
+  ok  the SAME LOW change WITH a reviewer identity => AUTO
+  ok  an OMITTED reviewer arg fails closed to HUMAN
+  ok  a nonzero-NUMBER reviewer arg (2) fails closed to HUMAN
+  ok  a nonzero-NUMBER reviewer arg (-1) fails closed to HUMAN
+  ok  a nonzero-NUMBER reviewer arg (0.5) fails closed to HUMAN
+  ok  a stringly-typed reviewer arg '0' fails closed to HUMAN
+  ok  a stringly-typed reviewer arg 'false' fails closed to HUMAN
+  ok  a stringly-typed reviewer arg 'no' fails closed to HUMAN
+  ok  a stringly-typed reviewer arg 'off' fails closed to HUMAN
+  ok  a stringly-typed reviewer arg 'true' fails closed to HUMAN
+  ok  a stringly-typed reviewer arg '1' fails closed to HUMAN
+  ok  a $null reviewer arg fails closed to HUMAN
+  ok  a real boolean reviewer arg still reaches AUTO
+  ok  a nonzero-NUMBER gateGreen (2) fails closed to HUMAN
+  ok  a nonzero-NUMBER reviewShip (2) fails closed to HUMAN
+  ok  a nonzero-NUMBER e2eEvidence (2) fails closed to HUMAN
+  ok  three real boolean preconditions still reach AUTO
+  ok  det LOW + classifier HIGH => HUMAN (cannot bypass the classifier)
+  ok  det HIGH + classifier LOW => HUMAN (deterministic escalation kept)
+  ok  det LOW + classifier LOW => AUTO (both agree low)
+  ok  an empty classifier tier fails closed to HUMAN
+  ok  a garbage classifier tier fails closed to HUMAN
+risk: a malformed promotion block REFUSES (it must never silently skip a rule)
+  ok  absent preconditions => HUMAN, not 'all met'
+  ok  alwaysHuman as a scalar => HUMAN
+  ok  an EMPTY alwaysHuman => HUMAN
+  ok  enabled as the STRING 'false' => HUMAN
+  ok  a fractional maxChangedLines => HUMAN
+  ok  a well-formed enabled block still AUTOs
+  ok  a large (Int64) maxChangedLines is accepted
+  ok  1000.0 counts as an integer VALUE
+  ok  an absent criteria block is still well-formed
+risk: whitespace is TRIMMED, never deleted (interior spaces must not collapse)
+  ok  'st aging' is an unknown environment
+  ok  'L OW' does not collapse to LOW
+  ok  surrounding whitespace is trimmed
+risk: the shipped schema + config make 'auto-merge to prod' unrepresentable
+  ok  schema pins prod.autoMerge to const false
+  ok  schema's staging threshold declares an enum
+  ok  schema's staging threshold offers no 'medium'
+  ok  schema's staging threshold offers no 'high'
+  ok  schema REQUIRES the money keys when present
+  ok  shipped config sets prod.autoMerge false
+  ok  shipped config ships promotion disabled
+  ok  shipped config guards the money surfaces
+  ok  shipped config names a reviewer token env var
+docs: /promote binds its decision to the PR and finalises the audit record
+  ok  /promote pins the PR head to the classified HEAD
+  ok  /promote requires the PR base to be the environment's configured branch
+  ok  /promote's pre-action record starts with a null outcome
+  ok  /promote appends an outcome ledger row after acting
+  ok  docs/promotion.md documents the outcome row
+  ok  docs no longer advertise an App installation token as the reviewer identity
+  ok  schema no longer advertises an App installation token as the reviewer identity
+  ok  /promote checks gh api user's exit status, not just its output
+  ok  /promote names the stdout-error-body trap that makes a bad token look like a login
+docs: AGENTS.md is the map, CLAUDE.md is the @AGENTS.md import shim (design-doc 002)
+  ok  AGENTS.md + @AGENTS.md shim in .
+  ok  AGENTS.md + @AGENTS.md shim in plugin/engine
+  ok  AGENTS.md + @AGENTS.md shim in examples/headless-fe-be
+  ok  AGENTS.md + @AGENTS.md shim in examples/headless-fe-be/frontend
+  ok  AGENTS.md + @AGENTS.md shim in examples/headless-fe-be/backend
+  ok  component template ships as AGENTS.md map + CLAUDE.md shim
+  ok  placeholders live in AGENTS.md, none in the CLAUDE.md shim
+  ok  root CLAUDE.md shim stays short (<= 25 lines)
+codex-setup: generated, gitignored Codex surfaces from a temp project (design-doc 002 D3)
+  ok  generate exits 0
+  ok  config.toml: hooks on + skills path -> plugin/skills
+  ok  config.toml: skills.config entry carries enabled = true (required by Codex 0.144.3)
+  ok  config.toml: no [agents] block / default_subagent_* keys (fatal to load on Codex 0.144.3)
+  ok  config.toml: native absolute path with forward slashes
+  ok  hooks.json: four commands, every one routed through run.mjs --codex (Codex ignores exit 2; V5)
+  ok  hooks.json: event entries and hook lists are JSON arrays
+  ok  hooks.json: block-destructive is under the shell-tool matcher 'Bash' (V5-verified), NOT *
+  ok  hooks.json: protect-specs / format-and-check / session-start run under *
+  ok  hooks.json: no ConfigChange (no Codex event for it)
+  ok  -ShellMatcher overrides block-destructive's matcher (default Bash, pinned in V5)
+  ok  block-destructive DENIES an edit payload that merely mentions rm -rf (why it is not under *)
+  ok  protect-specs ALLOWS a payload without a file path (safe under *)
+  ok  agents/: one TOML per plugin agent
+  ok  reviewer.toml: per-phase codex model/effort + read-only sandbox
+  ok  generator.toml: workspace-write + inherits the global codex model
+  ok  reviewer.toml: body embedded as a TOML literal, frontmatter stripped
+  ok  .gitignore gained exactly one '.codex/' line
+  ok  re-run is idempotent on .gitignore
+  ok  cross-twin: bash --check calls the PS-generated set fresh (digest parity)
+  ok  -Check exits 0 right after generation (fresh)
+  ok  -Check exits 1 STALE after an input changes
+  ok  -Check exits 1 NOT generated when .codex/ is absent
+  ok  -User writes hooks.json into HARNESS_CODEX_HOME
+  ok  -User refuses to overwrite a hooks.json the harness did not generate
+gate wiring: this repo's own gate actually runs the self-test twins
+  ok  root component gate.test is wired (not null)
+  ok  gate.test launches via node (cross-shell: cmd /c AND bash -lc), got: node harness/tests/gate.mjs
+  ok  gate.test's script exists at the repo-relative path it names (harness/tests/gate.mjs)
+  ok  harness/tests/gate.mjs exists
+  ok  gate.mjs parses (node --check)
+  ok  gate.mjs looks bash up on PATH only inside findBash's !WIN guard (WSL trap stays closed)
+plugin: cross-platform hook dispatcher (node)
+  ok  hook dispatcher self-test passes (node)
+docs: model-routing skill documents the shipped default routing
+  ok  skill row for session documents claude-fable-5-1 @ medium (fallback none)
+  ok  skill row for explore documents haiku @ low (fallback none)
+  ok  skill row for plan documents claude-fable-5-1 @ high (fallback claude-opus-5 @ high)
+  ok  skill row for implement documents claude-opus-5 @ high (fallback none)
+  ok  skill row for review documents claude-fable-5-1 @ high (fallback claude-opus-5 @ medium)
+  ok  skill row for evaluate documents claude-fable-5-1 @ high (fallback claude-opus-5 @ medium)
+  ok  skill row for docs documents haiku @ low (fallback none)
+docs: risk-tiering skill documents the shipped escalation criteria
+  ok  risk skill documents escalatePaths.migrations as MEDIUM
+  ok  risk skill documents escalatePaths.infra as MEDIUM
+  ok  risk skill documents escalatePaths.authz as MEDIUM
+  ok  risk skill documents escalatePaths.auditLog as MEDIUM
+  ok  risk skill documents escalatePaths.contracts as MEDIUM
+  ok  risk skill states the shipped size limit (1000)
+  ok  risk skill names alwaysHuman as HIGH
+  ok  risk skill names moneySignals as HIGH
+migrate: end-to-end classify + apply on a synthetic repo
+  ok  harness-migrate self-test passes
+
+RESULT: 385 passed, 0 failed
+
+=== bash self-tests (harness/tests/run-tests.sh)
+    C:\Program Files\Git\bin\bash.exe C:\Users\<user>\Repos\harness\.claude\worktrees\wire-repo-gate\harness\tests\run-tests.sh
+engine hygiene: every engine .sh PARSES (bash -n) — mirror of the PS ParseFile check
+  ok  parses: codex-setup.sh
+  ok  parses: fleet.sh
+  ok  parses: lib/budget.sh
+  ok  parses: lib/checkpoint.sh
+  ok  parses: lib/dispatch.sh
+  ok  parses: lib/fleet.sh
+  ok  parses: lib/gate.sh
+  ok  parses: lib/invoke-codex.sh
+  ok  parses: lib/risk.sh
+  ok  parses: loop.sh
+  ok  parses: migrate.sh
+  ok  parses: wrappers/codex-setup.sh
+  ok  parses: wrappers/fleet.sh
+  ok  parses: wrappers/loop.sh
+plan counter: grep -c emits a single clean count (the bug fix)
+  ok  counts 2 open items, single line (got '2')
+  ok  empty plan => 0 (no double line) (got '0')
+review verdict: fail-closed last-VERDICT-line parsing
+  ok  SHIP on a clean final verdict (got 'SHIP')
+  ok  REJECT wins as the last VERDICT line (got 'REJECT')
+  ok  mid-sentence SHIP is not a verdict (got 'NONE')
+  ok  empty output fails closed (got 'NONE')
+review verdict: CASE-SENSITIVE — lowercase prose never ships (twin-parity with -cmatch)
+  ok  lowercase 'verdict: ship' is prose => NONE (got 'NONE')
+  ok  mixed-case 'Verdict: Ship' is prose => NONE (got 'NONE')
+  ok  lowercase 'verdict: reject' is prose => NONE (got 'NONE')
+  ok  REJECT then line-initial lowercase prose stays REJECT (got 'REJECT')
+  ok  lowercase prose after SHIP does not un-ship it (got 'SHIP')
+evaluator verdict: CASE-SENSITIVE (same defect, same fix)
+  ok  lowercase 'verdict: pass' is prose => NONE (got 'NONE')
+  ok  FAIL then lowercase 'verdict: pass' stays FAIL (got 'FAIL')
+evaluator verdict: fail-closed parse + sub-threshold N/10 override (evaluator_verdict)
+  ok  PASS when verdict PASS and all scores >= threshold (got 'PASS')
+  ok  sub-threshold score overrides a PASS summary => FAIL (got 'FAIL')
+  ok  explicit VERDICT: FAIL => FAIL (got 'FAIL')
+  ok  no VERDICT line => NONE (got 'NONE')
+  ok  empty text => NONE (got 'NONE')
+  ok  mid-sentence VERDICT: PASS is not a verdict => NONE (got 'NONE')
+  ok  score AT threshold (7/10, strict <) not below => PASS (got 'PASS')
+codex reviewer: availability probe drives the claude fallback
+  ok  missing binary => unavailable with reason (got 'codex CLI not found')
+  ok  api-key mode without CODEX_API_KEY => unavailable (got 'CODEX_API_KEY not set')
+  ok  api-key mode with CODEX_API_KEY => available
+codex arg-assembly: mode selects the sandbox flag
+  ok  read-only mode => sandbox read-only
+  ok  workspace-write mode => sandbox workspace-write
+  ok  keeps --ask-for-approval never
+  ok  model passed as -m
+  ok  no model => no -m flag
+  ok  ro: -c approval_policy="never" is emitted
+  ok  ro: the approval_policy override sits AFTER exec (exec-level, where it binds)
+  ok  ro: --ask-for-approval stays BEFORE exec (exec rejects it outright)
+  ok  ro: the override is the argument OF a -c (immediately preceded by it)
+  ok  ww: -c approval_policy="never" is emitted
+  ok  ww: the approval_policy override sits AFTER exec (exec-level, where it binds)
+  ok  ww: --ask-for-approval stays BEFORE exec (exec rejects it outright)
+  ok  ww: the override is the argument OF a -c (immediately preceded by it)
+usage-limit predicate: vendor-neutral markers
+  ok  detects usage limit
+  ok  detects rate limit
+  ok  detects quota (any case)
+  ok  detects overloaded
+  ok  detects HTTP 429
+  ok  clean output => false
+  ok  stray 429 => false
+  ok  empty => false
+  ok  detects a usage limit past the pipe buffer
+sandbox predicate: HARNESS_SANDBOX contract + auto-detect (is_sandboxed, gate.sh)
+  ok  HARNESS_SANDBOX=1 => sandboxed
+  ok  HARNESS_SANDBOX=true => sandboxed
+  ok  HARNESS_SANDBOX=yes => sandboxed
+  ok  HARNESS_SANDBOX=YES => sandboxed (case-insensitive)
+  ok  HARNESS_SANDBOX=0 => NOT sandboxed
+  ok  HARNESS_SANDBOX=false => NOT sandboxed
+  ok  explicit 0 beats markers
+  ok  unset + no markers (bare host) => NOT sandboxed
+  ok  CODESPACES=false (present, not truthy) => sandboxed
+  ok  container=lxc (name value, present) => sandboxed
+block-destructive hook: blocks dangerous, allows safe
+  ok  blocks rm -fr (flag order)
+  ok  blocks rm <dir> -rf (flags after operand)
+  ok  blocks git push -f (short flag)
+  ok  blocks find -delete
+  ok  blocks git reset --hard <sha>
+  ok  blocks secret read via grep
+  ok  allows git status
+  ok  allows npm test
+  ok  allows normal git push
+  ok  ALLOWS git push --force-with-lease (recommended)
+  ok  blocks Remove-Item -Recurse -Force (PowerShell form)
+  ok  blocks Remove-Item -Force (Force alone, no Recurse)
+  ok  blocks rmdir /s (cmd.exe recursive)
+  ok  blocks rd /s (cmd.exe recursive, short alias)
+  ok  blocks del /s (cmd.exe recursive delete)
+  ok  blocks del /q (cmd.exe quiet delete)
+  ok  blocks Format-Volume
+  ok  blocks Clear-Disk
+  ok  blocks Clear-Content
+  ok  blocks rmdir with the recursive switch in second position
+  ok  blocks del with the recursive switch in second position
+  ok  blocks rd with concatenated switches (/s/q)
+  ok  blocks rmdir with concatenated switches (/s/q)
+  ok  blocks rd with concatenated switches, other order (/q/s)
+  ok  blocks del with concatenated switches (/s/q)
+  ok  blocks a concatenated-switch delete wrapped in cmd /c (how an agent phrases it)
+  ok  blocks a trailing switch followed straight by && (no whitespace after)
+  ok  blocks del with the recursive switch led by another flag (/f/s/q)
+  ok  blocks del /a/s/q (different leading flag)
+  ok  blocks del /f/q (quiet switch not first in the run)
+  ok  blocks rd with NO space between command and switch
+  ok  blocks rmdir with NO space between command and switch
+  ok  blocks a switch run ended by > (rd ... >nul)
+  ok  blocks a switch run ended by > (rmdir ... >nul)
+  ok  blocks a switch run ended by ) (parenthesised block)
+  ok  blocks the if-exist guarded delete (idiomatic batch)
+  ok  blocks a switch run ended by a comma
+  ok  blocks del with a switch run ended by >
+  ok  blocks del /f/s/q ended by > (led by another flag AND redirected)
+  ok  blocks erase /f/s/q (del's cmd.exe synonym)
+  ok  blocks erase /s
+  ok  ALLOWS the two-letter token /sq (cmd.exe refuses it; not executable)
+  ok  ALLOWS the two-letter token /qs (cmd.exe refuses it; not executable)
+  ok  ALLOWS a command mentioning del beside a /logs/ path
+  ok  ALLOWS rmdir /s/build (cmd.exe: 'Invalid switch - build'; not executable)
+  ok  ALLOWS a bare Remove-Item with no -Recurse/-Force
+  ok  ALLOWS rmdir on a POSIX path starting with the switch letter (/srv)
+  ok  ALLOWS rmdir /sys/... (POSIX path, not a switch)
+  ok  ALLOWS rd on a POSIX path starting with the switch letter (/storage)
+  ok  blocks a destructive command inside a payload larger than the pipe buffer
+  ok  blocks a destructive command in a MULTI-LINE oversized payload (got '2')
+  ok  ...and still blocks it with 'set -euo pipefail' injected into the hook (got '2')
+block-destructive: work-discard + remote-pipe coverage, false-positive exemptions
+  ok  blocks git checkout . (bare dot)
+  ok  blocks git restore .
+  ok  blocks git clean --force (long form)
+  ok  blocks iwr | iex
+  ok  allows git checkout feature-branch
+  ok  allows cat .env.example (template)
+  ok  allows src/api.key.ts (source, not a key file)
+  ok  blocks reading server.key
+  ok  blocks rm with quoted flags (got '2')
+  ok  allows commit msg mentioning drop table (got '0')
+block-destructive: spec-lock blocks shell writes to specs/ only when locked
+  ok  blocks shell write to specs/ when locked
+  ok  allows shell write to specs/ when unlocked
+  ok  blocks >specs/ redirect without a space when locked
+  ok  blocks touch specs/ when locked
+  ok  ALLOWS sed -n ranged READ of specs/ when locked
+  ok  ALLOWS cp specs/ -> elsewhere (read) when locked
+  ok  blocks cp -> specs/ (write) when locked
+protect-specs hook: locks specs/ only when HARNESS_LOCK_SPECS is set
+  ok  blocks specs/ write when locked
+  ok  allows non-spec write when locked
+  ok  allows specs/ write when unlocked
+  ok  blocks specs/*.ipynb via notebook_path when locked
+  ok  protect-specs degraded (no jq) still ALLOWS a non-spec path (control, got '0')
+  ok  protect-specs degraded (no jq) blocks specs/ in a MULTI-LINE oversized payload (got '2')
+  ok  ...and still blocks it with 'set -euo pipefail' injected (got '2')
+gate (jq present): multi-component pass + failure attribution
+  [frontend] gate (.)
+  - format : true
+  - test : true
+  [backend] gate (.)
+  - format : true
+  - test : true
+  [root] cross-cutting gate
+  - e2e : true
+  ok  multi-component all-green passes
+  [frontend] gate (.)
+  - format : true
+  [backend] gate (.)
+  - format : true
+  - lint : false
+    x lint failed in /c/Users/<user>/Repos/harness/.claude/worktrees/wire-repo-gate/harness/../.:
+      
+  ok  failure attributed to backend:lint (got 'backend:lint')
+  [ghost] gate (no-such-dir-xyz)
+  x component 'ghost' path missing: no-such-dir-xyz
+  ok  missing component dir fails the gate (got 'ghost:path-missing')
+  [root] gate (.)
+  - format : echo oops 1>&2
+  - test : true
+  ok  stderr-on-exit-0 gate passes
+fleet: ownership overlap + batch selection (file-partitioned parallelism)
+  ok  same dir overlaps
+  ok  nested path overlaps
+  ok  glob suffix normalized
+  ok  case/slash-insensitive parity
+  ok  disjoint dirs do not overlap
+  ok  empty entry overlaps everything (fail-closed)
+  ok  selects T1,T3,T6 (skips overlap/status/unowned) (got 'T1,T3,T6')
+  ok  maxWorkers caps the batch (got 'T1,T3')
+model routing: phase_model (config.models -> --model; empty = inherit)
+  ok  resolves implement model (got 'opus')
+  ok  resolves reviewFallback model (got 'fable')
+  ok  missing phase key => inherit (got '')
+  ok  explicit null => inherit (got '')
+  ok  no models block => inherit (got '')
+model routing: nested {model,fallback} shape + phase_fallback
+  ok  nested primary => model (got 'opus')
+  ok  nested review primary => codex (got 'codex')
+  ok  nested fallback => fallback model (got 'codex')
+  ok  reviewFallback pseudo-phase => review.fallback (got 'fable')
+  ok  nested null fallback => inherit (got '')
+  ok  nested absent phase => inherit (model) (got '')
+  ok  nested absent phase => inherit (fallback) (got '')
+  ok  flat-legacy primary still resolves (got 'opus')
+  ok  flat-legacy reviewFallback (top-level) (got 'fable')
+  ok  flat review fallback => top-level reviewFallback (got 'fable')
+  ok  flat non-review phase has no fallback (got '')
+model routing: phase_effort / phase_fallback_effort (declared depth -> headless --effort)
+  ok  nested effort resolves (got 'high')
+  ok  nested fallbackEffort resolves (got 'medium')
+  ok  absent fallbackEffort => '' (inherits effort at dispatch) (got '')
+  ok  explicit null effort => '' (got '')
+  ok  absent phase => '' (got '')
+  ok  flat-legacy string declares no effort (got '')
+model routing V2: per-phase codex{model,reasoningEffort} over the global models.codex (design-doc 002 D2)
+  ok  per-phase codex.model wins over global (got 'gpt-review')
+  ok  per-phase codex.reasoningEffort wins over global (got 'xhigh')
+  ok  partial override: model from phase (got 'gpt-eval')
+  ok  partial override: effort inherits global (got 'medium')
+  ok  no phase block => global model (got 'gpt-global')
+  ok  flat-legacy 'codex' string => global model (got 'gpt-global')
+  ok  no global, no phase block => '' (CLI default) (got '')
+model routing V4: review.second{model,effort} — the second, read-only reviewer (design-doc 002 D4)
+  ok  second.model resolves (got 'codex')
+  ok  second.effort resolves (got 'high')
+  ok  second.model null => '' (no second reviewer) (got '')
+  ok  absent phase => '' (got '')
+  ok  flat-legacy string => '' (got '')
+  ok  review without a second block => '' (got '')
+model routing S1b: phase_fallback review symmetric with reviewFallback pseudo-phase
+  ok  mixed review.fallback=null falls to legacy (got 'fable')
+  ok  mixed: fallback accessor == reviewFallback pseudo (a='fable' b='fable')
+  ok  nested review.fallback=sonnet => fallback accessor (got 'sonnet')
+  ok  nested review.fallback=sonnet => reviewFallback pseudo (got 'sonnet')
+  ok  absent review + legacy => fallback accessor (got 'fable')
+  ok  non-review nested null fallback still => '' (got '')
+dispatch: invoke_phase fallback trigger (stub claude; deterministic, no real model/codex)
+  ok  1 primary success => ok, path=claude, no fallback
+  ok  2 usage-limit => fallback fires, ok, usedFallback=1
+  ok  3 codex unavailable => claude fallback, ok, path=claude
+  ok  4 generic failure => not-ok, invoke-failed, no fallback
+  ok  4 fallback stub was NEVER invoked (marker absent)
+  ok  5 both usage-limited => not-ok, exhausted, path empty
+  ok  6 success w/ 'overloaded' text => ok, no fallback (ratchet)
+  ok  6 fallback NOT consulted on the success
+  ok  7a primary runs at its declared effort (--effort high)
+  ok  7b fallback runs at fallbackEffort (high -> medium)
+  ok  7c absent fallbackEffort inherits the primary's effort
+  ok  7d no declared effort => no --effort flag (model default)
+  ok  7e codex-only 'minimal' is NOT passed to claude (flag omitted)
+  ok  7f 'max' is CLI-legal and passed through
+  ok  7g claude_effort_legal: xhigh yes; minimal/empty/High no (case-sensitive)
+  ok  8a codex primary available => ok, path=codex, no fallback
+  ok  8b codex arm returns the --output-last-message text (verdict)
+  ok  8c per-phase codex model/effort (resolved from config, over the global block) reached codex argv
+  ok  8d empty model/effort => no -m / no effort override (CLI defaults)
+  ok  budget resets to 0
+  ok  tokenBudget 0 = no cap (parity with budget.ps1)
+  ok  budget meters max-not-sum (expect 150, got '150')
+  ok  budget includes cache tokens (expect 3150, got '3150')
+  ok  budget: a log with NO token counts survives set -euo pipefail and falls back to the 15000 estimate
+  ok  run-004 after run-002 was cleaned up (got 'run-004')
+  ok  allocation claims the dir (2nd call => run-005, got 'run-005')
+  ok  devcontainer.json is strict JSON (jq parses, no comments)
+  ok  devcontainer sets HARNESS_SANDBOX=1
+  ok  devcontainer uses a volume workspace (no host FS bind)
+risk: glob semantics (must be identical in risk.ps1 — neither -like nor case globs are used)
+  ok  **/ spans whole segments
+  ok  **/ also matches at the repo root
+  ok  * never crosses /
+  ok  * matches within one segment
+  ok  a leading dot in a path survives
+  ok  a leading ./ prefix is stripped
+  ok  a non-match stays a non-match
+risk: the escalate-only ratchet (an agent may confirm or raise, never lower)
+  ok  merge cannot lower a tier
+  ok  merge raises to the higher tier
+  ok  an unknown tier ranks HIGH, not LOW
+risk: verdict parsing is fail-closed (mirror of the reviewer's last-VERDICT-line rule)
+  ok  the LAST RISK: line decides (got 'HIGH')
+  ok  a mid-reasoning mention cannot decide (got 'MEDIUM')
+  ok  no RISK: line fails closed to HIGH (got 'HIGH')
+  ok  empty output fails closed to HIGH (got 'HIGH')
+  ok  an unrecognized tier token is HIGH (got 'HIGH')
+  ok  a lowercase 'risk: low' note is NOT a verdict (got 'HIGH')
+  ok  a mixed-case 'Risk: Low' is NOT a verdict (got 'HIGH')
+  ok  RISK:LOW with no space is still a verdict (got 'LOW')
+risk: deterministic rules (every criterion computed from the diff, escalate-only)
+  ok  a clean diff is LOW
+  ok  a migration escalates to MEDIUM
+  ok  infra escalates to MEDIUM
+  ok  size at the limit escalates to MEDIUM
+  ok  size just under the limit stays LOW
+  ok  an alwaysHuman path pins HIGH
+  ok  a money signal in added text pins HIGH
+  ok  a money term as a snake_case prefix fires
+  ok  an inflected money term fires
+  ok  a money term MID-word does not fire
+  ok  a money signal fires in an added text larger than the pipe buffer
+  ok  editing the policy itself pins HIGH
+  ok  editing the risk lib itself pins HIGH
+  ok  an empty diff fails closed to HIGH
+  ok  HIGH is not diluted by a MEDIUM rule
+  ok  a tripped rule is named in the reasons
+risk: the promotion decision (prod is never automated)
+  ok  staging + LOW + preconditions met = AUTO
+  ok  prod + LOW is STILL human
+  ok  staging + MEDIUM is human
+  ok  staging + HIGH is human
+  ok  a LOW diff with no review SHIP is human
+  ok  a LOW diff with a red gate is human
+  ok  a LOW diff with no e2e evidence is human
+  ok  an unknown environment is human
+  ok  promotion disabled is human
+  ok  the prod refusal names prod, not config
+  ok  LOW + all preconditions but NO reviewer identity => HUMAN
+  ok  the no-reviewer refusal names self-approval (not the AUTO reason)
+  ok  the SAME LOW change WITH a reviewer identity => AUTO
+  ok  an OMITTED reviewer arg fails closed to HUMAN
+  ok  a non-'1' reviewer arg '0' fails closed to HUMAN
+  ok  a non-'1' reviewer arg '2' fails closed to HUMAN
+  ok  a non-'1' reviewer arg '-1' fails closed to HUMAN
+  ok  a non-'1' reviewer arg '0.5' fails closed to HUMAN
+  ok  a non-'1' reviewer arg 'false' fails closed to HUMAN
+  ok  a non-'1' reviewer arg 'no' fails closed to HUMAN
+  ok  a non-'1' reviewer arg 'off' fails closed to HUMAN
+  ok  a non-'1' reviewer arg 'true' fails closed to HUMAN
+  ok  a non-'1' gateGreen arg (2) fails closed to HUMAN
+  ok  a non-'1' reviewShip arg (2) fails closed to HUMAN
+  ok  a non-'1' e2eEvidence arg (2) fails closed to HUMAN
+  ok  three '1' preconditions still reach AUTO
+  ok  det LOW + classifier HIGH => HUMAN (cannot bypass the classifier)
+  ok  det HIGH + classifier LOW => HUMAN (deterministic escalation kept)
+  ok  det LOW + classifier LOW => AUTO (both agree low)
+  ok  an empty classifier tier fails closed to HUMAN
+  ok  a garbage classifier tier fails closed to HUMAN
+risk: a malformed promotion block REFUSES (it must never silently skip a rule)
+  ok  absent preconditions => HUMAN, not 'all met'
+  ok  alwaysHuman as a scalar => HUMAN
+  ok  an EMPTY alwaysHuman => HUMAN
+  ok  enabled as the STRING 'false' => HUMAN
+  ok  a fractional maxChangedLines => HUMAN
+  ok  a well-formed enabled block still AUTOs
+  ok  a large (Int64) maxChangedLines is accepted
+  ok  1000.0 counts as an integer VALUE
+  ok  an absent criteria block is still well-formed
+risk: whitespace is TRIMMED, never deleted (interior spaces must not collapse)
+  ok  'st aging' is an unknown environment
+  ok  'L OW' does not collapse to LOW
+  ok  surrounding whitespace is still trimmed
+risk: the shipped schema + config make 'auto-merge to prod' unrepresentable
+  ok  schema pins prod.autoMerge to const false
+  ok  schema's staging threshold offers no 'medium'
+  ok  schema's staging threshold offers no 'high'
+  ok  shipped config sets prod.autoMerge false
+  ok  shipped config ships promotion disabled
+  ok  shipped config guards the money surfaces
+  ok  shipped config names a reviewer token env var
+  ok  schema REQUIRES the money keys when present
+docs: /promote binds its decision to the PR and finalises the audit record
+  ok  /promote pins the PR head to the classified HEAD
+  ok  /promote requires the PR base to be the environment's configured branch
+  ok  /promote's pre-action record starts with a null outcome
+  ok  /promote appends an outcome ledger row after acting
+  ok  docs/promotion.md documents the outcome row
+  ok  docs no longer advertise an App installation token as the reviewer identity
+  ok  schema no longer advertises an App installation token as the reviewer identity
+  ok  /promote checks gh api user's exit status, not just its output
+  ok  /promote names the stdout-error-body trap that makes a bad token look like a login
+docs: model-routing skill documents the shipped default routing
+  ok  skill row for session documents claude-fable-5-1 @ medium (fallback none)
+  ok  skill row for explore documents haiku @ low (fallback none)
+  ok  skill row for plan documents claude-fable-5-1 @ high (fallback claude-opus-5 @ high)
+  ok  skill row for implement documents claude-opus-5 @ high (fallback none)
+  ok  skill row for review documents claude-fable-5-1 @ high (fallback claude-opus-5 @ medium)
+  ok  skill row for evaluate documents claude-fable-5-1 @ high (fallback claude-opus-5 @ medium)
+  ok  skill row for docs documents haiku @ low (fallback none)
+docs: risk-tiering skill documents the shipped escalation criteria
+  ok  risk skill documents escalatePaths.auditLog as MEDIUM
+  ok  risk skill documents escalatePaths.authz as MEDIUM
+  ok  risk skill documents escalatePaths.contracts as MEDIUM
+  ok  risk skill documents escalatePaths.infra as MEDIUM
+  ok  risk skill documents escalatePaths.migrations as MEDIUM
+  ok  risk skill states the shipped size limit (1000)
+  ok  risk skill names alwaysHuman as HIGH
+  ok  risk skill names moneySignals as HIGH
+docs: AGENTS.md is the map, CLAUDE.md is the @AGENTS.md import shim (design-doc 002)
+  ok  AGENTS.md + @AGENTS.md shim in .
+  ok  AGENTS.md + @AGENTS.md shim in plugin/engine
+  ok  AGENTS.md + @AGENTS.md shim in examples/headless-fe-be
+  ok  AGENTS.md + @AGENTS.md shim in examples/headless-fe-be/frontend
+  ok  AGENTS.md + @AGENTS.md shim in examples/headless-fe-be/backend
+  ok  component template ships as AGENTS.md map + CLAUDE.md shim
+  ok  placeholders live in AGENTS.md, none in the CLAUDE.md shim
+  ok  root CLAUDE.md shim stays short (<= 25 lines)
+codex-setup: generated, gitignored Codex surfaces from a temp project (design-doc 002 D3)
+  ok  generate exits 0
+  ok  config.toml: hooks on + skills path -> plugin/skills
+  ok  config.toml: skills.config entry carries enabled = true (required by Codex 0.144.3)
+  ok  config.toml: no [agents] block / default_subagent_* keys (fatal to load on Codex 0.144.3)
+  ok  config.toml: native absolute path with forward slashes (no /c/ MSYS form on Windows)
+  ok  hooks.json: four commands, every one routed through run.mjs
+  ok  hooks.json: block-destructive is under the shell-tool matcher "Bash" (V5-verified), NOT *
+  ok  hooks.json: protect-specs / format-and-check / session-start run under *
+  ok  hooks.json: no ConfigChange (no Codex event for it)
+  ok  --shell-matcher overrides block-destructive's matcher (default Bash, pinned in V5)
+  ok  block-destructive DENIES an edit payload that merely mentions rm -rf (why it is not under *) (rc=2)
+  ok  protect-specs ALLOWS a payload without a file path (safe under *) (rc=0)
+  ok  agents/: one TOML per plugin agent
+  ok  reviewer.toml: per-phase codex model/effort + read-only sandbox
+  ok  generator.toml: workspace-write + inherits the global codex model
+  ok  reviewer.toml: body embedded as a TOML literal, frontmatter stripped
+  ok  .gitignore gained exactly one '.codex/' line
+  ok  re-run is idempotent on .gitignore
+  ok  CRLF .gitignore already containing .codex/ is left alone (no duplicate)
+  ok  an OVERSIZED .gitignore already containing .codex/ is left alone (no duplicate append)
+  ok  cross-twin: PS -Check calls the bash-generated set fresh (digest parity)
+  ok  --check exits 0 right after generation (fresh)
+  ok  --check exits 1 STALE after an input changes
+  ok  --check exits 1 NOT generated when .codex/ is absent
+  ok  --user writes hooks.json into $HARNESS_CODEX_HOME
+  ok  --user refuses to overwrite a hooks.json the harness did not generate
+gate wiring: this repo's own gate actually runs the self-test twins
+  ok  root component gate.test is wired (not null)
+  ok  gate.test launches via node (cross-shell: cmd /c AND bash -lc), got: node harness/tests/gate.mjs
+  ok  gate.test's script exists at the repo-relative path it names (harness/tests/gate.mjs)
+  ok  harness/tests/gate.mjs exists
+  ok  gate.mjs parses (node --check)
+  ok  gate.mjs looks bash up on PATH only inside findBash's !WIN guard (WSL trap stays closed)
+plugin: cross-platform hook dispatcher (node)
+  ok  hook dispatcher self-test passes (node)
+migrate: end-to-end classify + apply on a synthetic repo
+  ok  harness-migrate self-test passes
+
+RESULT: 378 passed, 0 failed
+
+GATE: green (both twins)

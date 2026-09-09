@@ -125,6 +125,13 @@ mid-run, one because the review changed the probes themselves).
 Suite counts before this change were **371 (PS) / 364 (bash)**; the +6 each are the new `gate wiring`
 assertions, visible under that heading in both twins in `dispatcher-direct.txt`.
 
+**Re-measured after the merge.** PR #23 (the codex approval-policy fix) landed on `main` first and
+added 8 assertions per twin, so the numbers above are branch-local. Merging `origin/main` in and
+running `node harness/tests/gate.mjs` — this change's own gate command, grading the tree that will
+actually be merged — gives **PS 5.1 385/0 and bash 378/0** (379+6 and 372+6), `GATE: green (both
+twins)`. AGENT_NOTES 2026-07-14: capture counts on the exact tree being committed, re-running after
+any merge-back.
+
 A full both-twin gate measured **258–344 s** across the runs above (~4–6 min); the first cold run of
 the day was ~9 min.
 
