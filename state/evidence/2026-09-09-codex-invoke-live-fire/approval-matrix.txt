@@ -1,0 +1,24 @@
+### does codex exec accept the approval flag at all? (free, parse only)
+    exit=2  error: unexpected argument '--ask-for-approval' found
+  ok   exec REJECTS it — the global position is the only one that parses
+
+warning: in the working copy of 'README.md', LF will be replaced by CRLF the next time Git touches it
+### I1: harness vector — global --sandbox read-only --ask-for-approval never
+    argv: codex --sandbox read-only --ask-for-approval never exec - --cd <tmp>/i1 --skip-git-repo-check -o <tmp>/i1/.lastmsg
+    exit=0  header: sandbox: read-only | approval: on-request
+    WROTE: yes  <- the tree was mutated
+warning: in the working copy of 'README.md', LF will be replaced by CRLF the next time Git touches it
+### I2: same, plus -c approval_policy="never" after exec
+    argv: codex --sandbox read-only --ask-for-approval never exec - --cd <tmp>/i2 --skip-git-repo-check -o <tmp>/i2/.lastmsg -c approval_policy="never"
+    exit=0  header: sandbox: read-only | approval: never
+    WROTE: no
+warning: in the working copy of 'README.md', LF will be replaced by CRLF the next time Git touches it
+### I3: control — no --sandbox flag (what exec defaults to here)
+    argv: codex exec - --cd <tmp>/i3 --skip-git-repo-check -o <tmp>/i3/.lastmsg
+    exit=0  header: sandbox: read-only | approval: on-request
+    WROTE: yes  <- the tree was mutated
+
+READ THIS OFF THE TABLE ABOVE: if I2 still WROTE, then on this platform read-only is not
+enforced for apply_patch no matter how approval is set, and the harness's post-review hard
+reset is the ONLY thing protecting a judged tree — which the docs must say plainly.
+RESULT: arm I recorded (no pass/fail — this arm measures, the write-up adjudicates)

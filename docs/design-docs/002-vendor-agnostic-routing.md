@@ -100,6 +100,10 @@ loop headlessly or drives the phases by hand until a command→skill bridge exis
   needs `/hooks` trust or `--dangerously-bypass-hook-trust`. The engine's codex arm passes neither, so a
   loop run under Codex is guarded by `--sandbox` + the gate + `autoRollbackOnRed` unless the operator
   trusted the user-level hooks once. `docs/codex-setup.md` states this in its first section.
+  **Qualified 2026-09-09:** `--sandbox` is only half a guard on its own. Measured on codex-cli
+  0.153.4, a `read-only` run whose approval policy was still `on-request` applied a patch and mutated
+  the tree; the engine now also passes `-c approval_policy="never"`, which makes the same write get
+  refused. Evidence: `state/evidence/2026-09-09-codex-invoke-live-fire/`.
 - **The Codex hook payload field names are VERIFIED (V5):** `tool_name: "Bash"`, `tool_input.command`,
   `hook_event_name`, `cwd`, `session_id`, `turn_id`, `tool_use_id`, `permission_mode`, `model`,
   `transcript_path` — the same contract `run.mjs`'s bodies already read. But **exit code 2 is not a

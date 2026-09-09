@@ -6,10 +6,18 @@
   (implement/plan/docs).
 
   Safety properties (mirror invoke-codex.sh):
-   - SANDBOX per mode: 'read-only' for judge phases (`--sandbox read-only`; a judge must never mutate
-     what it judges — the caller also hard-resets the tree), 'workspace-write' for writer phases
-     (`--sandbox workspace-write`; the mutated tree flows through the gate + autoRollbackOnRed, which
-     are the safety net — a write phase is NOT belt-and-braces reset, that would discard the build).
+   - SANDBOX per mode: 'read-only' for judge phases (`--sandbox read-only`), 'workspace-write' for
+     writer phases (`--sandbox workspace-write`; the mutated tree flows through the gate +
+     autoRollbackOnRed, which are the safety net - a write phase is NOT belt-and-braces reset, that
+     would discard the build).
+     THE SANDBOX ALONE DOES NOT HOLD, MEASURED. On codex-cli 0.153.4 the read-only sandbox let an
+     apply_patch through and the judge WROTE A FILE, because the approval policy was still
+     `on-request`: `codex exec` rejects --ask-for-approval outright, and passed globally it parses
+     without binding. With `-c approval_policy="never"` (now emitted after `exec`) the identical
+     write was refused. Two consequences worth keeping: the caller's post-review hard reset is not
+     ornamental - it is what protected the tree while this was broken - and any future change to the
+     approval/sandbox args must be re-live-fired, not reasoned about.
+     Evidence: state/evidence/2026-09-09-codex-invoke-live-fire/.
    - EXTERNAL WATCHDOG: codex exec has NO --max-turns/--timeout of its own, so the invocation runs
      in a background job bounded by models.codex.timeoutSeconds (default 900). Expiry stops the job
      and the caller fails closed (no verdict => stop for a human). Caveat: stopping the job can
@@ -42,7 +50,9 @@ function Test-CodexAvailable {
 # Pure arg-builder — the single source of truth for codex's argv, unit-tested directly (no codex
 # install, no watchdog). Mode selects the sandbox: 'read-only' for judge phases (never mutate what
 # you judge), 'workspace-write' for implement/plan/docs (mutate the tree; the gate + autoRollbackOnRed
-# are the safety net — see plan §3b). Global flags go BEFORE `exec` (some codex versions reject them after).
+# are the safety net — see plan §3b). Global flags go BEFORE `exec`: measured on 0.153.4, `codex exec`
+# rejects `--ask-for-approval` outright (exit 2), while `--sandbox` is accepted in both slots and does
+# propagate from the global one. The approval POLICY, however, only binds via `-c` after `exec` — see below.
 function Get-CodexArgs {
   param(
     [Parameter(Mandatory)][ValidateSet('read-only','workspace-write')][string]$Mode,
@@ -50,9 +60,21 @@ function Get-CodexArgs {
     [Parameter(Mandatory)][string]$LastMessagePath,
     [string]$Model, [string]$Effort
   )
+  # THE APPROVAL POLICY MUST GO THROUGH -c, NOT THE FLAG - ON THIS VERSION. Measured on codex-cli
+  # 0.153.4 (state/evidence/2026-09-09-codex-invoke-live-fire/): `codex exec` REJECTS
+  # --ask-for-approval outright ("unexpected argument", exit 2), so the flag can only be passed
+  # globally - where on 0.153.4 it PARSES BUT DOES NOT TAKE EFFECT: every exec transcript header in
+  # that dir reads `approval: on-request`. With on-request and no human to ask, a READ-ONLY judge's
+  # apply_patch went through and mutated the tree; `-c approval_policy="never"` flips the header to
+  # `approval: never` and the same write is refused, while workspace-write still writes.
+  # THE GLOBAL FLAG IS KEPT BECAUSE IT DID BIND ON 0.144.3 - see
+  # state/evidence/2026-07-14-cross-vendor-s3/live-codex-readonly.log, whose header reads
+  # `approval: never` with only the global flag passed. So this is a version regression, not a
+  # permanent property, and both spellings are pinned by the suites' arg-order assertions.
   $a = @('--sandbox', $Mode, '--ask-for-approval', 'never',
          'exec', '-', '--cd', $RepoRoot, '--skip-git-repo-check',
-         '--output-last-message', $LastMessagePath)
+         '--output-last-message', $LastMessagePath,
+         '-c', 'approval_policy="never"')
   if ($Model)  { $a += @('-m', "$Model") }
   if ($Effort) { $a += @('-c', ('model_reasoning_effort="{0}"' -f $Effort)) }
   # Emit the argv elements to the pipeline (not ,$a): every caller collects with @(...), and argv always

@@ -34,11 +34,24 @@ PowerShell 5.1: `powershell harness/tests/run-tests.ps1`; bash needs `jq` on PAT
   guard hooks — a human must hand-edit; guard-strengthening and comment edits pass.
 
 ## Learnings (append when a loop discovers something; /gc dedupes)
-- [2026-07-13] Codex CLI: global flags (`--sandbox`, `--ask-for-approval`) go BEFORE the `exec`
-  subcommand. `codex exec` has no --max-turns/--timeout — the harness wraps it in a watchdog
-  (`models.codex.timeoutSeconds`). `codex login status` false-negatives under Azure/custom providers.
-  codex-cli is installed + authed (chatgpt) on this machine; read-only review path is live-fire-proven,
-  the workspace-write path is deliberately still untested — first real write run should be supervised.
+- [2026-07-13, CORRECTED 2026-09-09] Codex CLI: global flags (`--sandbox`, `--ask-for-approval`) go
+  BEFORE the `exec` subcommand — `codex exec` rejects `--ask-for-approval` outright (exit 2). BUT on
+  **0.153.4** the global approval flag **parses without binding**: every `exec` transcript header in
+  `state/evidence/2026-09-09-codex-invoke-live-fire/` reads `approval: on-request`, and under that a
+  READ-ONLY judge's `apply_patch` wrote a file. It is a REGRESSION, not a permanent property — on
+  **0.144.3** the same global flag bound (`approval: never` in
+  `state/evidence/2026-07-14-cross-vendor-s3/live-codex-readonly.log`), which is why the flag is kept
+  alongside the override. The binding
+  spelling is `-c approval_policy="never"` after `exec` (header flips to `approval: never`, the same
+  write is refused, and workspace-write still writes); both twins now emit it and the suites pin the
+  positions. `--sandbox` DOES propagate from the global slot (read-only vs workspace-write differ in
+  the header). `codex exec` has no --max-turns/--timeout — the harness wraps it in a watchdog
+  (`models.codex.timeoutSeconds`), live-fired: a 1 s bound returns 124 and logs the kill.
+  `codex login status` false-negatives under Azure/custom providers. codex-cli 0.153.4 is installed +
+  authed (chatgpt) here; read-only review, the loop's review point (ledger `path=codex`, verdict
+  parsed) and the workspace-write path are all live-fire-proven as of 2026-09-09
+  (state/evidence/2026-09-09-codex-invoke-live-fire/) — a real write run against a repo you care
+  about should still be supervised.
 - [2026-07-13] Fleet workers must NOT edit `state/` files or AGENT_NOTES.md — the fleet runner records
   after each merge; parallel edits to shared files guarantee merge-queue conflicts.
 - [2026-07-13] Run dirs under `harness/.runs/` are CLAIMED at allocation (mkdir-as-mutex) — a run dir

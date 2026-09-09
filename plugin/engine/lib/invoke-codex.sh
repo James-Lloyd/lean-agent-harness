@@ -6,10 +6,17 @@
 # writer phases (implement/plan/docs).
 #
 # Safety properties:
-#  - SANDBOX per mode: 'read-only' for judge phases (`--sandbox read-only`; the caller also hard-resets
-#    the tree — a judge must never mutate what it judges), 'workspace-write' for writer phases (the
-#    mutated tree flows through the gate + autoRollbackOnRed, which are the safety net — a write phase
-#    is NOT belt-and-braces reset, that would discard the build).
+#  - SANDBOX per mode: 'read-only' for judge phases (`--sandbox read-only`), 'workspace-write' for
+#    writer phases (the mutated tree flows through the gate + autoRollbackOnRed, which are the safety
+#    net — a write phase is NOT belt-and-braces reset, that would discard the build).
+#    THE SANDBOX ALONE DOES NOT HOLD, MEASURED. On codex-cli 0.153.4 the read-only sandbox let an
+#    apply_patch through and the judge WROTE A FILE, because the approval policy was still
+#    `on-request`: `codex exec` rejects --ask-for-approval outright, and passed globally it parses
+#    without binding. With `-c approval_policy="never"` (now emitted after `exec`) the identical write
+#    was refused. Two consequences worth keeping: the caller's post-review hard reset is not
+#    ornamental — it is what protected the tree while this was broken — and any future change to the
+#    approval/sandbox args must be re-live-fired, not reasoned about.
+#    Evidence: state/evidence/2026-09-09-codex-invoke-live-fire/.
 #  - EXTERNAL WATCHDOG: codex exec has NO --max-turns/--timeout of its own; we wrap it in coreutils
 #    `timeout` when available (exit 124 on expiry). Without `timeout` (stock macOS) the run is
 #    unbounded — install coreutils, or the run relies on codex finishing on its own.
@@ -34,8 +41,20 @@ codex_available() {
 # even when a value contains spaces. Mode selects --sandbox (read-only judge vs workspace-write writer).
 codex_args() {  # $1 mode  $2 root  $3 lastmsg  $4 model  $5 effort
   local mode="$1" root="$2" lastmsg="$3" model="${4:-}" effort="${5:-}"
+  # THE APPROVAL POLICY MUST GO THROUGH -c, NOT THE FLAG — ON THIS VERSION. Measured on codex-cli
+  # 0.153.4 (state/evidence/2026-09-09-codex-invoke-live-fire/): `codex exec` REJECTS
+  # --ask-for-approval outright ("unexpected argument", exit 2), so the flag can only be passed
+  # globally — where on 0.153.4 it PARSES BUT DOES NOT TAKE EFFECT: every exec transcript header in
+  # that dir reads `approval: on-request`. With on-request and no human to ask, a READ-ONLY judge's
+  # apply_patch went through and mutated the tree; `-c approval_policy="never"` flips the header to
+  # `approval: never` and the same write is refused, while workspace-write still writes.
+  # THE GLOBAL FLAG IS KEPT BECAUSE IT DID BIND ON 0.144.3 — see
+  # state/evidence/2026-07-14-cross-vendor-s3/live-codex-readonly.log, whose header reads
+  # `approval: never` with only the global flag passed. So this is a version regression, not a
+  # permanent property, and both spellings are pinned by the suites' arg-order assertions.
   printf '%s\n' --sandbox "$mode" --ask-for-approval never \
-    exec - --cd "$root" --skip-git-repo-check --output-last-message "$lastmsg"
+    exec - --cd "$root" --skip-git-repo-check --output-last-message "$lastmsg" \
+    -c 'approval_policy="never"'
   if [ -n "$model" ]  && [ "$model" != "null" ];  then printf '%s\n' -m "$model"; fi
   if [ -n "$effort" ] && [ "$effort" != "null" ]; then printf '%s\n' -c "model_reasoning_effort=\"$effort\""; fi
 }

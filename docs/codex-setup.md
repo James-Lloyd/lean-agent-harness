@@ -40,6 +40,13 @@ written to `~/.codex` in the re-verification, so the user-level path could not h
 - A headless run without hooks is guarded only by Codex's own sandbox (`--sandbox read-only|workspace-write`),
   the harness gate, and `autoRollbackOnRed` — exactly what the codex arm relied on before V3. Decide
   which you are running before you rely on a hook.
+- **And `--sandbox read-only` is not by itself a guarantee.** Measured on 0.153.4
+  (`state/evidence/2026-09-09-codex-invoke-live-fire/`): with the approval policy left at
+  `on-request` — which is what you get from the global `--ask-for-approval never`, since it parses
+  but does not bind, and `codex exec` refuses the flag outright — a read-only run's `apply_patch`
+  mutated the tree. The engine now emits `-c approval_policy="never"` after `exec`, which makes the
+  header read `approval: never` and the same write get refused. If you invoke codex by hand, pass it
+  too; and note that the harness's post-review hard reset is what kept judged trees intact meanwhile.
 
 ## What it generates (design-doc 002, D3)
 
@@ -50,7 +57,7 @@ written to `~/.codex` in the re-verification, so the user-level path could not h
 |---|---|---|
 | `.codex/config.toml` | `[features] hooks = true`; `[[skills.config]] path = <plugin>/skills` + `enabled = true` so Codex reads the harness skills (Agent Skills standard). **No `[agents]` block**: verified live on Codex 0.144.3 (slice V5), `[agents]` is a table of agent *roles* there, so the `enabled`/`default_subagent_*` keys V3 emitted were rejected as a malformed role — and any config-load error kills the *whole* `.codex/` layer silently (the run continues on `~/.codex/config.toml` alone). **0.153.4 accepts `[agents] enabled = true`** (re-verified 2026-09-06; `default_subagent_*` was **not** re-sent, and per `AGENT_NOTES.md` that field did not exist in the 0.144.3 binary at all), so omitting the block is now a compatibility choice rather than a necessity: one artifact stays valid on both. Per-agent model/effort lives in `agents/<name>.toml` | the plugin lives in the per-machine cache (`~/.claude/plugins/…`), so the path is absolute and local — a committed absolute path dies on the next device (ratchet 2026-07-30) |
 | `.codex/hooks.json` | four of the five harness guard hooks routed through the same `run.mjs` dispatcher and hook bodies Claude Code uses: `protect-specs`, `format-and-check`, `session-start` under matcher `*`; `block-destructive` under the **shell-tool matcher** only (`--shell-matcher`, see below). `lock-config` has no Codex event (`ConfigChange`) | same absolute-path reason |
-| `.codex/agents/<name>.toml` | one Codex custom agent per plugin agent: `model`/`model_reasoning_effort` from that phase's **effective** codex settings (`models.<phase>.codex{}` over `models.codex`), `sandbox_mode = "read-only"` for the judges (reviewer, evaluator, risk-classifier, explorer) and `"workspace-write"` for the writers, `developer_instructions` = the agent's body | the body is plugin content: regenerate on `/plugin update` rather than fork it |
+| `.codex/agents/<name>.toml` | one Codex custom agent per plugin agent: `model`/`model_reasoning_effort` from that phase's **effective** codex settings (`models.<phase>.codex{}` over `models.codex`), `sandbox_mode = "read-only"` for the judges (reviewer, evaluator, risk-classifier, explorer) and `"workspace-write"` for the writers, `developer_instructions` = the agent's body | the body is plugin content: regenerate on `/plugin update` rather than fork it. **A generated judge's `read-only` inherits the SESSION's approval policy and is not by itself the guarantee** — see the bullet above; whether an agent table accepts an approval key is unmeasured, so a judge spawned outside the engine's own invocation is only as safe as the policy it inherits |
 | `.codex/.harness-stamp.json` | plugin version + a sha256 of every input (config, hook manifest, agent files, plugin root) | lets `--check` say **fresh / STALE / NOT generated** deterministically; `/harness-doctor` check 12 runs it |
 
 It also appends `.codex/` to the project's `.gitignore` if missing.

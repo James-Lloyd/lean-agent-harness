@@ -1,0 +1,15 @@
+﻿### the argv Get-CodexArgs emits (PS twin, read-only)
+    --sandbox read-only --ask-for-approval never exec - --cd C:\repo --skip-git-repo-check --output-last-message C:\tmp\m -c approval_policy="never"
+
+### K1: read-only via the PS twin - must NOT write
+    Ok=True  header: sandbox: read-only | approval: never
+    WROTE: no
+  ok   the -c approval_policy override BOUND through PowerShell (header says never)
+  ok   file present=False as required
+
+### K2: workspace-write via the PS twin - positive control, MUST write
+    Ok=True  header: sandbox: workspace-write [workdir, /tmp, $TMPDIR] | approval: never
+    WROTE: yes
+  ok   file present=True as required
+
+RESULT: arm K GREEN

@@ -1,0 +1,18 @@
+OpenAI Codex v0.153.4
+--------
+workdir: C:\Users\<user>\Repos\harness\.claude\worktrees\codex-invoke-live-fire
+model: gpt-5.6-sol
+provider: openai
+approval: never
+sandbox: read-only
+reasoning effort: high
+reasoning summaries: none
+session id: 01a0862f-b387-7e40-bfa9-d7c7c357c3c3
+--------
+user
+Reply with exactly this and nothing else: LIVE-FIRE-TOKEN-8842
+codex
+LIVE-FIRE-TOKEN-8842
+tokens used
+9,551
+LIVE-FIRE-TOKEN-8842
