@@ -1193,6 +1193,29 @@ ok "risk skill states the shipped size limit ($maxLines)" ($riskTxt.Contains("**
 ok "risk skill names alwaysHuman as HIGH"  (@($riskTxt -split "`n" | Where-Object { $_.Contains('promotion.alwaysHuman')  -and $_.Contains("${bt}HIGH$bt") }).Count -gt 0)
 ok "risk skill names moneySignals as HIGH" (@($riskTxt -split "`n" | Where-Object { $_.Contains('promotion.moneySignals') -and $_.Contains("${bt}HIGH$bt") }).Count -gt 0)
 
+Write-Host "model routing V6.2: a codex route must have a dispatch site (harness-doctor 10(i))"
+# THE INVARIANT BEHIND THE DOC TABLE, not the table itself (bash twin carries the mirror). 'codex' is
+# legal syntax on every phase, but only the phases the loop RESOLVES can act on it, and a value nothing
+# reads advertises a control that does not exist (ratchet 2026-08-11).
+$v62Root  = Split-Path (Split-Path $here -Parent) -Parent
+$loopPs   = Get-Content (Join-Path $engineDir 'loop.ps1') -Raw
+$loopSh   = Get-Content (Join-Path $engineDir 'loop.sh')  -Raw
+foreach ($ph in @('implement','review','evaluate')) {
+  ok "loop.ps1 resolves the $ph phase (codex is dispatchable there)" ($loopPs.Contains("Resolve-PhaseModel `$cfg '$ph'"))
+  ok "loop.sh resolves the $ph phase (twin parity)"                  ($loopSh.Contains("phase_model `"`$CONFIG`" $ph"))
+}
+# The half that actually catches drift: no headless dispatch site for these, which is why doctor 10(i)
+# grades plan/explore interactive-only and docs an unread key. Adding a site reds this.
+foreach ($ph in @('plan','explore','docs')) {
+  ok "loop.ps1 does NOT resolve $ph - a codex route there is ignored headlessly" (-not $loopPs.Contains("Resolve-PhaseModel `$cfg '$ph'"))
+  ok "loop.sh does NOT resolve $ph (twin parity)"                                (-not $loopSh.Contains("phase_model `"`$CONFIG`" $ph"))
+}
+$docMd62 = Get-Content (Join-Path $v62Root 'plugin/commands/harness-doctor.md') -Raw
+$mrMd62  = Get-Content (Join-Path $v62Root 'plugin/skills/model-routing/SKILL.md') -Raw
+ok "doctor grows check 10(i)"                                  ($docMd62.Contains('A codex route must have somewhere to be dispatched FROM'))
+ok "doctor 10(i) grades docs as having no site on EITHER path" ($docMd62.Contains('`docs` | **no dispatch site** | **none**'))
+ok "the routing skill warns that plan/explore are ignored headlessly" ($mrMd62.Contains('silently ignored'))
+
 Write-Host "migrate: end-to-end classify + apply on a synthetic repo"
 # engine/migrate.ps1 has its own e2e self-test (build a synthetic copied-in harness, report, --apply);
 # fold its exit code into this suite the same way as the node dispatcher above.

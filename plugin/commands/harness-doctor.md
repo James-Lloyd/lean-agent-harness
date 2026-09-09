@@ -145,6 +145,30 @@ behaves oddly.
       the second reviewer has NO fallback, so an unreachable one stops every review point fail-closed
       until it is reachable or removed. Say which pair will actually judge (e.g. "claude-fable-5-1 then
       codex gpt-5.6-sol").
+    - **(i) A codex route must have somewhere to be dispatched FROM.** The literal `"codex"` is legal
+      *syntax* on every phase, but only some phases have code that acts on it, and a value nothing reads
+      is worse than no value at all (ratchet 2026-08-11) — it advertises a control that does not exist.
+      Grade each codex-routed phase against where it is actually honoured:
+
+      | phase | headless (`loop.*`, `fleet.*`) | interactive (`/work`, `/review`) | `"codex"` verdict |
+      |---|---|---|---|
+      | `session` | — | — | ❌ (see (b)) |
+      | `plan` | **no dispatch site** | `/work` PLAN, workspace-write | ⚠️ interactive-only |
+      | `explore` | **no dispatch site** | `/work` fan-out | ⚠️ interactive-only |
+      | `implement` | `loop.*` iteration + `fleet.*` worker | `/work` EXECUTE | ✅ |
+      | `review` | `loop.*` review point | `/review` | ✅ |
+      | `review.second` | `loop.*` review point | `/review` step 3 | ✅ |
+      | `evaluate` | `loop.*` evaluate point | `/work` | ✅ |
+      | `docs` | **no dispatch site** | **none** (`/gc` has no routing block) | ❌ unread key |
+
+      So: `docs: "codex"` (or a `docs` codex *fallback*) is ❌ — nothing anywhere reads it; say that the
+      doc-gardener will run on its frontmatter model regardless, and suggest a Claude tier or `null`.
+      `plan`/`explore` routed to codex is ⚠️, not ❌ — it genuinely works under `/work` and is genuinely
+      ignored headlessly, so name BOTH halves rather than calling it broken or calling it fine: a repo
+      that runs the loop overnight gets Claude there whatever the config says. Verify the claim rather
+      than trusting this table if the engine has changed: the honoured set is exactly the phases
+      `loop.sh`/`loop.ps1` resolve into `*_MODEL`/`*_ROUTE` variables, plus whatever `commands/work.md`'s
+      phase mapping names.
 
 11. **Risk-gated promotion (`promotion` block).** Skip entirely (report ℹ️ "not configured") when the
     block is absent — it is opt-in and most repos won't have it. When present:

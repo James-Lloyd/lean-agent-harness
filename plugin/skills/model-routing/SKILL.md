@@ -38,6 +38,20 @@ default. `minimal` is a codex-only level (the Claude CLI rejects it, so the disp
 `max` is Claude-only. `fallback: null` = no fallback (the phase just fails when its primary does); a
 whole phase set to `null`, or an absent `models` block, = inherit the ambient session model.
 
+**Not every phase can actually run Codex.** `"codex"` is legal syntax everywhere, but only some phases
+have code that dispatches it — and a value nothing reads advertises a control that does not exist:
+
+| phase | headless (`loop.*`/`fleet.*`) | interactive (`/work`, `/review`) |
+|---|---|---|
+| `implement`, `review`, `review.second`, `evaluate` | ✅ | ✅ |
+| `plan`, `explore` | ✗ **silently ignored** | ✅ |
+| `docs` | ✗ | ✗ — `/gc` has no routing block |
+| `session` | must be Claude (the window cannot swap vendor mid-session) | |
+
+`docs: "codex"` is read by nothing at all; `plan`/`explore` work under `/work` and are ignored by an
+overnight loop, which is the trap — the same config behaves differently on the two paths. `/harness-doctor`
+10(i) grades this.
+
 **Per-phase Codex settings.** A phase whose `model` or `fallback` is `codex` — or, on `review`, whose
 `second.model` is `codex`, since the second judge runs on the review phase's own codex settings — may add
 `"codex": { "model": "gpt-5.6-sol", "reasoningEffort": "high" }`; each key set there wins over the
