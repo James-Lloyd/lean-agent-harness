@@ -489,6 +489,21 @@ docs: risk-tiering skill documents the shipped escalation criteria
   ok  risk skill states the shipped size limit (1000)
   ok  risk skill names alwaysHuman as HIGH
   ok  risk skill names moneySignals as HIGH
+model routing: this repo's Codex side is fully pinned and fully covered
+  ok  models.plan carries its own codex.reasoningEffort (no silent inherit of the global depth)
+  ok  models.plan.codex.model agrees with the global pin
+  ok  models.implement carries its own codex.reasoningEffort (no silent inherit of the global depth)
+  ok  models.implement.codex.model agrees with the global pin
+  ok  models.review carries its own codex.reasoningEffort (no silent inherit of the global depth)
+  ok  models.review.codex.model agrees with the global pin
+  ok  models.evaluate carries its own codex.reasoningEffort (no silent inherit of the global depth)
+  ok  models.evaluate.codex.model agrees with the global pin
+  ok  models.explore carries its own codex.reasoningEffort (no silent inherit of the global depth)
+  ok  models.explore.codex.model agrees with the global pin
+  ok  models.docs carries its own codex.reasoningEffort (no silent inherit of the global depth)
+  ok  models.docs.codex.model agrees with the global pin
+  ok  the codex explorer runs at 'minimal' (codex-only level; cheaper than the judges)
+  ok  the codex second reviewer runs at 'high'
 model routing V6.2: a codex route must have a dispatch site (harness-doctor 10(i))
   ok  loop.ps1 resolves the implement phase (codex is dispatchable there)
   ok  loop.sh resolves the implement phase (twin parity)
@@ -524,7 +539,7 @@ model routing V6.2: a codex route must have a dispatch site (harness-doctor 10(i
 migrate: end-to-end classify + apply on a synthetic repo
   ok  harness-migrate self-test passes
 
-RESULT: 434 passed, 0 failed
+RESULT: 448 passed, 0 failed
 
 === bash self-tests (harness/tests/run-tests.sh)
     C:\Program Files\Git\bin\bash.exe C:\Users\<user>\Repos\harness\.claude\worktrees\vendor-agnostic-v6\harness\tests\run-tests.sh
@@ -981,6 +996,21 @@ gate wiring: this repo's own gate actually runs the self-test twins
   ok  gate.mjs looks bash up on PATH only inside findBash's !WIN guard (WSL trap stays closed)
 plugin: cross-platform hook dispatcher (node)
   ok  hook dispatcher self-test passes (node)
+model routing: this repo's Codex side is fully pinned and fully covered
+  ok  models.plan carries its own codex.reasoningEffort (no silent inherit of the global depth)
+  ok  models.plan.codex.model agrees with the global pin (got 'gpt-5.6-sol')
+  ok  models.implement carries its own codex.reasoningEffort (no silent inherit of the global depth)
+  ok  models.implement.codex.model agrees with the global pin (got 'gpt-5.6-sol')
+  ok  models.review carries its own codex.reasoningEffort (no silent inherit of the global depth)
+  ok  models.review.codex.model agrees with the global pin (got 'gpt-5.6-sol')
+  ok  models.evaluate carries its own codex.reasoningEffort (no silent inherit of the global depth)
+  ok  models.evaluate.codex.model agrees with the global pin (got 'gpt-5.6-sol')
+  ok  models.explore carries its own codex.reasoningEffort (no silent inherit of the global depth)
+  ok  models.explore.codex.model agrees with the global pin (got 'gpt-5.6-sol')
+  ok  models.docs carries its own codex.reasoningEffort (no silent inherit of the global depth)
+  ok  models.docs.codex.model agrees with the global pin (got 'gpt-5.6-sol')
+  ok  the codex explorer runs at 'minimal' (codex-only level; cheaper than the judges)
+  ok  the codex second reviewer runs at 'high'
 model routing V6.2: a codex route must have a dispatch site (harness-doctor 10(i))
   ok  loop.sh resolves the implement phase (codex is dispatchable there)
   ok  loop.ps1 resolves the implement phase (twin parity)
@@ -1016,6 +1046,6 @@ model routing V6.2: a codex route must have a dispatch site (harness-doctor 10(i
 migrate: end-to-end classify + apply on a synthetic repo
   ok  harness-migrate self-test passes
 
-RESULT: 427 passed, 0 failed
+RESULT: 441 passed, 0 failed
 
 GATE: green (both twins)

@@ -1193,6 +1193,24 @@ else
   echo "  (skipping dispatcher test — node not installed)"
 fi
 
+echo "model routing: this repo's Codex side is fully pinned and fully covered"
+# Every phase that codex-setup generates a ROLE for must carry its own codex{} block, or that role
+# silently inherits the global depth -- which is how the explorer ended up running at judge depth.
+# And every pinned ID must agree, so one phase cannot drift onto a different model unnoticed.
+RCFG="$(cd "$HERE/../.." && pwd)/harness/harness.config.json"   # REPO_ROOT is reassigned mid-suite
+GLOBAL_CODEX_MODEL="$(jq -r '.models.codex.model // ""' "$RCFG")"
+for ph in plan implement review evaluate explore docs; do
+  ok "$(jq -e --arg p "$ph" '.models[$p].codex.reasoningEffort' "$RCFG" >/dev/null 2>&1 && echo 1 || echo 0)" \
+     "models.$ph carries its own codex.reasoningEffort (no silent inherit of the global depth)"
+  m="$(jq -r --arg p "$ph" '.models[$p].codex.model // ""' "$RCFG")"
+  ok "$([ "$m" = "$GLOBAL_CODEX_MODEL" ] && echo 1 || echo 0)" "models.$ph.codex.model agrees with the global pin (got '$m')"
+done
+# The scout must be CHEAPER than the judges, or the per-phase table buys nothing. `minimal` is a
+# codex-only level with no Claude equivalent -- this is the one place the Codex table can beat the
+# Claude one, so pin it rather than letting a future retune flatten everything back to `high`.
+ok "$([ "$(jq -r '.models.explore.codex.reasoningEffort' "$RCFG")" = "minimal" ] && echo 1 || echo 0)" "the codex explorer runs at 'minimal' (codex-only level; cheaper than the judges)"
+ok "$([ "$(jq -r '.models.review.codex.reasoningEffort' "$RCFG")" = "high" ] && echo 1 || echo 0)"    "the codex second reviewer runs at 'high'"
+
 echo "model routing V6.2: a codex route must have a dispatch site (harness-doctor 10(i))"
 # THE INVARIANT BEHIND THE DOC TABLE, not the table itself. `"codex"` is legal syntax on every phase,
 # but only the phases the loop RESOLVES can act on it — and a value nothing reads advertises a control

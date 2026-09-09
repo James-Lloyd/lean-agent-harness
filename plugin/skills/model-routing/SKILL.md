@@ -61,8 +61,7 @@ is ignored by an overnight loop, so the same config behaves differently on the t
 `"codex": { "model": "gpt-5.6-sol", "reasoningEffort": "high" }`; each key set there wins over the
 global `models.codex` block for that phase (keys left null inherit it). `auth` and `timeoutSeconds`
 stay global. Don't add the block to a phase that never routes to codex — the engine won't read it and
-`/harness-doctor` 10(g) will say so. Prefer `model: null` (float on the Codex CLI default) unless you
-have a reason to pin: every `*-codex` model ID was retired in 2026-07/08, so pinned IDs rot. Once any
+`/harness-doctor` 10(g) will say so. **Pin or float is a real tradeoff, and both sides have bitten.** Floating (`model: null`) never rots, but it MOVES: measured 2026-09-09, 21 transcripts from one working day split cleanly at ~17:00 UTC - every run before reported `gpt-5.6-sol`, every run after `gpt-6-astra`, same box, same account, same flags (`state/evidence/2026-09-09-v6.3-command-skill-bridge/`; the effort flag was ruled out as the cause). An unpinned judge can change model between one morning and one afternoon, which makes cross-run comparison meaningless. Pinning costs you the opposite: every `*-codex` ID was retired in 2026-07/08, so a pinned ID eventually breaks - loudly, which is the point. **Pin the phases whose output you compare across runs (the judges); float the ones you only ever read once.** Whichever you choose, read the effective model back from the exec transcript header rather than trusting the config: a pin to a non-default model was verified to BIND (`-m` is honoured), but that is a measurement, not an assumption. Once any
 phase routes to codex, run `harness/codex-setup.*` to generate Codex's own copies of the guard hooks,
 the phase agents, and the harness commands as skills under `<project>/.agents/skills/` - that directory,
 not the `[[skills.config]]` stanza in `config.toml`, is what `codex exec` actually reads (measured
@@ -75,9 +74,7 @@ reviewers catch mostly *different* bugs, and that a cross-vendor reviewer helps 
 comment-only — so the second reviewer is read-only by construction and has **no fallback**: the point is
 model diversity, and a substitute is not the configured second opinion (an unreachable second reviewer
 fails closed; doctor 10(h) warns). Recommended pair: primary `claude-fable-5-1` @ `high`, second
-`codex` with `review.codex: { model: null, reasoningEffort: "high" }` — `null`, not a pinned GPT ID, for the
-same reason given above (measured 2026-09-09, the CLI default was `gpt-5.6-sol` @ high; read the effective
-model back from the exec transcript header rather than pinning it here). Off by default; turn it on
+`codex` @ `high`. The harness repo pins its own Codex side to a single ID (see the pin-or-float note above) precisely because the second reviewer is a phase whose verdicts you compare across runs; read the effective model back from the exec transcript header either way. Off by default; turn it on
 in shadow mode first (slice V5) and compare the two judges' findings before letting it gate. The harness
 repo itself runs this pair as of 2026-09-09 (`state/evidence/2026-09-09-v6-second-reviewer-routing/`).
 

@@ -1,0 +1,18 @@
+OpenAI Codex v0.153.4
+--------
+workdir: C:\Users\<user>\Repos\harness\.claude\worktrees\vendor-agnostic-v6
+model: gpt-6-astra
+provider: openai
+approval: never
+sandbox: read-only
+reasoning effort: high
+reasoning summaries: none
+session id: 01a0878c-8ec2-7973-a5b8-51bd4734fbee
+--------
+user
+Reply with the single word OK.
+codex
+OK
+tokens used
+19,975
+OK

@@ -1,0 +1,13 @@
+  ..   project config contributes no top-level model/effort - arms are isolated
+### arm 1: NO effort override (the bare CLI default)
+  ..   model: gpt-6-astra | reasoning effort: high
+### arm 2: WITH -c model_reasoning_effort="high" (what the harness engine passes)
+  ..   model: gpt-6-astra | reasoning effort: high
+### arm 3: WITH -c model_reasoning_effort="low" (a different level, same flag)
+  ..   model: gpt-6-astra | reasoning effort: low
+
+  ok   all arms produced a header to compare
+  ok   the effort flag does NOT change the model (all three: model: gpt-6-astra)
+  ..   => the 21-transcript split has some other cause; per-phase reasoningEffort is safe to set.
+
+### result: PASS  (either verdict is a finding; FAIL means coupling was found)

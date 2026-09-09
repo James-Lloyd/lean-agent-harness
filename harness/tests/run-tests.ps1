@@ -1227,6 +1227,21 @@ ok "risk skill states the shipped size limit ($maxLines)" ($riskTxt.Contains("**
 ok "risk skill names alwaysHuman as HIGH"  (@($riskTxt -split "`n" | Where-Object { $_.Contains('promotion.alwaysHuman')  -and $_.Contains("${bt}HIGH$bt") }).Count -gt 0)
 ok "risk skill names moneySignals as HIGH" (@($riskTxt -split "`n" | Where-Object { $_.Contains('promotion.moneySignals') -and $_.Contains("${bt}HIGH$bt") }).Count -gt 0)
 
+Write-Host "model routing: this repo's Codex side is fully pinned and fully covered"
+# Mirror of the bash twin. Every phase codex-setup generates a ROLE for must carry its own codex{}
+# block, or that role silently inherits the global depth; and every pinned ID must agree.
+$rcfgPath = Join-Path (Split-Path (Split-Path $here -Parent) -Parent) 'harness/harness.config.json'
+$rcfg = Get-Content -LiteralPath $rcfgPath -Raw | ConvertFrom-Json
+$globalCodexModel = [string](Get-Prop $rcfg.models.codex 'model')
+foreach ($ph in @('plan','implement','review','evaluate','explore','docs')) {
+  $phObj = $rcfg.models.PSObject.Properties[$ph].Value
+  $cx = if ($phObj.PSObject.Properties['codex']) { $phObj.PSObject.Properties['codex'].Value } else { $null }
+  ok "models.$ph carries its own codex.reasoningEffort (no silent inherit of the global depth)" ($null -ne $cx -and [string](Get-Prop $cx 'reasoningEffort'))
+  ok "models.$ph.codex.model agrees with the global pin" ($null -ne $cx -and ([string](Get-Prop $cx 'model')) -eq $globalCodexModel)
+}
+ok "the codex explorer runs at 'minimal' (codex-only level; cheaper than the judges)" ([string](Get-Prop $rcfg.models.explore.codex 'reasoningEffort') -eq 'minimal')
+ok "the codex second reviewer runs at 'high'" ([string](Get-Prop $rcfg.models.review.codex 'reasoningEffort') -eq 'high')
+
 Write-Host "model routing V6.2: a codex route must have a dispatch site (harness-doctor 10(i))"
 # THE INVARIANT BEHIND THE DOC TABLE, not the table itself (bash twin carries the mirror). 'codex' is
 # legal syntax on every phase, but only the phases the loop RESOLVES can act on it, and a value nothing

@@ -1,0 +1,1 @@
+COUPLING=none  model=model: gpt-6-astra
