@@ -531,15 +531,22 @@ JSON
   m="$(phase_second_model "$scfg" docs)";     ok "$([ -z "$m" ] && echo 1 || echo 0)"        "flat-legacy string => '' (got '$m')"
   m="$(phase_second_model "$xcfg" review)";   ok "$([ -z "$m" ] && echo 1 || echo 0)"        "review without a second block => '' (got '$m')"
   # A CODEX SECOND READS review.codex EVEN THOUGH model AND fallback ARE BOTH CLAUDE. second_review /
-  # Invoke-SecondReview pass REVIEW_CODEX_MODEL/EFFORT, so this is the pairing the model-routing skill
-  # recommends as the first use of Codex — and until 2026-09-09 four surfaces (schema x2, doctor 10(f)(g),
+  # Invoke-SecondReview pass REVIEW_CODEX_MODEL/EFFORT, so this remains a valid opt-in pairing even though
+  # one reviewer is the recommended default. Until 2026-09-09 four surfaces (schema x2, doctor 10(f)(g),
   # the routing skill) said the block is read only when `model` or `fallback` is codex, which would have
-  # made /harness-doctor warn "unread key" on its own recommended config. Pin the behaviour so the prose
+  # made /harness-doctor warn "unread key" on the valid config. Pin the behaviour so the prose
   # cannot drift back.
   m="$(phase_codex_model "$scfg" review)";    ok "$([ "$m" = "gpt-second" ] && echo 1 || echo 0)" "codex SECOND reads the phase's codex.model beside a Claude primary (got '$m')"
   m="$(phase_codex_effort "$scfg" review)";   ok "$([ "$m" = "xhigh" ] && echo 1 || echo 0)"      "codex SECOND reads the phase's codex.reasoningEffort (got '$m')"
   m="$(phase_codex_model "$scfg" evaluate)";  ok "$([ "$m" = "gpt-global" ] && echo 1 || echo 0)" "a phase with no codex block still falls through to the global one (got '$m')"
   rm -f "$ncfg" "$frcfg" "$ecfg" "$xcfg" "$scfg"
+
+  echo "repo routing: one independent reviewer is the active default"
+  m="$(jq -r '.models.review.model // ""' "$REPO_ROOT/harness/harness.config.json")"
+  e="$(jq -r '.models.review.effort // ""' "$REPO_ROOT/harness/harness.config.json")"
+  s="$(jq -r '.models.review | has("second")' "$REPO_ROOT/harness/harness.config.json")"
+  ok "$([ "$m" = "claude-fable-5-1" ] && [ "$e" = "high" ] && echo 1 || echo 0)" "active review route is Fable 5.1 at high"
+  ok "$([ "$s" = "false" ] && echo 1 || echo 0)" "active review route omits the second reviewer key"
 
   echo "model routing S1b: phase_fallback review symmetric with reviewFallback pseudo-phase"
   # Mixed config: nested review with a NULL fallback + a legacy top-level reviewFallback. Both accessors

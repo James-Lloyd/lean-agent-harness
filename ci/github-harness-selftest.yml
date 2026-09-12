@@ -29,7 +29,7 @@ jobs:
         run: bash harness/tests/run-tests.sh
       - name: Fleet merge-queue integration test (stub claude)
         run: bash harness/tests/fleet-queue-test.sh
-      - name: Loop review-point integration test (stub claude, second reviewer)
+      - name: Loop review-point integration test (stub claude, single + optional second reviewer)
         run: bash harness/tests/loop-review-test.sh
       - name: Shell syntax check
         run: |
@@ -57,7 +57,7 @@ jobs:
       - name: Fleet merge-queue integration test (stub claude, PS 5.1)
         shell: powershell
         run: powershell -NoProfile -ExecutionPolicy Bypass -File harness/tests/fleet-queue-test.ps1
-      - name: Loop review-point integration test (stub claude, second reviewer, PS 5.1)
+      - name: Loop review-point integration test (stub claude, single + optional second reviewer, PS 5.1)
         shell: powershell
         run: powershell -NoProfile -ExecutionPolicy Bypass -File harness/tests/loop-review-test.ps1
 

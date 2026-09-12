@@ -68,18 +68,18 @@ the phase agents, and the harness commands as skills under `<project>/.agents/sk
 not the `[[skills.config]]` stanza in `config.toml`, is what `codex exec` actually reads (measured
 2026-09-09; the stanza is inert for exec). See `docs/codex-setup.md`; doctor check 12 keeps them fresh.
 
-**Second reviewer (the recommended first use of Codex).** `review.second: { model, effort }` adds a
+**Optional second reviewer.** `review.second: { model, effort }` adds a
 second, read-only judge that reviews the SAME batch after the primary SHIPs; SHIP requires both, and both
 verdicts land in the ledger. Independent benchmarks (design-doc 002) show Claude Code's and Codex's
 reviewers catch mostly *different* bugs, and that a cross-vendor reviewer helps only when it is
 comment-only — so the second reviewer is read-only by construction and has **no fallback**: the point is
 model diversity, and a substitute is not the configured second opinion (an unreachable second reviewer
-fails closed; doctor 10(h) warns). Recommended pair: primary `claude-fable-5-1` @ `high`, second
+fails closed; doctor 10(h) warns). If explicitly enabled, a sensible pair is primary `claude-fable-5-1` @ `high`, second
 `codex` with `review.codex: { model: null, reasoningEffort: "high" }` — `null`, not a pinned GPT ID, for the
 same reason given above (measured 2026-09-09, the CLI default was `gpt-5.6-sol` @ high; read the effective
 model back from the exec transcript header rather than pinning it here). Off by default; turn it on
-in shadow mode first (slice V5) and compare the two judges' findings before letting it gate. The harness
-repo itself runs this pair as of 2026-09-09 (`state/evidence/2026-09-09-v6-second-reviewer-routing/`).
+in shadow mode first (slice V5) and compare the two judges' findings before letting it gate. It is not
+part of the recommended defaults, and the harness repo returned to one reviewer on 2026-09-12.
 
 ## Running the interview
 

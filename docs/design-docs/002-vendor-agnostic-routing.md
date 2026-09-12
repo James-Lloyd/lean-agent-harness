@@ -1,6 +1,6 @@
 # 002 — Vendor-agnostic routing (Claude Code today, OpenAI Codex CLI swappable per phase)
 
-- **Status:** accepted — V1–V5 shipped; **V6.1 (2026-09-09) routed this repo's `review.second` to Codex**, the first time the arm is used rather than merely tested (branch `worktree-vendor-agnostic-v6`; evidence `state/evidence/2026-09-09-v6-second-reviewer-routing/`). **V6.2 (2026-09-09) graded the phases a codex route cannot reach** (`/harness-doctor` 10(i); evidence `state/evidence/2026-09-09-v6.2-dispatch-site-gap/`). **V6.3 (2026-09-09) SHIPPED the command→skill bridge** that the "Out of scope" section below defers — every harness command is generated into `<project>/.agents/skills/harness-<name>/`, live-fired loaded-and-acted-on (evidence `state/evidence/2026-09-09-v6.3-command-skill-bridge/`), and the same slice measured the shipped `[[skills.config]]` stanza to be inert for `codex exec`. Original V1–V5 status: V1–V4 merged 2026-09-05 as PRs #11–#14; V5 live-fire done 2026-09-05 (`state/evidence/2026-09-05-vendor-agnostic-refit-v5/`): second reviewer compared on a real diff (Fable SHIP vs Codex REJECT, advisory), and the hook probe found four V3 defects fixed in plugin 0.3.5 (see Consequences)
+- **Status:** accepted — V1–V5 shipped; **V6.1 (2026-09-09) routed this repo's `review.second` to Codex** and live-fired it (`state/evidence/2026-09-09-v6-second-reviewer-routing/`); **V6.2 graded undispatchable Codex routes** (`state/evidence/2026-09-09-v6.2-dispatch-site-gap/`); **V6.3 shipped the command→skill bridge** (`state/evidence/2026-09-09-v6.3-command-skill-bridge/`). **V6.4 (2026-09-12) returned this repo to one independent reviewer**; D4 remains an opt-in capability, not a recommended default. Original V1–V5 status: V1–V4 merged 2026-09-05 as PRs #11–#14; V5 live-fire done 2026-09-05 (`state/evidence/2026-09-05-vendor-agnostic-refit-v5/`): second reviewer compared on a real diff (Fable SHIP vs Codex REJECT, advisory), and the hook probe found four V3 defects fixed in plugin 0.3.5 (see Consequences)
 - **Date:** 2026-09-04
 
 ## Context
@@ -54,6 +54,12 @@ a **config edit with first-class guardrails**, not an exotic path.
 > disabled itself on a second-reviewer-only config. Evidence:
 > `state/evidence/2026-09-09-v6-second-reviewer-routing/`.
 >
+> **Superseded for THIS repo, 2026-09-12 (V6.4).** The live-fire proved the optional D4 path, but it
+> also made every ordinary review pay for two judges and made the second judge's availability gating.
+> One fresh-context reviewer is the product decision now: `review.second` is absent from this repo's
+> config. The optional engine path and its regression coverage remain for consumers that deliberately
+> opt in.
+>
 > **And "a config edit" overstated it (V6.2, same day).** Routing a phase to Codex is a config edit
 > only for the phases something dispatches: `implement`, `review`, `review.second` and `evaluate` on
 > both paths, `plan` interactively only, and **`explore` and `docs` nowhere at all** — `/gc` carries no
@@ -98,7 +104,7 @@ gitignored for the same reason `.claude/settings.local.json` is. `--user` writes
 `~/.codex/hooks.json` instead, which is the only place they run under headless `codex exec` without
 the bypass flag. `/harness-doctor` grows a check that the generated set is present and not stale.
 
-**D4. Cross-vendor review is a *second, read-only* reviewer, never a replacement.** (slice V4)
+**D4. An optional extra reviewer is read-only and off by default.** (slice V4, retuned V6.4)
 `models.review.second: { model, effort }` (default `null`) runs after the primary reviewer **ships** at
 every review point — the loop's periodic review and `/review` — in read-only mode with the same prompt
 and verdict contract; a primary REJECT already decides the point, so the second is not consulted on a
@@ -107,8 +113,9 @@ Judge order at the loop's review point is primary → second → evaluator (when
 `harness-reviewed` watermark advances only after the LAST judge passes. The
 second reviewer must differ from the primary in model (doctor ⚠️ otherwise: same model twice is
 self-review, which measured as worthless). Read-only is non-negotiable: the regression mechanism in the
-literature is a reviewer that rewrites. Recommended first use: primary `claude-fable-5-1` @ `high`,
-second `codex` (`gpt-5.6-sol` @ `high`).
+literature is a reviewer that rewrites. If a project explicitly needs a second opinion, a cross-vendor
+pair is the useful shape: primary `claude-fable-5-1` @ `high`, second `codex` at `high`. The normal
+workflow uses one independent reviewer; prove any extra judge in shadow mode before making it gating.
 
 **Out of scope, recorded:** bridging the harness's slash commands (`/work`, `/review`, …) to Codex
 (`$skills` are the Codex analogue; custom prompts are deprecated there) — a Codex operator runs the

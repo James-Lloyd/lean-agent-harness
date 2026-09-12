@@ -88,8 +88,8 @@ behaves oddly.
       must == the phase's **Claude `fallback`** (so a spawned subagent still lands on the right model) and
       you note "phase is codex-routed — frontmatter tracks its Claude fallback." Illustration only: no
       shipped config has a codex-primary phase (`implement` has been `claude-opus-5` with no fallback
-      since 2026-08-11, and the harness repo's own 2026-09-09 cross-vendor routing is `review.second`,
-      which spawns no subagent), so this branch is currently unexercised by any config in the repo.
+      since 2026-08-11, and the harness repo uses one Claude reviewer as of 2026-09-12), so this branch
+      is currently unexercised by any config in the repo.
       **Order of operations with (i):** if the codex-primary phase is one (i) grades ❌ — `explore` or
       `docs` — then (i) wins and this sub-check does not apply: the frontmatter model is not a
       "fallback" there, it is the only model the phase will ever run on. Report (i)'s error and stop.
@@ -135,8 +135,8 @@ behaves oddly.
       other phase it is a key nothing reads (ratchet 2026-08-11): ⚠️, name the phase, suggest deleting the
       block or routing the phase to codex. **`review.codex` beside a Claude primary and a codex `second`
       is READ — do not warn on it:** `second_review`/`Invoke-SecondReview` pass the review phase's
-      `REVIEW_CODEX_MODEL`/`REVIEW_CODEX_EFFORT` to the second judge, which is the pairing the
-      model-routing skill recommends as the first use of Codex. **Second carve-out, whenever `.codex/`
+      `REVIEW_CODEX_MODEL`/`REVIEW_CODEX_EFFORT` to the second judge. That is a valid opt-in pairing,
+      not part of the recommended single-reviewer defaults. **Second carve-out, whenever `.codex/`
       is generated:** `engine/codex-setup.*` resolves `phase_codex_model`/`phase_codex_effort` for every
       mapped agent phase (planner, generator, reviewer, evaluator, explorer, doc-gardener) **ungated by
       that phase's route**, to write `.codex/agents/<name>.toml`. So a `codex{}` block on an unrouted
