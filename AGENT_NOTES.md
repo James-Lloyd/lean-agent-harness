@@ -189,3 +189,9 @@ NOT under the loop; `HARNESS_GATE_STRICT=1` turns a half-grade into a red exit i
   `~/.claude/plugins` cache, which on this machine is **0.2.9 (2026-08-12)** and predates codex-setup
   entirely. Export `HARNESS_ENGINE=<worktree>/plugin/engine` first, as the suites do. The E2-flip note
   called this out for `loop.ps1`; it applies to every wrapper.
+- [2026-09-12] A watchdog timeout that replaces buffered model output with only its own kill sentence
+  cannot explain what consumed the allowance. The supervised Stage 1b Codex canary was killed at both
+  900s and 1800s; each run failed closed and rolled back, but the committed logs prove only the Codex
+  path and timeout. The supervisor saw the intended edit and child gate processes twice, suggesting
+  duplicated in-model/runner verification, but preserve the partial transcript before treating that
+  diagnosis as fact. Do not solve this by extending the timeout again.
