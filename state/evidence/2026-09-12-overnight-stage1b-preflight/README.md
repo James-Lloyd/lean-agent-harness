@@ -11,15 +11,19 @@ not invoked, and the full overnight task is not complete.
 
 ## Preflight
 
-- Claude Code 2.1.268 was authenticated through Claude.ai.
-- Codex CLI 0.154.0 was authenticated through ChatGPT.
-- `codex-setup.ps1` generated plugin 0.4.4's seven roles and twenty command/reference skills.
+- Claude Code 2.1.268 was authenticated through Claude.ai
+  ([`preflight-environment.txt`](preflight-environment.txt), line 2; the auth probe was scrubbed to its
+  non-identifying fields before recording).
+- Codex CLI 0.154.0 was authenticated through ChatGPT (`preflight-environment.txt`, lines 3-4).
+- `codex-setup.ps1` generated plugin 0.4.4's seven roles and twenty command/reference skills
+  (`preflight-environment.txt`, lines 5-7).
 - Temporary canary route: implement = Codex @ high, fallback Opus 5 @ high; one Fable 5.1 reviewer;
   Fable evaluator enabled; one iteration; real token metering; 250,000-token cap; permissions enabled.
 - The supervising console showed the preflight gate green under that route. Its full output was not
   retained, so this evidence does not claim exact durable counts.
-- Docker was installed but its daemon was not running. Native Windows is not a supported isolation
-  profile, so the run was explicitly supervised and the normal sandbox warning was retained.
+- Docker was installed but its daemon was not running (`preflight-environment.txt`, lines 8-9). Native
+  Windows is not a supported isolation profile, so the run was explicitly supervised and the normal
+  sandbox warning was retained.
 
 ## Attempt 1 — run-002
 

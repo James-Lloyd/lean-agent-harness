@@ -1,0 +1,9 @@
+measured_at=2026-09-12; commands=claude --version, claude auth status (scrubbed), codex --version, codex login status, generated-file counts, docker version
+claude.version=2.1.268 (Claude Code); auth.loggedIn=true; auth.authMethod=claude.ai; auth.apiProvider=firstParty; auth.subscriptionType=max
+codex.version=codex-cli 0.154.0
+codex.auth=Logged in using ChatGPT
+plugin.version=0.4.4
+codex.agent_roles=7
+codex.skills=20
+docker.server.version=
+docker.error=failed to connect to the Docker API at npipe:////./pipe/dockerDesktopLinuxEngine; the system cannot find the specified file

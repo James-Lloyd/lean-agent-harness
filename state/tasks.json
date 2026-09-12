@@ -11,10 +11,11 @@
       "steps": [
         "Reproduce the PowerShell timeout path with output emitted before the watchdog fires",
         "Keep the timeout fail-closed while retaining the available output plus the timeout verdict in the phase log",
-        "Add mutation-checked regression coverage and reconcile the Bash twin's contract"
+        "Add mutation-checked regression coverage and reconcile the Bash twin's contract",
+        "Bump plugin/.claude-plugin/plugin.json in the same diff as the shipped Invoke-Codex behavior change"
       ],
       "acceptance": "A timed-out Codex invocation still returns failure and is rolled back, while its phase log durably contains output produced before the timeout and the watchdog verdict.",
-      "files": ["plugin/engine/lib/invoke-codex.ps1", "plugin/engine/lib/invoke-codex.sh", "harness/tests/", "state/evidence/CODEX-TIMEOUT-TRANSCRIPT-001/"],
+      "files": ["plugin/engine/lib/invoke-codex.ps1", "plugin/engine/lib/invoke-codex.sh", "plugin/.claude-plugin/plugin.json", "harness/tests/", "state/evidence/CODEX-TIMEOUT-TRANSCRIPT-001/"],
       "status": "todo",
       "evidence": "",
       "passes": false
