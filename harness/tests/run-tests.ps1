@@ -322,13 +322,20 @@ ok "absent phase => ''"                                   ((Resolve-PhaseSecondM
 ok "flat-legacy string => ''"                             ((Resolve-PhaseSecondModel $scfg 'docs') -eq '')
 ok "review without a second block => ''"                  ((Resolve-PhaseSecondModel $xcfg 'review') -eq '')
 # A CODEX SECOND READS review.codex EVEN THOUGH model AND fallback ARE BOTH CLAUDE (bash twin carries the
-# same three). Invoke-SecondReview passes the review phase's codex settings, so this is the pairing the
-# model-routing skill recommends as Codex's first use - and until 2026-09-09 four surfaces said the block
-# is read only when model/fallback is codex, which would have made doctor 10(g) warn "unread key" on it.
+# same three). Invoke-SecondReview passes the review phase's codex settings, so this remains a valid
+# opt-in pairing even though one reviewer is the recommended default. Until 2026-09-09 four surfaces said
+# the block is read only when model/fallback is codex, which made doctor 10(g) warn "unread key" on it.
 $sr = Resolve-PhaseCodexCfg $scfg 'review'; $se = Resolve-PhaseCodexCfg $scfg 'evaluate'
 ok "codex SECOND reads the phase's codex.model beside a Claude primary" ($sr.model -eq 'gpt-second')
 ok "codex SECOND reads the phase's codex.reasoningEffort"               ($sr.reasoningEffort -eq 'xhigh')
 ok "a phase with no codex block still falls through to the global one"  ($se.model -eq 'gpt-global')
+
+Write-Host "repo routing: one independent reviewer is the active default"
+$activeCfg = Get-Content (Join-Path $repoRoot 'harness/harness.config.json') -Raw | ConvertFrom-Json
+$activeReview = $activeCfg.models.review
+$activeSecond = $activeReview.PSObject.Properties['second']
+ok "active review route is Fable 5.1 at high"               ($activeReview.model -eq 'claude-fable-5-1' -and $activeReview.effort -eq 'high')
+ok "active review route omits the second reviewer key"      ($null -eq $activeSecond)
 
 Write-Host "model routing S1b: Resolve-PhaseFallback('review') is symmetric with reviewFallback pseudo-phase"
 # Mixed config: nested review with a NULL fallback + a legacy top-level reviewFallback. Both accessors

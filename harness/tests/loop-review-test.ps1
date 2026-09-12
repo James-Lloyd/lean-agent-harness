@@ -1,14 +1,15 @@
 #requires -Version 5.1
 <#
-  loop-review-test.ps1 - integration test for the loop's REVIEW POINT with a SECOND reviewer (PS side;
-  mirror of loop-review-test.sh; design-doc 002 D4). Live-fires harness/loop.ps1 in a throwaway repo with a
+  loop-review-test.ps1 - integration test for the loop's REVIEW POINT with one reviewer and with the
+  OPTIONAL second reviewer (PS side; mirror of loop-review-test.sh; design-doc 002 D4). Live-fires
+  harness/loop.ps1 in a throwaway repo with a
   stub claude (HARNESS_CLAUDE_CMD) whose behaviour branches on the --model the dispatcher passes:
     impl-x      the implementer: writes a file and ticks the plan item (gate green + commit)
     primary-rev the primary reviewer: always VERDICT: SHIP
     second-rev  the second reviewer: SHIP | REJECT | a usage-limit failure, per $env:SECOND_MODE
-  Three runs assert: SHIP requires BOTH judges; a REJECT from the second stops the loop with a handoff
-  naming it; a capped second reviewer FAILS CLOSED (no fallback); both verdicts land in the ledger; the
-  harness-reviewed watermark advances only when both ship. Requires only git.
+  Four runs assert: a primary SHIP advances directly when no second is configured; when explicitly
+  configured, SHIP requires BOTH judges, a REJECT from the second stops the loop with a handoff, and a
+  capped second reviewer FAILS CLOSED. Requires only git.
   Run:  powershell harness/tests/loop-review-test.ps1
 #>
 $ErrorActionPreference = 'Stop'
@@ -50,7 +51,7 @@ switch ($model) {
 }
 '@ | Set-Content $stub -Encoding utf8
 
-function New-Repo([string]$T) {
+function New-Repo([string]$T, [bool]$WithSecond = $true) {
   New-Item -ItemType Directory -Force -Path $T | Out-Null
   Set-Location $T
   git init -q -b main
@@ -76,6 +77,11 @@ function New-Repo([string]$T) {
   "gate": { "format": null, "lint": null, "typecheck": null, "build": null, "test": null, "e2e": null }
 }
 '@ | Set-Content 'harness\harness.config.json' -Encoding utf8
+  if (-not $WithSecond) {
+    $configPath = Join-Path $T 'harness\harness.config.json'
+    $configText = (Get-Content $configPath -Raw).Replace(', "second": { "model": "second-rev", "effort": "high" }', '')
+    [System.IO.File]::WriteAllText($configPath, $configText, (New-Object System.Text.UTF8Encoding($false)))
+  }
   "## Tasks`n- [ ] build thing" | Set-Content 'state\fix_plan.md' -Encoding utf8
   '{ "version": 2, "tasks": [] }' | Set-Content 'state\tasks.json' -Encoding utf8
   "- init" | Set-Content 'state\PROGRESS.md' -Encoding utf8
@@ -94,8 +100,18 @@ function Row([string]$result) { @(Ledger-Rows | Where-Object { $_.result -eq $re
 function Handoff { if (Test-Path 'state\handoff.md') { Get-Content 'state\handoff.md' -Raw } else { '' } }
 
 try {
+  Write-Host "loop review point: one primary reviewer SHIP advances without a second invocation"
+  New-Repo (Join-Path $work 'single') $false; Run-Loop 'single'
+  $r0 = @(Row 'review'); $s0 = @(Row 'review-second')
+  ok "ledger: single primary reviewer SHIP"                    ($r0.Count -eq 1 -and $r0[0].verdict -eq 'SHIP' -and $r0[0].path -eq 'claude')
+  ok "ledger: no second-review row"                            ($s0.Count -eq 0)
+  ok "single-review watermark == HEAD"                        ("$(git rev-parse harness-reviewed 2>$null)".Trim() -eq "$(git rev-parse HEAD)".Trim())
+  ok "single-review header has no second judge"               ($loopOut -match 'review=primary-rev' -and $loopOut -notmatch '\+second=')
+  ok "single-review run did not invoke second-rev"            (-not (@(Get-Content (Join-Path $work 'argv-single.log')) -ccontains 'second-rev effort=high'))
+  ok "single-review run wrote no second transcript"           (-not (Test-Path 'harness\.runs\run-001\review-second-after-1.log'))
+
   Write-Host "loop review point: second reviewer REJECT stops the loop (SHIP requires both)"
-  New-Repo (Join-Path $work 'reject'); Run-Loop 'reject'
+  New-Repo (Join-Path $work 'reject') $true; Run-Loop 'reject'
   $r1 = @(Row 'review'); $s1 = @(Row 'review-second')
   ok "ledger: primary reviewer SHIP"                          ($r1.Count -eq 1 -and $r1[0].verdict -eq 'SHIP' -and $r1[0].path -eq 'claude')
   ok "ledger: second reviewer REJECT, model recorded"         ($s1.Count -eq 1 -and $s1[0].verdict -eq 'REJECT' -and $s1[0].model -eq 'second-rev')
@@ -107,7 +123,7 @@ try {
   ok "second.effort reaches the CLI (--effort high)"           (@(Get-Content (Join-Path $work 'argv-reject.log')) -ccontains 'second-rev effort=high')
 
   Write-Host "loop review point: both SHIP => watermark advances, no handoff"
-  New-Repo (Join-Path $work 'ship'); Run-Loop 'ship'
+  New-Repo (Join-Path $work 'ship') $true; Run-Loop 'ship'
   $s2 = @(Row 'review-second')
   ok "ledger: second reviewer SHIP"                           ($s2.Count -eq 1 -and $s2[0].verdict -eq 'SHIP')
   ok "ledger: no review-stop"                                 (@(Row 'review-stop').Count -eq 0)
@@ -115,7 +131,7 @@ try {
   ok "no handoff written"                                     (-not ((Handoff) -match 'Needs human decision'))
 
   Write-Host "loop review point: a capped second reviewer FAILS CLOSED (no fallback, no substitute model)"
-  New-Repo (Join-Path $work 'cap'); Run-Loop 'cap'
+  New-Repo (Join-Path $work 'cap') $true; Run-Loop 'cap'
   $s3 = @(Row 'review-second')
   ok "ledger: second reviewer ERROR"                          ($s3.Count -eq 1 -and $s3[0].verdict -eq 'ERROR')
   ok "handoff: second reviewer could not run"                 ((Handoff) -match 'second reviewer \(second-rev\) could not run')

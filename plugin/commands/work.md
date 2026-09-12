@@ -35,10 +35,9 @@ the config (readable directly, or via the engine lib resolvers — bash `phase_m
   globals). No subagent ever wraps codex.
 
 With the default config every phase's PRIMARY is Claude, so PLAN, EXECUTE and REVIEW each spawn their
-Claude subagent. Check `models.review.second` before you treat REVIEW as one judge: when it is set
-(`"codex"` in this repo since 2026-09-09), a read-only second judge reviews the SAME batch after the
-primary ships and SHIP requires BOTH — `/review` step 3 runs it, and it has no fallback, so an
-unreachable second judge stops for a human rather than silently reducing to a single opinion.
+Claude subagent. REVIEW uses one independent judge by default and in this repo. The optional
+`models.review.second` capability remains available for an explicit extra-opinion experiment; when it
+is set, `/review` step 3 requires both judges to ship and an unreachable second judge stops for a human.
 The subagents: `generator` **is** the implement primary (`claude-opus-5`, no fallback — if it caps the
 build stops), `planner`/`reviewer` run `claude-fable-5-1` with a `claude-opus-5` fallback. Subagent
 frontmatter carries each phase's primary Claude model *and* its declared `effort`; `/harness-doctor`

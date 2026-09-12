@@ -17,15 +17,14 @@ the code doesn't back. (Ratchet them in as real use demands.)
   an explicit `VERDICT: SHIP` continues; reject/truncation/crash stop for a human). But it is not granted
   the tools to run the app, so it reviews the diff + specs, not fresh e2e evidence — pair it with a real
   `e2e` gate step. Granting it a sandboxed run-the-app capability is future work.
-- **Wired 2026-07-13, unrouted since 2026-08-11:** the periodic judge routes per `models.review` —
+- **Wired cross-vendor:** the periodic judge routes per `models.review` —
   `"codex"` runs it cross-vendor through the OpenAI Codex CLI (read-only sandbox + watchdog, automatic
   fallback to `review.fallback` when codex is missing/unauthenticated); any claude alias pins the
-  internal reviewer's model. The shipped defaults are single-vendor Claude (decision 2026-08-11); the
-  codex arm stays in the engine and tests, one config edit from live. Re-examined 2026-09-04: Codex CLI
-  now has hooks, subagents and Agent Skills in Claude-compatible shapes, and independent review
-  benchmarks show the two vendors' reviewers catch mostly different bugs — the vendor-agnostic refit
-  (vendor as a per-phase field, AGENTS.md canonical, `.agents/skills/`, hook/agent twins) is the next
-  design-doc, with Codex as a read-only second reviewer the first use.
+  internal reviewer's model. The vendor-agnostic refit now ships AGENTS.md as the common map, generated
+  Codex roles/hooks/command skills, and an optional read-only second-review capability. This repo briefly
+  gated on that second judge in V6.1, then returned to the recommended one-reviewer workflow on
+  2026-09-12: one independent reviewer is enough. The Codex primary/fallback arm remains live-tested and
+  one config edit from use.
 - **Planned next:** also run the skeptical **evaluator** (rubric thresholds) at the review point, and
   auto-revert the rejected batch rather than only stopping. For now a *reject* halts for human triage.
 - **Planned:** runner-side advancement of `state/tasks.json` after a periodic-review *SHIP* — today only
