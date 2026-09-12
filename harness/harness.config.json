@@ -8,11 +8,11 @@
   },
 
   "models": {
-    "_comment": "TEMPORARY SUPERVISED OVERNIGHT STAGE 1B CANARY: implement is Codex @ high with Opus 5 @ high only as its availability/usage-limit fallback; review remains one independent Fable 5.1 judge @ high and evaluate uses Fable 5.1 @ high. The normal Opus 5 implementation default and supervised/off verification settings are restored after the audited run. Per-phase {model, fallback, effort, fallbackEffort}: null = inherit session / no fallback. Codex model/effort comes from a phase codex block over the global defaults below. DOER != JUDGE remains true.",
+    "_comment": "Per-phase {model, fallback, effort, fallbackEffort}: a Claude alias/ID; null = inherit session / no fallback. Fallback fires only on a FAILED invocation (unavailable or usage-limited). Enforced via settings.json `model`, agent frontmatter, and the loop dispatcher — /harness-doctor check 10 validates agreement. `effort` is DECLARED here and ENFORCED by settings.json `effortLevel` (session), the phase agent's `effort:` frontmatter (subagents), and `claude --effort` on the headless dispatcher's Claude arm. Still advisory: fallbackEffort on an INTERACTIVE re-spawn. IDS ARE PINNED, NOT ALIASES: bare `opus` and `fable` float to the newest model in that tier. Current routing: session = Fable 5.1 @ medium; plan/review/evaluate = Fable 5.1 @ high; implement = Opus 5 @ high; explore/docs = Haiku @ low. ONE REVIEWER, by decision 2026-09-12: the independent Fable reviewer is sufficient, so this repo does not configure `review.second`; the optional engine capability remains available for an explicit experiment. Codex remains a first-class primary/fallback route for supported phases and a native operator through the generated command skills. FALLBACKS ONLY ON THE FABLE PHASES: plan/review/evaluate fall back to Opus 5 on an availability or usage-limit failure; implement has no fallback. DOER != JUDGE: implement is Opus 5 and review is Fable 5.1. Residual edge, accepted knowingly — the review fallback is Opus 5, so a Fable cap loses model diversity while preserving fresh-context independence.",
     "session":   { "model": "claude-fable-5-1", "fallback": null,            "effort": "medium" },
     "explore":   { "model": "haiku",            "fallback": null,            "effort": "low" },
     "plan":      { "model": "claude-fable-5-1", "fallback": "claude-opus-5", "effort": "high", "fallbackEffort": "high" },
-    "implement": { "model": "codex",             "fallback": "claude-opus-5", "effort": "high", "fallbackEffort": "high" },
+    "implement": { "model": "claude-opus-5",    "fallback": null,            "effort": "high" },
     "review":    { "model": "claude-fable-5-1", "fallback": "claude-opus-5", "effort": "high", "fallbackEffort": "medium" },
     "evaluate":  { "model": "claude-fable-5-1", "fallback": "claude-opus-5", "effort": "high", "fallbackEffort": "medium" },
     "docs":      { "model": "haiku",            "fallback": null,            "effort": "low" },
@@ -22,21 +22,21 @@
       "model": null,
       "reasoningEffort": "high",
       "auth": "chatgpt",
-      "timeoutSeconds": 1800
+      "timeoutSeconds": 900
     }
   },
 
   "autonomy": {
-    "mode": "auto",
-    "maxIterations": 1,
+    "mode": "supervised",
+    "maxIterations": 20,
     "maxTurnsPerIteration": 40,
-    "tokenBudget": 250000,
-    "meterTokens": true,
+    "tokenBudget": null,
+    "meterTokens": false,
     "skipPermissions": false,
     "checkpoints": {
       "planApproval": true,
       "beforeRiskyOps": true,
-      "everyNIterations": 0
+      "everyNIterations": 5
     }
   },
 
@@ -98,9 +98,9 @@
 
   "verification": {
     "requireE2EEvidence": true,
-    "reviewEveryNIterations": 1,
+    "reviewEveryNIterations": 0,
     "evaluator": {
-      "enabled": true,
+      "enabled": false,
       "rubric": "docs/principles/evaluator-rubric.md",
       "failBelow": 7
     }

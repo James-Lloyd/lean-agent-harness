@@ -189,3 +189,8 @@ NOT under the loop; `HARNESS_GATE_STRICT=1` turns a half-grade into a red exit i
   `~/.claude/plugins` cache, which on this machine is **0.2.9 (2026-08-12)** and predates codex-setup
   entirely. Export `HARNESS_ENGINE=<worktree>/plugin/engine` first, as the suites do. The E2-flip note
   called this out for `loop.ps1`; it applies to every wrapper.
+- [2026-09-12] A Codex headless iteration on this repo cannot spend its whole phase watchdog running
+  the same full twin gate the outer loop will run again. The supervised Stage 1b canary made the right
+  edit twice, then was killed at both 900s and 1800s before returning; each run failed closed and
+  rolled back, so the reviewer/evaluator never ran. Narrow the in-model verification contract while
+  keeping the runner's full gate authoritative; do not solve this by extending the timeout again.
