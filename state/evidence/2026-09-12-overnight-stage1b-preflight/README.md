@@ -22,20 +22,21 @@ therefore not invoked, and the full overnight task is not complete.
 
 - Watchdog: 900 seconds.
 - Codex made the intended `docs/overnight.md` correction and entered the full twin gate.
-- Durable ledger: `{"path":"codex","result":"invoke-error","usedFallback":false,"reason":"invoke-failed","iter":1}`.
-- Durable phase log: `[codex timed out after 900s — watchdog kill, failing closed]`.
+- Durable ledger: [`run-002-ledger.jsonl`](run-002-ledger.jsonl), line 1.
+- Durable phase log: [`run-002-iter-1.log`](run-002-iter-1.log), line 1.
 - The loop restored checkpoint `b44b14d8`.
 
 ## Attempt 2 — run-003
 
 - Only the measured watchdog changed: 1,800 seconds.
 - Codex again made the same scoped correction and ran verification.
-- The ledger recorded the same Codex `invoke-error` / `invoke-failed` result.
-- Phase log: `[codex timed out after 1800s — watchdog kill, failing closed]`.
+- Ledger: [`run-003-ledger.jsonl`](run-003-ledger.jsonl), line 1.
+- Phase log: [`run-003-iter-1.log`](run-003-iter-1.log), line 1.
 - The loop restored checkpoint `1a5177ea`.
 
 The raw run directories are gitignored machine-local artifacts under `harness/.runs/run-002` and
-`run-003`. This file records their complete verdict-bearing lines without a local absolute path.
+`run-003`. The four files beside this README preserve their complete verdict-bearing lines without a
+local absolute path.
 
 ## Adjudication
 
