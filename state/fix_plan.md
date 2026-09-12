@@ -9,6 +9,7 @@ Format: `- [ ] <imperative task>  — done when: <verifiable condition>`
 > when there are no unchecked items left (config `loop.stopWhenPlanEmpty`).
 
 ## Tasks
+- [ ] (wip: worktree-codex-single-review) Make one independent reviewer the default and remove this repo's mandatory `review.second` route  — done when: `harness.config.json` no longer configures a second judge, the shipped workflow describes the actual single-review path without claiming Codex is mandatory, and both engine twins plus end-to-end routing evidence prove a primary SHIP advances without a second invocation
 <!-- Approved 2026-07-13: docs/execution-plans/2026-07-13-model-routing-parallelism-context.md -->
 - [x] Add `models` routing block (schema + config + settings.json session model + agent frontmatter + doctor drift-check)  — done when: config declares session/explore/plan/implement/review/evaluate/docs models, frontmatter matches, doctor checks it, self-tests green
 - [x] Add `explorer` agent (haiku, read-only) + fan-out wiring in PROMPT.md/planner/generator  — done when: agent exists and all three surfaces route searches to it
