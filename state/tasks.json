@@ -4,13 +4,17 @@
   "statusLifecycle": ["todo", "planned", "in_progress", "validated", "reviewed", "done"],
   "tasks": [
     {
-      "id": "EXAMPLE-001",
-      "category": "functional",
+      "id": "OVERNIGHT-CANARY-001",
+      "category": "documentation",
       "component": "root",
-      "description": "Example task — replace via /plan. Describes ONE shippable unit of work.",
-      "steps": ["step 1", "step 2"],
-      "acceptance": "The single, verifiable condition that makes this true. Prefer executable.",
-      "files": ["src/example/"],
+      "description": "Correct docs/overnight.md's stale statement that this harness has an empty root gate.",
+      "steps": [
+        "Replace the stale statement with the actual node harness/tests/gate.mjs wiring and both self-test twins",
+        "Run the existing gate-wiring assertions and full configured gate",
+        "Record end-to-end evidence of the corrected operator guidance"
+      ],
+      "acceptance": "The overnight guide accurately says this repo's root component runs node harness/tests/gate.mjs and that the dispatcher grades both self-test twins on Windows.",
+      "files": ["docs/overnight.md", "state/evidence/OVERNIGHT-CANARY-001/"],
       "status": "todo",
       "evidence": "",
       "passes": false
