@@ -22,7 +22,7 @@
       "model": null,
       "reasoningEffort": "high",
       "auth": "chatgpt",
-      "timeoutSeconds": 900
+      "timeoutSeconds": 1800
     }
   },
 
