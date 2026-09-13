@@ -1184,8 +1184,10 @@ $repoRoot = Split-Path (Split-Path $here -Parent) -Parent
 if (Get-Command node -ErrorAction SilentlyContinue) {
   & node (Join-Path $repoRoot 'plugin/hooks/run.test.mjs') 1>$null 2>$null
   ok "hook dispatcher self-test passes (node)" ($LASTEXITCODE -eq 0)
-  & node (Join-Path $repoRoot 'plugin/scripts/validate-openai-plugin.mjs') 1>$null 2>$null
-  ok "Codex plugin package is internally consistent (node)" ($LASTEXITCODE -eq 0)
+  $pluginValidation = & node (Join-Path $repoRoot 'plugin/scripts/validate-openai-plugin.mjs') 2>&1
+  $pluginValidationOk = ($LASTEXITCODE -eq 0)
+  if (-not $pluginValidationOk) { $pluginValidation | ForEach-Object { Write-Host "    $_" } }
+  ok "Codex plugin package is internally consistent (node)" $pluginValidationOk
 } else {
   Write-Host "  (skipping dispatcher test - node not on PATH)" -ForegroundColor Yellow
 }

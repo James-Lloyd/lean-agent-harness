@@ -1207,7 +1207,8 @@ REPO="$(cd "$HERE/../.." && pwd)"
 if command -v node >/dev/null 2>&1; then
   if node "$REPO/plugin/hooks/run.test.mjs" >/dev/null 2>&1; then d_ok=1; else d_ok=0; fi
   ok "$d_ok" "hook dispatcher self-test passes (node)"
-  if node "$REPO/plugin/scripts/validate-openai-plugin.mjs" >/dev/null 2>&1; then c_ok=1; else c_ok=0; fi
+  c_out="$(node "$REPO/plugin/scripts/validate-openai-plugin.mjs" 2>&1)" && c_ok=1 || c_ok=0
+  if [[ "$c_ok" -ne 1 ]]; then printf '    %s\n' "$c_out"; fi
   ok "$c_ok" "Codex plugin package is internally consistent (node)"
 else
   echo "  (skipping dispatcher test — node not installed)"
