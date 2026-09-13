@@ -121,7 +121,12 @@ try {
     return separator >= 0 ? [line.slice(0, separator), line.slice(separator + 1)] : [line, ""];
   });
   const comparablePath = (value) => {
-    const normalized = path.resolve(value);
+    let normalized;
+    try {
+      normalized = fs.realpathSync.native(value);
+    } catch {
+      normalized = path.resolve(value);
+    }
     return process.platform === "win32" ? normalized.toLowerCase() : normalized;
   };
   const expectedExtension = process.platform === "win32" ? ".ps1" : ".sh";
@@ -129,7 +134,7 @@ try {
     invocationRecords.length === baseNames.length
       && baseNames.every((name) => invocationRecords.some(([script]) => script === `${name}${expectedExtension}`))
       && invocationRecords.every(([, projectRoot]) => comparablePath(projectRoot) === comparablePath(consumer)),
-    `Codex-cache-only wrappers did not invoke the installed engine with the consumer root: ${JSON.stringify(invocationRecords)}`,
+    `Codex-cache-only wrappers did not invoke the installed engine with the consumer root ${JSON.stringify(consumer)}: ${JSON.stringify(invocationRecords)}`,
   );
 } finally {
   fs.rmSync(cacheFixtureDir, { recursive: true, force: true });
