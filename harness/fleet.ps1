@@ -14,12 +14,13 @@ function Find-HarnessEngine {
   if ($env:CLAUDE_PLUGIN_ROOT -and (Test-Path (Join-Path $env:CLAUDE_PLUGIN_ROOT 'engine/fleet.ps1'))) {
     return (Resolve-Path (Join-Path $env:CLAUDE_PLUGIN_ROOT 'engine')).Path
   }
-  $pluginsRoot = Join-Path $HOME '.claude/plugins'
-  if (Test-Path $pluginsRoot) {
-    $hit = Get-ChildItem -Path $pluginsRoot -Recurse -Filter 'fleet.ps1' -ErrorAction SilentlyContinue |
-      Where-Object { $_.Directory.Name -eq 'engine' -and $_.FullName -match 'lean-agent-harness' } |
-      Sort-Object LastWriteTime -Descending | Select-Object -First 1
-    if ($hit) { return $hit.DirectoryName }
+  foreach ($pluginsRoot in @((Join-Path $HOME '.codex/plugins/cache'), (Join-Path $HOME '.claude/plugins'))) {
+    if (Test-Path $pluginsRoot) {
+      $hit = Get-ChildItem -Path $pluginsRoot -Recurse -Filter 'fleet.ps1' -ErrorAction SilentlyContinue |
+        Where-Object { $_.Directory.Name -eq 'engine' -and $_.FullName -match 'lean-agent-harness' } |
+        Sort-Object LastWriteTime -Descending | Select-Object -First 1
+      if ($hit) { return $hit.DirectoryName }
+    }
   }
   throw "lean-agent-harness engine not found. Install the plugin (/plugin install lean-agent-harness) or set `$env:HARNESS_ENGINE to its engine/ dir."
 }

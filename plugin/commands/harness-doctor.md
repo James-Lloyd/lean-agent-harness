@@ -42,8 +42,9 @@ behaves oddly.
 
 5. **Hooks exist and are wired once.** There are exactly **five** hook scripts (`block-destructive`,
    `protect-specs`, `format-and-check`, `session-start`, `lock-config`); each must exist in **both**
-   `.ps1` and `.sh` form in the plugin's `hooks/` dir and be wired in the plugin's `hooks/hooks.json`
-   through the `run.mjs` dispatcher (which picks the platform flavor at runtime). A duplicate wiring in
+   `.ps1` and `.sh` form in the plugin's `hooks/` dir. All five are wired in `claude-hooks.json`; the
+   four events Codex supports are wired in `hooks.json`. Both route through `run.mjs`, which picks the
+   platform flavor at runtime. A duplicate wiring in
    `.claude/settings.json` fires every hook twice — flag it. (Pre-plugin copied-in layouts instead wire
    `.claude/hooks/*` in `.claude/settings.json`, with the command flavor matching the platform.)
 
@@ -246,7 +247,7 @@ behaves oddly.
     `fallback`, or `review.second.model` (its hooks/agents/skills do not exist for Codex yet — run the
     generator), ⚠️ when nothing routes there; `STALE` (exit 1) = ⚠️ (an
     input changed since generation — re-run). Note `block-destructive` is generated under the
-    shell-tool matcher `Bash` (`_shell_matcher_note` in the file; recorded live from Codex 0.144.3 in V5),
+    shell-tool matcher `Bash` (recorded live from Codex 0.144.3 in V5),
     and every hook command carries `run.mjs --codex` — Codex ignores exit code 2, so the dispatcher must
     translate a denial into the JSON `permissionDecision` output; a hooks.json whose commands lack `--codex`
     is stale from before V5 and fails open — ❌. Also confirm `.gitignore` contains a line that is exactly

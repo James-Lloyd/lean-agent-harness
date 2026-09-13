@@ -1,8 +1,8 @@
 # lean-agent-harness
 
-A portable, tech-stack-agnostic engineering harness for AI coding agents (Claude Code first,
-but the state lives in plain files so it survives a model/tool swap). Clone it into any project,
-run `/harness-init`, and the AI works against checks — not blind trust.
+A portable, tech-stack-agnostic engineering harness for AI coding agents, packaged natively for
+Codex and Claude Code. Clone it into any project, run the host's `harness-init` workflow, and the AI
+works against checks — not blind trust.
 
 > **Agent = Model + Harness.** The model is fixed for a given session; the harness is everything
 > else — the constraints, guides, feedback loops, tooling, and state that channel a powerful but
@@ -58,15 +58,21 @@ stateful**. That is the whole trick to long-running work.
 #    AGENTS.md (+ CLAUDE.md shim), specs/, state/, harness/harness.config.json (the plugin does NOT ship these).
 git clone <this-repo> my-project && cd my-project && rm -rf .git && git init
 
-# 2. Add the reusable ENGINE as a plugin (commands, agents, skills, hooks, loop/fleet runners).
-#    Versioned: `/plugin update` later pulls engine fixes without re-templating. Also how you
-#    upgrade an already-harnessed project — see docs/plugin-migration.md.
+# 2a. Claude Code: add the marketplace and install the shared plugin.
 /plugin marketplace add James-Lloyd/lean-agent-harness
 /plugin install lean-agent-harness@lean-agent-harness
 
-# 3. Run the one-time interview (in Claude Code) — fills the scaffold placeholders and, for a
-#    plugin install, drops the thin harness/ runner wrappers in for you.
+# 2b. Codex CLI: add the same marketplace and install the shared plugin.
+codex plugin marketplace add James-Lloyd/lean-agent-harness
+codex plugin add lean-agent-harness@lean-agent-harness
+#     Start a new Codex session after installation. `/plugins` is the interactive browser.
+#     If `/hooks` shows no harness entries, invoke `$harness-codex-activate` once.
+
+# 3. Run the one-time interview — fills the scaffold and drops thin harness/ runner wrappers.
+#    Claude Code spelling:
 /harness-init
+#    Codex spelling:
+$harness-init
 
 # 4. Work
 /plan   "build the thing"   # decompose intent into specs + a task manifest
@@ -76,6 +82,13 @@ git clone <this-repo> my-project && cd my-project && rm -rf .git && git init
 /handoff                    # before a context reset — compact handoff for the next agent
 /ratchet "what went wrong"  # record a failure as a new rule (the ratchet)
 ```
+
+The package is shared, not forked: Claude sees slash commands and Claude hooks; Codex sees matching
+`harness-*` skills and the Codex hook manifest. Plugin skills become available only in a new
+chat/session after installation. On hosts that discover plugin hooks, Codex asks you to review and
+trust them. Codex CLI 0.154.0 currently installs the skills but reports zero plugin hooks in `/hooks`;
+`$harness-codex-activate` provides an explicit, user-approved compatibility install until that loader
+regression is resolved.
 
 `/work` is the orchestrator — it runs the full **plan → execute → validate → review → record**
 workflow for one task, pausing at each phase in supervised mode. See
@@ -103,11 +116,11 @@ the config preset, a Task Scheduler / cron recipe, and the morning audit routine
 |------|------------|
 | `AGENTS.md` | The root **context map** (~100 lines, a navigation map — not a 1000-page manual), in the vendor-neutral [agents.md](https://agents.md) form that Codex, Cursor, Copilot and Gemini CLI read natively. `/harness-init` fills it. |
 | `CLAUDE.md` | Claude Code's shim: `@AGENTS.md` import + a short "Claude Code specifics" section (worktree tool, plugin-provided commands, settings). No proprietary lock-in — the map is one file, read by every agent. See `docs/design-docs/002-vendor-agnostic-routing.md`. |
-| `plugin/` | The **`lean-agent-harness` plugin** — the single source of truth for the engine. Ships the commands, agents, skills, hooks (`plugin/hooks/`), and the loop/fleet engine + `lib`/`profiles`/`templates`/schema (`plugin/engine/`). This repo installs it from its own local marketplace (`.claude-plugin/marketplace.json`); deployed projects `/plugin install` + `/plugin update` it. |
-| `.claude/commands/`, `.claude/agents/`, `.claude/skills/`, `.claude/hooks/` | **Provided by the installed plugin — not duplicated in-repo.** Commands (`harness-init`, `work`, `loop`, `review`, `promote`, …); subagent roles (`planner`, `generator`, `explorer`, `evaluator`, `reviewer`, `risk-classifier`, `doc-gardener`), each pinned to a per-phase model (the doer is never the judge); skills (`stack-detect`, `model-routing`, `sprint-contract`, `e2e-evidence`, `brownfield-safety`, `risk-tiering`); cross-platform hooks (`.ps1` primary + `.sh` mirror, dispatched by `run.mjs`). |
-| `.claude/settings.json` | Permissions + env + session `model`/`effortLevel`. The hooks (format/lint/typecheck on edit, routed per component; block destructive bash; SessionStart orientation) are supplied by the plugin (`plugin/hooks/hooks.json`), not defined here. |
+| `plugin/` | The **`lean-agent-harness` plugin** — one shared engine with a portable `plugin.json`, Codex compatibility manifest, and Claude manifest. It ships host-native command/skill adapters, roles, hooks, and the loop/fleet engine. `.agents/plugins/marketplace.json` publishes it to Codex; `.claude-plugin/marketplace.json` publishes the same directory to Claude Code. |
+| `plugin/commands/`, `plugin/skills/harness-*/`, `plugin/hooks/` | Commands are the workflow source of truth. Claude loads them as slash commands; Codex loads synchronized `harness-*` skills. Both hook manifests dispatch into the same cross-platform bodies; `$harness-codex-activate` installs the Codex manifest at user level when the CLI's plugin-hook loader does not discover it. |
+| `.claude/settings.json` | Permissions + env + session `model`/`effortLevel`. Claude's hooks are supplied by `plugin/hooks/claude-hooks.json`; Codex uses the portable default at `plugin/hooks/hooks.json`. Both dispatch to the same hook bodies. |
 | `harness/harness.config.json` | Autonomy + workflow + per-phase **model routing** (`models` — `{model, fallback, effort}` per phase; supported phases may route through the OpenAI Codex CLI). **This repo and the shipped consumer default use one independent Claude reviewer**; the optional `review.second` capability is off. Codex remains available as a primary/fallback route and through the generated command skills. Also holds per-component gates and the opt-in `promotion` risk policy (see [`docs/promotion.md`](docs/promotion.md)) — the one file you tune per project. |
-| `harness/loop.ps1` / `loop.sh`, `harness/fleet.ps1` / `fleet.sh`, `harness/codex-setup.ps1` / `codex-setup.sh` | Thin **wrappers** that locate the installed plugin engine (`$HARNESS_ENGINE` → `$CLAUDE_PLUGIN_ROOT/engine` → `~/.claude/plugins`) and dispatch to it, passing this repo as project root — so `powershell harness/loop.ps1 …` keeps working from a bare terminal or cron. The real loop / **opt-in parallel fleet** (independent tasks build in isolated worktrees, then land through a serialized merge queue that re-runs the full gate) ship in `plugin/engine/`. |
+| `harness/loop.ps1` / `loop.sh`, `harness/fleet.ps1` / `fleet.sh`, `harness/codex-setup.ps1` / `codex-setup.sh` | Thin **wrappers** that locate the installed engine (`$HARNESS_ENGINE` → `$CLAUDE_PLUGIN_ROOT/engine` → Codex cache → Claude cache) and pass this repo as project root. The real loop and opt-in fleet ship in `plugin/engine/`. |
 | `harness/tests/` | Self-tests for the harness's own logic (gate, denylist, budget) sourced from `plugin/engine` — run them locally (`node harness/tests/gate.mjs` runs both twins, and is this repo's own wired gate step) or in CI. |
 | `ci/` | Ready-to-activate CI workflow (copy into `.github/workflows/` to run self-tests on push/PR). |
 | `docs/` | `architecture/`, `design-docs/`, `execution-plans/`, `technical-debt/`, `principles/`. The agent's long-term knowledge, version-controlled. |

@@ -1,0 +1,30 @@
+{
+  "name": "lean-agent-harness",
+  "version": "0.5.0",
+  "description": "A disciplined plan-to-evidence engineering workflow for Codex and Claude Code.",
+  "author": {
+    "name": "James Lloyd",
+    "email": "6997312+James-Lloyd@users.noreply.github.com",
+    "url": "https://github.com/James-Lloyd"
+  },
+  "homepage": "https://github.com/James-Lloyd/lean-agent-harness",
+  "repository": "https://github.com/James-Lloyd/lean-agent-harness",
+  "license": "MIT",
+  "keywords": ["engineering-workflow", "codex", "claude-code", "verification", "guardrails"],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Lean Agent Harness",
+    "shortDescription": "Plan, execute, verify, review, and record engineering work.",
+    "longDescription": "A dual-host engineering harness with workflow skills, independent review, evidence capture, guardrails, and supervised loop tooling.",
+    "developerName": "James Lloyd",
+    "category": "Developer Tools",
+    "capabilities": ["Interactive", "Write"],
+    "websiteURL": "https://github.com/James-Lloyd/lean-agent-harness",
+    "defaultPrompt": [
+      "Use the harness to work the next task end to end.",
+      "Verify this change and capture end-to-end evidence.",
+      "Review the current diff in a fresh context."
+    ],
+    "brandColor": "#2F6FEB"
+  }
+}
