@@ -116,7 +116,21 @@ try {
     }
   }
   const invocations = fs.existsSync(invocationLog) ? fs.readFileSync(invocationLog, "utf8") : "";
-  check(baseNames.every((name) => invocations.includes(`${name}.`)) && invocations.includes(consumer), "Codex-cache-only wrappers did not invoke the installed engine with the consumer root");
+  const invocationRecords = invocations.trim().split(/\r?\n/).filter(Boolean).map((line) => {
+    const separator = line.indexOf("|");
+    return separator >= 0 ? [line.slice(0, separator), line.slice(separator + 1)] : [line, ""];
+  });
+  const comparablePath = (value) => {
+    const normalized = path.resolve(value);
+    return process.platform === "win32" ? normalized.toLowerCase() : normalized;
+  };
+  const expectedExtension = process.platform === "win32" ? ".ps1" : ".sh";
+  check(
+    invocationRecords.length === baseNames.length
+      && baseNames.every((name) => invocationRecords.some(([script]) => script === `${name}${expectedExtension}`))
+      && invocationRecords.every(([, projectRoot]) => comparablePath(projectRoot) === comparablePath(consumer)),
+    `Codex-cache-only wrappers did not invoke the installed engine with the consumer root: ${JSON.stringify(invocationRecords)}`,
+  );
 } finally {
   fs.rmSync(cacheFixtureDir, { recursive: true, force: true });
 }
