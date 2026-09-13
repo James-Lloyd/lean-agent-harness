@@ -1,6 +1,6 @@
 {
   "name": "lean-agent-harness",
-  "description": "The lean-agent-harness engine, distributed as an installable, versioned Claude Code plugin. Add this marketplace, install the plugin, and upgrade with /plugin update instead of re-templating.",
+  "description": "The lean-agent-harness engine, distributed as an installable, versioned plugin for Claude Code and Codex.",
   "owner": {
     "name": "James Lloyd",
     "url": "https://github.com/James-Lloyd"
@@ -9,7 +9,7 @@
     {
       "name": "lean-agent-harness",
       "source": "./plugin",
-      "description": "The reusable harness engine: workflow commands, specialist subagents, guardrail hooks, and the loop/fleet runners."
+      "description": "The reusable dual-host harness engine: workflow commands and skills, specialist roles, guardrail hooks, and loop/fleet runners."
     }
   ]
 }

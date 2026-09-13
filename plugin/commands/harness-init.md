@@ -80,8 +80,12 @@ With answers in hand:
   into that component's directory (e.g. `frontend/AGENTS.md` + `frontend/CLAUDE.md`) and fill the
   AGENTS.md — entry points live here, not in the root map; the CLAUDE.md stays the `@AGENTS.md` shim. Skip for a single-root project.
 - **`AGENT_NOTES.md`** — fill the run/build/test commands and any known environment quirks.
+- **Host/plugin mode (decide without crossing vendors).** When this command was loaded as the installed
+  Codex `harness-init` skill, plugin mode is already proven by the skill root: do not invoke `claude`.
+  Under Claude Code, `claude plugin list` proves the same state. Only use copied-engine mode when
+  neither host loaded the command from an installed plugin.
 - **`.claude/settings.json`** — **plugin vs copied engine.** If this project uses the
-  `lean-agent-harness` **plugin** (`claude plugin list` shows it enabled), the hooks, agents, skills and
+  `lean-agent-harness` **plugin** (proven by the host-specific check above), the hooks, agents, skills and
   commands come FROM the plugin — do **not** re-wire the engine hooks here (plugin hooks merge with
   project hooks, so a duplicate declaration fires everything twice; the plugin's node dispatcher already
   handles Windows vs Unix). Leave `settings.json` to `model`, `permissions`, and any *project-specific*

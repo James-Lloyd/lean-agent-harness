@@ -1,0 +1,15 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "lean-agent-harness",
+  "version": "0.5.0",
+  "description": "A disciplined plan-to-evidence engineering workflow for Codex and Claude Code.",
+  "author": {
+    "name": "James Lloyd",
+    "email": "6997312+James-Lloyd@users.noreply.github.com",
+    "url": "https://github.com/James-Lloyd"
+  },
+  "homepage": "https://github.com/James-Lloyd/lean-agent-harness",
+  "repository": "https://github.com/James-Lloyd/lean-agent-harness",
+  "license": "MIT",
+  "keywords": ["engineering-workflow", "codex", "claude-code", "verification", "guardrails"]
+}

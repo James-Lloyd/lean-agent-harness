@@ -130,6 +130,22 @@ loop headlessly or drives the phases by hand until a command→skill bridge exis
 > skills are the Codex analogue, but the delivery mechanism is `.agents/skills/`, not the
 > `[[skills.config]]` path D3 assumed.
 
+**D5. One source package, two host manifests, native Codex skills.** (plugin 0.5.0, 2026-09-13)
+`plugin/` is the shared implementation. Claude Code selects `.claude-plugin/plugin.json` and its
+five-event hook manifest; Codex selects the portable `plugin.json` (with `.codex-plugin/plugin.json`
+as a compatibility manifest), discovers all 21 skill directories, and exposes 14 canonical commands
+through thin `harness-*` skill adapters plus `harness-codex-activate`. Both hosts therefore receive
+the same command, engine, agent, and guard implementation without maintaining a second product tree.
+
+Codex CLI 0.154.0 installs and loads those skills from its plugin cache, but its `/hooks` surface did
+not discover the package's standard `hooks/hooks.json` in live testing. The standard manifest remains
+for conforming/future hosts. The measured compatibility path is an explicit activation skill that,
+with machine-wide-write approval, installs the same four commands into `~/.codex/hooks.json`; it
+accepts only the activation marker or the exact historical generator marker and refuses foreign
+files. The live proof must activate from the installed cache, assert all four absolute command paths
+point back to that cache, then demonstrate both a blocked destructive call and a working positive
+control. Project-local generation in D3 remains for pinned agent roles and older/headless workflows.
+
 ## Consequences
 
 - **Guardrails hold under Codex only when the generated hooks are installed user-level AND trusted.**

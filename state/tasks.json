@@ -4,6 +4,24 @@
   "statusLifecycle": ["todo", "planned", "in_progress", "validated", "reviewed", "done"],
   "tasks": [
     {
+      "id": "CODEX-NATIVE-PLUGIN-001",
+      "category": "distribution",
+      "component": "root",
+      "description": "Package lean-agent-harness for native Codex sessions without forking the shared engine.",
+      "steps": [
+        "Publish portable and Codex compatibility manifests plus a Codex marketplace entry",
+        "Generate native Codex command skills from the canonical command sources",
+        "Split host-correct hook manifests while retaining the shared dispatcher and safe activation fallback",
+        "Teach all six wrappers to resolve a Codex-only plugin cache",
+        "Prove installed-cache initialization and hook denial in a fresh Codex session"
+      ],
+      "acceptance": "A fresh Codex session using the installed plugin receives the harness workflow and guardrails without a Claude plugin install or project-local command-skill generation, with both twin gates and live evidence green.",
+      "files": [".agents/plugins/", "plugin/", "harness/", "AGENTS.md", "README.md", "docs/", "state/evidence/2026-09-13-codex-native-plugin/"],
+      "status": "done",
+      "evidence": "state/evidence/2026-09-13-codex-native-plugin/",
+      "passes": true
+    },
+    {
       "id": "CODEX-TIMEOUT-TRANSCRIPT-001",
       "category": "safety",
       "component": "root",

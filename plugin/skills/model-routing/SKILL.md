@@ -17,7 +17,7 @@ stale copy behind in a sibling command.
 
 | Phase | Agent | model | effort | fallback | Why this one |
 |-------|-------|-------|--------|----------|--------------|
-| `session` | (the main window — you) | `claude-fable-5-1` | `medium` | (n/a) | The **orchestrator**. It dispatches, sequences and reports; the deep thinking belongs to the phase agents — but it also judges *when* a phase is done, so it gets the strongest model at a moderate depth. Anthropic's Fable 5.1 guidance: `medium` roughly matches Fable 5 at lower cost, and at `low` it searches less and batches implied tool calls less — so `medium`, not `low`. **Must be Claude** — the main window can't swap vendor mid-session. |
+| `session` | (the Claude Code main window) | `claude-fable-5-1` | `medium` | (n/a) | The **Claude-host orchestrator**. It dispatches, sequences and reports; the deep thinking belongs to the phase agents — but it also judges *when* a phase is done, so it gets the strongest model at a moderate depth. Anthropic's Fable 5.1 guidance: `medium` roughly matches Fable 5 at lower cost, and at `low` it searches less and batches implied tool calls less — so `medium`, not `low`. This configures Claude Code; a Codex plugin session remains on its ambient Codex model. |
 | `plan` | `planner` | `claude-fable-5-1` | `high` | `claude-opus-5` @ `high` | Design is where a bad call is most expensive. Deepest reasoner at `high` — Anthropic's recommended start; go to `xhigh` only on a measured gain. |
 | `implement` | `generator` | `claude-opus-5` | `high` | `null` | The builder. Anthropic's own default is to start on Opus 5 and escalate to Fable only when Opus 5 at higher effort fails; it is also a different model from the Fable judge that reviews it, so the writer never clears its own diff. **No fallback on purpose** — this phase is interactive, so a cap is recoverable by hand; a silent second-choice builder is worse than stopping. Worth an A/B on a real task: Fable 5.1 @ `medium` has cache reads at a quarter of Opus 5's price, so on long cache-heavy builds cost per completed task can come out close. |
 | `review` | `reviewer` | `claude-fable-5-1` | `high` | `claude-opus-5` @ `medium` | Fresh-context judge — the doer must never be the judge. Judges get the strongest model. Cap-proof fallback because a headless run can't ask a human mid-review. Accepted tradeoff: the fallback equals the builder's model, so a Fable cap costs model diversity — the fresh-context guarantee still holds. |
@@ -46,7 +46,7 @@ have code that dispatches it — and a value nothing reads advertises a control 
 | `implement`, `review`, `review.second`, `evaluate` | ✅ | ✅ |
 | `plan` | ✗ **silently ignored headlessly** | ✅ `/work` PLAN |
 | `explore`, `docs` | ✗ | ✗ — nothing dispatches either |
-| `session` | must be Claude (the window cannot swap vendor mid-session) | |
+| `session` | configures Claude Code; a Codex plugin session keeps its ambient Codex model | |
 
 `explore: "codex"` and `docs: "codex"` are read by nothing at all — `/gc` has no routing block, and
 although `work.md` lists `explorer`→`explore` in its phase mapping, no `/work` step dispatches an
@@ -115,7 +115,8 @@ keystroke and make customizing possible without a seven-question interrogation.
    of writing a route that silently falls back forever.
 
 ### Constraints to enforce as you collect
-- `session.model` **must be Claude** — `codex` there is invalid, not a preference.
+- `session.model` **must name a Claude model** because this field configures `.claude/settings.json`;
+  it does not constrain the model of an already-running Codex plugin session.
 - A `fallback` must not equal a `codex` primary (no `codex → codex`; there's one hop of escape, not two).
 - Steer `session.effort` to `low|medium|high|xhigh` — `minimal` and `max` have no `effortLevel`
   equivalent, so neither can be written to settings.json. This is interview guidance, not a validation

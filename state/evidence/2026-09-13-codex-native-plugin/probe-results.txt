@@ -1,0 +1,11 @@
+probe=codex-native-plugin
+measured_at=2026-09-13T09:54:39.6279132+01:00
+codex=codex-cli 0.154.0
+package=OpenAI plugin package is consistent: 0.5.0, 4 hooks, 21 discoverable skills (15 Codex entry points), 6 dual-cache wrappers with cache-only execution, activation fallback, 3328 byte AGENTS.md
+installed=lean-agent-harness@lean-agent-harness; source=C:\Users\<user>\Repos\harness\.claude\worktrees\codex-native-plugin\plugin
+activation=installed-cache installer fresh; four commands target C:\Users\<user>\.codex\plugins\cache\lean-agent-harness\lean-agent-harness\0.5.0
+dispatcher=deny emitted JSON; benign command emitted no decision
+codex_init_environment=Claude executable absent from session PATH
+fresh_session=installed init/work skills loaded; Codex-only init branch selected; installed-cache hook blocked delete; sentinel survived
+fresh_session_transcript=session-results.txt
+positive_control=the same rd /s/q vocabulary removed the surviving probe-only target

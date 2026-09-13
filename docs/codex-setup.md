@@ -1,14 +1,34 @@
 # Running the harness under OpenAI Codex CLI — `codex-setup`
 
+> **Current default (plugin 0.5.0+): install the native plugin.** Start Codex, open `/plugins`, add
+> `James-Lloyd/lean-agent-harness` as a marketplace if it is not already configured, install **Lean
+> Agent Harness**, and start a new session. Codex discovers all 21 plugin skills directly, including
+> 15 Codex entry points (14 workflow adapters plus `harness-codex-activate`). No project-local `.agents/skills/` generation is
+> required for an interactive plugin session.
+>
+> **Hook compatibility note (measured on Codex CLI 0.154.0):** the installed plugin's skills load,
+> but `/hooks` reports zero plugin entries and does not load `plugin/hooks/hooks.json`. This disagrees
+> with the current plugin-hook documentation. Invoke `$harness-codex-activate`; after you approve the
+> machine-wide write, it installs that same four-hook manifest as `~/.codex/hooks.json`, refusing to
+> overwrite hooks it does not own. Start a new session, review the entries in `/hooks`, and live-fire
+> a disposable denial before relying on them. Re-run activation after plugin updates because the
+> compatibility file contains the installed version's absolute path.
+>
+> The `codex-setup` generator documented below remains the compatibility path for project-pinned
+> agent TOML, older/non-plugin CLI automation, and user-level hooks needed by legacy headless
+> `codex exec` behavior. Its historical measurements remain scoped to that generated path.
+
 **Read this first — verified live against Codex CLI 0.144.3 (slice V5, 2026-09-05,
 `state/evidence/2026-09-05-vendor-agnostic-refit-v5/`).**
 
 **Five of those claims were re-measured against 0.153.4** (2026-09-06,
 `state/evidence/2026-09-06-codex-0153-reverify/`): four hold, and the `[agents]` fatality **changed**.
-The generator needed no code change. **Not re-run on 0.153.4** — so still carrying V5's evidence
-only: the user-level hook path and its `--dangerously-bypass-hook-trust` requirement, `--user`'s
-tolerance of the `_generated_by` / `_shell_matcher_note` keys, and the `--check` digest. Nothing was
-written to `~/.codex` in the re-verification, so the user-level path could not have been exercised.
+The generator needed no code change then. **Not re-run on 0.153.4** — so that pass still carried
+V5's evidence for the user-level hook path, its `--dangerously-bypass-hook-trust` requirement, and
+the `--check` digest. Codex 0.154.0 has since resolved the open generated-file question: it rejects
+the historical `_generated_by` / `_shell_matcher_note` top-level keys. Plugin 0.5.0 emits only the
+supported `description` and `hooks` keys; `state/evidence/2026-09-13-codex-native-plugin/` records
+`SessionStart Completed` and a real blocked delete from the installed user-level file.
 **Agent-TOML discovery left that list on 2026-09-07** — measured on 0.153.4, see "Agent roles" below. Which claim rests on which version is spelled out in the 0.153.4 section below.
 
 > **Trust is the precondition for everything project-level.** An **untrusted** project skips its whole
@@ -48,7 +68,7 @@ written to `~/.codex` in the re-verification, so the user-level path could not h
   header read `approval: never` and the same write get refused. If you invoke codex by hand, pass it
   too; and note that the harness's post-review hard reset is what kept judged trees intact meanwhile.
 
-## What it generates (design-doc 002, D3)
+## What the compatibility generator creates (design-doc 002, D3)
 
 `harness/codex-setup.{ps1,sh}` (a thin wrapper over the plugin engine's `codex-setup.*`) writes a
 **machine-local, gitignored** `.codex/` into the project:
@@ -60,9 +80,10 @@ written to `~/.codex` in the re-verification, so the user-level path could not h
 | `.codex/agents/<name>.toml` | one Codex custom agent per plugin agent: `model`/`model_reasoning_effort` from that phase's **effective** codex settings (`models.<phase>.codex{}` over `models.codex`), `sandbox_mode = "read-only"` for the judges (reviewer, evaluator, risk-classifier, explorer) and `"workspace-write"` for the writers, `developer_instructions` = the agent's body | the body is plugin content: regenerate on `/plugin update` rather than fork it. **A generated judge's `read-only` inherits the SESSION's approval policy and is not by itself the guarantee** — see the bullet above; whether an agent table accepts an approval key is unmeasured, so a judge spawned outside the engine's own invocation is only as safe as the policy it inherits |
 | `.codex/.harness-stamp.json` | plugin version + a sha256 of every input (config, hook manifest, agent files, plugin root) | lets `--check` say **fresh / STALE / NOT generated** deterministically; `/harness-doctor` check 12 runs it |
 
-**It also writes `<project>/.agents/skills/`** — every harness command as a Codex skill, plus the
-plugin's reference skills. That directory, not the `[[skills.config]]` stanza above, is what `codex
-exec` actually reads; see "Driving the harness from Codex" below. Dirs carrying a `.harness-generated`
+**It also writes `<project>/.agents/skills/`** — a compatibility copy of every harness command as a
+Codex skill, plus the plugin's reference skills. For the measured project-local mechanism, that
+directory—not the `[[skills.config]]` stanza above—is what `codex exec` reads; see "Driving the
+harness from Codex" below. Dirs carrying a `.harness-generated`
 marker are the generator's to replace on each run; a hand-written skill beside them is left alone, and
 one whose NAME collides with a generated skill is skipped with a warning rather than overwritten.
 
@@ -85,8 +106,9 @@ engine script directly: `${CLAUDE_PLUGIN_ROOT}/engine/codex-setup.sh --project-r
 Either twin may generate and either may `--check`: the stamp digest is computed over raw bytes in
 ordinal file order, so both runtimes agree. **Re-run after** `/plugin update lean-agent-harness`
 (the plugin path and version change), after any `models` edit, and after editing a plugin agent.
-`--user` refuses to overwrite a `~/.codex/hooks.json` the harness did not generate (no `_generated_by`
-key) — merge by hand in that case.
+`--user` refuses to overwrite a `~/.codex/hooks.json` unless its `description` is the activation
+marker or its `description`/historical `_generated_by` value starts with the exact harness generator
+marker. A foreign `_generated_by` key is not ownership — merge by hand otherwise.
 
 ## What V5 verified live (Codex CLI 0.144.3, 2026-09-05) — and what is still assumed
 
@@ -119,22 +141,12 @@ key) — merge by hand in that case.
   spells it (bash: logical `pwd` through `cygpath -m`; PS: `$PSScriptRoot`). A symlinked plugin cache or
   a differently-cased path can make one twin report STALE for the other's output — never a false
   *fresh*. Regenerate with the twin you run `--check` with.
-- **Unknown top-level keys in `hooks.json` — still unverified for the generated file.** Codex's docs show a
-  top-level `description` key beside `hooks`, so extra keys are probably tolerated, but the `--user` probe
-  with the real generated file (which carries `_generated_by` and `_shell_matcher_note`) was not run in V5
-  (a machine-wide write the session's permission classifier refused). If a `--user` install produces no
-  `hook: SessionStart` line in a transcript, suspect these keys first.
-  **This does not actually need a machine-wide write** — `CODEX_HOME` redirects the whole user-level
-  layer, so a throwaway home holding the generated `hooks.json` exercises the same code path and leaves
-  the real `~/.codex` untouched. Measured 2026-09-07 with `CODEX_HOME` set to an empty directory
-  (`probes/results-round2.txt`, arm G2): `codex doctor` reported every user-level path under the new
-  home — config, log dir, `auth.json`, and six SQLite databases — and the only failure was
-  `✗ auth  no Codex credentials were found — Run codex login or provide an API key through a supported
-  auth env var`. Two consequences for whoever runs it. The throwaway home needs credentials, so either
-  a copied `auth.json` or that API key env var — **copying a live token into a scratch directory is the
-  operator's call, not the agent's**. And it must not sit under the system temp dir: with the home under
-  `%TEMP%`, Codex emits `Refusing to create helper binaries under temporary dir` and proceeds without
-  PATH aliases (`probes/results-round3.txt`, arm H2). This is why the item is still open rather than blocked.
+- **Top-level hook keys — RESOLVED on 0.154.0.** A real `~/.codex/hooks.json` containing the historical
+  `_generated_by` key produced `failed to parse hooks config ... unknown field '_generated_by'` and loaded
+  zero hooks. The 0.5.0 generator now emits only `description` and `hooks`; `/hooks` showed two
+  PreToolUse, one PostToolUse, and one SessionStart entry active after review. The fresh-session transcript
+  then recorded `hook: SessionStart Completed` and `hook: PreToolUse Blocked`, while the disposable
+  sentinel survived. Results: `state/evidence/2026-09-13-codex-native-plugin/probe-results.txt`.
 - **No `ConfigChange` event** in Codex; the harness's `lock-config` hook has no Codex twin. The loop's
   config hash pin still catches a mid-run config edit after the fact.
 - **`.codex/agents/*.toml` — VERIFIED auto-discovered and visible** (0.153.4, 2026-09-07; see
@@ -224,12 +236,12 @@ about it are worth keeping:
   way produced no warning at all — the content is validated on the discovery path, not the
   declaration path. The harness does not use declarations, and on this evidence should not start.
 
-## Driving the harness from Codex (the command→skill bridge)
+## Legacy project-local command→skill bridge
 
-**Shipped 2026-09-09 (slice V6.3).** `codex-setup.*` now writes every harness command into
+**Shipped 2026-09-09 (slice V6.3).** Before native plugin skills, `codex-setup.*` wrote every harness command into
 `<project>/.agents/skills/harness-<command>/SKILL.md` — `harness-work`, `harness-review`,
 `harness-verify`, `harness-plan`, and the rest — alongside the plugin's reference skills. A Codex
-operator asks for the work in words ("review the current diff using the harness review skill", or just
+operator could ask for the work in words ("review the current diff using the harness review skill", or just
 "review the current diff") and Codex finds the skill itself.
 
 Each bridged skill keeps the command's full body and gains a preamble that translates the
@@ -237,7 +249,7 @@ Claude-Code-isms: a slash command is another skill named `harness-<command>`; a 
 role under `.codex/agents/<name>.toml` carrying that phase's model, effort and sandbox; `allowed-tools`
 and `model:` frontmatter do not apply. The doer-is-not-the-judge rule is carried through unchanged.
 
-**Where skills must live, and where they must not.** Measured live on codex-cli 0.153.4 with a canary
+**Where project-local skills had to live.** Measured live on codex-cli 0.153.4 with a canary
 token present in exactly one file (`state/evidence/2026-09-09-v6.3-command-skill-bridge/`):
 
 | Location | Read by `codex exec`? |
@@ -245,7 +257,8 @@ token present in exactly one file (`state/evidence/2026-09-09-v6.3-command-skill
 | `<project>/.agents/skills/<name>/SKILL.md` | **Yes** — discovered and used *without* being named in the prompt |
 | a root declared via `[[skills.config]] path` in `config.toml` | **No** — the identical file returns `NO-SKILL`, with an in-run witness (a top-level `model_reasoning_effort` in the same file, echoed in the transcript header) proving the config *was* loaded. Scope: the root-of-skill-dirs form the harness emits; `path` pointing at a single skill directory was not tested |
 
-The second row corrects a claim this document and the generator carried from slice V3 onward: the
+This table is evidence about project-local discovery, not the newer installed-plugin channel. The
+second row corrects a claim this document and the generator carried from slice V3 onward: the
 `[[skills.config]]` stanza validates (omitting `enabled` is still fatal) but delivers no skills to
 `codex exec`, so the plugin's reference skills never actually reached Codex that way. The stanza is
 still emitted — the measurement covers `codex exec` only, and an interactive session may read it — but
