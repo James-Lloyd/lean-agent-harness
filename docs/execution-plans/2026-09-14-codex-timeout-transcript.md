@@ -1,6 +1,6 @@
 # CODEX-TIMEOUT-TRANSCRIPT-001 — preserve watchdog-killed Codex output
 
-- Status: planned
+- Status: done
 - Task: `CODEX-TIMEOUT-TRANSCRIPT-001`
 - Component: root (shared Claude/Codex engine)
 - Baseline at `cb8d652`: PowerShell 440/0, Bash 433/0 via `node harness/tests/gate.mjs`
@@ -35,21 +35,21 @@ log and appends the watchdog sentence.
 
 ### Definition of done (every box must be ticked)
 
-- [ ] A PowerShell stub emits `partial-before-timeout`, remains alive past a one-second watchdog, and
+- [x] A PowerShell stub emits `partial-before-timeout`, remains alive past a one-second watchdog, and
       `Invoke-Codex` returns `Ok=false`; its phase log contains the early marker followed by the exact
       watchdog verdict and excludes output scheduled after the kill.
-- [ ] The equivalent Bash stub returns the watchdog failure code and its phase log has the same
+- [x] The equivalent Bash stub returns the watchdog failure code and its phase log has the same
       ordered early-output-plus-verdict contract.
-- [ ] Stub-driven real `loop.ps1` and `loop.sh` invocations route implement to Codex, create a tracked
+- [x] Stub-driven real `loop.ps1` and `loop.sh` invocations route implement to Codex, create a tracked
       worktree change before timing out, record `invoke-error`, restore the exact pre-iteration commit,
       and retain both the early marker and watchdog verdict in the durable iteration log.
-- [ ] A mutation check reintroduces delayed/discarded transcript capture independently in each twin;
+- [x] A mutation check reintroduces delayed/discarded transcript capture independently in each twin;
       the targeted regression fails for the missing early marker while its positive controls pass.
-- [ ] Existing successful and ordinary failing Codex paths remain green, and no tests are weakened.
-- [ ] All plugin version surfaces agree on the next patch version and package validation passes.
-- [ ] End-to-end evidence under `state/evidence/CODEX-TIMEOUT-TRANSCRIPT-001/` maps each criterion to
+- [x] Existing successful and ordinary failing Codex paths remain green, and no tests are weakened.
+- [x] All plugin version surfaces agree on the next patch version and package validation passes.
+- [x] End-to-end evidence under `state/evidence/CODEX-TIMEOUT-TRANSCRIPT-001/` maps each criterion to
       concrete result files and line numbers.
-- [ ] Root gate green: `node harness/tests/gate.mjs` reports both twin counts with zero failures.
+- [x] Root gate green: `node harness/tests/gate.mjs` reports both twin counts with zero failures.
 
 ### How success is verified
 

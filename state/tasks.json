@@ -34,9 +34,9 @@
       ],
       "acceptance": "A timed-out Codex invocation still returns failure and is rolled back, while its phase log durably contains output produced before the timeout and the watchdog verdict.",
       "files": ["plugin/engine/lib/invoke-codex.ps1", "plugin/engine/lib/invoke-codex.sh", "plugin/.claude-plugin/plugin.json", "harness/tests/", "state/evidence/CODEX-TIMEOUT-TRANSCRIPT-001/"],
-      "status": "validated",
-      "evidence": "",
-      "passes": false
+      "status": "done",
+      "evidence": "state/evidence/CODEX-TIMEOUT-TRANSCRIPT-001/",
+      "passes": true
     }
   ]
 }
