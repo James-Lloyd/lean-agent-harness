@@ -119,8 +119,8 @@ function Invoke-Codex {
     $prevEAP = $ErrorActionPreference; $ErrorActionPreference = 'Continue'
     try {
       Get-Content -LiteralPath $pf -Raw | & $cmd @argList 2>&1 | ForEach-Object {
-        $writer.WriteLine("$_")
-        $writer.Flush()
+        # MUTANT: delay/discard the live record instead of crossing the job boundary.
+        $null = "$_"
       }
       $exit = $LASTEXITCODE
     } catch {

@@ -1261,6 +1261,10 @@ echo "migrate: end-to-end classify + apply on a synthetic repo"
 if bash "$HERE/migrate-test.sh" >/dev/null 2>&1; then m_ok=1; else m_ok=0; fi
 ok "$m_ok" "harness-migrate self-test passes"
 
+echo "codex timeout transcript: deterministic helper + real-loop rollback proof"
+if bash "$HERE/codex-timeout-test.sh" >/dev/null 2>&1; then ct_ok=1; else ct_ok=0; fi
+ok "$ct_ok" "Bash Codex timeout transcript proof passes"
+
 echo
 echo "RESULT: $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]

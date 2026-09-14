@@ -69,7 +69,7 @@ invoke_codex() {
   local lastmsg rc; lastmsg="$(mktemp)"
   local args=(); while IFS= read -r _a; do args+=("$_a"); done < <(codex_args "$mode" "$root" "$lastmsg" "$model" "$effort")
   if command -v timeout >/dev/null 2>&1; then
-    printf '%s' "$prompt" | timeout "$tmo" "$cmd" "${args[@]}" > "$log" 2>&1; rc=$?
+    printf '%s' "$prompt" | timeout "$tmo" "$cmd" "${args[@]}" > /dev/null 2>&1; rc=$?
     [ "$rc" -eq 124 ] && printf '%s\n' "[codex timed out after ${tmo}s — watchdog kill, failing closed]" >> "$log"
   else
     printf '%s' "$prompt" | "$cmd" "${args[@]}" > "$log" 2>&1; rc=$?

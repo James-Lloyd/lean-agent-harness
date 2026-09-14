@@ -1,0 +1,39 @@
+{
+  "task": "CODEX-TIMEOUT-TRANSCRIPT-001",
+  "mutation": "discard pre-timeout transcript",
+  "checks": {
+    "powershellControlPassed": true,
+    "powershellMutantRejected": true,
+    "bashControlPassed": true,
+    "bashMutantRejected": true,
+    "packageValidationPassed": true,
+    "manifestVersionsAgree": true
+  },
+  "runs": [
+    {
+      "name": "powershell-control",
+      "status": 0,
+      "signal": null
+    },
+    {
+      "name": "powershell-mutant",
+      "status": 1,
+      "signal": null
+    },
+    {
+      "name": "bash-control",
+      "status": 0,
+      "signal": null
+    },
+    {
+      "name": "bash-mutant",
+      "status": 1,
+      "signal": null
+    }
+  ],
+  "manifestVersions": {
+    "plugin/plugin.json": "0.5.1",
+    "plugin/.claude-plugin/plugin.json": "0.5.1",
+    "plugin/.codex-plugin/plugin.json": "0.5.1"
+  }
+}
