@@ -195,3 +195,9 @@ NOT under the loop; `HARNESS_GATE_STRICT=1` turns a half-grade into a red exit i
   path and timeout. The supervisor saw the intended edit and child gate processes twice, suggesting
   duplicated in-model/runner verification, but preserve the partial transcript before treating that
   diagnosis as fact. Do not solve this by extending the timeout again.
+- [2026-09-14] **A watchdog cannot preserve output that has not crossed the process boundary.** A
+  PowerShell `Start-Job` may buffer its result stream until `Receive-Job`; stopping it on timeout then
+  destroys every earlier model line. Open the durable phase log inside the job, flush each combined
+  stdout/stderr record as it arrives, and append the watchdog verdict after stopping. When a very short
+  timeout is supported, begin that allowance only after the fresh runspace signals that its log writer
+  is ready; otherwise host-start latency makes the watchdog test nondeterministic before the tool runs.

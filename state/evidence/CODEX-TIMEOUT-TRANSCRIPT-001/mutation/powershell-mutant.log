@@ -1,0 +1,9 @@
+codex timeout helper: preserves output produced before the watchdog kill
+  ok  timeout returns Ok=false
+  FAIL timeout log keeps partial-before-timeout
+  FAIL watchdog verdict follows the early marker exactly
+  ok  timeout log excludes output scheduled after the kill
+
+CODEX TIMEOUT RESULT: 2 passed, 2 failed
+
+EXIT_CODE=1

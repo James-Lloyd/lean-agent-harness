@@ -1297,6 +1297,10 @@ Write-Host "migrate: end-to-end classify + apply on a synthetic repo"
 & $psHost -NoProfile -ExecutionPolicy Bypass -File (Join-Path $here 'migrate-test.ps1') 1>$null 2>$null
 ok "harness-migrate self-test passes" ($LASTEXITCODE -eq 0)
 
+Write-Host "codex timeout transcript: deterministic helper + real-loop rollback proof"
+& $psHost -NoProfile -ExecutionPolicy Bypass -File (Join-Path $here 'codex-timeout-test.ps1') 1>$null 2>$null
+ok "PowerShell Codex timeout transcript proof passes" ($LASTEXITCODE -eq 0)
+
 Write-Host ""
 Write-Host ("RESULT: {0} passed, {1} failed" -f $script:pass, $script:fail) -ForegroundColor Cyan
 if ($script:fail -gt 0) { exit 1 } else { exit 0 }
