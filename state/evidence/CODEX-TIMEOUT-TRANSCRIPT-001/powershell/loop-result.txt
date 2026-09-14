@@ -3,13 +3,13 @@ HEAD=048434a8de4d8073c733659083005277ad5ed5f0
 STATUS=
 TRACKED=original
 powershell.exe : warning: unable to access '<HOME>/.config/git/ignore': Permission denied
-At <REPO>\harness\tests\codex-timeout-test.ps1:143 
+At <REPO>\harness\tests\codex-timeout-test.ps1:143
 char:25
 + ... $loopOut = (& powershell -NoProfile -ExecutionPolicy Bypass -File 'ha ...
 +                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     + CategoryInfo          : NotSpecified: (warning: unable...rmission denied:String) [], RemoteException
     + FullyQualifiedErrorId : NativeCommandError
- 
+
 warning: unable to access '<HOME>/.config/git/ignore': Permission denied
 🔧 Harness loop | type=greenfield | mode=auto | maxIter=1 | maxTurns=2 | model=codex | review=review-unused | budget=
 ℹ️  Headless runs auto-deny non-allowlisted commands. Ensure the gate commands (test/build/lint)
