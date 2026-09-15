@@ -1,0 +1,1 @@
+{"command":"update","outcome":"ok","plugin":"lean-agent-harness@lean-agent-harness","pluginId":"lean-agent-harness@lean-agent-harness","scope":"user","message":"Plugin \"lean-agent-harness\" updated from 0.2.9 to 0.5.1 for scope user. Restart to apply changes.","updateOutcome":"updated","oldVersion":"0.2.9","newVersion":"0.5.1"}

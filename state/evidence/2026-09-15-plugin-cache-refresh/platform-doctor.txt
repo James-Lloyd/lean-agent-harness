@@ -1,0 +1,20 @@
+Command:
+  <USER_HOME>\AppData\Roaming\npm\claude.cmd doctor
+
+Exit code: 0
+
+Claude Code doctor
+
+Running: npm-global (2.1.268)
+Commit: 8d19e585f3f1
+Platform: win32-x64
+Config install method: global
+Search: OK (bundled)
+Auto-updates: enabled
+Auto-update channel: latest
+Last update attempt: success -> 2.1.268 (2026-09-10)
+
+No installation issues found.
+
+The omitted authentication section reported no active claude.ai subscription auth. It did not
+affect the local installation check and contained no credential value.
