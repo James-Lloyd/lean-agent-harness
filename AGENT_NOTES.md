@@ -184,11 +184,12 @@ NOT under the loop; `HARNESS_GATE_STRICT=1` turns a half-grade into a red exit i
   SIGPIPE family as the guard-hook fail-open, self-inflicted this time. Redirect to a file and read the
   file. Doubly so when each arm is a real model call: a truncated run costs the tokens and keeps none
   of the answer.
-- [2026-09-07] A bare `harness/codex-setup.sh` inside a worktree dies with "lean-agent-harness engine
-  not found" — nothing auto-sets `HARNESS_ENGINE`, so the wrapper falls through to the
-  `~/.claude/plugins` cache, which on this machine is **0.2.9 (2026-08-12)** and predates codex-setup
-  entirely. Export `HARNESS_ENGINE=<worktree>/plugin/engine` first, as the suites do. The E2-flip note
-  called this out for `loop.ps1`; it applies to every wrapper.
+- [2026-09-07; cache fact superseded 2026-09-15] A bare `harness/codex-setup.sh` inside a worktree
+  died with "lean-agent-harness engine not found" because nothing auto-set `HARNESS_ENGINE`, so the
+  wrapper fell through to the then-active `~/.claude/plugins` cache at **0.2.9 (2026-08-12)**, which
+  predated codex-setup. The active user install is now 0.5.1, but the operational rule remains: export
+  `HARNESS_ENGINE=<worktree>/plugin/engine` when the proof must exercise the branch rather than an
+  installed engine. The E2-flip note called this out for `loop.ps1`; it applies to every wrapper.
 - [2026-09-12] A watchdog timeout that replaces buffered model output with only its own kill sentence
   cannot explain what consumed the allowance. The supervised Stage 1b Codex canary was killed at both
   900s and 1800s; each run failed closed and rolled back, but the committed logs prove only the Codex
@@ -201,3 +202,8 @@ NOT under the loop; `HARNESS_GATE_STRICT=1` turns a half-grade into a red exit i
   stdout/stderr record as it arrives, and append the watchdog verdict after stopping. When a very short
   timeout is supported, begin that allowance only after the fresh runspace signals that its log writer
   is ready; otherwise host-start latency makes the watchdog test nondeterministic before the tool runs.
+- [2026-09-15] **Never select the top queue item from a truncated whole-file dump.** `Get-Content -Raw
+  state/fix_plan.md` exceeded the tool output budget and resumed near a later unchecked cache task, so
+  that visible item was claimed while earlier unchecked work remained. Query the ordered task lines
+  directly and take the first match (for example, `Select-String '^- \[ \]' | Select-Object -First 1`),
+  preserving its line number; a clipped view is not evidence that no earlier task exists.

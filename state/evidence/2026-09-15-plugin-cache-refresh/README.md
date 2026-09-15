@@ -81,3 +81,10 @@ A clean Bash twin rerun passed 434/0, including that assertion and both controls
   idempotent second update.
 - Doctor's version-skew warning clears: proven by source/cache/active version equality at `0.5.1` and
   native plugin validation. Other pre-existing doctor advisories are listed above and are unrelated.
+
+## Review
+
+Independent fresh-context verdict: **SHIP**. The reviewer logged one non-blocking process should-fix:
+this task was selected out of queue order because a truncated whole-file read hid earlier unchecked
+items. The refresh itself remains complete and correct. The prevention rule is recorded in
+`AGENT_NOTES.md`; work resumes at the true top unchecked item next.

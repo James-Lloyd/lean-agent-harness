@@ -1,0 +1,13 @@
+Independent fresh-context review
+Date: 2026-09-15
+Scope: origin/main...3ebdc0d
+
+VERDICT: SHIP
+
+Should-fix: the cache task was selected out of queue order after a truncated whole-file read hid the
+true top unchecked item. This process breach does not invalidate the completed cache refresh and is
+not an acceptance, correctness, security, data-integrity, test, or E2E failure. Record the lesson and
+resume at the real top unchecked item next.
+
+Resolution: recorded the task-selection rule in AGENT_NOTES.md. The next task remains the headless
+in-model verification item at state/fix_plan.md line 140.
