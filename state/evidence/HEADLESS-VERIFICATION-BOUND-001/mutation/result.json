@@ -1,0 +1,124 @@
+{
+  "task": "HEADLESS-VERIFICATION-BOUND-001",
+  "mutation": "remove one prompt protection at a time",
+  "checks": [
+    {
+      "id": "control-powershell",
+      "pass": true,
+      "status": 0
+    },
+    {
+      "id": "control-bash",
+      "pass": true,
+      "status": 0
+    },
+    {
+      "id": "command-cap-powershell",
+      "pass": true,
+      "status": 1,
+      "expected": "FAIL caps model-side verification at two shell commands"
+    },
+    {
+      "id": "command-cap-bash",
+      "pass": true,
+      "status": 1,
+      "expected": "FAIL caps model-side verification at two shell commands"
+    },
+    {
+      "id": "timeout-cap-powershell",
+      "pass": true,
+      "status": 1,
+      "expected": "FAIL requests a per-command tool timeout no greater than 120 seconds"
+    },
+    {
+      "id": "timeout-cap-bash",
+      "pass": true,
+      "status": 1,
+      "expected": "FAIL requests a per-command tool timeout no greater than 120 seconds"
+    },
+    {
+      "id": "background-ban-powershell",
+      "pass": true,
+      "status": 1,
+      "expected": "FAIL forbids background or detached verification"
+    },
+    {
+      "id": "background-ban-bash",
+      "pass": true,
+      "status": 1,
+      "expected": "FAIL forbids background or detached verification"
+    },
+    {
+      "id": "complete-gate-ban-powershell",
+      "pass": true,
+      "status": 1,
+      "expected": "FAIL forbids the model from invoking configured complete gates"
+    },
+    {
+      "id": "complete-gate-ban-bash",
+      "pass": true,
+      "status": 1,
+      "expected": "FAIL forbids the model from invoking configured complete gates"
+    },
+    {
+      "id": "quoted-data-allowance-powershell",
+      "pass": true,
+      "status": 1,
+      "expected": "FAIL allows a configured gate command only as quoted comparison or search data"
+    },
+    {
+      "id": "quoted-data-allowance-bash",
+      "pass": true,
+      "status": 1,
+      "expected": "FAIL allows a configured gate command only as quoted comparison or search data"
+    },
+    {
+      "id": "delegated-gate-ban-powershell",
+      "pass": true,
+      "status": 1,
+      "expected": "FAIL forbids direct and delegated gate execution"
+    },
+    {
+      "id": "delegated-gate-ban-bash",
+      "pass": true,
+      "status": 1,
+      "expected": "FAIL forbids direct and delegated gate execution"
+    },
+    {
+      "id": "visible-failure-powershell",
+      "pass": true,
+      "status": 1,
+      "expected": "FAIL keeps failed or timed-out targeted checks visible"
+    },
+    {
+      "id": "visible-failure-bash",
+      "pass": true,
+      "status": 1,
+      "expected": "FAIL keeps failed or timed-out targeted checks visible"
+    },
+    {
+      "id": "runner-authority-powershell",
+      "pass": true,
+      "status": 1,
+      "expected": "FAIL names the runner complete gate as the authority"
+    },
+    {
+      "id": "runner-authority-bash",
+      "pass": true,
+      "status": 1,
+      "expected": "FAIL names the runner complete gate as the authority"
+    },
+    {
+      "id": "old-complete-gate-requirement-powershell",
+      "pass": true,
+      "status": 1,
+      "expected": "FAIL removes the old model-side complete-gate requirement"
+    },
+    {
+      "id": "old-complete-gate-requirement-bash",
+      "pass": true,
+      "status": 1,
+      "expected": "FAIL removes the old model-side complete-gate requirement"
+    }
+  ]
+}

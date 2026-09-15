@@ -1,0 +1,21 @@
+{
+  "mode": "post",
+  "command": "C:/WINDOWS/System32/WindowsPowerShell/v1.0/powershell.exe -NoProfile -ExecutionPolicy Bypass -File <SOURCE>/plugin/engine/loop.ps1 -ProjectRoot <CANARY> -Mode auto -MaxIterations 1",
+  "startedUtc": "2026-09-15T20:34:58.854Z",
+  "endedUtc": "2026-09-15T20:47:37.194Z",
+  "elapsedMs": 758338,
+  "exit": {
+    "code": 0,
+    "signal": null,
+    "error": null
+  },
+  "startRef": "edb9136afb3109c620650e14cb61d41ae997f4c3",
+  "endRef": "edb9136afb3109c620650e14cb61d41ae997f4c3",
+  "status": [],
+  "captured": {
+    "transcript": true,
+    "ledger": true,
+    "outerGate": true,
+    "timelineEntries": 2771
+  }
+}

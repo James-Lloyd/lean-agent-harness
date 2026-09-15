@@ -34,8 +34,9 @@ acceptance authority.
 - If the hypothesis is proved, make the advisory headless prompt contract precise: after editing, the
   implementer may issue at most two `exec` verification events; each event must request a tool timeout
   no greater than 120 seconds; compound commands count as one event but must share that one timeout;
-  background/detached verification is forbidden; and no event may contain or delegate to any effective
-  configured component/root gate command. A timed-out or unavailable targeted check must be reported
+  background/detached verification is forbidden; and no event may execute or delegate to any effective
+  configured component/root gate command. Reading, searching for, or comparing that command solely as
+  quoted data is allowed. A timed-out or unavailable targeted check must be reported
   in the transcript; it must not be hidden or converted into success.
 - Preserve the runner's existing post-model tamper check and complete
   `Invoke-ProjectGate`/`run_gate` call. Add twin regression coverage that distinguishes bounded
@@ -77,7 +78,9 @@ acceptance authority.
       implement phase and fails/rolls back on a red outer gate; no configured gate step is skipped.
 - [ ] A post-change real Codex implement phase returns in less than 900 seconds. Its transcript has no
       more than two post-edit verification `exec` events, each reports at most 120 seconds, contains no
-      effective configured gate command and launches no background verification; the canary record
+      execution of the effective configured gate command (directly or through a shell, script,
+      function, subprocess, or wrapper) and launches no background verification. A quoted data-only
+      comparison/search is permitted; the canary record
       reports monotonic elapsed milliseconds and the transcript identifies command outcomes.
 - [ ] That same real loop iteration advances to the outer gate, whose retained output reports
       PowerShell and Bash complete-suite counts with zero failures. The ledger records `path=codex`
@@ -109,9 +112,13 @@ acceptance authority.
 3. Run the existing loop regression twins with a local model stub whose successful implement returns
    before a deliberately red outer gate. Assert the gate runs and rollback still occurs.
 4. Run `node state/evidence/HEADLESS-VERIFICATION-BOUND-001/run-canary.mjs post` against the same
-   recorded base/task fixture, replacing only the prompt under test and restoring the normal
-   900-second watchdog. Retain the durable transcript and outer `node harness/tests/gate.mjs` output
-   from that one loop invocation; do not substitute a separately run green gate for this criterion.
+   recorded base/task fixture and task, replacing the prompt under test and restoring the normal
+   900-second watchdog. The pre-run's output-redirection suffix is removed because it made the
+   repository's gate-wiring assertion treat the suffix as a path. Keep the effective command exactly
+   `node harness/tests/gate.mjs`; capture that process's stdout/stderr by passing a canary-only Node
+   preload through `NODE_OPTIONS`. The preload activates only when `process.argv[1]` resolves to
+   `harness/tests/gate.mjs`, tees bytes without changing exit behavior, and records process start/end.
+   Retain that output from the one loop invocation; do not substitute a separately run green gate.
 5. Run `node harness/tests/headless-verification-mutation.mjs --out
    state/evidence/HEADLESS-VERIFICATION-BOUND-001/mutation`; it builds independent temporary prompt
    mutants for each clause, requires the unmodified PS/Bash controls to pass, and requires both twins
@@ -142,3 +149,43 @@ acceptance authority.
 
 The externally visible loop contract remains: a model invocation cannot make an iteration green.
 Only the runner's configured complete gate can do that.
+
+## Diagnostic result and contract amendment — 2026-09-15
+
+The first driver launch failed before Codex because Node could not resolve the Windows `codex`
+launcher; it is retained as `pre-driver-failure-1/`. The corrected launcher reached Codex. Its
+configured gate `exec` appeared at 62,316 ms (`pre/timeline.jsonl:1991`), remained without a terminal
+result through 300,000 ms, and the retained watchdog appeared at 356,781 ms (`:2619`). Polls proved
+the gate continued through PowerShell and into Bash (`:2018-2019`, `:2396`, `:2544-2546`). The
+accepted >=60-second discriminator is therefore met: duplicate full-gate work is measured, not a
+supervisor hypothesis.
+
+The output-redirection suffix used for pre-run capture also made the gate-wiring assertion red because
+that assertion treats everything after `node` as the script path. This does not invalidate the causal
+measurement—the full gate remained active for minutes—but it cannot be used for the post-run green
+criterion. Step 4 is amended to restore the byte-for-byte production gate command and capture through
+a canary-only Node preload. No corrected pre-run is needed; no shipping behavior beyond `PROMPT.md`
+is authorized by this amendment.
+
+The first post-change attempt returned from Codex after 181,105 ms and complied with the bounded
+verification contract, but its runner gate was red. The failure was in the throwaway fixture, not the
+shipping prompt: the driver rewrote `harness.config.json` with multiline JSON, while the Bash routing
+pin intentionally reads each compact phase object from one line; it also changed the implement route
+without mirroring that temporary value into the routing skill paired to the config by both twin gates.
+The failed attempt is retained as `post-fixture-failure-1/`, including its red ledger and gate output.
+
+The canary driver is amended to preserve the shipped compact config layout, mirror only its temporary
+`implement=codex` route into the canary's routing-skill row, and fail a preflight unless the exact gate
+command, compact route fields, and paired skill row agree. The capture preload also marks the outer
+gate process tree and ignores Node's `--check` mode, so syntax checks and synthetic nested `gate.mjs`
+tests remain ordinary activity rather than additional outer-process markers. One corrected post-run is
+authorized because the fixture is
+materially different; an identical retry or a watchdog increase remains forbidden. These are
+canary-only changes and do not expand the shipping behavior beyond `PROMPT.md`.
+
+The transcript exposed one wording ambiguity before retry: a targeted docs check compared the exact
+gate command as a quoted string without executing it. The earlier word `contain` would reject that safe
+readback even though the shipping prompt prohibits invocation. The contract now permits quoted
+data-only reading/search/comparison and continues to prohibit direct or delegated execution through a
+shell, script, function, subprocess, or wrapper. Both sides are pinned in the paired prompt tests and
+their independent mutants. This clarification preserves the runner's exclusive gate authority.
