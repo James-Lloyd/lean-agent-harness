@@ -1,0 +1,1 @@
+{"command":"update","outcome":"ok","plugin":"lean-agent-harness@lean-agent-harness","pluginId":"lean-agent-harness@lean-agent-harness","scope":"user","message":"lean-agent-harness is already at the latest version (0.5.1).","updateOutcome":"up_to_date","oldVersion":"0.5.1","newVersion":"0.5.1"}

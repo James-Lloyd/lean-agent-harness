@@ -1,0 +1,14 @@
+Captured 2026-09-15 after the real user-scope update.
+
+repository plugin manifest version: 0.5.1
+user install version:              0.5.1
+user install commit:               0b24c3a817f924422fb10fa77cd2a14673fbab09
+user install path:                 <USER_HOME>\.claude\plugins\cache\lean-agent-harness\lean-agent-harness\0.5.1
+cached manifest version:           0.5.1
+
+`claude plugin list` reported the user-scoped plugin enabled at 0.5.1.
+`claude plugin validate <USER_HOME>\.claude\plugins\cache\lean-agent-harness\lean-agent-harness\0.5.1`
+exited 0 with `Validation passed`.
+
+Five project-local installations belonging to another repository remain pinned at 0.4.1. The
+user-scope update intentionally did not mutate those separately scoped installations.
