@@ -1,0 +1,12 @@
+{
+  "mode": "pre",
+  "baseRef": "c1da842debabe11eca8f7b0d6551e71d39bdf482",
+  "fixtureRef": "196ec564ba39c51f24c7291307b5d2bf991b33fa",
+  "engineRef": "7319496914320254b94d2195619c521d703b22e0",
+  "effectiveGate": "node harness/tests/gate.mjs > harness/.runs/canary-outer-gate.txt",
+  "watchdogSeconds": 300,
+  "codexVersion": "codex-cli 0.154.0",
+  "codexVersionExit": 0,
+  "codexAuth": "Logged in using ChatGPT",
+  "codexAuthExit": 0
+}

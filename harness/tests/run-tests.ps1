@@ -1301,6 +1301,10 @@ Write-Host "codex timeout transcript: deterministic helper + real-loop rollback 
 & $psHost -NoProfile -ExecutionPolicy Bypass -File (Join-Path $here 'codex-timeout-test.ps1') 1>$null 2>$null
 ok "PowerShell Codex timeout transcript proof passes" ($LASTEXITCODE -eq 0)
 
+Write-Host "headless verification: model-side checks are bounded; runner keeps full-gate authority"
+& $psHost -NoProfile -ExecutionPolicy Bypass -File (Join-Path $here 'headless-verification-test.ps1') 1>$null 2>$null
+ok "PowerShell headless verification prompt contract passes" ($LASTEXITCODE -eq 0)
+
 Write-Host ""
 Write-Host ("RESULT: {0} passed, {1} failed" -f $script:pass, $script:fail) -ForegroundColor Cyan
 if ($script:fail -gt 0) { exit 1 } else { exit 0 }

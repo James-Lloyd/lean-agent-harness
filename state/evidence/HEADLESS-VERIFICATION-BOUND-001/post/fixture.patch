@@ -1,0 +1,242 @@
+diff --git a/.harness-canary-gate-capture.cjs b/.harness-canary-gate-capture.cjs
+new file mode 100644
+index 0000000..1689bbe
+--- /dev/null
++++ b/.harness-canary-gate-capture.cjs
+@@ -0,0 +1,65 @@
++const childProcess = require('node:child_process');
++const fs = require('node:fs');
++const path = require('node:path');
++const { syncBuiltinESMExports } = require('node:module');
++
++const target = process.argv[1] ? path.resolve(process.argv[1]).replaceAll('//', '/') : '';
++const capture = process.env.HARNESS_GATE_CAPTURE;
++if (
++  capture
++  && target.endsWith('/harness/tests/gate.mjs')
++  && !process.execArgv.includes('--check')
++  && !process.env.HARNESS_GATE_CAPTURE_ACTIVE
++) {
++  // The real gate's test suite launches synthetic gate.mjs fixtures. Mark the process tree so those
++  // nested controls remain visible in the outer output without being counted as outer gate launches.
++  process.env.HARNESS_GATE_CAPTURE_ACTIVE = '1';
++  const append = (value, encoding) => {
++    const data = Buffer.isBuffer(value)
++      ? value
++      : Buffer.from(String(value), typeof encoding === 'string' ? encoding : 'utf8');
++    fs.appendFileSync(capture, data);
++  };
++  fs.appendFileSync(
++    capture,
++    `=== gate-process-start pid=${process.pid} utc=${new Date().toISOString()} ===/n`,
++  );
++
++  const stdoutWrite = process.stdout.write.bind(process.stdout);
++  const stderrWrite = process.stderr.write.bind(process.stderr);
++  process.stdout.write = (chunk, encoding, callback) => {
++    append(chunk, encoding);
++    return stdoutWrite(chunk, encoding, callback);
++  };
++  process.stderr.write = (chunk, encoding, callback) => {
++    append(chunk, encoding);
++    return stderrWrite(chunk, encoding, callback);
++  };
++
++  const originalSpawnSync = childProcess.spawnSync;
++  childProcess.spawnSync = (command, args, options = {}) => {
++    if (options.stdio !== 'inherit') return originalSpawnSync(command, args, options);
++    const result = originalSpawnSync(command, args, {
++      ...options,
++      stdio: ['inherit', 'pipe', 'pipe'],
++      maxBuffer: 32 * 1024 * 1024,
++    });
++    if (result.stdout) {
++      append(result.stdout);
++      stdoutWrite(result.stdout);
++    }
++    if (result.stderr) {
++      append(result.stderr);
++      stderrWrite(result.stderr);
++    }
++    return result;
++  };
++  syncBuiltinESMExports();
++
++  process.on('exit', (code) => {
++    fs.appendFileSync(
++      capture,
++      `/n=== gate-process-end pid=${process.pid} code=${code} utc=${new Date().toISOString()} ===/n`,
++    );
++  });
++}
+diff --git a/PROMPT.md b/PROMPT.md
+index 4a6dc62..c47ff90 100644
+--- a/PROMPT.md
++++ b/PROMPT.md
+@@ -17,9 +17,21 @@ building it. The item sets the scope: a pre-existing bug or cleanup you notice i
+ `fix_plan.md`, not part of this change; scratch checks are not committed as tests; prefer a targeted
+ edit over rewriting a file when the result is the same.
+
+-The iteration is done when:
+-- The changed component's gate, then the cross-cutting root gate, all pass:
+-  format → lint → typecheck → build → test. Serialize builds/tests — never two at once.
++Verification inside this headless model turn is deliberately bounded because the loop runner repeats
++the complete configured gate after you return. Once you start checking the change, run at most two
++shell verification commands total (Codex transcripts show these as `exec` events). A compound command
++counts as one and shares one limit; for each command, request a tool timeout no greater than 120 seconds.
++Never start verification in the background or as a detached process. Never invoke a configured complete
++component or root gate command—the runner owns those commands. Reading, searching for, or comparing
++the configured command as quoted data is allowed; executing it directly or through a shell, script,
++function, subprocess, or wrapper is not. Use the smallest task-targeted checks
++that can catch a real defect. If a targeted check fails, times out, or cannot run, report it plainly in
++the transcript; do not hide it or convert it into success. Only that runner gate can make the iteration
++green.
++
++Your model turn is ready to return when:
++- The bounded task-targeted checks above are complete; the full component/root gate is left to the
++  runner.
+ - End-to-end evidence exists that the change works as a user experiences it (`e2e-evidence` skill) —
+   passing unit tests alone are not done.
+ - The *why* is written down (code comments / docs), new gotchas are appended to `AGENT_NOTES.md`, the
+diff --git a/harness/harness.config.json b/harness/harness.config.json
+index 8682c5b..7f9697c 100644
+--- a/harness/harness.config.json
++++ b/harness/harness.config.json
+@@ -12,7 +12,7 @@
+     "session":   { "model": "claude-fable-5-1", "fallback": null,            "effort": "medium" },
+     "explore":   { "model": "haiku",            "fallback": null,            "effort": "low" },
+     "plan":      { "model": "claude-fable-5-1", "fallback": "claude-opus-5", "effort": "high", "fallbackEffort": "high" },
+-    "implement": { "model": "claude-opus-5",    "fallback": null,            "effort": "high" },
++    "implement": { "model": "codex",             "fallback": null,            "effort": "high" },
+     "review":    { "model": "claude-fable-5-1", "fallback": "claude-opus-5", "effort": "high", "fallbackEffort": "medium" },
+     "evaluate":  { "model": "claude-fable-5-1", "fallback": "claude-opus-5", "effort": "high", "fallbackEffort": "medium" },
+     "docs":      { "model": "haiku",            "fallback": null,            "effort": "low" },
+@@ -27,8 +27,8 @@
+   },
+
+   "autonomy": {
+-    "mode": "supervised",
+-    "maxIterations": 20,
++    "mode": "auto",
++    "maxIterations": 1,
+     "maxTurnsPerIteration": 40,
+     "tokenBudget": null,
+     "meterTokens": false,
+@@ -36,7 +36,7 @@
+     "checkpoints": {
+       "planApproval": true,
+       "beforeRiskyOps": true,
+-      "everyNIterations": 5
++      "everyNIterations": 0
+     }
+   },
+
+@@ -46,8 +46,8 @@
+     "progressFile": "state/PROGRESS.md",
+     "oneItemPerIteration": true,
+     "autoRollbackOnRed": true,
+-    "commitOnGreen": true,
+-    "tagOnGreen": true,
++    "commitOnGreen": false,
++    "tagOnGreen": false,
+     "stopWhenPlanEmpty": true
+   },
+
+diff --git a/plugin/skills/model-routing/SKILL.md b/plugin/skills/model-routing/SKILL.md
+index 1c3b6d9..8d26a7c 100644
+--- a/plugin/skills/model-routing/SKILL.md
++++ b/plugin/skills/model-routing/SKILL.md
+@@ -19,7 +19,7 @@ stale copy behind in a sibling command.
+ |-------|-------|-------|--------|----------|--------------|
+ | `session` | (the Claude Code main window) | `claude-fable-5-1` | `medium` | (n/a) | The **Claude-host orchestrator**. It dispatches, sequences and reports; the deep thinking belongs to the phase agents — but it also judges *when* a phase is done, so it gets the strongest model at a moderate depth. Anthropic's Fable 5.1 guidance: `medium` roughly matches Fable 5 at lower cost, and at `low` it searches less and batches implied tool calls less — so `medium`, not `low`. This configures Claude Code; a Codex plugin session remains on its ambient Codex model. |
+ | `plan` | `planner` | `claude-fable-5-1` | `high` | `claude-opus-5` @ `high` | Design is where a bad call is most expensive. Deepest reasoner at `high` — Anthropic's recommended start; go to `xhigh` only on a measured gain. |
+-| `implement` | `generator` | `claude-opus-5` | `high` | `null` | The builder. Anthropic's own default is to start on Opus 5 and escalate to Fable only when Opus 5 at higher effort fails; it is also a different model from the Fable judge that reviews it, so the writer never clears its own diff. **No fallback on purpose** — this phase is interactive, so a cap is recoverable by hand; a silent second-choice builder is worse than stopping. Worth an A/B on a real task: Fable 5.1 @ `medium` has cache reads at a quarter of Opus 5's price, so on long cache-heavy builds cost per completed task can come out close. |
++| `implement` | `generator` | `codex` | `high` | `null` | The builder. Anthropic's own default is to start on Opus 5 and escalate to Fable only when Opus 5 at higher effort fails; it is also a different model from the Fable judge that reviews it, so the writer never clears its own diff. **No fallback on purpose** — this phase is interactive, so a cap is recoverable by hand; a silent second-choice builder is worse than stopping. Worth an A/B on a real task: Fable 5.1 @ `medium` has cache reads at a quarter of Opus 5's price, so on long cache-heavy builds cost per completed task can come out close. |
+ | `review` | `reviewer` | `claude-fable-5-1` | `high` | `claude-opus-5` @ `medium` | Fresh-context judge — the doer must never be the judge. Judges get the strongest model. Cap-proof fallback because a headless run can't ask a human mid-review. Accepted tradeoff: the fallback equals the builder's model, so a Fable cap costs model diversity — the fresh-context guarantee still holds. |
+ | `evaluate` | `evaluator` | `claude-fable-5-1` | `high` | `claude-opus-5` @ `medium` | Rubric scorer at the sprint gate. Same reasoning as `review`. Off by default (`verification.evaluator.enabled: false`) — one judge at the end is enough. |
+ | `explore` | `explorer` | `haiku` | `low` | `null` | Read-only scout for fan-out searches. High volume, shallow judgment — the one place to spend nothing. |
+diff --git a/state/fix_plan.md b/state/fix_plan.md
+index 9440444..f5d7fb5 100644
+--- a/state/fix_plan.md
++++ b/state/fix_plan.md
+@@ -137,7 +137,7 @@ Format: `- [ ] <imperative task>  — done when: <verifiable condition>`
+       Suites +14 each (bash 412 -> 424, PS 419 -> 431), pinning the OUTPUT (counts, names, no double prefix, frontmatter kept/dropped, preamble present on commands and absent on reference skills, body carried, one `.agents/` gitignore line, hand-written skill survives) rather than the inert stanza; cross-twin digest parity still green with commands+skills added to inputs_hash in both twins. Evidence: state/evidence/2026-09-09-v6.3-command-skill-bridge/ (README adjudicates). -->
+ - [x] (wip: worktree-codex-timeout-transcript) Preserve partial Codex output when the phase watchdog kills an invocation  — done when: a timed-out real/stub invocation still fails closed and rolls back, while its phase log retains output produced before the timeout plus the watchdog verdict; reconcile both twins and mutation-check the regression <!-- task CODEX-TIMEOUT-TRANSCRIPT-001; found by state/evidence/2026-09-12-overnight-stage1b-preflight/ -->
+       <!-- DONE 2026-09-14 (plugin 0.5.1): PowerShell now crosses the Start-Job boundary through a flushed UTF-8 phase-log writer before the watchdog can stop the job, then appends the existing fail-closed verdict; Bash's already-streaming contract is pinned beside it. Deterministic helper and real loop proofs are 13/0 per twin: both route through Codex, record invoke-error, restore the exact commit/file/clean tree, retain pre-timeout output before the verdict, and exclude post-kill output. Independent transcript-discard mutants fail on the missing early marker while both controls pass. Full gate PowerShell 441/0, Bash 434/0. Fresh-context review SHIP, zero blockers; two should-fixes are logged in the evidence review. Evidence: state/evidence/CODEX-TIMEOUT-TRANSCRIPT-001/. -->
+-- [ ] Determine and bound headless in-model verification without weakening the runner-authoritative full gate  — done when: durable timeout transcripts show where the phase spends its time, a real Codex iteration returns after bounded in-turn checks, and the outer loop still runs both complete gate twins <!-- depends on CODEX-TIMEOUT-TRANSCRIPT-001; duplicate full-gate work is a supervisor observation/hypothesis until the transcript proves it -->
++- [x] Determine and bound headless in-model verification without weakening the runner-authoritative full gate  — done when: durable timeout transcripts show where the phase spends its time, a real Codex iteration returns after bounded in-turn checks, and the outer loop still runs both complete gate twins <!-- depends on CODEX-TIMEOUT-TRANSCRIPT-001; duplicate full-gate work is a supervisor observation/hypothesis until the transcript proves it -->
+ - [ ] Correct the overnight guide's stale claim that this repo has an empty root gate  — done when: the guide describes the wired cross-platform self-test gate, existing gate-wiring assertions remain green, and evidence records the user-visible correction <!-- blocked on the headless-verification prerequisite after real Codex watchdog kills at 900s and 1800s; task OVERNIGHT-CANARY-001; evidence: state/evidence/2026-09-12-overnight-stage1b-preflight/ -->
+ - [ ] Overnight Stage 1b (supervise-first): execute one real overnight run with the preset, audited after the fact  — done when: James runs a real `mode:auto` session per docs/overnight.md, and the next morning we inspect harness/.runs/<runId>/ledger.jsonl together + run /review over the batch; this is also the LIVE-FIRE for the two still-untested paths (codex *write* path; a real evaluate-phase judge scoring a real batch)
+ - [ ] Correct the loop dry-run banner when `implement.model` is `codex` — done when: both twins print the actual Codex dispatcher command/path rather than claiming they would invoke `claude --model codex`, with regression coverage on the emitted banner
+diff --git a/state/tasks.json b/state/tasks.json
+index feb29e4..40a6181 100644
+--- a/state/tasks.json
++++ b/state/tasks.json
+@@ -1,7 +1,14 @@
+ {
+   "_comment": "Machine-readable task manifest, mirroring state/fix_plan.md. JSON on purpose: the model is less likely to inappropriately rewrite a JSON manifest than Markdown, which makes 'status'/'passes' a sturdier done-guardrail. /plan populates this; /work advances 'status' through the workflow. The loop/work may edit ONLY 'status', 'passes', and 'evidence' — never 'description'/'acceptance'. Enumerate granularly so victory can't be declared prematurely. 'files' = the paths/dirs this task OWNS (its write-scope); the fleet runner (harness/fleet.*) only parallelizes tasks whose ownership doesn't overlap — omit/empty means never parallelized.",
+   "version": 2,
+-  "statusLifecycle": ["todo", "planned", "in_progress", "validated", "reviewed", "done"],
++  "statusLifecycle": [
++    "todo",
++    "planned",
++    "in_progress",
++    "validated",
++    "reviewed",
++    "done"
++  ],
+   "tasks": [
+     {
+       "id": "CODEX-NATIVE-PLUGIN-001",
+@@ -16,7 +23,15 @@
+         "Prove installed-cache initialization and hook denial in a fresh Codex session"
+       ],
+       "acceptance": "A fresh Codex session using the installed plugin receives the harness workflow and guardrails without a Claude plugin install or project-local command-skill generation, with both twin gates and live evidence green.",
+-      "files": [".agents/plugins/", "plugin/", "harness/", "AGENTS.md", "README.md", "docs/", "state/evidence/2026-09-13-codex-native-plugin/"],
++      "files": [
++        ".agents/plugins/",
++        "plugin/",
++        "harness/",
++        "AGENTS.md",
++        "README.md",
++        "docs/",
++        "state/evidence/2026-09-13-codex-native-plugin/"
++      ],
+       "status": "done",
+       "evidence": "state/evidence/2026-09-13-codex-native-plugin/",
+       "passes": true
+@@ -33,10 +48,33 @@
+         "Bump plugin/.claude-plugin/plugin.json in the same diff as the shipped Invoke-Codex behavior change"
+       ],
+       "acceptance": "A timed-out Codex invocation still returns failure and is rolled back, while its phase log durably contains output produced before the timeout and the watchdog verdict.",
+-      "files": ["plugin/engine/lib/invoke-codex.ps1", "plugin/engine/lib/invoke-codex.sh", "plugin/.claude-plugin/plugin.json", "harness/tests/", "state/evidence/CODEX-TIMEOUT-TRANSCRIPT-001/"],
++      "files": [
++        "plugin/engine/lib/invoke-codex.ps1",
++        "plugin/engine/lib/invoke-codex.sh",
++        "plugin/.claude-plugin/plugin.json",
++        "harness/tests/",
++        "state/evidence/CODEX-TIMEOUT-TRANSCRIPT-001/"
++      ],
+       "status": "done",
+       "evidence": "state/evidence/CODEX-TIMEOUT-TRANSCRIPT-001/",
+       "passes": true
++    },
++    {
++      "id": "OVERNIGHT-CANARY-001",
++      "category": "docs",
++      "component": "root",
++      "description": "Correct the overnight guide's stale claim that this repo has an empty root gate.",
++      "steps": [
++        "Correct only the stale root-gate paragraph and record user-visible evidence"
++      ],
++      "acceptance": "The guide describes the wired cross-platform self-test gate and the configured gate remains green.",
++      "files": [
++        "docs/overnight.md",
++        "state/"
++      ],
++      "status": "todo",
++      "evidence": null,
++      "passes": false
+     }
+   ]
+ }

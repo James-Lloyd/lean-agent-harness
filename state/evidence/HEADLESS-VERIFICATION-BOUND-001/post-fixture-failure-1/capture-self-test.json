@@ -1,0 +1,13 @@
+{
+  "checks": {
+    "positiveExitZero": true,
+    "childOutputCaptured": true,
+    "parentOutputCaptured": true,
+    "exitMarkerCaptured": true,
+    "outputStillVisible": true,
+    "unrelatedNodeIgnored": true
+  },
+  "positiveOutput": "child-output\nparent-output\n",
+  "capturedOutput": "=== gate-process-start pid=26764 utc=2026-09-15T20:34:54.884Z ===\nchild-output\nparent-output\n\n=== gate-process-end pid=26764 code=0 utc=2026-09-15T20:34:54.977Z ===\n",
+  "negativeOutput": "negative-control\n"
+}

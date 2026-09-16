@@ -1,0 +1,12 @@
+{
+  "mode": "post",
+  "baseRef": "c1da842debabe11eca8f7b0d6551e71d39bdf482",
+  "fixtureRef": "edb9136afb3109c620650e14cb61d41ae997f4c3",
+  "engineRef": "7319496914320254b94d2195619c521d703b22e0",
+  "effectiveGate": "node harness/tests/gate.mjs",
+  "watchdogSeconds": 900,
+  "codexVersion": "codex-cli 0.154.0",
+  "codexVersionExit": 0,
+  "codexAuth": "Logged in using ChatGPT",
+  "codexAuthExit": 0
+}

@@ -1,0 +1,59 @@
+?? Harness loop | type=greenfield | mode=auto | maxIter=1 | maxTurns=40 | model=codex | review=claude-fable-5-1 | budget=
+??  auto mode + requireE2EEvidence, but no e2e gate step is configured. The loop will commit on
+    unit-green only. Add an e2e command to a component/root gate, or run /review periodically.
+??  Headless runs auto-deny non-allowlisted commands. Ensure the gate commands (test/build/lint)
+    are in .claude/settings.json permissions.allow (/harness-init adds them).
+
+�������� iteration 1 / 1 ��������
+  ? checkpoint @ edb9136a (pre-iter-1)
+  ?? est. tokens this run: ~15,000
+?? Running verification gate...
+  [root] gate (.)
+  - test : node harness/tests/gate.mjs
+    x test failed (exit 1) in <CANARY>/. :
+      model routing V6.2: a codex route must have a dispatch site (harness-doctor 10(i))
+        ok  loop.sh resolves the implement phase (codex is dispatchable there)
+        ok  loop.ps1 resolves the implement phase (twin parity)
+        ok  loop.sh resolves the review phase (codex is dispatchable there)
+        ok  loop.ps1 resolves the review phase (twin parity)
+        ok  loop.sh resolves the evaluate phase (codex is dispatchable there)
+        ok  loop.ps1 resolves the evaluate phase (twin parity)
+        ok  loop.sh does NOT resolve plan — a codex route there is ignored headlessly
+        ok  loop.ps1 does NOT resolve plan (twin parity)
+        ok  loop.sh does NOT resolve explore — a codex route there is ignored headlessly
+        ok  loop.ps1 does NOT resolve explore (twin parity)
+        ok  loop.sh does NOT resolve docs — a codex route there is ignored headlessly
+        ok  loop.ps1 does NOT resolve docs (twin parity)
+        ok  fleet.sh resolves implement (its only phase)
+        ok  fleet.ps1 resolves implement (twin parity)
+        ok  fleet.sh does NOT resolve plan
+        ok  fleet.ps1 does NOT resolve plan (twin parity)
+        ok  fleet.sh does NOT resolve explore
+        ok  fleet.ps1 does NOT resolve explore (twin parity)
+        ok  fleet.sh does NOT resolve docs
+        ok  fleet.ps1 does NOT resolve docs (twin parity)
+        ok  fleet.sh does NOT resolve review
+        ok  fleet.ps1 does NOT resolve review (twin parity)
+        ok  fleet.sh does NOT resolve evaluate
+        ok  fleet.ps1 does NOT resolve evaluate (twin parity)
+        ok  doctor grows check 10(i)
+        ok  doctor 10(i) grades docs as having no site on EITHER path
+        ok  doctor 10(i) grades EXPLORE as having no site either (a phase MAPPING is not a dispatch site)
+        ok  doctor 10(i) tells the reader to re-derive from dispatch, not from a mapping list
+        ok  doctor carves out the codex{} blocks codex-setup reads on unrouted phases
+        ok  the routing skill puts explore in the same tier as docs
+        ok  the routing skill warns that plan is ignored headlessly
+      migrate: end-to-end classify + apply on a synthetic repo
+        ok  harness-migrate self-test passes
+      codex timeout transcript: deterministic helper + real-loop rollback proof
+        ok  Bash Codex timeout transcript proof passes
+
+      RESULT: 427 passed, 7 failed
+
+      GATE: RED
+?? Gate red: [root] test.
+?  Rolling back to keep the tree green.
+  ? restored to edb9136a
+
+?? Loop finished after 1 iteration(s). Logs + ledger: <CANARY>/harness/.runs/run-001
+   Next: run /review for a fresh-context QA pass before you trust this.

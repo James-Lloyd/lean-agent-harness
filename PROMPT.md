@@ -17,9 +17,21 @@ building it. The item sets the scope: a pre-existing bug or cleanup you notice i
 `fix_plan.md`, not part of this change; scratch checks are not committed as tests; prefer a targeted
 edit over rewriting a file when the result is the same.
 
-The iteration is done when:
-- The changed component's gate, then the cross-cutting root gate, all pass:
-  format → lint → typecheck → build → test. Serialize builds/tests — never two at once.
+Verification inside this headless model turn is deliberately bounded because the loop runner repeats
+the complete configured gate after you return. Once you start checking the change, run at most two
+shell verification commands total (Codex transcripts show these as `exec` events). A compound command
+counts as one and shares one limit; for each command, request a tool timeout no greater than 120 seconds.
+Never start verification in the background or as a detached process. Never invoke a configured complete
+component or root gate command—the runner owns those commands. Reading, searching for, or comparing
+the configured command as quoted data is allowed; executing it directly or through a shell, script,
+function, subprocess, or wrapper is not. Use the smallest task-targeted checks
+that can catch a real defect. If a targeted check fails, times out, or cannot run, report it plainly in
+the transcript; do not hide it or convert it into success. Only that runner gate can make the iteration
+green.
+
+Your model turn is ready to return when:
+- The bounded task-targeted checks above are complete; the full component/root gate is left to the
+  runner.
 - End-to-end evidence exists that the change works as a user experiences it (`e2e-evidence` skill) —
   passing unit tests alone are not done.
 - The *why* is written down (code comments / docs), new gotchas are appended to `AGENT_NOTES.md`, the

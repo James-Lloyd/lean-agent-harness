@@ -1,0 +1,11 @@
+  ok  caps model-side verification at two shell commands
+  ok  requests a per-command tool timeout no greater than 120 seconds
+  ok  forbids background or detached verification
+  ok  forbids the model from invoking configured complete gates
+  ok  allows a configured gate command only as quoted comparison or search data
+  FAIL forbids direct and delegated gate execution
+  ok  keeps failed or timed-out targeted checks visible
+  ok  names the runner complete gate as the authority
+  ok  removes the old model-side complete-gate requirement
+
+RESULT: 8 passed, 1 failed

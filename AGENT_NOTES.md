@@ -207,3 +207,9 @@ NOT under the loop; `HARNESS_GATE_STRICT=1` turns a half-grade into a red exit i
   that visible item was claimed while earlier unchecked work remained. Query the ordered task lines
   directly and take the first match (for example, `Select-String '^- \[ \]' | Select-Object -First 1`),
   preserving its line number; a clipped view is not evidence that no earlier task exists.
+- [2026-09-16] **Evidence path scrubbing must cover representations, then be proved with a binary-inclusive
+  sweep.** Exact `replaceAll` calls missed Codex's doubled `C://Users//...` form and Git Bash's
+  `/c/Users/...` form, while a `Select-String -SimpleMatch` check falsely treated regex alternation as
+  literal text and reported clean. Normalize with a case-insensitive pattern that accepts repeated
+  forward/back separators and drive-letter/MSYS prefixes, rerun it to idempotence, then use
+  `git grep -a` so BOM or binary-classified evidence cannot bypass the check.

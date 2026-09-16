@@ -1265,6 +1265,10 @@ echo "codex timeout transcript: deterministic helper + real-loop rollback proof"
 if bash "$HERE/codex-timeout-test.sh" >/dev/null 2>&1; then ct_ok=1; else ct_ok=0; fi
 ok "$ct_ok" "Bash Codex timeout transcript proof passes"
 
+echo "headless verification: model-side checks are bounded; runner keeps full-gate authority"
+if bash "$HERE/headless-verification-test.sh" >/dev/null 2>&1; then hv_ok=1; else hv_ok=0; fi
+ok "$hv_ok" "Bash headless verification prompt contract passes"
+
 echo
 echo "RESULT: $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]
