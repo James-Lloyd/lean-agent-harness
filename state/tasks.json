@@ -54,6 +54,23 @@
       "status": "done",
       "evidence": "state/evidence/HEADLESS-VERIFICATION-BOUND-001/",
       "passes": true
+    },
+    {
+      "id": "OVERNIGHT-CANARY-001",
+      "category": "docs",
+      "component": "root",
+      "description": "Correct the overnight guide's stale claim that this repository has an empty root component gate.",
+      "steps": [
+        "Replace the stale empty-root-component warning with the configured root component command",
+        "Explain that gate.mjs dispatches the cross-platform PowerShell and Bash self-test twins",
+        "Distinguish the wired root component gate from the intentionally empty cross-cutting gate",
+        "Capture the rendered operator guidance and gate-wiring verification as end-to-end evidence"
+      ],
+      "acceptance": "The overnight guide describes the wired cross-platform self-test gate, existing gate-wiring assertions remain green, and evidence records the corrected operator-visible guidance.",
+      "files": ["docs/overnight.md", "state/evidence/OVERNIGHT-CANARY-001/", "state/fix_plan.md", "state/PROGRESS.md", "state/tasks.json"],
+      "status": "done",
+      "evidence": "state/evidence/OVERNIGHT-CANARY-001/",
+      "passes": true
     }
   ]
 }

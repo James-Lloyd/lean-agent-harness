@@ -1,0 +1,16 @@
+﻿COMMAND: powershell -NoProfile -ExecutionPolicy Bypass -File state/evidence/OVERNIGHT-CANARY-001/capture-root-gate.ps1 -SelfTest
+  ok  native repo path
+  ok  forward-slash repo path
+  ok  doubled-backslash repo path
+  ok  doubled-forward-slash repo path
+  ok  MSYS repo path
+  ok  doubled-separator MSYS repo path
+  ok  mixed-separator repo path
+  ok  doubled-separator MSYS home path
+  ok  legacy mutant caught by doubled-backslash path
+  ok  legacy mutant caught by doubled-forward-slash path
+  ok  legacy mutant caught by doubled-separator MSYS path
+  ok  legacy mutant caught by mixed-separator path
+
+RESULT: 12 passed, 0 failed
+EXIT_CODE: 0

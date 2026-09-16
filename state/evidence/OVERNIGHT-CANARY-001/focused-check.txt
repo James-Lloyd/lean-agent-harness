@@ -1,0 +1,17 @@
+COMMAND: node state/evidence/OVERNIGHT-CANARY-001/run-focused-check.mjs
+  ok  one OVERNIGHT-CANARY-001 task record exists
+  ok  guide names the exact configured root gate command
+  ok  guide describes native and Bash twin dispatch
+  ok  stale root-empty example claim is absent
+  ok  root component gate.test is the documented command
+  ok  cross-cutting gate has no configured commands
+  ok  empty-gate warning covers component and cross-cutting gates
+  ok  configured dispatcher exists
+  ok  configured dispatcher parses
+  ok  PowerShell twin retains root gate wiring coverage
+  ok  Bash twin retains root gate wiring coverage
+  ok  task points to its evidence directory
+  ok  operator evidence note exists
+
+RESULT: 13 passed, 0 failed
+EXIT_CODE: 0

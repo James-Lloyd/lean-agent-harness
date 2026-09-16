@@ -60,9 +60,13 @@ With `skipPermissions: false`, the headless child **auto-denies any Bash command
 `.claude/settings.json` → `permissions.allow`** — there is no human to approve a prompt. If your
 project's **gate commands** (test / build / lint / e2e) are not allowlisted, the agent can't run Phase 3
 of `PROMPT.md` and burns iterations editing blind. `/harness-init` appends them; the loop also prints a
-reminder at startup. Confirm they're present **before** you schedule a night. (If your gate is empty — as
-in this harness's own root component — the deterministic safety net is just rollback + the periodic
-review; the review is then doing the heavy lifting, so keep `reviewEveryNIterations` low.)
+reminder at startup. Confirm they're present **before** you schedule a night. This harness is not an
+empty-gate example: its `root` component runs `node harness/tests/gate.mjs`, a cross-platform
+dispatcher for the native self-test twin (and, on Windows, the bash twin when Git Bash is available).
+The separate cross-cutting `gate` block has no configured commands because that component gate already
+owns the repo's self-tests. If a consumer project's component gates and cross-cutting gate contain no
+commands, its deterministic safety net is just rollback + periodic review; the review is then doing
+the heavy lifting, so keep `reviewEveryNIterations` low.
 
 ### Fleet only for independent tasks
 
