@@ -37,6 +37,23 @@
       "status": "done",
       "evidence": "state/evidence/CODEX-TIMEOUT-TRANSCRIPT-001/",
       "passes": true
+    },
+    {
+      "id": "HEADLESS-VERIFICATION-BOUND-001",
+      "category": "safety",
+      "component": "root",
+      "description": "Bound verification inside a headless model turn while preserving the runner-authoritative complete gate.",
+      "steps": [
+        "Use a durable real Codex transcript to establish whether complete-gate duplication causes the watchdog timeout",
+        "Replace the model-side complete-gate requirement with a bounded targeted-check contract",
+        "Mutation-check the prompt protections on both runner twins",
+        "Prove a real Codex iteration returns before the production watchdog and the same loop invocation runs both complete gate twins"
+      ],
+      "acceptance": "Durable before/after Codex evidence proves model-side verification is bounded to two targeted commands of at most 120 seconds each, while the loop runner still executes the complete configured gate and both self-test twins pass.",
+      "files": ["PROMPT.md", "harness/tests/", "docs/execution-plans/2026-09-15-headless-in-model-verification.md", "state/evidence/HEADLESS-VERIFICATION-BOUND-001/"],
+      "status": "done",
+      "evidence": "state/evidence/HEADLESS-VERIFICATION-BOUND-001/",
+      "passes": true
     }
   ]
 }

@@ -1,0 +1,17 @@
+{
+  "mode": "post",
+  "baseRef": "c1da842debabe11eca8f7b0d6551e71d39bdf482",
+  "fixtureRef": "0705e21a264ae0d8bcaf4ad12c637a2cbde8d121",
+  "engineRef": "3f58dadb971cc99f1fd78c074397acb2699f2209",
+  "effectiveGate": "node harness/tests/gate.mjs",
+  "fixtureChecks": {
+    "productionGateExact": true,
+    "implementFieldsRemainOneLine": true,
+    "routingSkillMatches": true
+  },
+  "watchdogSeconds": 900,
+  "codexVersion": "codex-cli 0.154.0",
+  "codexVersionExit": 0,
+  "codexAuth": "Logged in using ChatGPT",
+  "codexAuthExit": 0
+}

@@ -1,6 +1,6 @@
 # HEADLESS-VERIFICATION-BOUND-001 — bound model-side checks
 
-- Status: active
+- Status: done
 - Task: `HEADLESS-VERIFICATION-BOUND-001`
 - Component: root (headless loop contract)
 - Reference baseline at `c1da842`: PowerShell 441/0, Bash 434/0 via
@@ -61,35 +61,35 @@ acceptance authority.
 
 ### Definition of done (every box must be ticked)
 
-- [ ] A pre-change real Codex diagnostic transcript is durable through either normal return or the
+- [x] A pre-change real Codex diagnostic transcript is durable through either normal return or the
       watchdog verdict and names the last completed action; the canary record contains start/end UTC,
       elapsed milliseconds from Node's monotonic clock, start/end refs, and final cleanliness.
-- [ ] Complete-gate duplication is proved only if the transcript has an `exec` event containing the
+- [x] Complete-gate duplication is proved only if the transcript has an `exec` event containing the
       effective configured command read from `components[].gate`/root `gate`, and the event consumes
       at least 60 seconds (20% of the 300-second diagnostic phase). A completed event uses Codex's
       reported duration. An event active at watchdog expiry qualifies only when the monotonic sidecar
       first observed its `exec` line by 240,000 ms and observed no matching result before 300,000 ms.
       Otherwise the sprint stops for a revised contract; mere test-like child activity is not proof.
-- [ ] The shipped headless prompt states the advisory two-`exec`/120-second grammar, prohibits
+- [x] The shipped headless prompt states the advisory two-`exec`/120-second grammar, prohibits
       background checks and effective configured gate commands, and keeps failed/timed-out targeted
       checks visible. Mirrored prompt-contract tests fail when each protection is independently
       removed.
-- [ ] Existing loop tests prove the runner still calls the complete project gate after a successful
+- [x] Existing loop tests prove the runner still calls the complete project gate after a successful
       implement phase and fails/rolls back on a red outer gate; no configured gate step is skipped.
-- [ ] A post-change real Codex implement phase returns in less than 900 seconds. Its transcript has no
+- [x] A post-change real Codex implement phase returns in less than 900 seconds. Its transcript has no
       more than two post-edit verification `exec` events, each reports at most 120 seconds, contains no
       execution of the effective configured gate command (directly or through a shell, script,
       function, subprocess, or wrapper) and launches no background verification. A quoted data-only
       comparison/search is permitted; the canary record
       reports monotonic elapsed milliseconds and the transcript identifies command outcomes.
-- [ ] That same real loop iteration advances to the outer gate, whose retained output reports
+- [x] That same real loop iteration advances to the outer gate, whose retained output reports
       PowerShell and Bash complete-suite counts with zero failures. The ledger records `path=codex`
       and `result=green`.
-- [ ] The canary begins and ends from recorded commits, all temporary routing/task changes are absent
+- [x] The canary begins and ends from recorded commits, all temporary routing/task changes are absent
       from the shipping diff, and no model-only commit is mistaken for the final reviewed change.
-- [ ] End-to-end evidence under `state/evidence/HEADLESS-VERIFICATION-BOUND-001/` maps every criterion
+- [x] End-to-end evidence under `state/evidence/HEADLESS-VERIFICATION-BOUND-001/` maps every criterion
       to exact result files and line numbers, with machine paths scrubbed before commit.
-- [ ] The final root gate is green via `node harness/tests/gate.mjs`, `state/fix_plan.md` and
+- [x] The final root gate is green via `node harness/tests/gate.mjs`, `state/fix_plan.md` and
       `state/tasks.json` record validation, `state/PROGRESS.md` records both twin counts, and an
       independent fresh-context review returns `SHIP`.
 

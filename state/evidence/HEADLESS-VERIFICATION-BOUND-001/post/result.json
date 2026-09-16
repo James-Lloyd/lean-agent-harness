@@ -1,0 +1,27 @@
+{
+  "mode": "post",
+  "command": "C:/WINDOWS/System32/WindowsPowerShell/v1.0/powershell.exe -NoProfile -ExecutionPolicy Bypass -File <SOURCE>/plugin/engine/loop.ps1 -ProjectRoot <CANARY> -Mode auto -MaxIterations 1",
+  "startedUtc": "2026-09-16T07:41:06.870Z",
+  "endedUtc": "2026-09-16T08:05:12.549Z",
+  "elapsedMs": 1445677,
+  "exit": {
+    "code": 0,
+    "signal": null,
+    "error": null
+  },
+  "startRef": "0705e21a264ae0d8bcaf4ad12c637a2cbde8d121",
+  "endRef": "0705e21a264ae0d8bcaf4ad12c637a2cbde8d121",
+  "status": [
+    " M docs/overnight.md",
+    " M state/PROGRESS.md",
+    " M state/fix_plan.md",
+    " M state/tasks.json",
+    "?? state/evidence/OVERNIGHT-CANARY-001/"
+  ],
+  "captured": {
+    "transcript": true,
+    "ledger": true,
+    "outerGate": true,
+    "timelineEntries": 2372
+  }
+}
