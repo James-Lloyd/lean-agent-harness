@@ -1291,6 +1291,15 @@ ok "doctor carves out the codex{} blocks codex-setup reads on unrouted phases" (
 ok "the routing skill puts explore in the same tier as docs" ($mrMd62.Contains('| `explore`, `docs` |'))
 ok "the routing skill warns that plan is ignored headlessly" ($mrMd62.Contains('silently ignored headlessly'))
 
+Write-Host "doctor: harness-owned Codex user-hook activation must be fresh"
+# The 2026-09-19 failure was a trusted user manifest pointing at a deleted 0.5.0 cache after 0.5.1
+# became active. /hooks still displayed four active entries, so the doctor's deterministic installer
+# check and its repair path are the sensor; prose that merely says "review hooks" does not catch it.
+ok "doctor checks native Codex user-hook activation even without a codex model route" ($docMd62.Contains('Codex user-hook activation freshness'))
+ok "doctor invokes the installer freshness sensor" ($docMd62.Contains('install-codex-hooks.mjs --check'))
+ok "doctor grades a stale harness-owned manifest red and names its exact repair" ($docMd62.Contains('stale harness-owned hook file') -and $docMd62.Contains('Repair by invoking `$harness-codex-activate`'))
+ok "doctor refuses to overwrite foreign user hooks" ($docMd62.Contains('do not overwrite a foreign hook file'))
+
 Write-Host "migrate: end-to-end classify + apply on a synthetic repo"
 # engine/migrate.ps1 has its own e2e self-test (build a synthetic copied-in harness, report, --apply);
 # fold its exit code into this suite the same way as the node dispatcher above.

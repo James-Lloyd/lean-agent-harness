@@ -1255,6 +1255,15 @@ ok "$(grep -qF 'ungated by' "$DOC_MD" && echo 1 || echo 0)"                     
 ok "$(grep -qF '| `explore`, `docs` |' "$MR_MD" && echo 1 || echo 0)"                                    "the routing skill puts explore in the same tier as docs"
 ok "$(grep -qF 'silently ignored headlessly' "$MR_MD" && echo 1 || echo 0)"                              "the routing skill warns that plan is ignored headlessly"
 
+echo "doctor: harness-owned Codex user-hook activation must be fresh"
+# The 2026-09-19 failure was a trusted user manifest pointing at a deleted 0.5.0 cache after 0.5.1
+# became active. /hooks still displayed four active entries, so the doctor's deterministic installer
+# check and its repair path are the sensor; prose that merely says "review hooks" does not catch it.
+ok "$(grep -qF 'Codex user-hook activation freshness' "$DOC_MD" && echo 1 || echo 0)" "doctor checks native Codex user-hook activation even without a codex model route"
+ok "$(grep -qF 'install-codex-hooks.mjs --check' "$DOC_MD" && echo 1 || echo 0)"     "doctor invokes the installer freshness sensor"
+ok "$(grep -qF 'stale harness-owned hook file' "$DOC_MD" && grep -qF 'Repair by invoking `$harness-codex-activate`' "$DOC_MD" && echo 1 || echo 0)" "doctor grades a stale harness-owned manifest red and names its exact repair"
+ok "$(grep -qF 'do not overwrite a foreign hook file' "$DOC_MD" && echo 1 || echo 0)" "doctor refuses to overwrite foreign user hooks"
+
 echo "migrate: end-to-end classify + apply on a synthetic repo"
 # engine/migrate.sh has its own e2e self-test (build a synthetic copied-in harness, report, --apply);
 # fold its exit code into this suite the same way as the node dispatcher above.

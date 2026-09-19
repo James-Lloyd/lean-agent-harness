@@ -155,6 +155,16 @@ try {
   }
   const freshness = spawnSync(process.execPath, [installer, "--target", activationTarget, "--check"], { encoding: "utf8" });
   check(freshness.status === 0, `Codex hook activation freshness check failed: ${(freshness.stderr || freshness.stdout).trim()}`);
+  const staleOwned = JSON.parse(fs.readFileSync(activationTarget, "utf8"));
+  const staleCommand = `node "${path.join(activationDir, "removed-0.5.1", "hooks", "run.mjs").replaceAll("\\", "/")}" --codex block-destructive`;
+  staleOwned.hooks.PreToolUse[0].hooks[0].command = staleCommand;
+  fs.writeFileSync(activationTarget, `${JSON.stringify(staleOwned, null, 2)}\n`, "utf8");
+  const staleCheck = spawnSync(process.execPath, [installer, "--target", activationTarget, "--check"], { encoding: "utf8" });
+  check(staleCheck.status !== 0 && `${staleCheck.stderr}${staleCheck.stdout}`.includes("STALE"), "Codex hook activation freshness check accepted a removed cache target");
+  const refresh = spawnSync(process.execPath, [installer, "--target", activationTarget], { encoding: "utf8" });
+  check(refresh.status === 0, `Codex hook activation could not refresh a stale harness-owned manifest: ${(refresh.stderr || refresh.stdout).trim()}`);
+  const refreshed = spawnSync(process.execPath, [installer, "--target", activationTarget, "--check"], { encoding: "utf8" });
+  check(refreshed.status === 0, `refreshed Codex hook activation is not fresh: ${(refreshed.stderr || refreshed.stdout).trim()}`);
   const foreign = '{"_generated_by":"another-tool","hooks":{}}\n';
   fs.writeFileSync(activationTarget, foreign, "utf8");
   const refusal = spawnSync(process.execPath, [installer, "--target", activationTarget], { encoding: "utf8" });
