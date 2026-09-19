@@ -1,0 +1,73 @@
+{
+  "task": "CODEX-HOOK-ACTIVATION-RATCHET-001",
+  "modelCalls": 0,
+  "passed": 13,
+  "failed": 0,
+  "checks": [
+    {
+      "name": "install harness-owned fixture",
+      "pass": true,
+      "detail": "exit=0"
+    },
+    {
+      "name": "new fixture is fresh",
+      "pass": true,
+      "detail": "exit=0"
+    },
+    {
+      "name": "stale fixture target is absent",
+      "pass": true,
+      "detail": "removed cache path was never created"
+    },
+    {
+      "name": "stale harness-owned fixture fails closed",
+      "pass": true,
+      "detail": "exit=1; verdict=STALE"
+    },
+    {
+      "name": "reactivation refreshes stale fixture",
+      "pass": true,
+      "detail": "exit=0"
+    },
+    {
+      "name": "refreshed fixture is fresh",
+      "pass": true,
+      "detail": "exit=0"
+    },
+    {
+      "name": "doctor carries all activation clauses",
+      "pass": true,
+      "detail": "{\"heading\":true,\"sensor\":true,\"stale\":true,\"repair\":true,\"foreign\":true}"
+    },
+    {
+      "name": "run-tests.ps1 pins all activation clauses",
+      "pass": true,
+      "detail": "{\"heading\":true,\"sensor\":true,\"stale\":true,\"repair\":true,\"foreign\":true}"
+    },
+    {
+      "name": "run-tests.sh pins all activation clauses",
+      "pass": true,
+      "detail": "{\"heading\":true,\"sensor\":true,\"stale\":true,\"repair\":true,\"foreign\":true}"
+    },
+    {
+      "name": "sensor-removal mutant is rejected",
+      "pass": true,
+      "detail": "sensor assertion changed true to false"
+    },
+    {
+      "name": "repair-removal mutant is rejected",
+      "pass": true,
+      "detail": "repair assertion changed true to false"
+    },
+    {
+      "name": "foreign-ownership mutant is rejected",
+      "pass": true,
+      "detail": "foreign assertion changed true to false"
+    },
+    {
+      "name": "plugin version surfaces agree at 0.5.2",
+      "pass": true,
+      "detail": "0.5.2,0.5.2,0.5.2"
+    }
+  ]
+}

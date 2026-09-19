@@ -1,0 +1,13 @@
+Fresh-context review round 1: FIX-THEN-SHIP
+
+Blocker: gate.txt exposed the OS account name and absolute home/worktree paths. Regenerate the
+transcript through a representation-aware scrubber at capture time and prove it with a
+binary-inclusive sweep.
+
+Resolution: capture-gate.mjs now scrubs source/home paths across Windows, doubled-separator, and MSYS
+forms before writing; rejects a non-idempotent scrub; and fails if the private account name remains
+in any evidence file. privacy-sweep.json records zero matches. An independent
+git grep --untracked -a sweep also returned zero matches.
+
+Fresh-context re-review: SHIP
+Remaining findings: none.
