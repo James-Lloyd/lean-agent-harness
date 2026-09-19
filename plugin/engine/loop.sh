@@ -306,8 +306,13 @@ PROJ_TYPE="$(cfg '.project.type')"; [ "$PROJ_TYPE" = "null" ] && PROJ_TYPE="gree
 echo "🔧 Harness loop | type=$PROJ_TYPE | mode=$MODE | maxIter=$MAX_ITER | maxTurns=$MAX_TURNS | model=${IMPLEMENT_MODEL:-inherit} | review=${REVIEW_ROUTE:-inherit}${REVIEW_SECOND:+ +second=$REVIEW_SECOND} | budget=$TOKEN_BUDGET"
 
 if [ "$MODE" = "auto" ] && [ "$(cfg '.verification.requireE2EEvidence')" = "true" ] && ! any_e2e; then
-  echo "⚠️  auto mode + requireE2EEvidence, but no e2e gate step is configured. The loop will commit on"
-  echo "    unit-green only. Add an e2e command to a component/root gate, or run /review periodically."
+  if [ "$(cfg '.loop.commitOnGreen')" = "true" ]; then
+    e2e_outcome="commit after the configured non-e2e gate passes"
+  else
+    e2e_outcome="leave the green changes uncommitted for a human to review"
+  fi
+  echo "WARNING: auto mode + requireE2EEvidence, but no e2e gate step is configured. The loop will $e2e_outcome."
+  echo "    Add an e2e command to a component/root gate, or run /review before accepting the change."
 fi
 
 # Honest guard (mirrors the e2e warning): the evaluator augments the periodic review point, which is gated
@@ -419,6 +424,12 @@ while [ "$i" -lt "$MAX_ITER" ]; do
     green_uf=false; [ "${INVOKE_PHASE_USED_FALLBACK:-0}" = "1" ] && green_uf=true
     ledger "{\"iter\":$i,\"result\":\"green\",\"path\":\"${INVOKE_PHASE_PATH:-}\",\"usedFallback\":$green_uf}"
     GREEN_COUNT=$((GREEN_COUNT+1))
+    if [ "$(cfg '.loop.commitOnGreen')" != "true" ]; then
+      # A later checkpoint shares this HEAD; rolling it back would erase accepted uncommitted work.
+      # Preserve the green tree by making the first green result the run boundary.
+      echo "STOP: commitOnGreen=false - preserving the green uncommitted changes and stopping before another iteration."
+      break
+    fi
     # Inferential judge, wired in: every N green iterations a fresh-context reviewer audits the batch.
     if [ "$REVIEW_EVERY_N" -gt 0 ] && [ "$(cfg '.loop.commitOnGreen')" = "true" ] && [ $((GREEN_COUNT % REVIEW_EVERY_N)) -eq 0 ]; then
       if periodic_review "$REVIEW_BASE" "$RUN_DIR" "$i"; then review_ok=0; else review_ok=1; fi

@@ -54,6 +54,8 @@ As the first commit, claim the chosen task with `- [ ] (wip: <branch>) ...`; lan
   effective state, not accepted syntax or hand-built argv. Record result-file-and-line citations.
 - Guard predicates need real inputs at real sizes, positive and negative controls, and pre-fix
   mutation proof that fails with a wrong value rather than an unrelated exception.
+- A green headless iteration without a commit is a terminal run boundary: never checkpoint the same
+  HEAD again while accepted uncommitted work exists. Cache wrappers rank semantic version before mtime.
 - Probes support output-directory and cost-skip controls, scrub paths before writing evidence, and
   must demonstrate both verdicts. Cite measured durations, costs, and counts.
 - Close a task only after grepping `AGENT_NOTES.md` and `state/` for its own why text; completed queue

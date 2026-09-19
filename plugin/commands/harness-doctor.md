@@ -63,7 +63,11 @@ behaves oddly.
 9. **Autonomy sanity.** If `mode == auto`: warn when `skipPermissions == true` without a documented
    sandbox; when `requireE2EEvidence == true` but no component/root gate defines an `e2e` step; and when
    `reviewEveryNIterations == 0` (the unattended loop will run the deterministic gate with no inferential
-   judge — fine, but say so).
+   judge — fine, but say so). In every mode, `autonomy.maxIterations > 1` together with
+   `loop.commitOnGreen == false` is ⚠️: the runner now stops after its first green result to preserve the
+   accepted uncommitted tree, so the configured extra iterations are unreachable. Set `maxIterations` to
+   1 for an honest no-commit configuration, or enable commits only if the operator explicitly wants each
+   accepted iteration recorded before the next checkpoint.
 
 10. **Model routing agrees across its surfaces (per-phase `{model, fallback, effort, fallbackEffort}`).**
     `config.models` is the declared table — each phase is `{ "model": <primary>, "fallback": <secondary|null>
@@ -278,6 +282,17 @@ behaves oddly.
       starting a new Codex session, reviewing/trusting all four entries in
       `/hooks`, and live-firing the disposable recursive-delete sentinel from `docs/codex-setup.md`
       before relying on the guard.
+
+14. **Consumer wrapper set is complete and current (plugin consumers only).** Skip with ℹ️ in the harness
+    development repo (where `plugin/engine/wrappers/` is the source) and in a deliberate pre-plugin
+    copied-in layout. Otherwise resolve the active installed plugin root exactly as checks 12-13 do, then
+    require all six thin entry points under the project `harness/` directory: `loop.ps1`, `loop.sh`,
+    `fleet.ps1`, `fleet.sh`, `codex-setup.ps1`, and `codex-setup.sh`. A missing file is ❌ because the
+    installed engine has no reliable terminal/cron entry point for that command. Compare each present file
+    with its namesake under `<installed-plugin-root>/engine/wrappers/` after normalizing only a UTF-8 BOM
+    and CRLF/LF line endings; any other difference is ❌ stale (an older resolver can silently dispatch an
+    inactive cache). Repair by running `/harness-migrate` with runner replacement approved, or by copying
+    the exact six installed wrappers; preserve `harness.config.json`, project routing, and project state.
 
 ## Output
 A short checklist (one line per check, ✅/⚠️/❌/ℹ️ + the finding — ℹ️ for a check that does not apply,

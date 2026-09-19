@@ -1299,6 +1299,9 @@ ok "doctor checks native Codex user-hook activation even without a codex model r
 ok "doctor invokes the installer freshness sensor" ($docMd62.Contains('install-codex-hooks.mjs --check'))
 ok "doctor grades a stale harness-owned manifest red and names its exact repair" ($docMd62.Contains('stale harness-owned hook file') -and $docMd62.Contains('Repair by invoking `$harness-codex-activate`'))
 ok "doctor refuses to overwrite foreign user hooks" ($docMd62.Contains('do not overwrite a foreign hook file'))
+ok "doctor warns when no-commit makes later configured iterations unreachable" ($docMd62.Contains('autonomy.maxIterations > 1') -and $docMd62.Contains('accepted uncommitted tree'))
+ok "doctor requires the complete six-file consumer wrapper set" ($docMd62.Contains('Consumer wrapper set is complete and current') -and $docMd62.Contains('`codex-setup.sh`'))
+ok "doctor compares consumer wrappers with installed sources after line-ending normalization" ($docMd62.Contains('normalizing only a UTF-8 BOM') -and $docMd62.Contains('inactive cache'))
 
 Write-Host "migrate: end-to-end classify + apply on a synthetic repo"
 # engine/migrate.ps1 has its own e2e self-test (build a synthetic copied-in harness, report, --apply);
@@ -1309,6 +1312,10 @@ ok "harness-migrate self-test passes" ($LASTEXITCODE -eq 0)
 Write-Host "codex timeout transcript: deterministic helper + real-loop rollback proof"
 & $psHost -NoProfile -ExecutionPolicy Bypass -File (Join-Path $here 'codex-timeout-test.ps1') 1>$null 2>$null
 ok "PowerShell Codex timeout transcript proof passes" ($LASTEXITCODE -eq 0)
+
+Write-Host "auto loop safety: preserve uncommitted green work and select the highest cache version"
+& $psHost -NoProfile -ExecutionPolicy Bypass -File (Join-Path $here 'auto-loop-wrapper-test.ps1') 1>$null 2>$null
+ok "PowerShell auto-loop and wrapper regression passes" ($LASTEXITCODE -eq 0)
 
 Write-Host "headless verification: model-side checks are bounded; runner keeps full-gate authority"
 & $psHost -NoProfile -ExecutionPolicy Bypass -File (Join-Path $here 'headless-verification-test.ps1') 1>$null 2>$null

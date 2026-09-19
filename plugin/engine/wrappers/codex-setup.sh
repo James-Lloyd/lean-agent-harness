@@ -11,14 +11,22 @@ find_engine() {
   if [ -n "${HARNESS_ENGINE:-}" ] && [ -f "$HARNESS_ENGINE/codex-setup.sh" ]; then echo "$HARNESS_ENGINE"; return; fi
   if [ -n "${CLAUDE_PLUGIN_ROOT:-}" ] && [ -f "$CLAUDE_PLUGIN_ROOT/engine/codex-setup.sh" ]; then echo "$CLAUDE_PLUGIN_ROOT/engine"; return; fi
   local base hit
-  for base in "$HOME/.codex/plugins/cache" "$HOME/.claude/plugins"; do
-    [ -d "$base" ] || continue
-    # Newest by mtime (a /plugin update keeps the old version ~7 days); GNU stat -c || BSD stat -f.
-    hit="$(find "$base" -type f -name codex-setup.sh -path '*lean-agent-harness*/engine/codex-setup.sh' 2>/dev/null \
-      | while IFS= read -r f; do printf '%s\t%s\n' "$(stat -c %Y "$f" 2>/dev/null || stat -f %m "$f" 2>/dev/null)" "$f"; done \
-      | sort -rn | head -1 | cut -f2-)"
-    if [ -n "$hit" ]; then dirname "$hit"; return; fi
-  done
+  hit="$(
+    for base in "$HOME/.codex/plugins/cache" "$HOME/.claude/plugins"; do
+      [ -d "$base" ] || continue
+      find "$base" -type f -name codex-setup.sh -path '*lean-agent-harness*/engine/codex-setup.sh' 2>/dev/null
+    done | while IFS= read -r f; do
+      version="$(basename "$(dirname "$(dirname "$f")")")"
+      version="${version%%[-+]*}"
+      IFS=. read -r major minor patch <<EOF
+$version
+EOF
+      case "$major.$minor.$patch" in *[!0-9.]*|.*|*..*|*.) major=0; minor=0; patch=0 ;; esac
+      printf '%09d%09d%09d\t%s\t%s\n' "${major:-0}" "${minor:-0}" "${patch:-0}" \
+        "$(stat -c %Y "$f" 2>/dev/null || stat -f %m "$f" 2>/dev/null)" "$f"
+    done | sort -t "$(printf '\t')" -k1,1r -k2,2nr | head -1 | cut -f3-
+  )"
+  if [ -n "$hit" ]; then dirname "$hit"; return; fi
   echo "lean-agent-harness engine not found. Install the plugin (/plugin install lean-agent-harness) or set \$HARNESS_ENGINE to its engine/ dir." >&2
   exit 1
 }
