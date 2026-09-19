@@ -175,13 +175,18 @@ try {
 
   # Runner wrappers
   $wrapperOk = $true; $bakOk = $true
-  foreach ($rn in @('loop.ps1', 'loop.sh', 'fleet.ps1', 'fleet.sh')) {
+  foreach ($rn in @('loop.ps1', 'loop.sh', 'fleet.ps1', 'fleet.sh', 'codex-setup.ps1', 'codex-setup.sh')) {
     $rp = Join-Path $tmp "harness/$rn"
     if (-not (Test-Path $rp) -or ((Get-Content -LiteralPath $rp -Raw) -notmatch 'HARNESS_ENGINE')) { $wrapperOk = $false }
+  }
+  foreach ($rn in @('loop.ps1', 'loop.sh', 'fleet.ps1', 'fleet.sh')) {
     if (-not (Test-Path (Join-Path $tmp "harness/$rn.pre-plugin.bak"))) { $bakOk = $false }
   }
-  ok "all 4 runners replaced by wrappers" $wrapperOk
-  ok "all 4 runners backed up to .pre-plugin.bak" $bakOk
+  $createdWithoutFakeBackup = (-not (Test-Path (Join-Path $tmp 'harness/codex-setup.ps1.pre-plugin.bak'))) -and
+    (-not (Test-Path (Join-Path $tmp 'harness/codex-setup.sh.pre-plugin.bak')))
+  ok "all 6 engine wrappers installed" $wrapperOk
+  ok "4 existing runners backed up to .pre-plugin.bak" $bakOk
+  ok "2 missing codex-setup wrappers created without fake backups" $createdWithoutFakeBackup
 
   # Never-touched scaffold
   ok "harness.config.json untouched" (-not (Compare-Object ([System.IO.File]::ReadAllBytes((Join-Path $tmp 'harness/harness.config.json'))) $cfgBytes))

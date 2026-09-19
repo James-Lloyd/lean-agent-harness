@@ -1263,6 +1263,9 @@ ok "$(grep -qF 'Codex user-hook activation freshness' "$DOC_MD" && echo 1 || ech
 ok "$(grep -qF 'install-codex-hooks.mjs --check' "$DOC_MD" && echo 1 || echo 0)"     "doctor invokes the installer freshness sensor"
 ok "$(grep -qF 'stale harness-owned hook file' "$DOC_MD" && grep -qF 'Repair by invoking `$harness-codex-activate`' "$DOC_MD" && echo 1 || echo 0)" "doctor grades a stale harness-owned manifest red and names its exact repair"
 ok "$(grep -qF 'do not overwrite a foreign hook file' "$DOC_MD" && echo 1 || echo 0)" "doctor refuses to overwrite foreign user hooks"
+ok "$(grep -qF 'autonomy.maxIterations > 1' "$DOC_MD" && grep -qF 'accepted uncommitted tree' "$DOC_MD" && echo 1 || echo 0)" "doctor warns when no-commit makes later configured iterations unreachable"
+ok "$(grep -qF 'Consumer wrapper set is complete and current' "$DOC_MD" && grep -qF '`codex-setup.sh`' "$DOC_MD" && echo 1 || echo 0)" "doctor requires the complete six-file consumer wrapper set"
+ok "$(grep -qF 'normalizing only a UTF-8 BOM' "$DOC_MD" && grep -qF 'inactive cache' "$DOC_MD" && echo 1 || echo 0)" "doctor compares consumer wrappers with installed sources after line-ending normalization"
 
 echo "migrate: end-to-end classify + apply on a synthetic repo"
 # engine/migrate.sh has its own e2e self-test (build a synthetic copied-in harness, report, --apply);
@@ -1273,6 +1276,10 @@ ok "$m_ok" "harness-migrate self-test passes"
 echo "codex timeout transcript: deterministic helper + real-loop rollback proof"
 if bash "$HERE/codex-timeout-test.sh" >/dev/null 2>&1; then ct_ok=1; else ct_ok=0; fi
 ok "$ct_ok" "Bash Codex timeout transcript proof passes"
+
+echo "auto loop safety: preserve uncommitted green work and select the highest cache version"
+if bash "$HERE/auto-loop-wrapper-test.sh" >/dev/null 2>&1; then al_ok=1; else al_ok=0; fi
+ok "$al_ok" "Bash auto-loop and wrapper regression passes"
 
 echo "headless verification: model-side checks are bounded; runner keeps full-gate authority"
 if bash "$HERE/headless-verification-test.sh" >/dev/null 2>&1; then hv_ok=1; else hv_ok=0; fi

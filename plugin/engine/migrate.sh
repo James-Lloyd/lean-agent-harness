@@ -4,7 +4,7 @@
 # migrate.ps1. Classifies every engine-ish file against the installed plugin (IDENTICAL / DIFFERS /
 # PROJECT-ONLY), never deleting a file whose content the plugin does not already provide verbatim.
 # Default = report only. --apply removes IDENTICAL files, strips duplicate engine hook wiring from
-# settings.json, installs the 4 runner wrappers, and writes harness/MIGRATION-REPORT.md (git-reversible).
+# settings.json, installs the 6 engine wrappers, and writes harness/MIGRATION-REPORT.md (git-reversible).
 #
 # Usage: bash engine/migrate.sh [--project-root <dir>] [--apply] [--replace-runners] [--force]
 # Requires: bash, git (for the dirty-tree guard), jq (settings.json surgery).
@@ -14,7 +14,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"   # <pluginRoot>/engi
 PLUGIN_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"                  # <pluginRoot>
 
 ENGINE_HOOK_NAMES=(block-destructive format-and-check lock-config protect-specs session-start)
-RUNNER_NAMES=(loop.ps1 loop.sh fleet.ps1 fleet.sh)
+RUNNER_NAMES=(loop.ps1 loop.sh fleet.ps1 fleet.sh codex-setup.ps1 codex-setup.sh)
 
 # --- args ----------------------------------------------------------------------
 APPLY=0; REPLACE_RUNNERS=0; FORCE=0; PROJECT_ROOT=""
@@ -107,12 +107,13 @@ classify_dir "$PROJECT_ROOT/harness/templates" "$PLUGIN_ROOT/engine/templates"
 RUNNERS=()
 for rn in "${RUNNER_NAMES[@]}"; do
   repo="$PROJECT_ROOT/harness/$rn"
-  [ -f "$repo" ] || continue
+  exists=0; [ -f "$repo" ] && exists=1
   engine="$SCRIPT_DIR/$rn"
-  if identical "$repo" "$engine"; then replace=1; reason="identical to engine -> thin wrapper (auto)"
+  if [ "$exists" = 0 ]; then replace=1; reason="missing -> thin wrapper (auto)"
+  elif identical "$repo" "$engine"; then replace=1; reason="identical to engine -> thin wrapper (auto)"
   elif [ "$REPLACE_RUNNERS" = 1 ]; then replace=1; reason="differs -> thin wrapper (--replace-runners)"
   else replace=0; reason="differs -> KEPT (pass --replace-runners to swap for a wrapper)"; fi
-  RUNNERS+=("$rn"$'\t'"$replace"$'\t'"$reason")
+  RUNNERS+=("$rn"$'\t'"$replace"$'\t'"$exists"$'\t'"$reason")
 done
 
 # --- print the classification report (always) ----------------------------------
@@ -140,9 +141,9 @@ for e in "${ITEMS[@]:-}"; do [ -n "$e" ] || continue
   IFS=$'\t' read -r class display repo plugin <<<"$e"
   [ "$class" = "PROJECT-ONLY" ] && echo "  + $display"; done
 echo ""
-echo "Runners (harness/loop.*, harness/fleet.*):"
+echo "Engine wrappers (harness/loop.*, harness/fleet.*, harness/codex-setup.*):"
 for e in "${RUNNERS[@]:-}"; do [ -n "$e" ] || continue
-  IFS=$'\t' read -r name replace reason <<<"$e"; echo "  * $name: $reason"; done
+  IFS=$'\t' read -r name replace exists reason <<<"$e"; echo "  * $name: $reason"; done
 echo ""
 
 if [ "$APPLY" != 1 ]; then
@@ -246,13 +247,14 @@ fi
 
 # 4. Install runner wrappers (special-case).
 WRAPPERS_INSTALLED=()
+WRAPPERS_CREATED=()
 RUNNERS_KEPT=()
 for e in "${RUNNERS[@]:-}"; do [ -n "$e" ] || continue
-  IFS=$'\t' read -r name replace reason <<<"$e"
+  IFS=$'\t' read -r name replace exists reason <<<"$e"
   repo="$PROJECT_ROOT/harness/$name"
   wrapper="$SCRIPT_DIR/wrappers/$name"
   if [ "$replace" = 1 ] && [ -f "$wrapper" ]; then
-    cp -f "$repo" "$repo.pre-plugin.bak"
+    if [ "$exists" = 1 ]; then cp -f "$repo" "$repo.pre-plugin.bak"; else WRAPPERS_CREATED+=("$name"); fi
     cp -f "$wrapper" "$repo"
     WRAPPERS_INSTALLED+=("$name")
   else
@@ -286,7 +288,14 @@ report="$PROJECT_ROOT/harness/MIGRATION-REPORT.md"
   if [ "${#SETTINGS_EDITS[@]}" -eq 0 ]; then echo "_none_"; else for x in "${SETTINGS_EDITS[@]}"; do echo "- $x"; done; fi
   echo ""
   echo "## Runner wrappers installed"
-  if [ "${#WRAPPERS_INSTALLED[@]}" -eq 0 ]; then echo "_none_"; else for x in "${WRAPPERS_INSTALLED[@]}"; do echo "- \`harness/$x\` (original backed up to \`harness/$x.pre-plugin.bak\`)"; done; fi
+  if [ "${#WRAPPERS_INSTALLED[@]}" -eq 0 ]; then
+    echo "_none_"
+  else
+    for x in "${WRAPPERS_INSTALLED[@]}"; do
+      created=0; for c in "${WRAPPERS_CREATED[@]:-}"; do [ "$x" = "$c" ] && created=1; done
+      if [ "$created" = 1 ]; then echo "- \`harness/$x\` (created)"; else echo "- \`harness/$x\` (original backed up to \`harness/$x.pre-plugin.bak\`)"; fi
+    done
+  fi
   if [ "${#RUNNERS_KEPT[@]}" -gt 0 ]; then
     echo ""
     echo "Runners kept (not swapped):"
@@ -296,7 +305,7 @@ report="$PROJECT_ROOT/harness/MIGRATION-REPORT.md"
   echo "## Manual next-steps"
   for w in "${WARNINGS[@]:-}"; do [ -n "$w" ] && echo "- WARN: $w"; done
   echo "- Review every **DIFFERS** file: port a genuine customization (e.g. a ratcheted denylist) into the plugin or a project hook, then remove the local copy; if it is merely an older plugin version, delete the local copy."
-  echo "- Confirm the \`.pre-plugin.bak\` runner backups can be deleted once the wrappers are verified."
+  echo "- Confirm any \`.pre-plugin.bak\` wrapper backups can be deleted once the wrappers are verified."
   echo "- Review \`git diff\` and commit."
 } > "$report"
 

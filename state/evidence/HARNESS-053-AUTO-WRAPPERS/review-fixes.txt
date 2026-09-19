@@ -1,0 +1,8 @@
+DATE=2026-09-19
+POWERSHELL_MIGRATE=44 passed, 0 failed
+BASH_MIGRATE=44 passed, 0 failed
+POWERSHELL_AUTO_LOOP_WRAPPER=9 passed, 0 failed
+BASH_AUTO_LOOP_WRAPPER=9 passed, 0 failed
+CODEX_TIMEOUT_MUTATION=powershell control passed; powershell mutant rejected; bash control passed; bash mutant rejected
+MANIFEST_VERSIONS=plugin/plugin.json 0.5.3; plugin/.claude-plugin/plugin.json 0.5.3; plugin/.codex-plugin/plugin.json 0.5.3
+PACKAGE_VALIDATION=passed

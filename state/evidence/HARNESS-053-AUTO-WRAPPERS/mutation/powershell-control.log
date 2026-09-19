@@ -1,0 +1,10 @@
+  ok  no-commit loop invokes the model exactly once
+  ok  first green uncommitted change survives
+  ok  ledger records one green uncommitted iteration
+  ok  no-commit warning tells the truth
+  ok  loop explains the safe stop boundary
+  ok  commit-enabled warning tells the truth
+  ok  wrapper selects 0.5.3 despite newer 0.5.1 timestamp
+AUTO LOOP + WRAPPER RESULT: 7 passed, 0 failed
+
+EXIT_CODE=0

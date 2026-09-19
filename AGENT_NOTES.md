@@ -213,3 +213,12 @@ NOT under the loop; `HARNESS_GATE_STRICT=1` turns a half-grade into a red exit i
   literal text and reported clean. Normalize with a case-insensitive pattern that accepts repeated
   forward/back separators and drive-letter/MSYS prefixes, rerun it to idempotence, then use
   `git grep -a` so BOM or binary-classified evidence cannot bypass the check.
+- [2026-09-19] **A green uncommitted loop iteration cannot safely share its HEAD with a later
+  checkpoint.** `commitOnGreen=false` previously let `maxIterations>1` continue from the same commit;
+  a later red/tampered iteration restored that commit and erased the earlier accepted green change.
+  Stop after the first green result whenever commits are disabled, make the warning state the real
+  outcome, and mutation-test by removing the stop so the second iteration destroys the first change.
+- [2026-09-19] **Plugin-cache timestamps do not identify the active release.** Retained 0.5.1 cache
+  files had newer mtimes than active 0.5.2, so a consumer wrapper dispatched the older engine. Search
+  both host caches as one candidate set, rank parsed semantic versions first and mtime only as a tie
+  breaker, and have doctor compare all six consumer wrappers with the installed package sources.

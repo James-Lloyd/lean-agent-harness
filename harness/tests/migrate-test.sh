@@ -154,13 +154,19 @@ ok "$(jq -e '.hooks | has("PreToolUse")' "$SETTINGS" >/dev/null 2>&1 && echo 1 |
 
 # Runner wrappers
 wrap_ok=1; bak_ok=1
-for rn in loop.ps1 loop.sh fleet.ps1 fleet.sh; do
+for rn in loop.ps1 loop.sh fleet.ps1 fleet.sh codex-setup.ps1 codex-setup.sh; do
   rp="$TMP/harness/$rn"
   { [ -f "$rp" ] && grep -q 'HARNESS_ENGINE' "$rp"; } || wrap_ok=0
+done
+for rn in loop.ps1 loop.sh fleet.ps1 fleet.sh; do
   [ -f "$TMP/harness/$rn.pre-plugin.bak" ] || bak_ok=0
 done
-ok "$wrap_ok" "all 4 runners replaced by wrappers"
-ok "$bak_ok"  "all 4 runners backed up to .pre-plugin.bak"
+created_ok=1
+[ -f "$TMP/harness/codex-setup.ps1.pre-plugin.bak" ] && created_ok=0
+[ -f "$TMP/harness/codex-setup.sh.pre-plugin.bak" ] && created_ok=0
+ok "$wrap_ok" "all 6 engine wrappers installed"
+ok "$bak_ok"  "4 existing runners backed up to .pre-plugin.bak"
+ok "$created_ok" "2 missing codex-setup wrappers created without fake backups"
 
 # Never-touched scaffold
 ok "$([ "$(cksum < "$TMP/harness/harness.config.json")" = "$cfg_sum" ] && echo 1 || echo 0)" "harness.config.json untouched"
