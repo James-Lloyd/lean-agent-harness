@@ -19,14 +19,14 @@
 
 ### Definition of done
 
-- [ ] A mutation-style regression proves the pre-fix loop can enter a second iteration with uncommitted green work, and both fixed twins stop after the first.
-- [ ] Warning tests cover both `commitOnGreen=true` and `false`.
-- [ ] Doctor text and twin tests diagnose `maxIterations>1 && commitOnGreen=false`, missing wrappers, and wrappers that differ from the installed plugin.
-- [ ] Wrapper tests prove an active 0.5.3 registration wins over a newer-timestamp 0.5.1 cache.
-- [ ] Plugin manifests, marketplace surfaces, generated skills, and validation agree on 0.5.3.
+- [x] A mutation-style regression proves the pre-fix loop can enter a second iteration with uncommitted green work, and both fixed twins stop after the first.
+- [x] Warning tests cover both `commitOnGreen=true` and `false`.
+- [x] Doctor text and twin tests diagnose `maxIterations>1 && commitOnGreen=false`, missing wrappers, and wrappers that differ from the installed plugin.
+- [x] Wrapper tests prove the highest semantic version wins across both cache roots even when the older version has the newer timestamp.
+- [x] Plugin manifests, marketplace surfaces, generated skills, and validation agree on 0.5.3.
 - [ ] Real migrated/initialized consumers dry-run through 0.5.3 without altering their product code.
 - [ ] End-to-end evidence is stored under `state/evidence/HARNESS-053-AUTO-WRAPPERS/`.
-- [ ] Both root gate twins pass; no tests or specs are weakened.
+- [x] Both root gate twins pass; no tests or specs are weakened.
 - [ ] A fresh-context reviewer returns SHIP before merge.
 
 ### How success is verified

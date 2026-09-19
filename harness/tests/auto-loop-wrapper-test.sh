@@ -14,7 +14,7 @@ new_repo() {
   "project":{"type":"greenfield","baseline":{"established":false,"ref":null}},
   "models":{"implement":{"model":"test-model","fallback":null},"review":{"model":"test-model","fallback":null},"evaluate":{"model":"test-model","fallback":null},"codex":{"auth":"chatgpt","timeoutSeconds":30}},
   "autonomy":{"mode":"auto","maxIterations":3,"maxTurnsPerIteration":2,"tokenBudget":null,"meterTokens":false,"skipPermissions":false,"checkpoints":{"planApproval":false,"beforeRiskyOps":false,"everyNIterations":0}},
-  "loop":{"promptFile":"PROMPT.md","planFile":"state/fix_plan.md","progressFile":"state/PROGRESS.md","oneItemPerIteration":true,"autoRollbackOnRed":true,"commitOnGreen":$commit,"tagOnGreen":false,"stopWhenPlanEmpty":true},
+  "loop":{"promptFile":"PROMPT.md","planFile":"state/fix_plan.md","progressFile":"state/PROGRESS.md","oneItemPerIteration":true,"autoRollbackOnRed":true,"commitOnGreen":$commit,"tagOnGreen":true,"stopWhenPlanEmpty":true},
   "verification":{"requireE2EEvidence":true,"reviewEveryNIterations":0,"evaluator":{"enabled":false}},
   "components":[{"name":"root","path":".","gate":{"format":null,"lint":null,"typecheck":null,"build":null,"test":"true","e2e":null}}],
   "gate":{"format":null,"lint":null,"typecheck":null,"build":null,"test":null,"e2e":null}
@@ -41,7 +41,8 @@ REPO="$WORK/no-commit"; COUNTER="$WORK/count.txt"; new_repo "$REPO" false
 ledger="$REPO/harness/.runs/run-001/ledger.jsonl"
 ok "$([ "$(cat "$COUNTER")" = 1 ] && echo 1 || echo 0)" 'no-commit loop invokes the model exactly once'
 ok "$([ "$(cat "$REPO/tracked.txt")" = green-one ] && echo 1 || echo 0)" 'first green uncommitted change survives'
-ok "$([ "$(grep -cF '"result":"green"' "$ledger")" -eq 1 ] && echo 1 || echo 0)" 'ledger records one green iteration'
+ok "$([ "$(grep -cF '"result":"green"' "$ledger")" -eq 1 ] && grep -qF '"committed":false' "$ledger" && echo 1 || echo 0)" 'ledger records one green uncommitted iteration'
+ok "$([ -z "$(git -C "$REPO" tag --list)" ] && echo 1 || echo 0)" 'no green tag points at the pre-iteration HEAD'
 ok "$(grep -qF 'leave the green changes uncommitted for a human to review' "$WORK/no-commit.out" && echo 1 || echo 0)" 'no-commit warning tells the truth'
 ok "$(grep -qF 'preserving the green uncommitted changes' "$WORK/no-commit.out" && echo 1 || echo 0)" 'loop explains the safe stop boundary'
 
@@ -51,13 +52,19 @@ ok "$(grep -qF 'commit after the configured non-e2e gate passes' "$WORK/commit.o
 
 FAKE_PROFILE="$WORK/profile"; CONSUMER="$WORK/consumer"; mkdir -p "$CONSUMER/harness"
 cp "$ENGINE/wrappers/loop.sh" "$CONSUMER/harness/loop.sh"
-for v in 0.5.1 0.5.3; do
-  dir="$FAKE_PROFILE/.claude/plugins/cache/lean-agent-harness/lean-agent-harness/$v/engine"; mkdir -p "$dir"
+for entry in '0.5.1 .claude' '0.5.3 .codex'; do
+  set -- $entry; v="$1"; cache_root="$2"
+  dir="$FAKE_PROFILE/$cache_root/plugins/cache/lean-agent-harness/lean-agent-harness/$v/engine"; mkdir -p "$dir"
   printf '#!/usr/bin/env bash\necho WRAPPER_VERSION=%s\n' "$v" > "$dir/loop.sh"; chmod +x "$dir/loop.sh"
 done
 touch -t 203001010000 "$FAKE_PROFILE/.claude/plugins/cache/lean-agent-harness/lean-agent-harness/0.5.1/engine/loop.sh"
 HOME="$FAKE_PROFILE" bash "$CONSUMER/harness/loop.sh" > "$WORK/wrapper.out" 2>&1
-ok "$(grep -qF 'WRAPPER_VERSION=0.5.3' "$WORK/wrapper.out" && echo 1 || echo 0)" 'wrapper selects 0.5.3 despite newer 0.5.1 timestamp'
+ok "$(grep -qF 'WRAPPER_VERSION=0.5.3' "$WORK/wrapper.out" && echo 1 || echo 0)" 'wrapper selects newer Codex-cache version despite Claude-cache timestamp'
+dir="$FAKE_PROFILE/.claude/plugins/cache/lean-agent-harness/lean-agent-harness/0.5.4/engine"; mkdir -p "$dir"
+printf '#!/usr/bin/env bash\necho WRAPPER_VERSION=0.5.4\n' > "$dir/loop.sh"; chmod +x "$dir/loop.sh"
+touch -t 203101010000 "$FAKE_PROFILE/.codex/plugins/cache/lean-agent-harness/lean-agent-harness/0.5.3/engine/loop.sh"
+HOME="$FAKE_PROFILE" bash "$CONSUMER/harness/loop.sh" > "$WORK/wrapper-claude.out" 2>&1
+ok "$(grep -qF 'WRAPPER_VERSION=0.5.4' "$WORK/wrapper-claude.out" && echo 1 || echo 0)" 'wrapper selects newer Claude-cache version despite Codex-cache timestamp'
 
 echo "AUTO LOOP + WRAPPER RESULT: $pass passed, $fail failed"
 [ "$fail" -eq 0 ]

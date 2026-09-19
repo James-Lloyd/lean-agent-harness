@@ -13,7 +13,7 @@
   The tool NEVER deletes a file whose content the plugin does not already provide verbatim, so no
   ratchet and no local edit can be lost. Default = report only. -Apply performs the (git-reversible)
   cleanup: remove IDENTICAL engine files, strip the duplicate engine hook wiring from settings.json,
-  install the 4 thin runner wrappers, and write harness/MIGRATION-REPORT.md.
+  install the 6 thin engine wrappers, and write harness/MIGRATION-REPORT.md.
 
 .EXAMPLE
   powershell -File engine/migrate.ps1                 # report only, against the CWD's repo
@@ -48,7 +48,7 @@ $ProjectRoot = (Resolve-Path $ProjectRoot).Path
 
 # The 5 engine hooks (repo won't carry the plugin's run.mjs / hooks.json).
 $EngineHookNames = @('block-destructive', 'format-and-check', 'lock-config', 'protect-specs', 'session-start')
-$RunnerNames = @('loop.ps1', 'loop.sh', 'fleet.ps1', 'fleet.sh')
+$RunnerNames = @('loop.ps1', 'loop.sh', 'fleet.ps1', 'fleet.sh', 'codex-setup.ps1', 'codex-setup.sh')
 
 # --- helpers -------------------------------------------------------------------
 function Get-NormalizedText([string]$path) {
@@ -165,16 +165,17 @@ if (Test-Path -LiteralPath $repoSchema) {
 $runners = @()
 foreach ($rn in $RunnerNames) {
   $repoR = Join-Path $ProjectRoot ('harness/' + $rn)
-  if (-not (Test-Path -LiteralPath $repoR)) { continue }
+  $exists = Test-Path -LiteralPath $repoR
   $engineR = Join-Path $EngineDir $rn
-  $ident = Test-Identical $repoR $engineR
-  $shouldReplace = $ident -or [bool]$ReplaceRunners
-  $reason = if ($ident) { 'identical to engine -> thin wrapper (auto)' }
+  $ident = $exists -and (Test-Identical $repoR $engineR)
+  $shouldReplace = (-not $exists) -or $ident -or [bool]$ReplaceRunners
+  $reason = if (-not $exists) { 'missing -> thin wrapper (auto)' }
+            elseif ($ident) { 'identical to engine -> thin wrapper (auto)' }
             elseif ($ReplaceRunners) { 'differs -> thin wrapper (-ReplaceRunners)' }
             else { 'differs -> KEPT (pass -ReplaceRunners to swap for a wrapper)' }
   $runners += [pscustomobject]@{
     Name = $rn; RepoPath = $repoR; WrapperPath = (Join-Path $EngineDir ('wrappers/' + $rn))
-    Identical = $ident; Replace = $shouldReplace; Reason = $reason
+    Exists = $exists; Identical = $ident; Replace = $shouldReplace; Reason = $reason
   }
 }
 
@@ -199,7 +200,7 @@ Write-Host ""
 Write-Host ("PROJECT-ONLY (KEPT — yours) — {0} file(s):" -f $projectOnly.Count)
 foreach ($i in $projectOnly) { Write-Host ("  + {0}" -f $i.Display) }
 Write-Host ""
-Write-Host "Runners (harness/loop.*, harness/fleet.*):"
+Write-Host "Engine wrappers (harness/loop.*, harness/fleet.*, harness/codex-setup.*):"
 foreach ($r in $runners) { Write-Host ("  * {0}: {1}" -f $r.Name, $r.Reason) }
 Write-Host ""
 
@@ -299,10 +300,15 @@ if (Test-Path -LiteralPath $settingsPath) {
 
 # 4. Install runner wrappers (special-case).
 $wrappersInstalled = @()
+$wrappersCreated = @()
 $runnersKept = @()
 foreach ($r in $runners) {
   if ($r.Replace -and (Test-Path -LiteralPath $r.WrapperPath)) {
-    Copy-Item -LiteralPath $r.RepoPath -Destination ($r.RepoPath + '.pre-plugin.bak') -Force
+    if ($r.Exists) {
+      Copy-Item -LiteralPath $r.RepoPath -Destination ($r.RepoPath + '.pre-plugin.bak') -Force
+    } else {
+      $wrappersCreated += $r.Name
+    }
     Copy-Item -LiteralPath $r.WrapperPath -Destination $r.RepoPath -Force
     $wrappersInstalled += $r.Name
   } else {
@@ -335,7 +341,14 @@ if ($projectOnly.Count -eq 0) { [void]$sb.AppendLine("_none_") } else { foreach 
 if ($settingsEdits.Count -eq 0) { [void]$sb.AppendLine("_none_") } else { foreach ($x in $settingsEdits) { [void]$sb.AppendLine("- $x") } }
 [void]$sb.AppendLine("")
 [void]$sb.AppendLine("## Runner wrappers installed")
-if ($wrappersInstalled.Count -eq 0) { [void]$sb.AppendLine("_none_") } else { foreach ($x in $wrappersInstalled) { [void]$sb.AppendLine("- ``harness/$x`` (original backed up to ``harness/$x.pre-plugin.bak``)") } }
+if ($wrappersInstalled.Count -eq 0) {
+  [void]$sb.AppendLine("_none_")
+} else {
+  foreach ($x in $wrappersInstalled) {
+    if ($wrappersCreated -contains $x) { [void]$sb.AppendLine("- ``harness/$x`` (created)") }
+    else { [void]$sb.AppendLine("- ``harness/$x`` (original backed up to ``harness/$x.pre-plugin.bak``)") }
+  }
+}
 if ($runnersKept.Count -gt 0) {
   [void]$sb.AppendLine("")
   [void]$sb.AppendLine("Runners kept (not swapped):")
@@ -345,7 +358,7 @@ if ($runnersKept.Count -gt 0) {
 [void]$sb.AppendLine("## Manual next-steps")
 foreach ($w in $warnings) { [void]$sb.AppendLine("- WARN: $w") }
 [void]$sb.AppendLine("- Review every **DIFFERS** file: port a genuine customization (e.g. a ratcheted denylist) into the plugin or a project hook, then remove the local copy; if it is merely an older plugin version, delete the local copy.")
-[void]$sb.AppendLine("- Confirm the ``.pre-plugin.bak`` runner backups can be deleted once the wrappers are verified.")
+[void]$sb.AppendLine("- Confirm any ``.pre-plugin.bak`` wrapper backups can be deleted once the wrappers are verified.")
 [void]$sb.AppendLine("- Review ``git diff`` and commit.")
 $reportPath = Join-Path $ProjectRoot 'harness/MIGRATION-REPORT.md'
 $utf8NoBom = New-Object System.Text.UTF8Encoding($false)

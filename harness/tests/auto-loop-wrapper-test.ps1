@@ -21,7 +21,7 @@ function New-TestRepo([string]$Path, [bool]$Commit) {
   "project":{"type":"greenfield","baseline":{"established":false,"ref":null}},
   "models":{"implement":{"model":"test-model","fallback":null},"review":{"model":"test-model","fallback":null},"evaluate":{"model":"test-model","fallback":null},"codex":{"auth":"chatgpt","timeoutSeconds":30}},
   "autonomy":{"mode":"auto","maxIterations":3,"maxTurnsPerIteration":2,"tokenBudget":null,"meterTokens":false,"skipPermissions":false,"checkpoints":{"planApproval":false,"beforeRiskyOps":false,"everyNIterations":0}},
-  "loop":{"promptFile":"PROMPT.md","planFile":"state/fix_plan.md","progressFile":"state/PROGRESS.md","oneItemPerIteration":true,"autoRollbackOnRed":true,"commitOnGreen":__COMMIT__,"tagOnGreen":false,"stopWhenPlanEmpty":true},
+  "loop":{"promptFile":"PROMPT.md","planFile":"state/fix_plan.md","progressFile":"state/PROGRESS.md","oneItemPerIteration":true,"autoRollbackOnRed":true,"commitOnGreen":__COMMIT__,"tagOnGreen":true,"stopWhenPlanEmpty":true},
   "verification":{"requireE2EEvidence":true,"reviewEveryNIterations":0,"evaluator":{"enabled":false}},
   "components":[{"name":"root","path":".","gate":{"format":null,"lint":null,"typecheck":null,"build":null,"test":"exit 0","e2e":null}}],
   "gate":{"format":null,"lint":null,"typecheck":null,"build":null,"test":null,"e2e":null}
@@ -63,6 +63,7 @@ Write-Output "stub invocation $n"
   ok 'no-commit loop invokes the model exactly once' ((Get-Content $counter -Raw).Trim() -eq '1')
   ok 'first green uncommitted change survives' ((Get-Content (Join-Path $repo 'tracked.txt') -Raw) -eq 'green-one')
   ok 'ledger records one green uncommitted iteration' (($ledger -split "`n" | Where-Object { $_.Trim() }).Count -eq 1 -and $ledger.Contains('"committed":false'))
+  ok 'no green tag points at the pre-iteration HEAD' (-not ((& git -C $repo tag --list | Out-String).Trim()))
   ok 'no-commit warning tells the truth' ($out.Contains('leave the green changes uncommitted for a human to review'))
   ok 'loop explains the safe stop boundary' ($out.Contains('preserving the green uncommitted changes'))
 
@@ -74,8 +75,9 @@ Write-Output "stub invocation $n"
   $fakeProfile = Join-Path $work 'profile'; $consumer = Join-Path $work 'consumer'
   New-Item -ItemType Directory -Force -Path (Join-Path $consumer 'harness') | Out-Null
   Copy-Item (Join-Path $engine 'wrappers/loop.ps1') (Join-Path $consumer 'harness/loop.ps1')
-  foreach ($v in @('0.5.1','0.5.3')) {
-    $dir = Join-Path $fakeProfile ".claude/plugins/cache/lean-agent-harness/lean-agent-harness/$v/engine"
+  foreach ($entry in @(@('0.5.1','.claude'), @('0.5.3','.codex'))) {
+    $v = $entry[0]; $cacheRoot = $entry[1]
+    $dir = Join-Path $fakeProfile "$cacheRoot/plugins/cache/lean-agent-harness/lean-agent-harness/$v/engine"
     New-Item -ItemType Directory -Force -Path $dir | Out-Null
     Write-Utf8 (Join-Path $dir 'loop.ps1') "Write-Output 'WRAPPER_VERSION=$v'`n"
   }
@@ -85,13 +87,19 @@ Write-Output "stub invocation $n"
   try {
     $env:USERPROFILE=$fakeProfile
     Remove-Item Env:HARNESS_ENGINE,Env:CLAUDE_PLUGIN_ROOT -ErrorAction SilentlyContinue
-    $wrapperOut=(& powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $consumer 'harness/loop.ps1') 2>&1 | Out-String)
+    $wrapperOutCodex=(& powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $consumer 'harness/loop.ps1') 2>&1 | Out-String)
+    $claudeNewest = Join-Path $fakeProfile '.claude/plugins/cache/lean-agent-harness/lean-agent-harness/0.5.4/engine'
+    New-Item -ItemType Directory -Force -Path $claudeNewest | Out-Null
+    Write-Utf8 (Join-Path $claudeNewest 'loop.ps1') "Write-Output 'WRAPPER_VERSION=0.5.4'`n"
+    [IO.File]::SetLastWriteTimeUtc((Join-Path $fakeProfile '.codex/plugins/cache/lean-agent-harness/lean-agent-harness/0.5.3/engine/loop.ps1'), [DateTime]::UtcNow.AddHours(2))
+    $wrapperOutClaude=(& powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $consumer 'harness/loop.ps1') 2>&1 | Out-String)
   } finally {
     $env:USERPROFILE=$oldProfile
     if ($null -ne $oldEngine) { $env:HARNESS_ENGINE=$oldEngine } else { Remove-Item Env:HARNESS_ENGINE -ErrorAction SilentlyContinue }
     if ($null -ne $oldRoot) { $env:CLAUDE_PLUGIN_ROOT=$oldRoot } else { Remove-Item Env:CLAUDE_PLUGIN_ROOT -ErrorAction SilentlyContinue }
   }
-  ok 'wrapper selects 0.5.3 despite newer 0.5.1 timestamp' ($wrapperOut.Contains('WRAPPER_VERSION=0.5.3'))
+  ok 'wrapper selects newer Codex-cache version despite Claude-cache timestamp' ($wrapperOutCodex.Contains('WRAPPER_VERSION=0.5.3'))
+  ok 'wrapper selects newer Claude-cache version despite Codex-cache timestamp' ($wrapperOutClaude.Contains('WRAPPER_VERSION=0.5.4'))
 } finally {
   if ($work.StartsWith([IO.Path]::GetTempPath(), [StringComparison]::OrdinalIgnoreCase)) { Remove-Item -Recurse -Force -LiteralPath $work -ErrorAction SilentlyContinue }
 }

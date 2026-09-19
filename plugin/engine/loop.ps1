@@ -484,7 +484,7 @@ while ($i -lt $cfg.autonomy.maxIterations) {
   if ($gateResult.Passed) {
     Write-Host "🟢 Gate green." -ForegroundColor Green
     if ($commitOnGreen) { Commit-Iteration -Index $i }
-    if ($tagOnGreen)    { Tag-Iteration -Index $i -RunId $runId }
+    if ($commitOnGreen -and $tagOnGreen) { Tag-Iteration -Index $i -RunId $runId }
     Clear-Checkpoint
     Write-Ledger @{ iter = $i; result = 'green'; committed = $commitOnGreen; path = "$($phase.Path)"; usedFallback = [bool]$phase.UsedFallback }
     $greenCount++

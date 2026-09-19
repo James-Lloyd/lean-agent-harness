@@ -65,7 +65,8 @@ behaves oddly.
    `reviewEveryNIterations == 0` (the unattended loop will run the deterministic gate with no inferential
    judge — fine, but say so). In every mode, `autonomy.maxIterations > 1` together with
    `loop.commitOnGreen == false` is ⚠️: the runner now stops after its first green result to preserve the
-   accepted uncommitted tree, so the configured extra iterations are unreachable. Set `maxIterations` to
+   accepted uncommitted tree, so iterations after the first green result (including multiple green
+   tasks in one run) are unreachable. Set `maxIterations` to
    1 for an honest no-commit configuration, or enable commits only if the operator explicitly wants each
    accepted iteration recorded before the next checkpoint.
 

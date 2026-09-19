@@ -418,11 +418,15 @@ while [ "$i" -lt "$MAX_ITER" ]; do
   echo "🔬 Running verification gate..."
   if run_gate "$CONFIG"; then
     echo "🟢 Gate green."
-    [ "$(cfg '.loop.commitOnGreen')" = "true" ] && commit_iteration "$i"
-    [ "$(cfg '.loop.tagOnGreen')" = "true" ]    && tag_iteration "$i" "$RUN_ID"
+    green_committed=false
+    if [ "$(cfg '.loop.commitOnGreen')" = "true" ]; then
+      commit_iteration "$i"
+      green_committed=true
+      [ "$(cfg '.loop.tagOnGreen')" = "true" ] && tag_iteration "$i" "$RUN_ID"
+    fi
     clear_checkpoint
     green_uf=false; [ "${INVOKE_PHASE_USED_FALLBACK:-0}" = "1" ] && green_uf=true
-    ledger "{\"iter\":$i,\"result\":\"green\",\"path\":\"${INVOKE_PHASE_PATH:-}\",\"usedFallback\":$green_uf}"
+    ledger "{\"iter\":$i,\"result\":\"green\",\"committed\":$green_committed,\"path\":\"${INVOKE_PHASE_PATH:-}\",\"usedFallback\":$green_uf}"
     GREEN_COUNT=$((GREEN_COUNT+1))
     if [ "$(cfg '.loop.commitOnGreen')" != "true" ]; then
       # A later checkpoint shares this HEAD; rolling it back would erase accepted uncommitted work.
