@@ -1,0 +1,14 @@
+DATE=2026-09-20
+SOURCE_CODE_COMMIT=d4e48fd
+POWERSHELL_MIGRATE=44 passed, 0 failed
+BASH_MIGRATE=44 passed, 0 failed
+POWERSHELL_AUTO_LOOP_WRAPPER=13 passed, 0 failed
+BASH_AUTO_LOOP_WRAPPER=13 passed, 0 failed
+INVALID_VERSION_PRE_FIX_RED=PowerShell 11 passed, 2 failed; Bash 11 passed, 2 failed; only prerelease and leading-zero cache assertions failed
+ROOT_GATE=PowerShell 450 passed, 0 failed; Bash 443 passed, 0 failed
+CODEX_TIMEOUT_MUTATION=powershell control passed; powershell mutant rejected; bash control passed; bash mutant rejected
+MANIFEST_VERSIONS=plugin/plugin.json 0.5.3; plugin/.claude-plugin/plugin.json 0.5.3; plugin/.codex-plugin/plugin.json 0.5.3
+MANIFEST_ASSERTION=exact release 0.5.3
+PACKAGE_VALIDATION=passed
+REVIEW_ROUND_1=FIX-THEN-SHIP; exact version assertion, raw consumer evidence, upgrade guidance, and prerelease ordering blockers addressed
+REVIEW_ROUND_2=FIX-THEN-SHIP; PowerShell leading-zero acceptance diverged from Bash; strict stable-version regex and all-six-wrapper twin controls added

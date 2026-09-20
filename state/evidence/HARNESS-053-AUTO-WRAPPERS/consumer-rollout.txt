@@ -1,0 +1,352 @@
+DATE=2026-09-20
+SOURCE_CODE_COMMIT=d4e48fd
+TRANSCRIPT=commands were executed against the named installed caches and clean consumer worktrees; absolute local roots are scrubbed
+
+[SOURCE]
+PATH=<SOURCE_WORKTREE>\plugin
+COMMAND=read .claude-plugin/plugin.json version
+VERSION=0.5.3
+COMMAND=Get-FileHash -Algorithm SHA256 <artifact>
+engine/loop.ps1 SHA256=cf1489ea8cf516fa2a16efd9b260d0a3f9a0d53188594d5ab4e85cbc3f913c47
+engine/wrappers/loop.ps1 SHA256=538ee11a7e20be553db48b88b23db1f42f4a48f5175ee5dd925c7903aa978691
+engine/wrappers/loop.sh SHA256=bfb3fca93a79d5308edb81be8e672edb211117d8e067fbcbdefeda7e2fb79bc2
+engine/wrappers/fleet.ps1 SHA256=455572e01ba82970a285294d04d277cbbaf313ab11624bbcf67f171d5bcc5b22
+engine/wrappers/fleet.sh SHA256=336ae72c90568cea68e82ee24c5a7735a7355d8852792d8d1100efedeb45d97c
+engine/wrappers/codex-setup.ps1 SHA256=e23ef03e25fe6f8bf9d38a28feb8921a1442607a24467832a972c1c5a445094c
+engine/wrappers/codex-setup.sh SHA256=d446feeb9d3c582afa4de031d7bb4110ffb3971b7a9badba4c83ab27c6132eb0
+CODEX_BANNER_MATCHES=1
+
+[CODEX_CACHE]
+PATH=<USER_HOME>\.codex\plugins\cache\lean-agent-harness\lean-agent-harness\0.5.3
+COMMAND=read .claude-plugin/plugin.json version
+VERSION=0.5.3
+COMMAND=Get-FileHash -Algorithm SHA256 <artifact>
+engine/loop.ps1 SHA256=cf1489ea8cf516fa2a16efd9b260d0a3f9a0d53188594d5ab4e85cbc3f913c47
+engine/wrappers/loop.ps1 SHA256=538ee11a7e20be553db48b88b23db1f42f4a48f5175ee5dd925c7903aa978691
+engine/wrappers/loop.sh SHA256=bfb3fca93a79d5308edb81be8e672edb211117d8e067fbcbdefeda7e2fb79bc2
+engine/wrappers/fleet.ps1 SHA256=455572e01ba82970a285294d04d277cbbaf313ab11624bbcf67f171d5bcc5b22
+engine/wrappers/fleet.sh SHA256=336ae72c90568cea68e82ee24c5a7735a7355d8852792d8d1100efedeb45d97c
+engine/wrappers/codex-setup.ps1 SHA256=e23ef03e25fe6f8bf9d38a28feb8921a1442607a24467832a972c1c5a445094c
+engine/wrappers/codex-setup.sh SHA256=d446feeb9d3c582afa4de031d7bb4110ffb3971b7a9badba4c83ab27c6132eb0
+CODEX_BANNER_MATCHES=1
+
+[CLAUDE_CACHE]
+PATH=<USER_HOME>\.claude\plugins\cache\lean-agent-harness\lean-agent-harness\0.5.3
+COMMAND=read .claude-plugin/plugin.json version
+VERSION=0.5.3
+COMMAND=Get-FileHash -Algorithm SHA256 <artifact>
+engine/loop.ps1 SHA256=cf1489ea8cf516fa2a16efd9b260d0a3f9a0d53188594d5ab4e85cbc3f913c47
+engine/wrappers/loop.ps1 SHA256=538ee11a7e20be553db48b88b23db1f42f4a48f5175ee5dd925c7903aa978691
+engine/wrappers/loop.sh SHA256=bfb3fca93a79d5308edb81be8e672edb211117d8e067fbcbdefeda7e2fb79bc2
+engine/wrappers/fleet.ps1 SHA256=455572e01ba82970a285294d04d277cbbaf313ab11624bbcf67f171d5bcc5b22
+engine/wrappers/fleet.sh SHA256=336ae72c90568cea68e82ee24c5a7735a7355d8852792d8d1100efedeb45d97c
+engine/wrappers/codex-setup.ps1 SHA256=e23ef03e25fe6f8bf9d38a28feb8921a1442607a24467832a972c1c5a445094c
+engine/wrappers/codex-setup.sh SHA256=d446feeb9d3c582afa4de031d7bb4110ffb3971b7a9badba4c83ab27c6132eb0
+CODEX_BANNER_MATCHES=1
+
+[CACHE_SOURCE_PARITY]
+COMMAND=compare SHA256 for source, Codex cache, and Claude cache
+engine/loop.ps1 SOURCE_CODEX_CLAUDE_MATCH=True
+engine/wrappers/loop.ps1 SOURCE_CODEX_CLAUDE_MATCH=True
+engine/wrappers/loop.sh SOURCE_CODEX_CLAUDE_MATCH=True
+engine/wrappers/fleet.ps1 SOURCE_CODEX_CLAUDE_MATCH=True
+engine/wrappers/fleet.sh SOURCE_CODEX_CLAUDE_MATCH=True
+engine/wrappers/codex-setup.ps1 SOURCE_CODEX_CLAUDE_MATCH=True
+engine/wrappers/codex-setup.sh SOURCE_CODEX_CLAUDE_MATCH=True
+
+[CODEX_HOOK_CHECK]
+COMMAND=node <CODEX_CACHE>/scripts/install-codex-hooks.mjs --check
+fresh: <USER_HOME>\.codex\hooks.json
+EXIT_CODE=0
+
+[BulkGameKeys]
+PR=https://github.com/bulkgamekeys/bulkgamekeys-workspace/pull/157
+BASE=origin/master
+COMMAND=git rev-parse HEAD
+0d0fc1bb322381f5e70a974def45123fb3046220
+EXIT_CODE=0
+COMMAND=git status --short
+<clean>
+EXIT_CODE=0
+COMMAND=git diff --name-status origin/master...HEAD
+M	.gitignore
+M	harness/MIGRATION-REPORT.md
+A	harness/codex-setup.ps1
+A	harness/codex-setup.sh
+A	harness/fleet.ps1
+A	harness/fleet.sh
+M	harness/loop.ps1
+M	harness/loop.sh
+EXIT_CODE=0
+COMMAND=git diff <BASE>...HEAD -- harness/harness.config.json
+<no diff>
+CONFIG_DIFF_BYTES=0
+IMPLEMENT_MODEL=codex
+AUTONOMY_MODE=auto
+MAX_ITERATIONS=1
+COMMIT_ON_GREEN=False
+COMMAND=powershell -NoProfile -ExecutionPolicy Bypass -File harness/codex-setup.ps1 -Check
+codex-setup: fresh (plugin 0.5.3)
+EXIT_CODE=0
+COMMAND=powershell -NoProfile -ExecutionPolicy Bypass -File harness/loop.ps1 -DryRun
+🔧 Harness loop | type=brownfield | mode=auto | maxIter=1 | maxTurns=40 | model=codex | review=fable | budget=
+⚠️  auto mode + requireE2EEvidence, but no e2e gate step is configured. The loop will leave the green changes uncommitted for a human to review.
+    Add an e2e command to a component/root gate, or run /review before accepting the change.
+⚠️  AUTO mode on a BROWNFIELD codebase. The auto-loop is designed for greenfield; on existing
+    code it risks wide, subtle regressions. Supervised + small isolated tasks is recommended.
+ℹ️  Headless runs auto-deny non-allowlisted commands. Ensure the gate commands (test/build/lint)
+    are in .claude/settings.json permissions.allow (/harness-init adds them).
+
+⚠️  AUTO mode but NOT in a recognized SANDBOX. This run is full-auto and UNATTENDED.
+    Unattended auto should run inside the documented isolation profile (container/devcontainer or
+    WSL2-native FS), not directly on your host. The destructive-command deny-list is defense-in-
+    depth, NOT a sandbox — and --dangerously-skip-permissions voids it entirely.
+    See docs/sandboxing.md. Mark a sandbox explicitly with:  $env:HARNESS_SANDBOX = '1'
+
+
+──────── iteration 1 / 1 ────────
+[dry-run] would dispatch PROMPT.md through Invoke-Phase -> codex --sandbox workspace-write --ask-for-approval never exec - ; then run the gate.
+
+🏁 Loop finished after 1 iteration(s). Logs + ledger: <CONSUMER_WORKTREE>\harness\.runs\run-007
+   Next: run /review for a fresh-context QA pass before you trust this.
+EXIT_CODE=0
+COMMAND=Get-FileHash -Algorithm SHA256 harness/<wrapper>
+loop.ps1 SHA256=538ee11a7e20be553db48b88b23db1f42f4a48f5175ee5dd925c7903aa978691 SOURCE_MATCH=True
+loop.sh SHA256=bfb3fca93a79d5308edb81be8e672edb211117d8e067fbcbdefeda7e2fb79bc2 SOURCE_MATCH=True
+fleet.ps1 SHA256=455572e01ba82970a285294d04d277cbbaf313ab11624bbcf67f171d5bcc5b22 SOURCE_MATCH=True
+fleet.sh SHA256=336ae72c90568cea68e82ee24c5a7735a7355d8852792d8d1100efedeb45d97c SOURCE_MATCH=True
+codex-setup.ps1 SHA256=e23ef03e25fe6f8bf9d38a28feb8921a1442607a24467832a972c1c5a445094c SOURCE_MATCH=True
+codex-setup.sh SHA256=d446feeb9d3c582afa4de031d7bb4110ffb3971b7a9badba4c83ab27c6132eb0 SOURCE_MATCH=True
+COMMAND=git status --short (post-run)
+<clean>
+EXIT_CODE=0
+
+[ProfileBuildr]
+PR=https://github.com/James-Lloyd/profilebuildr/pull/2
+BASE=origin/feat/profilebuildr-redesign
+COMMAND=git rev-parse HEAD
+dbc9399e921a3ea86097e15f0912b57c318026ea
+EXIT_CODE=0
+COMMAND=git status --short
+<clean>
+EXIT_CODE=0
+COMMAND=git diff --name-status origin/feat/profilebuildr-redesign...HEAD
+A	harness/MIGRATION-REPORT.md
+M	harness/codex-setup.ps1
+M	harness/codex-setup.sh
+M	harness/fleet.ps1
+M	harness/fleet.sh
+M	harness/loop.ps1
+M	harness/loop.sh
+EXIT_CODE=0
+COMMAND=git diff <BASE>...HEAD -- harness/harness.config.json
+<no diff>
+CONFIG_DIFF_BYTES=0
+IMPLEMENT_MODEL=codex
+AUTONOMY_MODE=supervised
+MAX_ITERATIONS=1
+COMMIT_ON_GREEN=False
+COMMAND=powershell -NoProfile -ExecutionPolicy Bypass -File harness/codex-setup.ps1 -Check
+codex-setup: fresh (plugin 0.5.3)
+EXIT_CODE=0
+COMMAND=powershell -NoProfile -ExecutionPolicy Bypass -File harness/loop.ps1 -DryRun
+🔧 Harness loop | type=brownfield | mode=supervised | maxIter=1 | maxTurns=40 | model=codex | review=codex | budget=
+ℹ️  Headless runs auto-deny non-allowlisted commands. Ensure the gate commands (test/build/lint)
+    are in .claude/settings.json permissions.allow (/harness-init adds them).
+✅ fix_plan.md has no open items. Nothing to do — stopping.
+
+🏁 Loop finished after 1 iteration(s). Logs + ledger: <CONSUMER_WORKTREE>\harness\.runs\run-008
+   Next: run /review for a fresh-context QA pass before you trust this.
+EXIT_CODE=0
+COMMAND=Get-FileHash -Algorithm SHA256 harness/<wrapper>
+loop.ps1 SHA256=538ee11a7e20be553db48b88b23db1f42f4a48f5175ee5dd925c7903aa978691 SOURCE_MATCH=True
+loop.sh SHA256=bfb3fca93a79d5308edb81be8e672edb211117d8e067fbcbdefeda7e2fb79bc2 SOURCE_MATCH=True
+fleet.ps1 SHA256=455572e01ba82970a285294d04d277cbbaf313ab11624bbcf67f171d5bcc5b22 SOURCE_MATCH=True
+fleet.sh SHA256=336ae72c90568cea68e82ee24c5a7735a7355d8852792d8d1100efedeb45d97c SOURCE_MATCH=True
+codex-setup.ps1 SHA256=e23ef03e25fe6f8bf9d38a28feb8921a1442607a24467832a972c1c5a445094c SOURCE_MATCH=True
+codex-setup.sh SHA256=d446feeb9d3c582afa4de031d7bb4110ffb3971b7a9badba4c83ab27c6132eb0 SOURCE_MATCH=True
+COMMAND=git status --short (post-run)
+<clean>
+EXIT_CODE=0
+
+[SendDeals]
+PR=https://github.com/James-Lloyd/subupbot/pull/44
+BASE=origin/main
+COMMAND=git rev-parse HEAD
+4c62edca2e66ddba01fb591003d7751d48ea748d
+EXIT_CODE=0
+COMMAND=git status --short
+<clean>
+EXIT_CODE=0
+COMMAND=git diff --name-status origin/main...HEAD
+M	.gitignore
+A	harness/MIGRATION-REPORT.md
+A	harness/codex-setup.ps1
+A	harness/codex-setup.sh
+M	harness/fleet.ps1
+M	harness/fleet.sh
+M	harness/loop.ps1
+M	harness/loop.sh
+EXIT_CODE=0
+COMMAND=git diff <BASE>...HEAD -- harness/harness.config.json
+<no diff>
+CONFIG_DIFF_BYTES=0
+IMPLEMENT_MODEL=claude-opus-5
+AUTONOMY_MODE=auto
+MAX_ITERATIONS=20
+COMMIT_ON_GREEN=True
+COMMAND=powershell -NoProfile -ExecutionPolicy Bypass -File harness/codex-setup.ps1 -Check
+codex-setup: fresh (plugin 0.5.3)
+EXIT_CODE=0
+COMMAND=powershell -NoProfile -ExecutionPolicy Bypass -File harness/loop.ps1 -DryRun
+🔧 Harness loop | type=brownfield | mode=auto | maxIter=20 | maxTurns=40 | model=claude-opus-5 | review=claude-fable-5 | budget=
+⚠️  AUTO mode on a BROWNFIELD codebase. The auto-loop is designed for greenfield; on existing
+    code it risks wide, subtle regressions. Supervised + small isolated tasks is recommended.
+ℹ️  Headless runs auto-deny non-allowlisted commands. Ensure the gate commands (test/build/lint)
+    are in .claude/settings.json permissions.allow (/harness-init adds them).
+
+⚠️  AUTO mode but NOT in a recognized SANDBOX. This run is full-auto and UNATTENDED.
+    Unattended auto should run inside the documented isolation profile (container/devcontainer or
+    WSL2-native FS), not directly on your host. The destructive-command deny-list is defense-in-
+    depth, NOT a sandbox — and --dangerously-skip-permissions voids it entirely.
+    See docs/sandboxing.md. Mark a sandbox explicitly with:  $env:HARNESS_SANDBOX = '1'
+
+
+──────── iteration 1 / 20 ────────
+[dry-run] would pipe harness/PROMPT.md into: claude -p --max-turns 40 --model claude-opus-5 --effort high ; then run the gate.
+
+🏁 Loop finished after 1 iteration(s). Logs + ledger: <CONSUMER_WORKTREE>\harness\.runs\run-007
+   Next: run /review for a fresh-context QA pass before you trust this.
+EXIT_CODE=0
+COMMAND=Get-FileHash -Algorithm SHA256 harness/<wrapper>
+loop.ps1 SHA256=538ee11a7e20be553db48b88b23db1f42f4a48f5175ee5dd925c7903aa978691 SOURCE_MATCH=True
+loop.sh SHA256=bfb3fca93a79d5308edb81be8e672edb211117d8e067fbcbdefeda7e2fb79bc2 SOURCE_MATCH=True
+fleet.ps1 SHA256=455572e01ba82970a285294d04d277cbbaf313ab11624bbcf67f171d5bcc5b22 SOURCE_MATCH=True
+fleet.sh SHA256=336ae72c90568cea68e82ee24c5a7735a7355d8852792d8d1100efedeb45d97c SOURCE_MATCH=True
+codex-setup.ps1 SHA256=e23ef03e25fe6f8bf9d38a28feb8921a1442607a24467832a972c1c5a445094c SOURCE_MATCH=True
+codex-setup.sh SHA256=d446feeb9d3c582afa4de031d7bb4110ffb3971b7a9badba4c83ab27c6132eb0 SOURCE_MATCH=True
+COMMAND=git status --short (post-run)
+<clean>
+EXIT_CODE=0
+
+[SellerOS]
+PR=https://github.com/James-Lloyd/seller-os/pull/1
+BASE=origin/master
+COMMAND=git rev-parse HEAD
+bc274579453b9385170e44b9c8951a8c9263bc51
+EXIT_CODE=0
+COMMAND=git status --short
+<clean>
+EXIT_CODE=0
+COMMAND=git diff --name-status origin/master...HEAD
+M	.gitignore
+M	harness/MIGRATION-REPORT.md
+A	harness/codex-setup.ps1
+A	harness/codex-setup.sh
+A	harness/fleet.ps1
+A	harness/fleet.sh
+M	harness/loop.ps1
+M	harness/loop.sh
+EXIT_CODE=0
+COMMAND=git diff <BASE>...HEAD -- harness/harness.config.json
+<no diff>
+CONFIG_DIFF_BYTES=0
+IMPLEMENT_MODEL=claude-opus-5
+AUTONOMY_MODE=auto
+MAX_ITERATIONS=20
+COMMIT_ON_GREEN=True
+COMMAND=powershell -NoProfile -ExecutionPolicy Bypass -File harness/codex-setup.ps1 -Check
+codex-setup: fresh (plugin 0.5.3)
+EXIT_CODE=0
+COMMAND=powershell -NoProfile -ExecutionPolicy Bypass -File harness/loop.ps1 -DryRun
+🔧 Harness loop | type=greenfield | mode=auto | maxIter=20 | maxTurns=40 | model=claude-opus-5 | review=claude-fable-5 | budget=
+⚠️  auto mode + requireE2EEvidence, but no e2e gate step is configured. The loop will commit after the configured non-e2e gate passes.
+    Add an e2e command to a component/root gate, or run /review before accepting the change.
+ℹ️  Headless runs auto-deny non-allowlisted commands. Ensure the gate commands (test/build/lint)
+    are in .claude/settings.json permissions.allow (/harness-init adds them).
+
+⚠️  AUTO mode but NOT in a recognized SANDBOX. This run is full-auto and UNATTENDED.
+    Unattended auto should run inside the documented isolation profile (container/devcontainer or
+    WSL2-native FS), not directly on your host. The destructive-command deny-list is defense-in-
+    depth, NOT a sandbox — and --dangerously-skip-permissions voids it entirely.
+    See docs/sandboxing.md. Mark a sandbox explicitly with:  $env:HARNESS_SANDBOX = '1'
+
+
+──────── iteration 1 / 20 ────────
+[dry-run] would pipe PROMPT.md into: claude -p --max-turns 40 --model claude-opus-5 --effort high ; then run the gate.
+
+🏁 Loop finished after 1 iteration(s). Logs + ledger: <CONSUMER_WORKTREE>\harness\.runs\run-007
+   Next: run /review for a fresh-context QA pass before you trust this.
+EXIT_CODE=0
+COMMAND=Get-FileHash -Algorithm SHA256 harness/<wrapper>
+loop.ps1 SHA256=538ee11a7e20be553db48b88b23db1f42f4a48f5175ee5dd925c7903aa978691 SOURCE_MATCH=True
+loop.sh SHA256=bfb3fca93a79d5308edb81be8e672edb211117d8e067fbcbdefeda7e2fb79bc2 SOURCE_MATCH=True
+fleet.ps1 SHA256=455572e01ba82970a285294d04d277cbbaf313ab11624bbcf67f171d5bcc5b22 SOURCE_MATCH=True
+fleet.sh SHA256=336ae72c90568cea68e82ee24c5a7735a7355d8852792d8d1100efedeb45d97c SOURCE_MATCH=True
+codex-setup.ps1 SHA256=e23ef03e25fe6f8bf9d38a28feb8921a1442607a24467832a972c1c5a445094c SOURCE_MATCH=True
+codex-setup.sh SHA256=d446feeb9d3c582afa4de031d7bb4110ffb3971b7a9badba4c83ab27c6132eb0 SOURCE_MATCH=True
+COMMAND=git status --short (post-run)
+<clean>
+EXIT_CODE=0
+
+[BeanThere]
+PR=https://github.com/James-Lloyd/beanthere/pull/5
+BASE=origin/main
+COMMAND=git rev-parse HEAD
+81f8cab8f1448a9c9418509adc21e7a0fb68473f
+EXIT_CODE=0
+COMMAND=git status --short
+<clean>
+EXIT_CODE=0
+COMMAND=git diff --name-status origin/main...HEAD
+M	.gitignore
+A	harness/MIGRATION-REPORT.md
+A	harness/codex-setup.ps1
+A	harness/codex-setup.sh
+M	harness/fleet.ps1
+M	harness/fleet.sh
+M	harness/loop.ps1
+M	harness/loop.sh
+EXIT_CODE=0
+COMMAND=git diff <BASE>...HEAD -- harness/harness.config.json
+<no diff>
+CONFIG_DIFF_BYTES=0
+IMPLEMENT_MODEL=claude-opus-5
+AUTONOMY_MODE=auto
+MAX_ITERATIONS=20
+COMMIT_ON_GREEN=True
+COMMAND=powershell -NoProfile -ExecutionPolicy Bypass -File harness/codex-setup.ps1 -Check
+codex-setup: fresh (plugin 0.5.3)
+EXIT_CODE=0
+COMMAND=powershell -NoProfile -ExecutionPolicy Bypass -File harness/loop.ps1 -DryRun
+🔧 Harness loop | type=brownfield | mode=auto | maxIter=20 | maxTurns=40 | model=claude-opus-5 | review=claude-fable-5 | budget=
+⚠️  auto mode + requireE2EEvidence, but no e2e gate step is configured. The loop will commit after the configured non-e2e gate passes.
+    Add an e2e command to a component/root gate, or run /review before accepting the change.
+⚠️  AUTO mode on a BROWNFIELD codebase. The auto-loop is designed for greenfield; on existing
+    code it risks wide, subtle regressions. Supervised + small isolated tasks is recommended.
+ℹ️  Headless runs auto-deny non-allowlisted commands. Ensure the gate commands (test/build/lint)
+    are in .claude/settings.json permissions.allow (/harness-init adds them).
+
+⚠️  AUTO mode but NOT in a recognized SANDBOX. This run is full-auto and UNATTENDED.
+    Unattended auto should run inside the documented isolation profile (container/devcontainer or
+    WSL2-native FS), not directly on your host. The destructive-command deny-list is defense-in-
+    depth, NOT a sandbox — and --dangerously-skip-permissions voids it entirely.
+    See docs/sandboxing.md. Mark a sandbox explicitly with:  $env:HARNESS_SANDBOX = '1'
+
+
+──────── iteration 1 / 20 ────────
+[dry-run] would pipe PROMPT.md into: claude -p --max-turns 40 --model claude-opus-5 --effort high ; then run the gate.
+
+🏁 Loop finished after 1 iteration(s). Logs + ledger: <CONSUMER_WORKTREE>\harness\.runs\run-007
+   Next: run /review for a fresh-context QA pass before you trust this.
+EXIT_CODE=0
+COMMAND=Get-FileHash -Algorithm SHA256 harness/<wrapper>
+loop.ps1 SHA256=538ee11a7e20be553db48b88b23db1f42f4a48f5175ee5dd925c7903aa978691 SOURCE_MATCH=True
+loop.sh SHA256=bfb3fca93a79d5308edb81be8e672edb211117d8e067fbcbdefeda7e2fb79bc2 SOURCE_MATCH=True
+fleet.ps1 SHA256=455572e01ba82970a285294d04d277cbbaf313ab11624bbcf67f171d5bcc5b22 SOURCE_MATCH=True
+fleet.sh SHA256=336ae72c90568cea68e82ee24c5a7735a7355d8852792d8d1100efedeb45d97c SOURCE_MATCH=True
+codex-setup.ps1 SHA256=e23ef03e25fe6f8bf9d38a28feb8921a1442607a24467832a972c1c5a445094c SOURCE_MATCH=True
+codex-setup.sh SHA256=d446feeb9d3c582afa4de031d7bb4110ffb3971b7a9badba4c83ab27c6132eb0 SOURCE_MATCH=True
+COMMAND=git status --short (post-run)
+<clean>
+EXIT_CODE=0

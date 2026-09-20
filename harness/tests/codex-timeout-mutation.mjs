@@ -31,7 +31,7 @@ function replaceOnce(text, needle, replacement, label) {
 
 const psNeedle = `      Get-Content -LiteralPath $pf -Raw | & $cmd @argList 2>&1 | ForEach-Object {\n        $writer.WriteLine("$_")\n        $writer.Flush()\n      }\n`;
 const psText = replaceOnce(
-  fs.readFileSync(psOriginal, "utf8"),
+  fs.readFileSync(psOriginal, "utf8").replaceAll("\r\n", "\n"),
   psNeedle,
   `      Get-Content -LiteralPath $pf -Raw | & $cmd @argList 2>&1 | ForEach-Object {\n        # MUTANT: delay/discard the live record instead of crossing the job boundary.\n        $null = "$_"\n      }\n`,
   "PowerShell",
@@ -93,7 +93,7 @@ const checks = {
   bashControlPassed: byName["bash-control"].status === 0,
   bashMutantRejected: byName["bash-mutant"].status !== 0 && byName["bash-mutant"].text.includes(expectedFailure),
   packageValidationPassed: packageValidation.status === 0,
-  manifestVersionsAgree: new Set(Object.values(manifestVersions)).size === 1 && Object.values(manifestVersions)[0] === "0.5.1",
+  manifestVersionsAgree: new Set(Object.values(manifestVersions)).size === 1 && Object.values(manifestVersions)[0] === '0.5.3',
 };
 const summary = { task: "CODEX-TIMEOUT-TRANSCRIPT-001", mutation: "discard pre-timeout transcript", checks,
   runs: results.map(({ name, status, signal }) => ({ name, status, signal })), manifestVersions };

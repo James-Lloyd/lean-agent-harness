@@ -1,0 +1,28 @@
+{
+  "task": "HARNESS-053-AUTO-WRAPPERS",
+  "mutation": "remove the no-commit green stop",
+  "checks": {
+    "powershellControlPassed": true,
+    "powershellMutantRejected": true,
+    "bashControlPassed": true,
+    "bashMutantRejected": true
+  },
+  "runs": [
+    {
+      "name": "powershell-control",
+      "status": 0
+    },
+    {
+      "name": "powershell-mutant",
+      "status": 1
+    },
+    {
+      "name": "bash-control",
+      "status": 0
+    },
+    {
+      "name": "bash-mutant",
+      "status": 1
+    }
+  ]
+}

@@ -30,14 +30,14 @@ provide verbatim.
    into the plugin or a project hook, then it can go) or just an older plugin version (safe to drop).
    Do **not** proceed to `--apply` without an explicit go-ahead.
 3. **Apply (only on explicit user go).** Re-run with `--apply` (add `--replace-runners` to swap
-   differing `harness/loop.*`/`fleet.*` for thin wrappers; identical runners are swapped automatically):
+   differing `harness/loop.*`/`fleet.*`/`codex-setup.*` for thin wrappers; identical wrappers are
+   swapped automatically and missing wrappers are created):
    - PowerShell: `... migrate.ps1 -Apply` (`-ReplaceRunners`, `-Force`)
    - bash: `... migrate.sh --apply` (`--replace-runners`, `--force`)
    `--apply` refuses a dirty tree unless `--force`, so the migration lands as one reviewable diff. It
    removes IDENTICAL files, strips the duplicate engine hook wiring from `.claude/settings.json` (your
-   project-specific hooks and all non-hook settings survive), installs the four runner wrappers (original
-   backed up to `*.pre-plugin.bak`; the two `codex-setup` wrappers are not runners — copy them from
-   `<plugin>/engine/wrappers/` if a phase routes to codex, or call the engine script directly), and
+   project-specific hooks and all non-hook settings survive), installs all six engine wrappers (an
+   existing original is backed up to `*.pre-plugin.bak`; a missing wrapper is created), and
    writes `harness/MIGRATION-REPORT.md`.
 4. **Verify + commit.** Read `harness/MIGRATION-REPORT.md`, act on any **WARN** (an un-wired customized
    hook needs its ratchet ported or its wiring re-added), then **review `git diff`** and commit. Every

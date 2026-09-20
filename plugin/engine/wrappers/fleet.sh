@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Thin wrapper — dispatches to the lean-agent-harness plugin ENGINE (fleet runner), passing THIS repo as
 # --project-root. Generated into <project>/harness/fleet.sh by /harness-init. See harness/loop.sh in this
-# project for the engine-discovery contract; upgrade with `/plugin update lean-agent-harness`.
+# project for the engine-discovery contract. After every plugin update, run /harness-doctor and
+# replace all six wrappers from the installed package if it reports wrapper drift.
 set -euo pipefail
 PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
@@ -9,14 +10,19 @@ find_engine() {
   if [ -n "${HARNESS_ENGINE:-}" ] && [ -f "$HARNESS_ENGINE/fleet.sh" ]; then echo "$HARNESS_ENGINE"; return; fi
   if [ -n "${CLAUDE_PLUGIN_ROOT:-}" ] && [ -f "$CLAUDE_PLUGIN_ROOT/engine/fleet.sh" ]; then echo "$CLAUDE_PLUGIN_ROOT/engine"; return; fi
   local base hit
-  for base in "$HOME/.codex/plugins/cache" "$HOME/.claude/plugins"; do
-    [ -d "$base" ] || continue
-    # Newest by mtime, not filesystem-traversal order (see loop.sh wrapper). stat -c (GNU) || -f (BSD).
-    hit="$(find "$base" -type f -name fleet.sh -path '*lean-agent-harness*/engine/fleet.sh' 2>/dev/null \
-      | while IFS= read -r f; do printf '%s\t%s\n' "$(stat -c %Y "$f" 2>/dev/null || stat -f %m "$f" 2>/dev/null)" "$f"; done \
-      | sort -rn | head -1 | cut -f2-)"
-    if [ -n "$hit" ]; then dirname "$hit"; return; fi
-  done
+  hit="$(
+    for base in "$HOME/.codex/plugins/cache" "$HOME/.claude/plugins"; do
+      [ -d "$base" ] || continue
+      find "$base" -type f -name fleet.sh -path '*lean-agent-harness*/engine/fleet.sh' 2>/dev/null
+    done | while IFS= read -r f; do
+      version="$(basename "$(dirname "$(dirname "$f")")")"
+      [[ "$version" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]] || continue
+      major="${BASH_REMATCH[1]}"; minor="${BASH_REMATCH[2]}"; patch="${BASH_REMATCH[3]}"
+      printf '%09d%09d%09d\t%s\t%s\n' "${major:-0}" "${minor:-0}" "${patch:-0}" \
+        "$(stat -c %Y "$f" 2>/dev/null || stat -f %m "$f" 2>/dev/null)" "$f"
+    done | sort -t "$(printf '\t')" -k1,1r -k2,2nr | head -1 | cut -f3-
+  )"
+  if [ -n "$hit" ]; then dirname "$hit"; return; fi
   echo "lean-agent-harness engine not found. Install the plugin (/plugin install lean-agent-harness) or set \$HARNESS_ENGINE to its engine/ dir." >&2
   exit 1
 }

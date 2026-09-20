@@ -1,0 +1,18 @@
+COMMAND=powershell -NoProfile -ExecutionPolicy Bypass -File harness/tests/auto-loop-wrapper-test.ps1
+ENGINE=source commit d4e48fd
+EXIT_CODE=0
+
+  ok  no-commit loop invokes the model exactly once
+  ok  first green uncommitted change survives
+  ok  ledger records one green uncommitted iteration
+  ok  no green tag points at the pre-iteration HEAD
+  ok  no-commit warning tells the truth
+  ok  loop explains the safe stop boundary
+  ok  commit-enabled warning tells the truth
+  ok  Codex dry-run previews the workspace-write Codex CLI path
+  ok  Codex dry-run does not claim Claude will invoke model codex
+  ok  wrapper selects newer Codex-cache version despite Claude-cache timestamp
+  ok  wrapper selects newer Claude-cache version despite Codex-cache timestamp
+  ok  all PowerShell wrappers reject a newer-timestamp prerelease cache
+  ok  all PowerShell wrappers reject a newer-timestamp leading-zero cache
+AUTO LOOP + WRAPPER RESULT: 13 passed, 0 failed

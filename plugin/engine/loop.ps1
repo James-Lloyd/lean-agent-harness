@@ -332,8 +332,13 @@ if ($reviewSecond) { $reviewLabel += " +second=$reviewSecond" }
 Write-Host "🔧 Harness loop | type=$projType | mode=$($cfg.autonomy.mode) | maxIter=$($cfg.autonomy.maxIterations) | maxTurns=$maxTurns | model=$modelLabel | review=$reviewLabel | budget=$($cfg.autonomy.tokenBudget)" -ForegroundColor Cyan
 
 if ($cfg.autonomy.mode -eq 'auto' -and (Get-Prop (Get-Prop $cfg 'verification') 'requireE2EEvidence') -and -not (Test-AnyE2E)) {
-  Write-Host "⚠️  auto mode + requireE2EEvidence, but no e2e gate step is configured. The loop will commit on" -ForegroundColor Yellow
-  Write-Host "    unit-green only. Add an e2e command to a component/root gate, or run /review periodically." -ForegroundColor Yellow
+  $e2eOutcome = if ([bool](Get-Prop (Get-Prop $cfg 'loop') 'commitOnGreen')) {
+    'commit after the configured non-e2e gate passes'
+  } else {
+    'leave the green changes uncommitted for a human to review'
+  }
+  Write-Host "⚠️  auto mode + requireE2EEvidence, but no e2e gate step is configured. The loop will $e2eOutcome." -ForegroundColor Yellow
+  Write-Host "    Add an e2e command to a component/root gate, or run /review before accepting the change." -ForegroundColor Yellow
 }
 
 # Honest guard (mirrors the e2e/skipPermissions warnings): the evaluator augments the periodic review
@@ -425,9 +430,13 @@ while ($i -lt $cfg.autonomy.maxIterations) {
   $iterLog = Join-Path $runDir ("iter-$i.log")
 
   if ($DryRun) {
-    $dryModel = if ($implementModel) { " --model $implementModel" } else { '' }
-    $dryEffort = if ($implementEffort) { " --effort $implementEffort" } else { '' }
-    Write-Host "[dry-run] would pipe PROMPT.md into: claude -p --max-turns $maxTurns$dryModel$dryEffort ; then run the gate." -ForegroundColor DarkGray
+    if ($implementModel -eq 'codex') {
+      Write-Host "[dry-run] would dispatch $promptFile through Invoke-Phase -> codex --sandbox workspace-write --ask-for-approval never exec - ; then run the gate." -ForegroundColor DarkGray
+    } else {
+      $dryModel = if ($implementModel) { " --model $implementModel" } else { '' }
+      $dryEffort = if ($implementEffort) { " --effort $implementEffort" } else { '' }
+      Write-Host "[dry-run] would pipe $promptFile into: claude -p --max-turns $maxTurns$dryModel$dryEffort ; then run the gate." -ForegroundColor DarkGray
+    }
     break
   }
 
@@ -479,10 +488,17 @@ while ($i -lt $cfg.autonomy.maxIterations) {
   if ($gateResult.Passed) {
     Write-Host "🟢 Gate green." -ForegroundColor Green
     if ($commitOnGreen) { Commit-Iteration -Index $i }
-    if ($tagOnGreen)    { Tag-Iteration -Index $i -RunId $runId }
+    if ($commitOnGreen -and $tagOnGreen) { Tag-Iteration -Index $i -RunId $runId }
     Clear-Checkpoint
     Write-Ledger @{ iter = $i; result = 'green'; committed = $commitOnGreen; path = "$($phase.Path)"; usedFallback = [bool]$phase.UsedFallback }
     $greenCount++
+    if (-not $commitOnGreen) {
+      # A later checkpoint is necessarily based on the same HEAD. If a later iteration fails and rolls
+      # back, it would erase this accepted-but-uncommitted green work. One green iteration is therefore
+      # the only safe run boundary when commits are disabled, regardless of maxIterations.
+      Write-Host "STOP: commitOnGreen=false - preserving the green uncommitted changes and stopping before another iteration." -ForegroundColor Yellow
+      break
+    }
     # Inferential judge, wired in: every N green iterations a fresh-context reviewer audits the batch.
     if ($reviewEveryN -gt 0 -and $commitOnGreen -and ($greenCount % $reviewEveryN) -eq 0) {
       $ok = Invoke-PeriodicReview -Base $reviewBaseRef -RunDir $runDir -Iter $i -Fallback $reviewFallback -Route $reviewRoute -CodexCfg $reviewCodexCfg -Effort $reviewEffort -FallbackEffort $reviewFbEffort -Second $reviewSecond -SecondEffort $reviewSecondEffort

@@ -1,0 +1,19 @@
+HARNESS 0.5.3 INDEPENDENT REVIEW
+
+Round 1: FIX-THEN-SHIP
+- Restore an exact 0.5.3 assertion.
+- Capture sanitized raw installed-cache and five-consumer evidence.
+- Correct migration guidance and wrapper freshness comments.
+- Reject prerelease cache directories and test all six wrappers.
+
+Round 2: FIX-THEN-SHIP
+- Align PowerShell with Bash by rejecting leading-zero SemVer components.
+- Test all six wrappers against newer-timestamp 0.5.05 directories.
+
+Final re-review scope: 1281707..6cfe552
+Verdict: SHIP
+Findings: none.
+
+Verified strict regex parity across all six wrappers, current focused tests at 13/0 per twin,
+and pre-fix mutation results at 11/2 per twin. No specs or tests were weakened.
+Detached review worktree remained clean at 6cfe552.
