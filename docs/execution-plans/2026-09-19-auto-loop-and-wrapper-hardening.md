@@ -27,7 +27,7 @@
 - [x] Real migrated/initialized consumers dry-run through 0.5.3 without altering their product code.
 - [x] End-to-end evidence is stored under `state/evidence/HARNESS-053-AUTO-WRAPPERS/`.
 - [x] Both root gate twins pass; no tests or specs are weakened.
-- [ ] A fresh-context reviewer returns SHIP before merge.
+- [x] A fresh-context reviewer returns SHIP before merge.
 
 ### How success is verified
 

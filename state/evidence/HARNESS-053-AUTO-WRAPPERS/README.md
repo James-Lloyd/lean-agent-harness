@@ -24,3 +24,6 @@
   SHA-256 hashes, exact versions and paths, hook freshness, PR bases and HEADs, changed-file scope,
   zero config diffs, preserved routing, all six consumer wrapper hashes, real setup checks and dry-runs,
   their exit codes, and clean pre/post status for all five consumers.
+- `review.txt`: the independent review history. Two FIX-THEN-SHIP rounds drove exact-version,
+  evidence, documentation, prerelease, and leading-zero SemVer fixes; the final fresh-context
+  re-review returned SHIP with no findings and left its detached worktree clean at `6cfe552`.
