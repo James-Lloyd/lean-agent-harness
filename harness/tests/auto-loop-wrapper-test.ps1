@@ -12,21 +12,21 @@ New-Item -ItemType Directory -Force -Path $work | Out-Null
 $pass = 0; $fail = 0
 function ok([string]$Name, $Condition) { if ($Condition) { $script:pass++; Write-Host "  ok  $Name" } else { $script:fail++; Write-Host "  FAIL $Name" -ForegroundColor Red } }
 function Write-Utf8([string]$Path, [string]$Text) { [IO.File]::WriteAllText($Path, $Text, (New-Object Text.UTF8Encoding($false))) }
-function New-TestRepo([string]$Path, [bool]$Commit) {
+function New-TestRepo([string]$Path, [bool]$Commit, [string]$ImplementModel = 'test-model') {
   New-Item -ItemType Directory -Force -Path (Join-Path $Path 'harness'), (Join-Path $Path 'state') | Out-Null
   Copy-Item (Join-Path $src 'harness/loop.ps1') (Join-Path $Path 'harness/loop.ps1')
   $flag = if ($Commit) { 'true' } else { 'false' }
   $json = (@'
 {
   "project":{"type":"greenfield","baseline":{"established":false,"ref":null}},
-  "models":{"implement":{"model":"test-model","fallback":null},"review":{"model":"test-model","fallback":null},"evaluate":{"model":"test-model","fallback":null},"codex":{"auth":"chatgpt","timeoutSeconds":30}},
+  "models":{"implement":{"model":"__MODEL__","fallback":null},"review":{"model":"test-model","fallback":null},"evaluate":{"model":"test-model","fallback":null},"codex":{"auth":"chatgpt","timeoutSeconds":30}},
   "autonomy":{"mode":"auto","maxIterations":3,"maxTurnsPerIteration":2,"tokenBudget":null,"meterTokens":false,"skipPermissions":false,"checkpoints":{"planApproval":false,"beforeRiskyOps":false,"everyNIterations":0}},
   "loop":{"promptFile":"PROMPT.md","planFile":"state/fix_plan.md","progressFile":"state/PROGRESS.md","oneItemPerIteration":true,"autoRollbackOnRed":true,"commitOnGreen":__COMMIT__,"tagOnGreen":true,"stopWhenPlanEmpty":true},
   "verification":{"requireE2EEvidence":true,"reviewEveryNIterations":0,"evaluator":{"enabled":false}},
   "components":[{"name":"root","path":".","gate":{"format":null,"lint":null,"typecheck":null,"build":null,"test":"exit 0","e2e":null}}],
   "gate":{"format":null,"lint":null,"typecheck":null,"build":null,"test":null,"e2e":null}
 }
-'@).Replace('__COMMIT__', $flag)
+'@).Replace('__COMMIT__', $flag).Replace('__MODEL__', $ImplementModel)
   Write-Utf8 (Join-Path $Path 'harness/harness.config.json') $json
   Write-Utf8 (Join-Path $Path 'state/fix_plan.md') "## Tasks`n- [ ] first`n- [ ] second`n"
   Write-Utf8 (Join-Path $Path 'state/PROGRESS.md') "- init`n"
@@ -74,6 +74,12 @@ Write-Output "stub invocation $n"
 
   $fakeProfile = Join-Path $work 'profile'; $consumer = Join-Path $work 'consumer'
   New-Item -ItemType Directory -Force -Path (Join-Path $consumer 'harness') | Out-Null
+  $codexRepo = Join-Path $work 'codex-dry-run'; New-TestRepo $codexRepo $true 'codex'
+  Push-Location $codexRepo
+  try { $codexOut = (& powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $engine 'loop.ps1') -ProjectRoot $codexRepo -DryRun 2>&1 | Out-String) } finally { Pop-Location }
+  ok 'Codex dry-run previews the workspace-write Codex CLI path' ($codexOut.Contains('codex --sandbox workspace-write --ask-for-approval never exec -'))
+  ok 'Codex dry-run does not claim Claude will invoke model codex' (-not $codexOut.Contains('claude -p'))
+
   Copy-Item (Join-Path $engine 'wrappers/loop.ps1') (Join-Path $consumer 'harness/loop.ps1')
   foreach ($entry in @(@('0.5.1','.claude'), @('0.5.3','.codex'))) {
     $v = $entry[0]; $cacheRoot = $entry[1]

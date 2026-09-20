@@ -430,9 +430,13 @@ while ($i -lt $cfg.autonomy.maxIterations) {
   $iterLog = Join-Path $runDir ("iter-$i.log")
 
   if ($DryRun) {
-    $dryModel = if ($implementModel) { " --model $implementModel" } else { '' }
-    $dryEffort = if ($implementEffort) { " --effort $implementEffort" } else { '' }
-    Write-Host "[dry-run] would pipe PROMPT.md into: claude -p --max-turns $maxTurns$dryModel$dryEffort ; then run the gate." -ForegroundColor DarkGray
+    if ($implementModel -eq 'codex') {
+      Write-Host "[dry-run] would dispatch $promptFile through Invoke-Phase -> codex --sandbox workspace-write --ask-for-approval never exec - ; then run the gate." -ForegroundColor DarkGray
+    } else {
+      $dryModel = if ($implementModel) { " --model $implementModel" } else { '' }
+      $dryEffort = if ($implementEffort) { " --effort $implementEffort" } else { '' }
+      Write-Host "[dry-run] would pipe $promptFile into: claude -p --max-turns $maxTurns$dryModel$dryEffort ; then run the gate." -ForegroundColor DarkGray
+    }
     break
   }
 

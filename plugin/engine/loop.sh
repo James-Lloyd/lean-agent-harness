@@ -382,7 +382,11 @@ while [ "$i" -lt "$MAX_ITER" ]; do
   echo "──────── iteration $i / $MAX_ITER ────────"
   ITER_LOG="$RUN_DIR/iter-$i.log"
   if [ "$DRY_RUN" -eq 1 ]; then
-    echo "[dry-run] would pipe $PROMPT_FILE into: claude -p --max-turns $MAX_TURNS${IMPLEMENT_MODEL:+ --model $IMPLEMENT_MODEL}${IMPLEMENT_EFFORT:+ --effort $IMPLEMENT_EFFORT} ; then run the gate."; break
+    if [ "$IMPLEMENT_MODEL" = "codex" ]; then
+      echo "[dry-run] would dispatch $PROMPT_FILE through invoke_phase -> codex --sandbox workspace-write --ask-for-approval never exec - ; then run the gate."
+    else
+      echo "[dry-run] would pipe $PROMPT_FILE into: claude -p --max-turns $MAX_TURNS${IMPLEMENT_MODEL:+ --model $IMPLEMENT_MODEL}${IMPLEMENT_EFFORT:+ --effort $IMPLEMENT_EFFORT} ; then run the gate."
+    fi; break
   fi
 
   new_checkpoint "pre-iter-$i"

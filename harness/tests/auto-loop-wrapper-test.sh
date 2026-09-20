@@ -7,12 +7,12 @@ cleanup() { cd /; rm -rf "$WORK"; }; trap cleanup EXIT
 pass=0; fail=0
 ok() { if [ "$1" = 1 ]; then pass=$((pass+1)); echo "  ok  $2"; else fail=$((fail+1)); echo "  FAIL $2"; fi; }
 new_repo() {
-  local repo="$1" commit="$2"
+  local repo="$1" commit="$2" implement_model="${3:-test-model}"
   mkdir -p "$repo/harness" "$repo/state"; cp "$SRC/harness/loop.sh" "$repo/harness/loop.sh"
   cat > "$repo/harness/harness.config.json" <<JSON
 {
   "project":{"type":"greenfield","baseline":{"established":false,"ref":null}},
-  "models":{"implement":{"model":"test-model","fallback":null},"review":{"model":"test-model","fallback":null},"evaluate":{"model":"test-model","fallback":null},"codex":{"auth":"chatgpt","timeoutSeconds":30}},
+  "models":{"implement":{"model":"$implement_model","fallback":null},"review":{"model":"test-model","fallback":null},"evaluate":{"model":"test-model","fallback":null},"codex":{"auth":"chatgpt","timeoutSeconds":30}},
   "autonomy":{"mode":"auto","maxIterations":3,"maxTurnsPerIteration":2,"tokenBudget":null,"meterTokens":false,"skipPermissions":false,"checkpoints":{"planApproval":false,"beforeRiskyOps":false,"everyNIterations":0}},
   "loop":{"promptFile":"PROMPT.md","planFile":"state/fix_plan.md","progressFile":"state/PROGRESS.md","oneItemPerIteration":true,"autoRollbackOnRed":true,"commitOnGreen":$commit,"tagOnGreen":true,"stopWhenPlanEmpty":true},
   "verification":{"requireE2EEvidence":true,"reviewEveryNIterations":0,"evaluator":{"enabled":false}},
@@ -51,6 +51,11 @@ COMMIT_REPO="$WORK/commit"; new_repo "$COMMIT_REPO" true
 ok "$(grep -qF 'commit after the configured non-e2e gate passes' "$WORK/commit.out" && echo 1 || echo 0)" 'commit-enabled warning tells the truth'
 
 FAKE_PROFILE="$WORK/profile"; CONSUMER="$WORK/consumer"; mkdir -p "$CONSUMER/harness"
+CODEX_REPO="$WORK/codex-dry-run"; new_repo "$CODEX_REPO" true codex
+(cd "$CODEX_REPO" && HARNESS_SANDBOX=1 bash "$ENGINE/loop.sh" --project-root "$CODEX_REPO" --dry-run > "$WORK/codex.out" 2>&1)
+ok "$(grep -qF 'codex --sandbox workspace-write --ask-for-approval never exec -' "$WORK/codex.out" && echo 1 || echo 0)" 'Codex dry-run previews the workspace-write Codex CLI path'
+ok "$(! grep -qF 'claude -p' "$WORK/codex.out" && echo 1 || echo 0)" 'Codex dry-run does not claim Claude will invoke model codex'
+
 cp "$ENGINE/wrappers/loop.sh" "$CONSUMER/harness/loop.sh"
 for entry in '0.5.1 .claude' '0.5.3 .codex'; do
   set -- $entry; v="$1"; cache_root="$2"
