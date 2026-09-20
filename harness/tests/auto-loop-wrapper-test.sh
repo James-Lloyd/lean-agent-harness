@@ -71,5 +71,22 @@ touch -t 203101010000 "$FAKE_PROFILE/.codex/plugins/cache/lean-agent-harness/lea
 HOME="$FAKE_PROFILE" bash "$CONSUMER/harness/loop.sh" > "$WORK/wrapper-claude.out" 2>&1
 ok "$(grep -qF 'WRAPPER_VERSION=0.5.4' "$WORK/wrapper-claude.out" && echo 1 || echo 0)" 'wrapper selects newer Claude-cache version despite Codex-cache timestamp'
 
+STABLE_ENGINE="$FAKE_PROFILE/.codex/plugins/cache/lean-agent-harness/lean-agent-harness/0.5.5/engine"
+PRERELEASE_ENGINE="$FAKE_PROFILE/.claude/plugins/cache/lean-agent-harness/lean-agent-harness/0.5.5-rc.1/engine"
+mkdir -p "$STABLE_ENGINE" "$PRERELEASE_ENGINE"
+all_stable=1
+for wrapper_name in loop.sh fleet.sh codex-setup.sh; do
+  cp "$ENGINE/wrappers/$wrapper_name" "$CONSUMER/harness/$wrapper_name"
+  printf '#!/usr/bin/env bash\necho WRAPPER_VERSION=0.5.5-stable\n' > "$STABLE_ENGINE/$wrapper_name"
+  printf '#!/usr/bin/env bash\necho WRAPPER_VERSION=0.5.5-rc.1\n' > "$PRERELEASE_ENGINE/$wrapper_name"
+  chmod +x "$STABLE_ENGINE/$wrapper_name" "$PRERELEASE_ENGINE/$wrapper_name"
+  touch -t 203201010000 "$PRERELEASE_ENGINE/$wrapper_name"
+  HOME="$FAKE_PROFILE" bash "$CONSUMER/harness/$wrapper_name" > "$WORK/prerelease-$wrapper_name.out" 2>&1
+  if ! grep -qF 'WRAPPER_VERSION=0.5.5-stable' "$WORK/prerelease-$wrapper_name.out" || grep -qF 'WRAPPER_VERSION=0.5.5-rc.1' "$WORK/prerelease-$wrapper_name.out"; then
+    all_stable=0
+  fi
+done
+ok "$all_stable" 'all Bash wrappers reject a newer-timestamp prerelease cache'
+
 echo "AUTO LOOP + WRAPPER RESULT: $pass passed, $fail failed"
 [ "$fail" -eq 0 ]

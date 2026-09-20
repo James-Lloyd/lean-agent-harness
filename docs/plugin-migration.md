@@ -90,9 +90,12 @@ an existing one.
 ## 6. Upgrading later
 ```
 /plugin update lean-agent-harness      # pulls the newer manifest version; restart to apply
+/harness-doctor                        # checks the installed engine, hooks, and all six wrappers
 ```
 `tasks.json` and everything under `state/` stay authoritative and untouched — the plugin only carries the
-engine. Wrappers don't change between engine versions, so step 4 is a one-time move.
+engine. Wrapper templates can change between engine versions. If `/harness-doctor` reports any wrapper
+as missing or stale, replace all six files listed in step 4 from the newly installed package, then run
+`/harness-doctor` again before resuming loop, fleet, or Codex setup operations.
 
 ## Rollback
 `claude plugin uninstall lean-agent-harness` and restore the previous `.claude/` + `harness/` from git

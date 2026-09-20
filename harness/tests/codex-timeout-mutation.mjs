@@ -93,7 +93,7 @@ const checks = {
   bashControlPassed: byName["bash-control"].status === 0,
   bashMutantRejected: byName["bash-mutant"].status !== 0 && byName["bash-mutant"].text.includes(expectedFailure),
   packageValidationPassed: packageValidation.status === 0,
-  manifestVersionsAgree: new Set(Object.values(manifestVersions)).size === 1,
+  manifestVersionsAgree: new Set(Object.values(manifestVersions)).size === 1 && Object.values(manifestVersions)[0] === '0.5.3',
 };
 const summary = { task: "CODEX-TIMEOUT-TRANSCRIPT-001", mutation: "discard pre-timeout transcript", checks,
   runs: results.map(({ name, status, signal }) => ({ name, status, signal })), manifestVersions };

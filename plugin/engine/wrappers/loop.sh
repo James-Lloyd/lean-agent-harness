@@ -2,7 +2,8 @@
 # Thin wrapper — dispatches to the lean-agent-harness plugin ENGINE, passing THIS repo as --project-root.
 # Generated into <project>/harness/loop.sh by /harness-init. The real loop ships in the installed plugin;
 # this shim only locates it so `bash harness/loop.sh ...` works from a bare terminal or cron (where
-# $CLAUDE_PLUGIN_ROOT is unset). Override with $HARNESS_ENGINE. Upgrade: /plugin update lean-agent-harness.
+# $CLAUDE_PLUGIN_ROOT is unset). Override with $HARNESS_ENGINE. After every plugin update, run
+# /harness-doctor and replace all six wrappers from the installed package if it reports wrapper drift.
 set -euo pipefail
 PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
@@ -16,11 +17,8 @@ find_engine() {
       find "$base" -type f -name loop.sh -path '*lean-agent-harness*/engine/loop.sh' 2>/dev/null
     done | while IFS= read -r f; do
       version="$(basename "$(dirname "$(dirname "$f")")")"
-      version="${version%%[-+]*}"
-      IFS=. read -r major minor patch <<EOF
-$version
-EOF
-      case "$major.$minor.$patch" in *[!0-9.]*|.*|*..*|*.) major=0; minor=0; patch=0 ;; esac
+      [[ "$version" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]] || continue
+      major="${BASH_REMATCH[1]}"; minor="${BASH_REMATCH[2]}"; patch="${BASH_REMATCH[3]}"
       printf '%09d%09d%09d\t%s\t%s\n' "${major:-0}" "${minor:-0}" "${patch:-0}" \
         "$(stat -c %Y "$f" 2>/dev/null || stat -f %m "$f" 2>/dev/null)" "$f"
     done | sort -t "$(printf '\t')" -k1,1r -k2,2nr | head -1 | cut -f3-

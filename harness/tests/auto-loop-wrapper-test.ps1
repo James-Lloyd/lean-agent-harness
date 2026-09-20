@@ -106,6 +106,31 @@ Write-Output "stub invocation $n"
   }
   ok 'wrapper selects newer Codex-cache version despite Claude-cache timestamp' ($wrapperOutCodex.Contains('WRAPPER_VERSION=0.5.3'))
   ok 'wrapper selects newer Claude-cache version despite Codex-cache timestamp' ($wrapperOutClaude.Contains('WRAPPER_VERSION=0.5.4'))
+
+  $stableEngine = Join-Path $fakeProfile '.codex/plugins/cache/lean-agent-harness/lean-agent-harness/0.5.5/engine'
+  $prereleaseEngine = Join-Path $fakeProfile '.claude/plugins/cache/lean-agent-harness/lean-agent-harness/0.5.5-rc.1/engine'
+  New-Item -ItemType Directory -Force -Path $stableEngine, $prereleaseEngine | Out-Null
+  $allStable = $true
+  $oldProfile=$env:USERPROFILE; $oldEngine=$env:HARNESS_ENGINE; $oldRoot=$env:CLAUDE_PLUGIN_ROOT
+  try {
+    $env:USERPROFILE=$fakeProfile
+    Remove-Item Env:HARNESS_ENGINE,Env:CLAUDE_PLUGIN_ROOT -ErrorAction SilentlyContinue
+    foreach ($wrapperName in @('loop.ps1', 'fleet.ps1', 'codex-setup.ps1')) {
+      Copy-Item (Join-Path $engine "wrappers/$wrapperName") (Join-Path $consumer "harness/$wrapperName") -Force
+      Write-Utf8 (Join-Path $stableEngine $wrapperName) "Write-Output 'WRAPPER_VERSION=0.5.5-stable'`n"
+      Write-Utf8 (Join-Path $prereleaseEngine $wrapperName) "Write-Output 'WRAPPER_VERSION=0.5.5-rc.1'`n"
+      [IO.File]::SetLastWriteTimeUtc((Join-Path $prereleaseEngine $wrapperName), [DateTime]::UtcNow.AddHours(3))
+      $wrapperOutput = (& powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $consumer "harness/$wrapperName") 2>&1 | Out-String)
+      if (-not $wrapperOutput.Contains('WRAPPER_VERSION=0.5.5-stable') -or $wrapperOutput.Contains('WRAPPER_VERSION=0.5.5-rc.1')) {
+        $allStable = $false
+      }
+    }
+  } finally {
+    $env:USERPROFILE=$oldProfile
+    if ($null -ne $oldEngine) { $env:HARNESS_ENGINE=$oldEngine } else { Remove-Item Env:HARNESS_ENGINE -ErrorAction SilentlyContinue }
+    if ($null -ne $oldRoot) { $env:CLAUDE_PLUGIN_ROOT=$oldRoot } else { Remove-Item Env:CLAUDE_PLUGIN_ROOT -ErrorAction SilentlyContinue }
+  }
+  ok 'all PowerShell wrappers reject a newer-timestamp prerelease cache' $allStable
 } finally {
   if ($work.StartsWith([IO.Path]::GetTempPath(), [StringComparison]::OrdinalIgnoreCase)) { Remove-Item -Recurse -Force -LiteralPath $work -ErrorAction SilentlyContinue }
 }

@@ -2,7 +2,8 @@
 <#
   Thin wrapper — dispatches to the lean-agent-harness plugin ENGINE (fleet runner), passing THIS repo
   as -ProjectRoot. Generated into <project>/harness/fleet.ps1 by /harness-init. See harness/loop.ps1 in
-  this project for the engine-discovery contract; upgrade with `/plugin update lean-agent-harness`.
+  this project for the engine-discovery contract. After every plugin update, run /harness-doctor and
+  replace all six wrappers from the installed package if it reports wrapper drift.
 #>
 $ErrorActionPreference = 'Stop'
 $projectRoot = Split-Path -Parent $PSScriptRoot   # <repo>/harness/fleet.ps1 -> <repo>
@@ -19,9 +20,13 @@ function Find-HarnessEngine {
     Get-ChildItem -Path $pluginsRoot -Recurse -Filter 'fleet.ps1' -ErrorAction SilentlyContinue |
       Where-Object { $_.Directory.Name -eq 'engine' -and $_.FullName -match 'lean-agent-harness' } |
       ForEach-Object {
-        $version = [version]'0.0.0'
-        try { $version = [version](($_.Directory.Parent.Name -split '[-+]')[0]) } catch { }
-        [pscustomobject]@{ Path = $_.DirectoryName; Version = $version; Modified = $_.LastWriteTimeUtc }
+        $versionText = $_.Directory.Parent.Name
+        if ($versionText -match '^\d+\.\d+\.\d+$') {
+          try {
+            $version = [version]$versionText
+            [pscustomobject]@{ Path = $_.DirectoryName; Version = $version; Modified = $_.LastWriteTimeUtc }
+          } catch { }
+        }
       }
   }
   $hit = $candidates | Sort-Object -Property @{ Expression = 'Version'; Descending = $true }, @{ Expression = 'Modified'; Descending = $true } | Select-Object -First 1

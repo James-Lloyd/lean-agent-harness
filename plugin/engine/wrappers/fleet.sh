@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Thin wrapper — dispatches to the lean-agent-harness plugin ENGINE (fleet runner), passing THIS repo as
 # --project-root. Generated into <project>/harness/fleet.sh by /harness-init. See harness/loop.sh in this
-# project for the engine-discovery contract; upgrade with `/plugin update lean-agent-harness`.
+# project for the engine-discovery contract. After every plugin update, run /harness-doctor and
+# replace all six wrappers from the installed package if it reports wrapper drift.
 set -euo pipefail
 PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
@@ -15,11 +16,8 @@ find_engine() {
       find "$base" -type f -name fleet.sh -path '*lean-agent-harness*/engine/fleet.sh' 2>/dev/null
     done | while IFS= read -r f; do
       version="$(basename "$(dirname "$(dirname "$f")")")"
-      version="${version%%[-+]*}"
-      IFS=. read -r major minor patch <<EOF
-$version
-EOF
-      case "$major.$minor.$patch" in *[!0-9.]*|.*|*..*|*.) major=0; minor=0; patch=0 ;; esac
+      [[ "$version" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]] || continue
+      major="${BASH_REMATCH[1]}"; minor="${BASH_REMATCH[2]}"; patch="${BASH_REMATCH[3]}"
       printf '%09d%09d%09d\t%s\t%s\n' "${major:-0}" "${minor:-0}" "${patch:-0}" \
         "$(stat -c %Y "$f" 2>/dev/null || stat -f %m "$f" 2>/dev/null)" "$f"
     done | sort -t "$(printf '\t')" -k1,1r -k2,2nr | head -1 | cut -f3-

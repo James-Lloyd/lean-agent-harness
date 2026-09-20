@@ -5,6 +5,8 @@
   inside the installed plugin; this shim only locates it, so `powershell harness/codex-setup.ps1` works
   from a bare terminal (where $env:CLAUDE_PLUGIN_ROOT is NOT set). Re-run after every
   `/plugin update lean-agent-harness` and after any routing change (the output embeds the plugin path).
+  Also run /harness-doctor after each update and replace all six wrappers from the installed package
+  if it reports wrapper drift.
 
   Engine discovery order: $env:HARNESS_ENGINE, then $env:CLAUDE_PLUGIN_ROOT/engine, then the newest
   lean-agent-harness engine under the Codex or Claude plugin cache.
@@ -24,9 +26,13 @@ function Find-HarnessEngine {
     Get-ChildItem -Path $pluginsRoot -Recurse -Filter 'codex-setup.ps1' -ErrorAction SilentlyContinue |
       Where-Object { $_.Directory.Name -eq 'engine' -and $_.FullName -match 'lean-agent-harness' } |
       ForEach-Object {
-        $version = [version]'0.0.0'
-        try { $version = [version](($_.Directory.Parent.Name -split '[-+]')[0]) } catch { }
-        [pscustomobject]@{ Path = $_.DirectoryName; Version = $version; Modified = $_.LastWriteTimeUtc }
+        $versionText = $_.Directory.Parent.Name
+        if ($versionText -match '^\d+\.\d+\.\d+$') {
+          try {
+            $version = [version]$versionText
+            [pscustomobject]@{ Path = $_.DirectoryName; Version = $version; Modified = $_.LastWriteTimeUtc }
+          } catch { }
+        }
       }
   }
   $hit = $candidates | Sort-Object -Property @{ Expression = 'Version'; Descending = $true }, @{ Expression = 'Modified'; Descending = $true } | Select-Object -First 1

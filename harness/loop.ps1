@@ -10,7 +10,8 @@
     1. $env:HARNESS_ENGINE            (absolute path to the plugin's engine/ dir — set this to pin it)
     2. $env:CLAUDE_PLUGIN_ROOT/engine (when invoked from within Claude Code)
     3. a search under the Codex and Claude plugin caches for the installed engine
-  Upgrade the engine with `/plugin update lean-agent-harness`; this wrapper does not change.
+  After every plugin update, run /harness-doctor. If it reports wrapper drift, replace all six
+  wrappers from the installed package before continuing.
 #>
 $ErrorActionPreference = 'Stop'
 $projectRoot = Split-Path -Parent $PSScriptRoot   # <repo>/harness/loop.ps1 -> <repo>
@@ -27,9 +28,13 @@ function Find-HarnessEngine {
     Get-ChildItem -Path $pluginsRoot -Recurse -Filter 'loop.ps1' -ErrorAction SilentlyContinue |
       Where-Object { $_.Directory.Name -eq 'engine' -and $_.FullName -match 'lean-agent-harness' } |
       ForEach-Object {
-        $version = [version]'0.0.0'
-        try { $version = [version](($_.Directory.Parent.Name -split '[-+]')[0]) } catch { }
-        [pscustomobject]@{ Path = $_.DirectoryName; Version = $version; Modified = $_.LastWriteTimeUtc }
+        $versionText = $_.Directory.Parent.Name
+        if ($versionText -match '^\d+\.\d+\.\d+$') {
+          try {
+            $version = [version]$versionText
+            [pscustomobject]@{ Path = $_.DirectoryName; Version = $version; Modified = $_.LastWriteTimeUtc }
+          } catch { }
+        }
       }
   }
   $hit = $candidates | Sort-Object -Property @{ Expression = 'Version'; Descending = $true }, @{ Expression = 'Modified'; Descending = $true } | Select-Object -First 1
