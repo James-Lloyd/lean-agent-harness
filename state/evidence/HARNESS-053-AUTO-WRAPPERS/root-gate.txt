@@ -1,5 +1,6 @@
 COMMAND=node harness/tests/gate.mjs
 DATE=2026-09-20
+SOURCE_CODE_COMMIT=4ed52f2
 POWERSHELL=450 passed, 0 failed
 BASH=443 passed, 0 failed
 VERDICT=GATE: green (both twins)

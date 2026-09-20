@@ -1,3 +1,7 @@
+COMMAND=C:/Program Files/Git/bin/bash.exe harness/tests/auto-loop-wrapper-test.sh
+HARNESS_TEST_ENGINE=source commit 4ed52f2
+EXIT_CODE=0
+
   ok  no-commit loop invokes the model exactly once
   ok  first green uncommitted change survives
   ok  ledger records one green uncommitted iteration
@@ -9,4 +13,5 @@
   ok  Codex dry-run does not claim Claude will invoke model codex
   ok  wrapper selects newer Codex-cache version despite Claude-cache timestamp
   ok  wrapper selects newer Claude-cache version despite Codex-cache timestamp
-AUTO LOOP + WRAPPER RESULT: 11 passed, 0 failed
+  ok  all Bash wrappers reject a newer-timestamp prerelease cache
+AUTO LOOP + WRAPPER RESULT: 12 passed, 0 failed

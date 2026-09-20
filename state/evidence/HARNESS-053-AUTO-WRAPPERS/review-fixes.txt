@@ -1,8 +1,13 @@
-DATE=2026-09-19
+DATE=2026-09-20
+SOURCE_CODE_COMMIT=4ed52f2
 POWERSHELL_MIGRATE=44 passed, 0 failed
 BASH_MIGRATE=44 passed, 0 failed
-POWERSHELL_AUTO_LOOP_WRAPPER=9 passed, 0 failed
-BASH_AUTO_LOOP_WRAPPER=9 passed, 0 failed
+POWERSHELL_AUTO_LOOP_WRAPPER=12 passed, 0 failed
+BASH_AUTO_LOOP_WRAPPER=12 passed, 0 failed
+PRERELEASE_PRE_FIX_RED=PowerShell 11 passed, 1 failed; Bash 11 passed, 1 failed; only the new stable-over-prerelease assertion failed
+ROOT_GATE=PowerShell 450 passed, 0 failed; Bash 443 passed, 0 failed
 CODEX_TIMEOUT_MUTATION=powershell control passed; powershell mutant rejected; bash control passed; bash mutant rejected
 MANIFEST_VERSIONS=plugin/plugin.json 0.5.3; plugin/.claude-plugin/plugin.json 0.5.3; plugin/.codex-plugin/plugin.json 0.5.3
+MANIFEST_ASSERTION=exact release 0.5.3
 PACKAGE_VALIDATION=passed
+REVIEW_ROUND_1=FIX-THEN-SHIP; exact version assertion, raw consumer evidence, upgrade guidance, and prerelease ordering blockers addressed
