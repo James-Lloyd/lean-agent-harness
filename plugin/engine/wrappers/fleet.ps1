@@ -21,7 +21,7 @@ function Find-HarnessEngine {
       Where-Object { $_.Directory.Name -eq 'engine' -and $_.FullName -match 'lean-agent-harness' } |
       ForEach-Object {
         $versionText = $_.Directory.Parent.Name
-        if ($versionText -match '^\d+\.\d+\.\d+$') {
+        if ($versionText -match '^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$') {
           try {
             $version = [version]$versionText
             [pscustomobject]@{ Path = $_.DirectoryName; Version = $version; Modified = $_.LastWriteTimeUtc }

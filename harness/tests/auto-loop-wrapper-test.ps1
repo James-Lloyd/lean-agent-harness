@@ -131,6 +131,28 @@ Write-Output "stub invocation $n"
     if ($null -ne $oldRoot) { $env:CLAUDE_PLUGIN_ROOT=$oldRoot } else { Remove-Item Env:CLAUDE_PLUGIN_ROOT -ErrorAction SilentlyContinue }
   }
   ok 'all PowerShell wrappers reject a newer-timestamp prerelease cache' $allStable
+
+  $leadingZeroEngine = Join-Path $fakeProfile '.claude/plugins/cache/lean-agent-harness/lean-agent-harness/0.5.05/engine'
+  New-Item -ItemType Directory -Force -Path $leadingZeroEngine | Out-Null
+  $allRejectLeadingZero = $true
+  $oldProfile=$env:USERPROFILE; $oldEngine=$env:HARNESS_ENGINE; $oldRoot=$env:CLAUDE_PLUGIN_ROOT
+  try {
+    $env:USERPROFILE=$fakeProfile
+    Remove-Item Env:HARNESS_ENGINE,Env:CLAUDE_PLUGIN_ROOT -ErrorAction SilentlyContinue
+    foreach ($wrapperName in @('loop.ps1', 'fleet.ps1', 'codex-setup.ps1')) {
+      Write-Utf8 (Join-Path $leadingZeroEngine $wrapperName) "Write-Output 'WRAPPER_VERSION=0.5.05-invalid'`n"
+      [IO.File]::SetLastWriteTimeUtc((Join-Path $leadingZeroEngine $wrapperName), [DateTime]::UtcNow.AddHours(4))
+      $wrapperOutput = (& powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $consumer "harness/$wrapperName") 2>&1 | Out-String)
+      if (-not $wrapperOutput.Contains('WRAPPER_VERSION=0.5.5-stable') -or $wrapperOutput.Contains('WRAPPER_VERSION=0.5.05-invalid')) {
+        $allRejectLeadingZero = $false
+      }
+    }
+  } finally {
+    $env:USERPROFILE=$oldProfile
+    if ($null -ne $oldEngine) { $env:HARNESS_ENGINE=$oldEngine } else { Remove-Item Env:HARNESS_ENGINE -ErrorAction SilentlyContinue }
+    if ($null -ne $oldRoot) { $env:CLAUDE_PLUGIN_ROOT=$oldRoot } else { Remove-Item Env:CLAUDE_PLUGIN_ROOT -ErrorAction SilentlyContinue }
+  }
+  ok 'all PowerShell wrappers reject a newer-timestamp leading-zero cache' $allRejectLeadingZero
 } finally {
   if ($work.StartsWith([IO.Path]::GetTempPath(), [StringComparison]::OrdinalIgnoreCase)) { Remove-Item -Recurse -Force -LiteralPath $work -ErrorAction SilentlyContinue }
 }
