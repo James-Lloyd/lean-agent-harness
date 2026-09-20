@@ -1,7 +1,7 @@
 DATE=2026-09-20
 PRE_FIX_ENGINE_COMMIT=20bde3984c9ec0d36015d94e0ed8f37fa75ebb4f
-TEST_SOURCE_COMMIT=4ed52f2
-MUTATION=run the new tests against the pre-fix resolver, which strips -rc.1 and lets timestamp break the stable/prerelease tie
+TEST_SOURCE_COMMIT=d4e48fd
+MUTATION=run the new tests against the pre-fix resolver, which strips -rc.1 and accepts leading-zero components, letting timestamp break numeric ties
 
 [POWERSHELL]
 COMMAND=powershell -NoProfile -ExecutionPolicy Bypass -File harness/tests/auto-loop-wrapper-test.ps1 -Engine <PRE_FIX_ENGINE>/plugin/engine
@@ -18,7 +18,8 @@ EXIT_CODE=1
   ok  wrapper selects newer Codex-cache version despite Claude-cache timestamp
   ok  wrapper selects newer Claude-cache version despite Codex-cache timestamp
   FAIL all PowerShell wrappers reject a newer-timestamp prerelease cache
-AUTO LOOP + WRAPPER RESULT: 11 passed, 1 failed
+  FAIL all PowerShell wrappers reject a newer-timestamp leading-zero cache
+AUTO LOOP + WRAPPER RESULT: 11 passed, 2 failed
 
 [BASH]
 COMMAND=HARNESS_TEST_ENGINE=<PRE_FIX_ENGINE>/plugin/engine bash harness/tests/auto-loop-wrapper-test.sh
@@ -35,4 +36,5 @@ EXIT_CODE=1
   ok  wrapper selects newer Codex-cache version despite Claude-cache timestamp
   ok  wrapper selects newer Claude-cache version despite Codex-cache timestamp
   FAIL all Bash wrappers reject a newer-timestamp prerelease cache
-AUTO LOOP + WRAPPER RESULT: 11 passed, 1 failed
+  FAIL all Bash wrappers reject a newer-timestamp leading-zero cache
+AUTO LOOP + WRAPPER RESULT: 11 passed, 2 failed

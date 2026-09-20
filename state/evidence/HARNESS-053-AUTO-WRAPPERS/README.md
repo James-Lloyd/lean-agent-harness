@@ -2,16 +2,16 @@
 
 ## What was proved
 
-- `focused-powershell.txt` and `focused-bash.txt`: 12/0 each. With `maxIterations=3` and
+- `focused-powershell.txt` and `focused-bash.txt`: 13/0 each. With `maxIterations=3` and
   `commitOnGreen=false`, the real loop invokes its stub model once, leaves the first green edit
   uncommitted, records one green ledger row, creates no false tag at the unchanged HEAD, and prints the
   truthful no-commit warning. The same probe verifies the commit-enabled warning and proves semantic
   version ordering globally across the Codex and Claude cache roots in both directions. The added
   Codex-route controls prove the banner names the real workspace-write Codex CLI path and contains no
-  false `claude -p` invocation. The twinned final assertion runs every one of the six wrapper
-  templates and proves stable `0.5.5` wins over a newer-timestamp `0.5.5-rc.1` cache.
+  false `claude -p` invocation. The final twinned assertions run every one of the six wrapper
+  templates and prove stable `0.5.5` wins over newer-timestamp `0.5.5-rc.1` and `0.5.05` caches.
 - `prerelease-pre-fix-red.txt`: the same current tests run against source commit `20bde39`,
-  before the resolver fix. Both twins fail only the new stable-over-prerelease assertion at 11/1.
+  before the resolver fixes. Both twins fail only the prerelease and leading-zero assertions at 11/2.
 - `mutation/result.json`: controls pass; deleting the safe stop independently from each engine twin
   makes both focused tests fail because iteration two restores the shared HEAD and erases iteration
   one's accepted edit. The four raw run logs are beside the result.
