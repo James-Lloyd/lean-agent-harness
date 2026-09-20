@@ -24,8 +24,8 @@
 - [x] Doctor text and twin tests diagnose `maxIterations>1 && commitOnGreen=false`, missing wrappers, and wrappers that differ from the installed plugin.
 - [x] Wrapper tests prove the highest semantic version wins across both cache roots even when the older version has the newer timestamp.
 - [x] Plugin manifests, marketplace surfaces, generated skills, and validation agree on 0.5.3.
-- [ ] Real migrated/initialized consumers dry-run through 0.5.3 without altering their product code.
-- [ ] End-to-end evidence is stored under `state/evidence/HARNESS-053-AUTO-WRAPPERS/`.
+- [x] Real migrated/initialized consumers dry-run through 0.5.3 without altering their product code.
+- [x] End-to-end evidence is stored under `state/evidence/HARNESS-053-AUTO-WRAPPERS/`.
 - [x] Both root gate twins pass; no tests or specs are weakened.
 - [ ] A fresh-context reviewer returns SHIP before merge.
 

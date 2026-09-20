@@ -1,0 +1,39 @@
+DATE=2026-09-20
+SOURCE_COMMIT=ea1fb48
+INSTALLED_CODEX_VERSION=0.5.3
+INSTALLED_CODEX_BANNER=Invoke-Phase -> codex --sandbox workspace-write --ask-for-approval never exec -
+INSTALLED_CLAUDE_VERSION=0.5.3
+INSTALLED_CLAUDE_BANNER=Invoke-Phase -> codex --sandbox workspace-write --ask-for-approval never exec -
+CODEX_HOOK_CHECK=fresh
+
+CONSUMER=BulkGameKeys
+COMMIT=1e4948d43729afc36535ac59cb66a74123fd8866
+PR=https://github.com/bulkgamekeys/bulkgamekeys-workspace/pull/157
+CODEX_SETUP=fresh (plugin 0.5.3)
+DRY_RUN=exit 0; Codex workspace-write preview emitted
+
+CONSUMER=ProfileBuildr
+COMMIT=fe278f21ee92e5fa000d75d94889181cd56ca0f2
+PR=https://github.com/James-Lloyd/profilebuildr/pull/2
+CODEX_SETUP=fresh (plugin 0.5.3)
+DRY_RUN=exit 0; empty plan stopped before preview; route remains Codex
+
+CONSUMER=SendDeals
+COMMIT=e1ecf2c487b630c4d907ee7ebd1122d3aec9454e
+PR=https://github.com/James-Lloyd/subupbot/pull/44
+CODEX_SETUP=fresh (plugin 0.5.3)
+DRY_RUN=exit 0; Claude preview emitted
+
+CONSUMER=SellerOS
+COMMIT=caeda02cde686aecc2c9b2d14e73d250535aac59
+PR=https://github.com/James-Lloyd/seller-os/pull/1
+CODEX_SETUP=fresh (plugin 0.5.3)
+DRY_RUN=exit 0; Claude preview emitted
+
+CONSUMER=BeanThere
+COMMIT=2f70bd5cdf906d168d7bb6de1de8edb5de2b6cee
+PR=https://github.com/James-Lloyd/beanthere/pull/5
+CODEX_SETUP=fresh (plugin 0.5.3)
+DRY_RUN=exit 0; Claude preview emitted
+
+POST_RUN_TREES=clean (all five)

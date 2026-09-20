@@ -5,6 +5,8 @@
   ok  no-commit warning tells the truth
   ok  loop explains the safe stop boundary
   ok  commit-enabled warning tells the truth
+  ok  Codex dry-run previews the workspace-write Codex CLI path
+  ok  Codex dry-run does not claim Claude will invoke model codex
   ok  wrapper selects newer Codex-cache version despite Claude-cache timestamp
   ok  wrapper selects newer Claude-cache version despite Codex-cache timestamp
-AUTO LOOP + WRAPPER RESULT: 9 passed, 0 failed
+AUTO LOOP + WRAPPER RESULT: 11 passed, 0 failed

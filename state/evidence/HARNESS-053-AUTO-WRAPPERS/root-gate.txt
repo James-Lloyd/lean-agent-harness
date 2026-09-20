@@ -1,5 +1,5 @@
 COMMAND=node harness/tests/gate.mjs
-DATE=2026-09-19
+DATE=2026-09-20
 POWERSHELL=450 passed, 0 failed
 BASH=443 passed, 0 failed
 VERDICT=GATE: green (both twins)
