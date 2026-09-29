@@ -3,7 +3,7 @@ name: generator
 description: Implements exactly one planned task fully, verifies it through the gate, and leaves the tree green with evidence. The builder half of the build/judge split.
 tools: Read, Edit, Write, Bash, Glob, Grep, Agent, Skill
 memory: project
-model: claude-opus-5
+model: claude-opus-5-5
 effort: high
 isolation: worktree
 ---

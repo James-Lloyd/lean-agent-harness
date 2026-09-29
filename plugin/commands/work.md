@@ -38,8 +38,8 @@ With the default config every phase's PRIMARY is Claude, so PLAN, EXECUTE and RE
 Claude subagent. REVIEW uses one independent judge by default and in this repo. The optional
 `models.review.second` capability remains available for an explicit extra-opinion experiment; when it
 is set, `/review` step 3 requires both judges to ship and an unreachable second judge stops for a human.
-The subagents: `generator` **is** the implement primary (`claude-opus-5`, no fallback — if it caps the
-build stops), `planner`/`reviewer` run `claude-fable-5-1` with a `claude-opus-5` fallback. Subagent
+The subagents: `generator` **is** the implement primary (`claude-opus-5-5`, no fallback — if it caps the
+build stops), `planner`/`reviewer` run `claude-fable-5-1` with a `claude-opus-5-5` fallback. Subagent
 frontmatter carries each phase's primary Claude model *and* its declared `effort`; `/harness-doctor`
 check 10 validates that. You — the orchestrator — run `models.session` (`claude-fable-5-1` at medium
 effort by default): dispatch and sequencing, with the deep reasoning pushed into the phase agents.

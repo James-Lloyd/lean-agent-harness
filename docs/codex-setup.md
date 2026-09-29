@@ -18,6 +18,12 @@
 > agent TOML, older/non-plugin CLI automation, and user-level hooks needed by legacy headless
 > `codex exec` behavior. Its historical measurements remain scoped to that generated path.
 
+The harness repo's generated roles currently pin planner, reviewer, and evaluator to `gpt-6-astra`
+at `high`; generator to `gpt-6-sol` at `high`; and explorer and doc-gardener to `gpt-6-luna` at `low`.
+These come from `harness/harness.config.json` through `codex-setup.*`. They take effect when Codex
+spawns the generated role. The interactive Codex session keeps its ambient model and effort. The
+evaluator is a separate optional rubric judge (`verification.evaluator.enabled`), not the session.
+
 **Read this first — verified live against Codex CLI 0.144.3 (slice V5, 2026-09-05,
 `state/evidence/2026-09-05-vendor-agnostic-refit-v5/`).**
 

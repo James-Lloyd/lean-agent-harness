@@ -1069,6 +1069,14 @@ ok "a reference skill is emitted verbatim (no command preamble)" (-not $bmr.Cont
 ok "bridged skill carries the command BODY, not just its frontmatter" ($brv.Contains('fresh-context'))
 $giA = @(Get-Content -LiteralPath (Join-Path $csp '.gitignore') | Where-Object { $_ -ceq '.agents/' }).Count
 ok ".gitignore gained exactly one '.agents/' line"         ($giA -eq 1)
+# The dev repo already ignores generated children with .agents/* and re-includes
+# its tracked marketplace manifest. Appending .agents/ after that exception would
+# hide the parent directory and defeat the exception.
+$marketplaceIgnore = ".codex/`n.agents/*`n!.agents/plugins/`n.agents/plugins/*`n!.agents/plugins/marketplace.json`n"
+[System.IO.File]::WriteAllText((Join-Path $csp '.gitignore'), $marketplaceIgnore, (New-Object System.Text.UTF8Encoding($false)))
+$null = _CS @()
+$giMarketplace = [System.IO.File]::ReadAllText((Join-Path $csp '.gitignore'))
+ok "existing .agents/* ignore preserves the marketplace exception" ($giMarketplace -ceq $marketplaceIgnore)
 # REGRESSION (mirror of the bash twin): a .gitignore with NO TRAILING NEWLINE already carrying `.codex/`
 # - the exact upgrade shape. Without a leading newline the append produced `.codex/.agents/`, destroying
 # both patterns and un-ignoring the machine-local .codex/ dir.
@@ -1097,7 +1105,8 @@ if ($gitBash) {
   $prevEAP3 = $ErrorActionPreference; $ErrorActionPreference = 'Continue'
   # Forward slashes for bash: its `dirname` treats a backslash path as a bare filename (the engine now
   # normalises its own path too, but a test should not depend on that).
-  try { $null = (& $gitBash ((Join-Path $engineDir 'codex-setup.sh').Replace('\', '/')) --project-root ($csp.Replace('\', '/')) --check 2>$null); $xt = $LASTEXITCODE } finally { $ErrorActionPreference = $prevEAP3 }
+  try { $checkOutput = (& $gitBash ((Join-Path $engineDir 'codex-setup.sh').Replace('\', '/')) --project-root ($csp.Replace('\', '/')) --check 2>&1 | Out-String); $xt = $LASTEXITCODE } finally { $ErrorActionPreference = $prevEAP3 }
+  if ($xt -ne 0) { Write-Host "    bash --check exit $xt`: $checkOutput" }
   ok "cross-twin: bash --check calls the PS-generated set fresh (digest parity)" ($xt -eq 0)
 } else {
   Write-Host "  (skipping cross-twin bash --check - no Git Bash / real bash found)"
