@@ -18,15 +18,20 @@ stale copy behind in a sibling command.
 | Phase | Agent | model | effort | fallback | Why this one |
 |-------|-------|-------|--------|----------|--------------|
 | `session` | (the Claude Code main window) | `claude-fable-5-1` | `medium` | (n/a) | The **Claude-host orchestrator**. It dispatches, sequences and reports; the deep thinking belongs to the phase agents — but it also judges *when* a phase is done, so it gets the strongest model at a moderate depth. Anthropic's Fable 5.1 guidance: `medium` roughly matches Fable 5 at lower cost, and at `low` it searches less and batches implied tool calls less — so `medium`, not `low`. This configures Claude Code; a Codex plugin session remains on its ambient Codex model. |
-| `plan` | `planner` | `claude-fable-5-1` | `high` | `claude-opus-5` @ `high` | Design is where a bad call is most expensive. Deepest reasoner at `high` — Anthropic's recommended start; go to `xhigh` only on a measured gain. |
-| `implement` | `generator` | `claude-opus-5` | `high` | `null` | The builder. Anthropic's own default is to start on Opus 5 and escalate to Fable only when Opus 5 at higher effort fails; it is also a different model from the Fable judge that reviews it, so the writer never clears its own diff. **No fallback on purpose** — this phase is interactive, so a cap is recoverable by hand; a silent second-choice builder is worse than stopping. Worth an A/B on a real task: Fable 5.1 @ `medium` has cache reads at a quarter of Opus 5's price, so on long cache-heavy builds cost per completed task can come out close. |
-| `review` | `reviewer` | `claude-fable-5-1` | `high` | `claude-opus-5` @ `medium` | Fresh-context judge — the doer must never be the judge. Judges get the strongest model. Cap-proof fallback because a headless run can't ask a human mid-review. Accepted tradeoff: the fallback equals the builder's model, so a Fable cap costs model diversity — the fresh-context guarantee still holds. |
-| `evaluate` | `evaluator` | `claude-fable-5-1` | `high` | `claude-opus-5` @ `medium` | Rubric scorer at the sprint gate. Same reasoning as `review`. Off by default (`verification.evaluator.enabled: false`) — one judge at the end is enough. |
+| `plan` | `planner` | `claude-fable-5-1` | `high` | `claude-opus-5-5` @ `high` | Design is where a bad call is most expensive. Deepest reasoner at `high` — Anthropic's recommended start; go to `xhigh` only on a measured gain. |
+| `implement` | `generator` | `claude-opus-5-5` | `high` | `null` | The builder. Opus 5.5 is suited to long-running coding work and differs from the Fable judge. **No fallback on purpose** — this phase is interactive, so a cap is recoverable by hand. |
+| `review` | `reviewer` | `claude-fable-5-1` | `high` | `claude-opus-5-5` @ `medium` | Fresh-context judge — the doer must never be the judge. Judges get the strongest model. Cap-proof fallback because a headless run can't ask a human mid-review. Accepted tradeoff: the fallback equals the builder's model, so a Fable cap costs model diversity — the fresh-context guarantee still holds. |
+| `evaluate` | `evaluator` | `claude-fable-5-1` | `high` | `claude-opus-5-5` @ `medium` | Rubric scorer at the sprint gate. Same reasoning as `review`. Off by default (`verification.evaluator.enabled: false`) — one judge at the end is enough. |
 | `explore` | `explorer` | `haiku` | `low` | `null` | Read-only scout for fan-out searches. High volume, shallow judgment — the one place to spend nothing. |
 | `docs` | `doc-gardener` | `haiku` | `low` | `null` | Small, safe documentation edits. |
 
+The harness development repo also pins **generated Codex agent roles** independently of these Claude
+routes: planner, reviewer, and evaluator use `gpt-6-astra` at `high`; generator uses `gpt-6-sol` at
+`high`; explorer and doc-gardener use `gpt-6-luna` at `low`. `codex-setup.*` writes these values to
+`.codex/agents/*.toml`. The native Codex session itself retains its ambient model and effort.
+
 **Pin full IDs, not aliases, wherever the generation matters.** The bare aliases `opus` and `fable` float
-to whatever the current model of that tier is (today: Opus 5 and Fable 5.1), so a phase written as
+to whatever the current model of that tier is (today: Opus 5.5 and Fable 5.1), so a phase written as
 `fable` silently changes model the moment a new Fable ships — and effort levels do not mean the same
 depth across generations, so a floated model also floats its cost. Aliases are fine for `haiku`, where
 only the tier matters.
@@ -58,12 +63,13 @@ is ignored by an overnight loop, so the same config behaves differently on the t
 
 **Per-phase Codex settings.** A phase whose `model` or `fallback` is `codex` — or, on `review`, whose
 `second.model` is `codex`, since the second judge runs on the review phase's own codex settings — may add
-`"codex": { "model": "gpt-5.6-sol", "reasoningEffort": "high" }`; each key set there wins over the
+`"codex": { "model": "gpt-6-sol", "reasoningEffort": "high" }`; each key set there wins over the
 global `models.codex` block for that phase (keys left null inherit it). `auth` and `timeoutSeconds`
-stay global. Don't add the block to a phase that never routes to codex — the engine won't read it and
-`/harness-doctor` 10(g) will say so. Prefer `model: null` (float on the Codex CLI default) unless you
+stay global. `codex-setup.*` also reads these blocks for every generated Codex agent role, including
+phases whose workflow primary remains Claude. `/harness-doctor` 10(g) reports those blocks as role-only
+settings once `.codex/` exists. Prefer `model: null` (float on the Codex CLI default) unless you
 have a reason to pin: every `*-codex` model ID was retired in 2026-07/08, so pinned IDs rot. Once any
-phase routes to codex, run `harness/codex-setup.*` to generate Codex's own copies of the guard hooks,
+phase routes to codex or pins generated roles, run `harness/codex-setup.*` to generate Codex's own copies of the guard hooks,
 the phase agents, and the harness commands as skills under `<project>/.agents/skills/` - that directory,
 not the `[[skills.config]]` stanza in `config.toml`, is what `codex exec` actually reads (measured
 2026-09-09; the stanza is inert for exec). See `docs/codex-setup.md`; doctor check 12 keeps them fresh.
@@ -111,7 +117,7 @@ keystroke and make customizing possible without a seven-question interrogation.
    0; `auth: api-key` → `CODEX_API_KEY` is set. Don't report an api-key user as "not signed in" for
    failing the chatgpt probe. `codex login status` also false-negatives against Azure/custom providers
    (`AGENT_NOTES.md`) — if the human says codex works, believe them over the probe. If it genuinely
-   isn't there, say so and keep the Claude-only default (`implement` = `claude-opus-5` @ `high`) instead
+   isn't there, say so and keep the Claude-only default (`implement` = `claude-opus-5-5` @ `high`) instead
    of writing a route that silently falls back forever.
 
 ### Constraints to enforce as you collect
@@ -137,9 +143,9 @@ plugin (there's no in-repo `plugin/`, and `.claude/agents/` is absent or plugin-
 
 | Surface | Gets | Write it in… |
 |---------|------|--------------|
-| `harness/harness.config.json` → `models` | `{model, fallback, effort, fallbackEffort}` per phase, plus an optional per-phase `codex: {model, reasoningEffort}` on codex-routed phases | **Both.** The declared table, and the one that actually routes at runtime. Also the global `models.codex` (`model`, `reasoningEffort`, `auth`, `timeoutSeconds`) if any phase routes to codex. |
+| `harness/harness.config.json` → `models` | `{model, fallback, effort, fallbackEffort}` per phase, plus optional per-phase `codex: {model, reasoningEffort}` for dispatched Codex phases or generated Codex roles | **Both.** The declared table and runtime routing. Global `models.codex` supplies defaults for Codex dispatch and generated roles. |
 | `.claude/settings.json` | `model` = `session.model`, `effortLevel` = `session.effort` | **Both.** `CLAUDE_CODE_EFFORT_LEVEL` and `claude --effort` override `effortLevel` at launch. |
-| the plugin's `agents/*.md` frontmatter | `model:` and `effort:` | **Dev repo only.** Tracks the phase's **primary** when that's Claude; when the primary is `codex`, tracks the phase's Claude **`fallback`**/`fallbackEffort` (under the single-vendor defaults every agent tracks its phase's primary — e.g. `generator` = `claude-opus-5`). |
+| the plugin's `agents/*.md` frontmatter | `model:` and `effort:` | **Dev repo only.** Tracks the phase's **primary** when that's Claude; when the primary is `codex`, tracks the phase's Claude **`fallback`**/`fallbackEffort` (under the single-vendor defaults every agent tracks its phase's primary — e.g. `generator` = `claude-opus-5-5`). |
 
 **Never edit agent frontmatter from a consumer repo.** There it lives in the shared plugin cache
 (`~/.claude/plugins/…`), so the edit is outside the project (not revertible with `git`), leaks into

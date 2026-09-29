@@ -967,7 +967,9 @@ CFG_MD="$RR/harness/harness.config.json"
 # leading empty field): 2=Phase 3=Agent 4=model 5=effort 6=fallback.
 for ph in session explore plan implement review evaluate docs; do
   cline="$(grep -E "\"$ph\":" "$CFG_MD" | head -1)"
-  cm="$(printf '%s' "$cline" | sed -n 's/.*"model": *"\([^"]*\)".*/\1/p')"
+    # Stop at the first nested object: codex.model on the same line is a role override,
+    # not the phase's Claude primary.
+    cm="$(printf '%s' "$cline" | sed -n 's/^[^{]*{[^{}]*"model": *"\([^"]*\)".*/\1/p')"
   ce="$(printf '%s' "$cline" | sed -n 's/.*"effort": *"\([^"]*\)".*/\1/p')"
   cf="$(printf '%s' "$cline" | sed -n 's/.*"fallback": *"\([^"]*\)".*/\1/p')"
   cfe="$(printf '%s' "$cline" | sed -n 's/.*"fallbackEffort": *"\([^"]*\)".*/\1/p')"
@@ -1092,6 +1094,12 @@ if command -v jq >/dev/null 2>&1; then
   ok "$(! grep -qF 'not Claude Code' "$CSK/model-routing/SKILL.md" && echo 1 || echo 0)" "a reference skill is emitted verbatim (no command preamble)"
   ok "$(grep -qF 'fresh-context' "$CSK/harness-review/SKILL.md" && echo 1 || echo 0)" "bridged skill carries the command BODY, not just its frontmatter"
   ok "$([ "$(grep -cx '\.agents/' "$CSP/.gitignore")" = "1" ] && echo 1 || echo 0)" ".gitignore gained exactly one '.agents/' line"
+  # .agents/* already ignores generated children but leaves the parent visible so
+  # the tracked marketplace exception works. Appending .agents/ defeats it.
+  printf '.codex/\n.agents/*\n!.agents/plugins/\n.agents/plugins/*\n!.agents/plugins/marketplace.json\n' > "$CSP/.gitignore"
+  cp "$CSP/.gitignore" "$CSP/.gitignore.before"
+  bash "$CS" --project-root "$CSP" >/dev/null 2>&1 || true
+  ok "$(cmp -s "$CSP/.gitignore" "$CSP/.gitignore.before" && echo 1 || echo 0)" "existing .agents/* ignore preserves the marketplace exception"
   # REGRESSION: a .gitignore with NO TRAILING NEWLINE that already carries `.codex/` - the exact upgrade
   # shape (pre-bridge repo, hand-edited file). Appending `.agents/` without a leading newline produced
   # `.codex/.agents/`, destroying BOTH patterns and un-ignoring the machine-local .codex/ dir. Assert

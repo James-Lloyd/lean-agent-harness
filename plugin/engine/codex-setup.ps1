@@ -315,7 +315,7 @@ if (-not ($giLines -ccontains '.codex/')) {
 # so a combined check would never append this one. `-ccontains` is case-sensitive, matching the .sh
 # twin's `grep -qx`. Re-read the file: the block above may have just appended to it.
 $giLines2 = if (Test-Path $gi) { @(Get-Content -LiteralPath $gi) } else { @() }
-if (-not ($giLines2 -ccontains '.agents/')) {
+if (-not (($giLines2 -ccontains '.agents/') -or ($giLines2 -ccontains '.agents/*'))) {
   # Leading newline unless the file already ends with one - see the .sh twin: the `.codex/` block's
   # leading `\n` is not inherited by this one, and without this guard a .gitignore with no trailing
   # newline gets `.codex/.agents/`, un-ignoring both.

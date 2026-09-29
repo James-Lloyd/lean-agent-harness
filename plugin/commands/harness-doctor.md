@@ -93,7 +93,7 @@ behaves oddly.
       phase's **primary** when the primary is a Claude model; when the primary is `"codex"`, frontmatter
       must == the phase's **Claude `fallback`** (so a spawned subagent still lands on the right model) and
       you note "phase is codex-routed — frontmatter tracks its Claude fallback." Illustration only: no
-      shipped config has a codex-primary phase (`implement` has been `claude-opus-5` with no fallback
+      shipped config has a codex-primary phase (`implement` uses `claude-opus-5-5` with no fallback
       since 2026-08-11, and the harness repo uses one Claude reviewer as of 2026-09-12), so this branch
       is currently unexercised by any config in the repo.
       **Order of operations with (i):** if the codex-primary phase is one (i) grades ❌ — `explore` or
@@ -136,14 +136,13 @@ behaves oddly.
       today.
     - **(g) Per-phase codex overrides are read, and legal.** A phase may carry `codex: { model,
       reasoningEffort }` (design-doc 002 D2), merged over the global `models.codex` by the engine's
-      `phase_codex_model`/`phase_codex_effort` (sh) and `Resolve-PhaseCodexCfg` (ps1). It is consumed
-      ONLY when that phase's `model`, `fallback`, or (on `review`) `second.model` is `"codex"` — on any
-      other phase it is a key nothing reads (ratchet 2026-08-11): ⚠️, name the phase, suggest deleting the
-      block or routing the phase to codex. **`review.codex` beside a Claude primary and a codex `second`
+      `phase_codex_model`/`phase_codex_effort` (sh) and `Resolve-PhaseCodexCfg` (ps1). The dispatcher
+      consumes it when the phase's `model`, `fallback`, or (on `review`) `second.model` is `"codex"`.
+      **`review.codex` beside a Claude primary and a codex `second`
       is READ — do not warn on it:** `second_review`/`Invoke-SecondReview` pass the review phase's
       `REVIEW_CODEX_MODEL`/`REVIEW_CODEX_EFFORT` to the second judge. That is a valid opt-in pairing,
-      not part of the recommended single-reviewer defaults. **Second carve-out, whenever `.codex/`
-      is generated:** `engine/codex-setup.*` resolves `phase_codex_model`/`phase_codex_effort` for every
+      not part of the recommended single-reviewer defaults. **Generated-role use:**
+      `engine/codex-setup.*` resolves `phase_codex_model`/`phase_codex_effort` for every
       mapped agent phase (planner, generator, reviewer, evaluator, explorer, doc-gardener) **ungated by
       that phase's route**, to write `.codex/agents/<name>.toml`. So a `codex{}` block on an unrouted
       phase — `explore` and `docs` included — is read by the generator even when the phase's `model` is
@@ -159,7 +158,7 @@ behaves oddly.
       second is probed like (f) and reported ⚠️ when unreachable, with the consequence spelled out:
       the second reviewer has NO fallback, so an unreachable one stops every review point fail-closed
       until it is reachable or removed. Say which pair will actually judge (e.g. "claude-fable-5-1 then
-      codex gpt-5.6-sol").
+      codex gpt-6-astra").
     - **(i) A codex route must have somewhere to be dispatched FROM.** The literal `"codex"` is legal
       *syntax* on every phase, but only some phases have code that acts on it, and a value nothing reads
       is worse than no value at all (ratchet 2026-08-11) — it advertises a control that does not exist.

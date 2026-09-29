@@ -292,7 +292,7 @@ fi
 # .agents/skills/ is generated from the installed plugin too, so it is machine-local for the same
 # reason and gets its own line (separate guard: a repo set up before the bridge shipped already has
 # the `.codex/` line, so a combined check would never append this one).
-if ! { [ -f "$gi" ] && grep -qx '\.agents/' <<< "$(tr -d '\r' < "$gi")"; }; then
+if ! { [ -f "$gi" ] && grep -Eqx '\.agents/(\*)?' <<< "$(tr -d '\r' < "$gi")"; }; then
   # LEADING NEWLINE UNLESS THE FILE ALREADY ENDS WITH ONE. The `.codex/` block above opens with `\n`,
   # and that newline is NOT inherited by a block appended beside it: on a .gitignore with no trailing
   # newline this wrote `.codex/.agents/`, destroying BOTH patterns and un-ignoring the machine-local
