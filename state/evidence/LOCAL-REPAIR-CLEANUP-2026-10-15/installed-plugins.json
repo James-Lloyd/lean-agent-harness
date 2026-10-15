@@ -1,0 +1,36 @@
+{
+    "codexVersion":  "codex-cli 0.162.1",
+    "codexPlugin":  [
+                        {
+                            "pluginId":  "lean-agent-harness@lean-agent-harness",
+                            "name":  "lean-agent-harness",
+                            "marketplaceName":  "lean-agent-harness",
+                            "version":  "0.5.4",
+                            "installed":  true,
+                            "enabled":  true,
+                            "source":  {
+                                           "source":  "local",
+                                           "path":  "<home>\\.codex\\.tmp\\marketplaces\\lean-agent-harness\\plugin"
+                                       },
+                            "marketplaceSource":  {
+                                                      "sourceType":  "git",
+                                                      "source":  "https://github.com/James-Lloyd/lean-agent-harness.git"
+                                                  },
+                            "installPolicy":  "AVAILABLE",
+                            "authPolicy":  "ON_INSTALL"
+                        }
+                    ],
+    "claudePlugin":  [
+                         {
+                             "id":  "lean-agent-harness@lean-agent-harness",
+                             "version":  "0.5.4",
+                             "scope":  "user",
+                             "enabled":  true,
+                             "installPath":  "<home>\\.claude\\plugins\\cache\\lean-agent-harness\\lean-agent-harness\\0.5.4",
+                             "installedAt":  "2026-10-15T13:42:07.314Z",
+                             "lastUpdated":  "2026-10-15T13:42:07.314Z"
+                         }
+                     ],
+    "compatibilityHooksExist":  false,
+    "capturedAtUtc":  "2026-10-15T13:48:13.5844379Z"
+}
