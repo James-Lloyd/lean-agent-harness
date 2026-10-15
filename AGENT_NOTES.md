@@ -222,3 +222,9 @@ NOT under the loop; `HARNESS_GATE_STRICT=1` turns a half-grade into a red exit i
   files had newer mtimes than active 0.5.2, so a consumer wrapper dispatched the older engine. Search
   both host caches as one candidate set, rank parsed semantic versions first and mtime only as a tie
   breaker, and have doctor compare all six consumer wrappers with the installed package sources.
+- [2026-10-15] **After moving a checkout, repair linked-worktree metadata before pruning.**
+  `git worktree repair <current paths>` reconnects worktrees whose administrative files still name
+  the old location. Verify dirty children at their repaired paths; stale registration is not proof
+  their work is disposable. Regenerate ignored Codex surfaces too: their stamp includes plugin paths.
+  Finish native installation/inventory first: materializing a same-version cache can change the
+  wrapper's mtime tie-break and therefore its selected plugin root; check both twins afterward.

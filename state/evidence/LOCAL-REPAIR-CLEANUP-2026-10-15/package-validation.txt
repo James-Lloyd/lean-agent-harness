@@ -1,0 +1,2 @@
+exit=0 durationSeconds=5.57
+OpenAI plugin package is consistent: 0.5.4, 4 hooks, 21 discoverable skills (15 Codex entry points), 6 dual-cache wrappers with cache-only execution, activation fallback, 3532 byte AGENTS.md
